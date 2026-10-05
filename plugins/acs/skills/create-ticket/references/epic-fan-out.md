@@ -33,9 +33,11 @@ epic, after that epic's own design is approved. Resulting precedence:
    (`parent %s is a %s, not an epic`), so the two can never disagree.
 3. **Design precondition.** Resolve the epic's published design with
    `acs.py artifacts show --ticket <epic-id>` and read
-   `artifacts["design.md"]` — `docs/tickets/<epic-id>/design.md` in the
-   checkout, or `design.md` in the epic's workspace partition when there was
-   no checkout (`null` = none published) — and the `create-design` step's
+   `artifacts["design.md"]` — the epic's design record
+   `<architecture_dir>/lld/<feature>/<epic-id>/design.md` in the checkout (a
+   legacy `docs/tickets/<epic-id>/design.md` is still read), or `design.md` in
+   the epic's workspace partition when there was no checkout (`null` = none
+   published) — and the `create-design` step's
    status in the epic run's `run.json`. When `create-design` has not completed, or
    `design.md` is absent, surface that to the user and obtain their explicit
    confirmation before proceeding — never proceed silently, and never
@@ -72,12 +74,10 @@ epic, after that epic's own design is approved. Resulting precedence:
 
    `--ticket` names the child; `--from` takes a JSON file, or `-` (or nothing)
    for stdin. The document is a PATCH merged over the stored ticket, so send
-   only `acceptance_criteria`. It writes wherever the ticket lives —
-   `docs/tickets/<child-id>/ticket.md` once the docs tree exists (which is
-   where `new-ticket.py` put it), else the workspace partition's
-   `ticket.json` — and re-indexes it. Never hand-edit either file: a
-   hand-written `ticket.json` beside a `ticket.md` is a second copy no reader
-   opens. `new-ticket.py` exposes no `--acceptance-criteria` flag.
+   only `acceptance_criteria`. It writes the workspace partition's
+   `ticket.json` — the ticket lives only in the workspace and the tracker,
+   never in the repo (ADR-0128) — and re-indexes it. Never hand-edit
+   `ticket.json`. `new-ticket.py` exposes no `--acceptance-criteria` flag.
 8. **Sync.** Run Step 5 below, scoped to the newly minted children only —
    see Step 5's sync-set clause for the exclusion rule that keeps the
    epic's own already-synced issue from being re-created.

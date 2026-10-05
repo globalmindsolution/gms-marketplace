@@ -1,6 +1,6 @@
 # 0102 — Documents are found, not configured: no path settings
 
-**Status**: Accepted · **Date**: 2026-09-23
+**Status**: Accepted · amended by [0128](0128-requirements-from-any-container.md) (optional `docs.*_dir` settings name the phase folders) · **Date**: 2026-09-23
 
 **Amends**: [0086](0086-in-repo-anchored-state-machine.md) (the in-repo
 workspace stands; its `workspace_path` override is removed),

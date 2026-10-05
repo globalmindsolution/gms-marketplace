@@ -52,7 +52,7 @@ def _written(ws):
     (ADR-0127) -- the scaffold's own uncommitted ticket docs aside."""
     out = ws.sh("git status --porcelain --untracked-files=all")
     return sorted(line[3:] for line in out.splitlines()
-                  if not line[3:].startswith((".acs/", "docs/tickets/")))
+                  if not line[3:].startswith((".acs/", "docs/development/", "docs/architecture/lld/")))
 
 
 def _code(ws, leg, source, test=TEST, finish=True):

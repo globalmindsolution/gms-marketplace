@@ -100,7 +100,7 @@ class TestSkillFrontmatter(unittest.TestCase):
         self.assertRegex(self.fm, r"(?m)^name: create-api-contract$")
 
     def test_it_is_a_ticket_scoped_coordinator(self):
-        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\]"$')
+        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         self.assertRegex(self.fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
 
     def test_description_says_when_it_runs(self):
@@ -158,7 +158,7 @@ class TestGateAgreement(unittest.TestCase):
         /acs:create-impl-plan is advice in the report, not a refusal."""
         self.assertFalse(hasattr(lib, "reads_of"))
         self.assertRegex(self.body, r"never refuses because an upstream artifact is missing")
-        self.assertRegex(self.body, r"`plan.md` absent — work from the subject")
+        self.assertRegex(self.body, r"`plan.md` absent — work from the requirements")
         self.assertIn("run /acs:create-impl-plan <id> first", self.body)
         self.assertNotIn("acs.yaml", self.body)
         self.assertNotRegex(self.body, r"Missing → \"run")
@@ -406,7 +406,9 @@ class TestPublishing(unittest.TestCase):
         cls.body = read(SKILL_PATH)
 
     def test_the_artifact_path_is_resolved_by_the_cli_not_guessed(self):
-        self.assertIn("artifacts show --ticket <id>", self.body)
+        self.assertIn('acs.py" artifacts show\n', self.body)
+        self.assertNotIn("artifacts show --ticket <id>\n", self.body)
+        self.assertIn('`paths["%s"]` non-null → publish there' % "api-contract.md", self.body)
         self.assertRegex(self.body, r'artifacts\["api-contract.md"\]')
 
     def test_the_gate_resolved_inputs_are_reused_not_re_derived(self):

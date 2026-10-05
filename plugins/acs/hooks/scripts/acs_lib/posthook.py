@@ -327,7 +327,13 @@ def run_post(skill):
             summary=result.get("summary") or result.get("stop_reason"),
             stop_reason=result.get("stop_reason"),
             extra={"leg": result["leg"]} if result.get("leg") else None)
-    elif skill in STANDALONE_RUN_SKILLS:
+    elif skill in STANDALONE_RUN_SKILLS or not (
+            (doc.get("subject") or {}).get("ticket_id") or doc.get("driver")):
+        # ...and since ADR-0128 a ticketless run a design skill (create-design,
+        # create-data-design, create-flows) was invoked on with a prompt or
+        # documents: left open, its cursor would hand the next /acs:ship from
+        # this checkout `analyze-requirements` on requirements it never asked
+        # to deliver.
         # The run `step start` opened over a ticketless skill's invocation (an
         # audit, and since ADR-0127 the product skills) ends with it; a run
         # that also carries workflow steps is left alone (the helper refuses

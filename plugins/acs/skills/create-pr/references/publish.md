@@ -26,8 +26,9 @@ ticket-link check is
 READ EVERY ONE of these before acting — workspace state, never conversation
 history:
 
-- the ticket's `ticket.json`, when the run has a ticket — title, type,
-  `external`; otherwise the run's prompt (`subject`);
+- the run's `requirements.md` (`context.requirements.path`) — the
+  acceptance criteria whatever container they came from — and the ticket's
+  `ticket.json`, when the run has a ticket — title, type, `external`;
 - `steps/code/state.json`, `specs/*.md`, and `design.md` when the ticket
   has one;
 - the commit plan `acs.py pr plan-commits` printed, and the confirmed copy you
@@ -59,8 +60,10 @@ C1. **Plan.** `acs.py pr plan-commits --out …` plans for the run, whatever its
    subject — a ticket, a prompt, or (a prompt with no current run) a new
    prompt-subject run whose changeset is every uncommitted change against
    HEAD. Its groups are ordered layer by layer — documents first, one group
-   per doc set (ticket docs `docs/tickets/<ID>/`, PRD, `hld/`, each
-   `lld/<feature>/`, ADRs), then per plan slice or file-map partition its
+   per doc set (the change's Development docs
+   `<development_dir>/<feature>/<ID>/`, the PRD and its features' analyses,
+   `hld/`, each `lld/<feature>/` with its design records, ADRs, and a legacy
+   `docs/tickets/<ID>/` a run still touched), then per plan slice or file-map partition its
    tests and then its code (one commit when a slice has only one kind; a run
    with no plan: tests, then code), then docs-sync's doc updates, then the e2e
    suites. In a run whose steps recorded their files, a path is in a group
@@ -182,7 +185,7 @@ normally 1):
   "artifacts": ["steps/create-pr/iter-1/commit-plan.json", "steps/create-pr/pr-body.md"],
   "run_mode": "ticket",
   "commit_plan": {"path": "steps/create-pr/iter-1/commit-plan.json", "confirmed_by": "C-1", "left_out": ["notes/todo.md"], "excluded": []},
-  "commits": [{"id": "ticket-docs", "sha": "0f3c2ab9", "subject": "SHOP-123 Add ticket docs", "paths": ["docs/tickets/SHOP-123/analysis.md"]},
+  "commits": [{"id": "ticket-docs", "sha": "0f3c2ab9", "subject": "SHOP-123 Add ticket docs", "paths": ["docs/development/bulk-import/SHOP-123/analysis.md"]},
               {"id": "slice-01-tests", "sha": "5d1e07c4", "subject": "SHOP-123 Add tests for bulk import", "paths": ["tests/test_import.py"]},
               {"id": "slice-01-code", "sha": "9a8b7c6d", "subject": "SHOP-123 Implement bulk import", "paths": ["src/shop/importer.py"]}],
   "pr": {"number": 42, "url": "https://github.com/acme/shop/pull/42", "branch": "task/SHOP-123-bulk-import", "base": "main"},
@@ -234,8 +237,8 @@ How the run ends, and what the report then says:
   work — what the plan leaves out stays in the working tree exactly as it
   was.
 - Never fabricate body content: every Summary/Changes/Test-plan claim comes from
-  `ticket.json`, `specs/`, `design.md`, `steps/code/state.json`, or the commits
-  `acs.py pr commit` printed (with no ticket: the run's prompt and the changed
+  `requirements.md`, `ticket.json`, `specs/`, `design.md`, `steps/code/state.json`, or the commits
+  `acs.py pr commit` printed (with no ticket: the run's requirements and the changed
   files) — a section the
   state cannot fill stays honest and minimal.
 - If `git push` or `gh pr create` fails, capture the exact stderr plus the

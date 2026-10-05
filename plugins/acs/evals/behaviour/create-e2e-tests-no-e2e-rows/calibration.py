@@ -11,7 +11,7 @@ import os
 
 SCRIPTS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                         "..", "..", "..", "hooks", "scripts"))
-CASES = "docs/tickets/EVAL-1/test-cases.md"
+CASES = "docs/development/customer-listing/EVAL-1/test-cases.md"
 SUITE = "tests/e2e/test_eval_1_page_cap.py"
 
 

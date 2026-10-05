@@ -11,9 +11,9 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan"
-PUBLISHED = "docs/tickets/EVAL-1/plan.md"
+PUBLISHED = "docs/development/customer-listing/EVAL-1/plan.md"
 FILES = ["src/shop/__init__.py", "tests/test_slow_listing_log.py"]
-PLAN = '# Plan — EVAL-1: Log slow customer listings\n\nPlanned from docs/tickets/EVAL-1/analysis.md (api_surface false).\n\n## Approach\n\nWrap the body of `list_customers` in `src/shop/__init__.py` with\n`time.perf_counter()`; above `SLOW_LISTING_MS = 200` log one WARNING on\n`logging.getLogger("shop")` naming offset, limit and elapsed ms. The return\nvalue and signature do not change.\n\n## Tests\n\n| AC | Test (tests/test_slow_listing_log.py) |\n|---|---|\n| AC-1 | a patched 250 ms call logs exactly one WARNING on `shop` |\n| AC-2 | that warning names offset, limit and 250 |\n| AC-3 | a patched 200 ms call logs nothing |\n\nRun `python3 -m pytest -q --cov=src --cov-fail-under=90`; coverage target 90%.\n\n## Documentation\n\ndocs/product/prd.md and docs/product/roadmap.md make no claim this changes.\n\n## Contract\ndelivery_path: trivial\nowes:\n  api_contract: false\n  test_cases: true\n  e2e: false\n  reason: "Operator log line only: GET /customers keeps its parameters, response and errors"\n\n### Executor tasks & file map\n- task 1: src/shop/__init__.py, tests/test_slow_listing_log.py\n'
+PLAN = '# Plan — EVAL-1: Log slow customer listings\n\nPlanned from docs/development/customer-listing/EVAL-1/analysis.md (api_surface false).\n\n## Approach\n\nWrap the body of `list_customers` in `src/shop/__init__.py` with\n`time.perf_counter()`; above `SLOW_LISTING_MS = 200` log one WARNING on\n`logging.getLogger("shop")` naming offset, limit and elapsed ms. The return\nvalue and signature do not change.\n\n## Tests\n\n| AC | Test (tests/test_slow_listing_log.py) |\n|---|---|\n| AC-1 | a patched 250 ms call logs exactly one WARNING on `shop` |\n| AC-2 | that warning names offset, limit and 250 |\n| AC-3 | a patched 200 ms call logs nothing |\n\nRun `python3 -m pytest -q --cov=src --cov-fail-under=90`; coverage target 90%.\n\n## Documentation\n\ndocs/product/prd.md and docs/product/roadmap.md make no claim this changes.\n\n## Contract\ndelivery_path: trivial\nowes:\n  api_contract: false\n  test_cases: true\n  e2e: false\n  reason: "Operator log line only: GET /customers keeps its parameters, response and errors"\n\n### Executor tasks & file map\n- task 1: src/shop/__init__.py, tests/test_slow_listing_log.py\n'
 
 
 def _written(ws):
@@ -31,7 +31,7 @@ def _start(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/plan.md", text)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/plan.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/plan.md" "%s"' % (STEP, PUBLISHED))
 
 
 def _declare(ws, files):

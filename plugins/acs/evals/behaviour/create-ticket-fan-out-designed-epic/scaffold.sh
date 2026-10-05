@@ -4,11 +4,11 @@
 # acceptance criteria through `acs.py ticket save`. Its design is DONE: the
 # create-design step was run through the plugin's own writers -- `acs step
 # start`, the designer's draft in the step directory, the Publish copy to
-# docs/tickets/EVAL-1/design.md (left uncommitted, as create-design leaves it
+# docs/architecture/lld/order-tracking/EVAL-1/design.md (left uncommitted, as create-design leaves it
 # before any ticket branch exists), result.json and post-create-design.py --
 # so run.json records create-design completed and the fan-out's design
-# precondition holds. No child exists yet. Because docs/tickets/ now exists,
-# every child new-ticket.py mints lives at docs/tickets/EVAL-<n>/ticket.md.
+# precondition holds. No child exists yet. Every child new-ticket.py mints
+# lives in the workspace only (ADR-0128: no ticket file in the repo).
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -17,6 +17,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
+ACS_FEATURES=order-tracking
 acs_ticket "Order tracking" epic true \
   "Shoppers track an order from payment to delivery: carrier status updates, an order status page, and an email on every status change. PRD feature F3."
 printf '%s' '{"acceptance_criteria": [
@@ -93,10 +94,10 @@ Three children, one reviewable PR each, in this order:
 
 Single-step deploy per slice; no data migration beyond the new status table.
 MD
-mkdir -p docs/tickets/EVAL-1
-cp "$step/design.md" docs/tickets/EVAL-1/design.md
+mkdir -p docs/architecture/lld/order-tracking/EVAL-1
+cp "$step/design.md" docs/architecture/lld/order-tracking/EVAL-1/design.md
 printf '%s' '{"status": "completed", "summary": "design reviewer passed on iteration 1",
-  "states": {"design_path": "docs/tickets/EVAL-1/design.md",
+  "states": {"design_path": "docs/architecture/lld/order-tracking/EVAL-1/design.md",
              "decision": "Receive carrier status through signed webhooks (Option A)"},
   "findings": [], "errors": []}' > "$step/result.json"
 python3 "$ACS_SCRIPTS/post-create-design.py" --result-file "$step/result.json" > /dev/null

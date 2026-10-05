@@ -1,23 +1,30 @@
 # Workspace & State Management
 
-## Two stores: the repo docs tree and the workspace
+## Two stores: the repo's phase folders and the workspace
 
-A ticket's files live in two places, split by audience, and every requirement
-below belongs to exactly one of them:
+A run's files live in two places, split by audience, and every requirement
+below belongs to exactly one of them
+([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)):
 
-| | Repo docs tree | Workspace partition |
+| | Repo phase folders | Workspace |
 |---|----------------|---------------------|
-| **Where** | `<repo>/docs/tickets/<ID>/` (fixed — no setting) | `<workspace>/<repo>/<ticket-id>/` |
-| **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `run.json`, `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
-| **Versioned** | yes — written uncommitted by the skills, committed by `/create-pr` on the ticket branch (ADR-0127), reviewed in the PR | no — gitignored |
-| **Written by** | the coordinator and the ticket skills; an executor MUST NOT write there (the file-map guard treats it as a control input) | hooks and the skills' own subagents |
+| **Where** | one folder per phase, keyed by the run's feature: Discovery `<prd_dir>/features/<feature>/`, Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, Development `<development_dir>/<feature>/<ticket-id or run-id>/` | `<workspace>/<repo>/` — the ticket partition `<ticket-id>/` and the run partition `runs/<run-id>/` |
+| **Holds** | the human-facing documents: the feature's living `analysis.md` (Discovery); `design.md`, `api-contract.md` (Design); a Development run's `analysis.md`, `plan.md`, `test-cases.md` (Development) | the ticket (`ticket.json`) and its clarification ledger; the run ledger: `run.json`, `requirements.md`, `subject/` (`sources.json` and the copied documents), `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, a ticketless run's `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
+| **Versioned** | yes — written uncommitted by the skills, committed by `/create-pr` (ADR-0127), reviewed in the PR | no — gitignored |
+| **Written by** | the coordinators of the skills that own each document | hooks, the `acs.py` CLIs and the skills' own subagents |
 
-The docs-tree location is **fixed, never discovered**, and the split has no
-opt-out ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
-Readers MUST still resolve a document by looking in the docs tree first and
-the partition second, so a partition written before the split keeps working
-unmigrated
-([Migrating ticket documents into the repo](#migrating-ticket-documents-into-the-repo)).
+`<prd_dir>` is the repo's PRD directory (found as `/acs:create-prd` finds the
+PRD, default `docs/product`), `<architecture_dir>` the repo's architecture
+set (found by its `hld/tech-stack.md`, default `docs/architecture`) and
+`<development_dir>` an existing `docs/development/`, else that default. The
+feature is the ticket's first feature or the one `/acs:analyze-requirements`
+confirms; a ticketless run names one in that skill's grouped ask.
+
+**A ticket is not a document.** It lives in the workspace partition and in the
+tracker; nothing writes `docs/tickets/<ID>/` or a `ticket.md`. Readers MUST
+still look in an existing `docs/tickets/<ID>/` when a phase folder has no such
+document, so a ticket started before ADR-0128 keeps its documents
+([Legacy ticket folders](#legacy-ticket-folders)).
 
 ## Workspace folder
 
@@ -41,9 +48,10 @@ unmigrated
   no longer needed. Only a write creates the folder: a hook that only looks
   for state writes nothing, so a repo that never runs acs gets no folder
   ([ADR-0105](../../architecture/adr/0105-acs-runs-without-setup.md)).
-- The workspace MUST be partitioned **by consumer repo, then by
-  `<ticket-id>`**: every pipeline artifact for a ticket lives under
-  `<workspace>/<repo>/<ticket-id>/`.
+- The workspace MUST be partitioned **by consumer repo, then by ticket
+  and by run**: a ticket and its clarification ledger live under
+  `<workspace>/<repo>/<ticket-id>/`, and every pipeline artifact of a run —
+  ticket or not — under `<workspace>/<repo>/runs/<run-id>/`.
 - `<repo>` is a stable identifier derived from the git remote
   (e.g. `owner-name`), falling back to the repo directory name when there is
   no remote. All worktrees of the same repo MUST resolve to the **same**
@@ -67,39 +75,73 @@ unmigrated
   A leftover key for it in `.acs/settings.local.json` is a retired key —
   ignored, and safe to delete.
 
-## Migrating ticket documents into the repo
+## Legacy ticket folders
 
-- A repo whose partitions predate the docs-tree split MUST keep working
-  unmigrated: every reader falls back to the partition, so nothing breaks
-  until the owner chooses to move.
-- `acs.py artifacts migrate [--dry-run]` performs the one-shot move for every
-  **live** partition (archived partitions are never migrated): it renders
-  `ticket.json` into `docs/tickets/<ID>/ticket.md`, copies `design.md` and
-  `phases/code/plan.md` into the same folder when they exist and no file is
-  already there, writes `<partition>/ticket.json.moved` naming the new path,
-  and unlinks `ticket.json`. It MUST be **idempotent** (a second run reports
-  the already-migrated tickets and writes nothing new) and MUST refuse while
-  a partition it still has to move holds a `.lock`.
-- `acs.py artifacts show [--ticket ID]` reports, for one ticket, which store
-  each document currently resolves from — the diagnostic for "where did my
-  design.md go".
+- Nothing writes `docs/tickets/<ID>/` any more
+  ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)).
+  A folder written before that change MUST stay readable: every reader of a
+  run's document looks in its phase folder first and, when that has no such
+  file, in `docs/tickets/<ID>/<name>`. Nothing moves or deletes those
+  folders; moving one into the phase folders is the repo owner's choice, and
+  `git mv` is enough. `acs.py artifacts migrate` is retired: it reports and
+  writes nothing.
+- `acs.py artifacts show [--run R | --ticket ID]` reports, for one run, where
+  each document resolves — its phase folder, the legacy ticket folder or the
+  partition — the diagnostic for "where did my design.md go".
+
+## Requirements of a run
+
+Every run, ticket or not, carries its requirements in the workspace
+([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)):
+
+- A skill's arguments MUST be parsed into **sources**: a `<PREFIX>-<n>` token
+  is a ticket, a token naming an existing file (repo-relative, absolute or
+  `~`-expanded) is a document, and everything else is joined, in order, into
+  one prompt. They may be mixed. `run.json.subject` stays ONE primary
+  subject (ticket > document > prompt); the full list is `subject.sources`.
+- `<run>/subject/sources.json` MUST record each source as `{kind, ref,
+  sha256, copy}`. A document from outside the repo MUST be copied into the
+  run as `<run>/subject/<n>-<basename>` and hashed; nothing is added to the
+  repo for it.
+- `<run>/requirements.md` MUST be regenerated from the sources, never edited
+  by hand: a front block (run id, generated time, sources), `## Ticket <ID>`
+  (title, description, acceptance criteria numbered `AC-1…`, features,
+  `needs_design`), `## Prompt` (verbatim), `## Documents` (text inlined, other
+  types cited by their run copy) and `## Refined` — written only by `acs.py
+  requirements refine`, from `/acs:analyze-requirements`, into
+  `<run>/requirements-refined.json`.
+- A later step invoked with new sources MUST add them (deduplicated by hash,
+  ticket or text) and regenerate; a source is never silently replaced.
 
 ## Layout
 
-The repo docs tree (committed, one folder per ticket):
+The repo's phase folders (committed by `/create-pr`, one folder per feature
+and, inside it, one per ticket or run):
 
 ```
 <repo>/
-└── docs/tickets/                       # fixed location, not a setting (ADR-0102)
-    ├── SHOP-122/                       # an epic
-    │   ├── ticket.md                   # front matter (every ticket.json field except status) + Description / Acceptance criteria / Clarifications
-    │   └── design.md                   # epics always carry the design; children read it from here
-    └── SHOP-123/                       # a story/task
-        ├── ticket.md
-        ├── analysis.md                 # /analyze-requirements
-        ├── plan.md                     # /create-impl-plan
-        ├── api-contract.md             # /create-api-contract (only when the analysis found an API surface change)
-        └── test-cases.md               # /create-test-docs
+├── docs/product/                       # <prd_dir>
+│   ├── prd.md
+│   └── features/
+│       └── bulk-export/                # a PRD feature's slug (acs.py slug)
+│           └── analysis.md             # Discovery: the feature's living analysis (status/version/tickets/feature)
+├── docs/architecture/                  # <architecture_dir>
+│   ├── hld/ ...
+│   └── lld/
+│       └── bulk-export/
+│           ├── api/ data/ flows/ components/   # the living LLD, edited in place (ADR-0126)
+│           ├── SHOP-122/               # Design records of one change: an epic
+│           │   └── design.md           # epics always carry the design; children read it from here
+│           └── SHOP-123/
+│               └── api-contract.md     # /create-api-contract (only when the analysis found an API surface change)
+├── docs/development/                   # <development_dir>
+│   └── bulk-export/
+│       ├── SHOP-123/                   # Development documents of a ticket
+│       │   ├── analysis.md             # /analyze-requirements as a ship step
+│       │   ├── plan.md                 # /create-impl-plan
+│       │   └── test-cases.md           # /create-test-docs
+│       └── export-as-csv-3f2a/         # ... and of a ticketless run, under its run id
+└── docs/tickets/SHOP-90/               # LEGACY: read when a phase folder has no such file; never written
 ```
 
 The workspace (gitignored, the run ledger):
@@ -114,25 +156,32 @@ The workspace (gitignored, the run ledger):
     │   └── <checkout-id>/              # ONE directory per checkout, not five prefixed files
     │       └── pointer.json            # the run AND step this checkout is on
     ├── archive/                        # runs of done tickets move here post-merge
-    ├── tickets/<ticket-id>/ticket.json # only until artifacts migrate moves it
+    ├── SHOP-123/                       # THE TICKET: the workspace and the tracker are its only homes
+    │   ├── ticket.json
+    │   └── clarifications.json         # a ticket run's requirement Q&A ledger
     └── runs/
         ├── SHOP-1/                     # a ticket's run
         │   ├── run.json                # THE RUN MACHINE
-        │   ├── subject/                # ticket.json | prompt.md | the document
+        │   ├── subject/sources.json    # every source: kind, ref, sha256, run copy
+        │   ├── requirements.md         # regenerated from the sources (ADR-0128)
         │   ├── baseline.json           # HEAD, branch and already-dirty paths at the first step start (ADR-0127)
         │   └── steps/<skill>/state.json
         ├── acs-create-prd-3f9a/        # a ticketless product-level run (here: /acs:create-prd)
         │   └── steps/create-prd/state.json   # incl. states.files, the uncommitted documents
-        ├── fix-the-login-timeout-3f2a/ # a run started from a PROMPT, not a ticket
+        ├── fix-the-login-timeout-3f2a/ # a run started from a PROMPT (and documents), not a ticket
         │   ├── run.json
-        │   └── subject/prompt.md
+        │   ├── subject/
+        │   │   ├── sources.json
+        │   │   └── 1-spec.pdf          # a document attached from outside the repo, copied and hashed
+        │   ├── requirements.md
+        │   ├── requirements-refined.json   # analyze-requirements' refined AC, needs_design, features, feature
+        │   └── clarifications.json     # a ticketless run's ledger lives in the run
         └── SHOP-123/                   # a story/task: the full pipeline
             ├── run.json                # THE RUN MACHINE: workflow, subject, loop iteration, status
             ├── lock.json               # held by the session working this run
             ├── lock-events.jsonl       # append-only audit of every `lock force-unlock` (who, why, what was broken)
-            ├── subject/ticket.json     # what this run is about
-            ├── requirements.md         # step 1's artifact, promoted: every later step reads it
-            ├── clarifications.json     # requirement Q&A ledger (answers, open questions, assumptions)
+            ├── subject/sources.json    # what this run is about: the ticket, documents, a prompt
+            ├── requirements.md         # every step reads it (context.requirements); the ledger is the ticket's
             ├── agents/                 # runtime scratch: the active-agent records
             ├── handoff-context.md      # written by /acs:handoff
             ├── specs/                  # legacy input: pre-existing specs read by /code when present
@@ -193,14 +242,15 @@ partition; the skills' *outputs* (PRD, architecture doc set) live in the
 consumer repo as uncommitted changes until `/create-pr "<prompt>"` commits them
 ([skills.md](skills.md#product-level-delivery-no-ticket)).
 
-The **ticket document** is the local source of truth for the ticket:
-`docs/tickets/<ID>/ticket.md` when the docs tree is active, else the
-partition's `ticket.json`. `ticket.md` carries every field below as YAML
-front matter **except `status`**, plus a markdown body: `## Description`,
-`## Acceptance criteria` (a numbered list) and `## Clarifications` (a
-read-only mirror rendered from `clarifications.json`). Readers MUST accept
-either shape and MUST return the same dict from both, so nothing downstream
-has to know which store answered.
+The **ticket** is the partition's `ticket.json` — the local source of truth —
+and, when a tracker is configured, its remote copy. No `ticket.md` is written
+([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md));
+a legacy `docs/tickets/<ID>/ticket.md` (front matter of every field below
+except `status`, plus `## Description`, `## Acceptance criteria` and a
+`## Clarifications` mirror) is still read, and readers MUST return the same
+dict from either shape. Skills read a run's acceptance criteria from its
+requirements (`context.requirements`, `acs.py requirements show`), never
+from `ticket.json`.
 
 When a remote
 tracker is configured, it MUST hold the local↔remote id mapping used for
@@ -231,7 +281,7 @@ Key fields written by `/acs:create-ticket` and maintained by hooks:
 | `id` | string | Allocated ticket id, e.g. `SHOP-123` |
 | `title` | string | Human-readable summary |
 | `type` | `"epic"\|"story"\|"task"` | |
-| `status` | `"open"\|"in_progress"\|"in_review"\|"done"` | **Derived** from the run ledger, never written into `ticket.md` |
+| `status` | `"open"\|"in_progress"\|"in_review"\|"done"` | **Derived** from the run ledger, never stored |
 | `parent` | string\|null | Parent epic id; null for roots |
 | `children` | string[] | Child ticket ids (epics only) |
 | `external` | object\|null | Remote tracker mapping (`provider`/`key`) |
@@ -327,8 +377,8 @@ Each state file MUST capture:
 }
 ```
 
-JSON Schemas for the ticket (`ticket.json`, whose field set `ticket.md`'s
-front matter mirrors), `run.json`, `steps/<skill>/state.json`, a step's
+JSON Schemas for the ticket (`ticket.json`), `run.json` (its `subject`
+carrying the optional `sources` list), `steps/<skill>/state.json`, a step's
 `result.json`, the workflow file, the session pointer, `settings.json`
 and `clarifications.json` are **shipped with the plugin**
 (`schemas/`, fourteen of them). JSON Schema is the only validator: the XSD
@@ -341,13 +391,15 @@ perform lightweight stdlib-only structural checks
 - Writers are the subagents/hooks of the owning skill; other skills read but
   MUST NOT modify another skill's state file.
 - Cross-ticket **reads** are allowed (e.g. a child ticket resolves its
-  parent epic's `design.md`, from the epic's docs-tree folder or, for an
-  unmigrated epic, its partition); cross-partition **writes** are limited
+  parent epic's `design.md`, from the epic's Design folder or, for an older
+  epic, its legacy `docs/tickets/<ID>/` folder or its partition); cross-partition **writes** are limited
   to the defined parent-epic status updates performed by child hooks
   ([workflow.md](workflow.md#epic-fan-out)).
-- The repo docs tree is a **control input**: the file-map guard refuses an
-  executor subagent a write anywhere under
-  `docs/tickets/`, with exit 2 and a message naming it
+- The run's Development and Design folders
+  (`<development_dir>/<feature>/<id>/`, `<architecture_dir>/lld/<feature>/<id>/`)
+  and the legacy `docs/tickets/` tree are **control inputs**: the file-map
+  guard refuses an executor subagent a write anywhere under them, with exit 2
+  and a message naming it
   as a control input only the coordinator and the ticket skills write. An
   executor cannot widen or disarm its own scope by editing the ticket.
 - Re-running a skill for the same ticket updates the **current state** in

@@ -214,8 +214,12 @@ No key locates the workspace or a document ([ADR-0102](../adr/0102-documents-are
 workspace is always `<main-checkout>/.acs/state-machine` (anchored via
 `git rev-parse --git-common-dir`, ADR-0086; ignored by its own `.gitignore`
 of `*`, which `write_json`/`write_text` create on the first write under it,
-ADR-0105), ticket documents are
-fixed at `docs/tickets/<ID>/`, and a skill finds every other repo document
+ADR-0105), a run's documents go one folder per phase — Discovery
+`<prd_dir>/features/<feature>/`, Design `<architecture_dir>/lld/<feature>/<id>/`,
+Development `docs/development/<feature>/<id>/`, the directories resolved by
+`acs_lib.requirements.prd_dir`/`architecture_dir`/`development_dir`
+([ADR-0128](../adr/0128-requirements-from-any-container.md)); a legacy
+`docs/tickets/<ID>/` is only read — and a skill finds every other repo document
 through `CLAUDE.md` and the repo, creating a missing one at its `docs/`
 convention. `release_notes.py --workspace` (above) is unaffected in shape —
 still an absolute path argument — and its caller passes this resolved

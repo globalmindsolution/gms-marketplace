@@ -14,7 +14,7 @@ acs_prd
 acs_architecture
 acs_ticket "Customer export for finance" story false \
   "Finance wants to export our customers so they can reconcile them in their accounting system."
-printf '%s' '{"acceptance_criteria": [
+printf '%s' '{"features": ["customer-listing"], "acceptance_criteria": [
   "Finance can download an export of every customer",
   "The export imports into the accounting system finance uses without manual edits"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null

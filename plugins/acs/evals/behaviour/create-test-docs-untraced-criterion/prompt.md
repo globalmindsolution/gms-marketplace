@@ -7,7 +7,7 @@ description: >-
   published and recorded as an open ledger question, and the step stops for
   input with untraced_acs naming AC-4.
 expected_outcome: >-
-  docs/tickets/EVAL-1/test-cases.md exists, names AC-4 under Gaps and
+  docs/development/customer-listing/EVAL-1/test-cases.md exists, names AC-4 under Gaps and
   assumptions and has no TC row for AC-4; clarifications.json holds an open
   create-test-docs question; the step state records untraced_acs [AC-4];
   run.json records the step interrupted with stop_reason needs_input.

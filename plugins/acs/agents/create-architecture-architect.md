@@ -18,7 +18,8 @@ say so — you never improvise an architecture the evidence does not support.
 
 Your prompt contains an XML `<task skill="create-architecture" phase="architect"
 iteration="n">` with an `<objective>`, `<inputs>` (file paths: the PRD
-docs, existing architecture docs to regenerate, and on iteration >= 2 the iteration-1
+docs, the run's `requirements.md`, the features' living analyses
+(`<prd_dir>/features/<feature>/analysis.md`) when present, existing architecture docs to regenerate, and on iteration >= 2 the iteration-1
 authoring notes), `<constraints>` (at minimum `partition` — the absolute
 run-partition path — plus `prd`, `architecture_dir`, `hld_types` — the HLD types
 this repo enables — and format strings), and a
@@ -90,8 +91,10 @@ pass's job, from the notes, after the user has answered the open points.
 1. Read every file listed in `<inputs>` — `prd.md` and `roadmap.md` first; they are the
    bar the architecture is verified against. When the task's `prd` constraint says
    there is none, that bar is the goals, product-level NFRs and constraints the
-   coordinator recorded from the run's subject (the `C-<n>` entries in `<context>`,
-   or the document `<inputs>` names) — cite those wherever this file says PRD.
+   coordinator recorded from the run's requirements (the `C-<n>` entries in `<context>`,
+   or `requirements.md` and the documents `<inputs>` names) — cite those wherever this file says PRD.
+   A feature's living analysis, when `<inputs>` names one, is evidence of what that
+   feature touches (impact map, risks, design needs) — cite it, never contradict it silently.
 2. Classify the product **greenfield vs existing**: Glob for source trees, dependency
    manifests (`package.json`, `pyproject.toml`, `go.mod`, `pom.xml`, …), infrastructure
    (`Dockerfile`, compose files, k8s manifests, Terraform), and CI workflows.

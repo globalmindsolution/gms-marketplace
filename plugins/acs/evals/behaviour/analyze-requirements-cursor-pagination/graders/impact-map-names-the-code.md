@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/analysis.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/analysis.md }
 pattern: '^## Impact map[ \t]*$(?:(?!^## )[\s\S])*src/shop/__init__\.py'
 flags: m
 ---

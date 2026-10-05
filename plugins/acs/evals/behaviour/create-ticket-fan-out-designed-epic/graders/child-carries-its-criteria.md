@@ -1,8 +1,7 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-4/ticket.md }
-pattern: '^## Acceptance criteria\n\n1\. [^\n]*email'
-flags: m
+target: { source: file, path: .acs/state-machine/example-shop/EVAL-4/ticket.json }
+pattern: '"acceptance_criteria": \[\s*"[^"]*email'
 ---
 
 new-ticket.py has no `--acceptance-criteria` flag, so the fan-out writes each

@@ -7,7 +7,7 @@ description: >-
   owes.api_contract false and a reason, declare the executor file map through
   `acs.py filemap set`, and close its step, without asking anything.
 expected_outcome: >-
-  docs/tickets/EVAL-1/plan.md exists with a Contract block whose
+  docs/development/customer-listing/EVAL-1/plan.md exists with a Contract block whose
   owes.api_contract is false and whose file map names src/shop/__init__.py;
   the code step's iteration-1 filemap.json names src/shop/__init__.py; the
   step's state.json records the run completed.
@@ -25,5 +25,5 @@ the ticket's docs folder and left uncommitted (no branch, no commit:
 finished.
 
 I can't answer questions during this run, so don't ask me anything. Every
-open point is settled in docs/tickets/EVAL-1/analysis.md. The tests are
+open point is settled in docs/development/customer-listing/EVAL-1/analysis.md. The tests are
 pytest under tests/, and the coverage target is the repo's configured 90%.

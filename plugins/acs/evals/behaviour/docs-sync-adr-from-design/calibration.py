@@ -28,7 +28,7 @@ no new third-party dependency (ADR 0002).
 ## Decision
 
 Customers are stored in SQLite through the stdlib sqlite3 module
-(src/shop/store.py). See docs/tickets/EVAL-1/design.md.
+(src/shop/store.py). See docs/architecture/lld/customer-listing/EVAL-1/design.md.
 
 ## Consequences
 

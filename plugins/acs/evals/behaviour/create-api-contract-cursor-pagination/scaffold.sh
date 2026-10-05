@@ -3,8 +3,8 @@
 # acceptance criteria through the plugin's own CLIs, and the working tree
 # (main, nothing committed -- ADR-0127) carrying what /acs:analyze-requirements
 # and /acs:create-impl-plan would have PUBLISHED there, uncommitted:
-# docs/tickets/EVAL-1/analysis.md (api_surface: true) and
-# docs/tickets/EVAL-1/plan.md, whose Contract block owes an API contract (so
+# docs/development/customer-listing/EVAL-1/analysis.md (api_surface: true) and
+# docs/development/customer-listing/EVAL-1/plan.md, whose Contract block owes an API contract (so
 # the pre-hook does NOT settle the step as no_surface_owed).
 #
 # acs has no writer command for either document -- each coordinator copies
@@ -23,6 +23,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
+ACS_FEATURES=customer-listing
 acs_ticket "Cursor pagination for GET /customers" story false \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
 printf '%s' '{"acceptance_criteria": [
@@ -31,8 +32,8 @@ printf '%s' '{"acceptance_criteria": [
   "A malformed cursor is rejected with HTTP 400 and error code invalid_cursor"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
@@ -80,10 +81,10 @@ The three criteria on the ticket are confirmed as written.
 
 Ready for planning; api_surface true; no design needed.
 MD
-cat > docs/tickets/EVAL-1/plan.md <<'MD'
+cat > docs/development/customer-listing/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Cursor pagination for GET /customers
 
-Planned from docs/tickets/EVAL-1/analysis.md (api_surface true, ready for
+Planned from docs/development/customer-listing/EVAL-1/analysis.md (api_surface true, ready for
 planning) and the ticket's three acceptance criteria.
 
 ## Approach

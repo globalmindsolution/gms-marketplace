@@ -921,6 +921,31 @@
       },
       "additionalProperties": false
     },
+    "docs": {
+      "description": "Where this repo keeps the folders a run's documents are filed in (ADR-0128), each a repo-relative path. Optional and never defaulted here: an absent key means acs DISCOVERS the folder (prd_dir: a prd.md that CLAUDE.md or the docs index names, else the shallowest prd.md, else docs/product; architecture_dir: the folder holding hld/tech-stack.md, else docs/architecture; development_dir: docs/development).",
+      "type": "object",
+      "properties": {
+        "prd_dir": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+          "description": "The PRD directory; a feature's Discovery folder is <prd_dir>/features/<feature>/."
+        },
+        "architecture_dir": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+          "description": "The architecture directory; a change's design records go to <architecture_dir>/lld/<feature>/<ticket-id or run-id>/."
+        },
+        "development_dir": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$",
+          "description": "The Development directory; a change's plan, test cases and Development analysis go to <development_dir>/<feature>/<ticket-id or run-id>/."
+        }
+      },
+      "additionalProperties": false
+    },
     "parallel": {
       "type": "object",
       "description": "How many subagents a skill spawns in one message; more run in waves of this size (ADR-0125).",

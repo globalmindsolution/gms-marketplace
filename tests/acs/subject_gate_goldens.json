@@ -1,7 +1,7 @@
 {
   "GATE-011": [
     "acs pre-create-design: blocked",
-    "could not resolve a ticket id for /create-design (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:create-design TKT-123."
+    "no requirements for /create-design: no ticket, document or prompt in the invocation, and no current run. Give it a ticket id, documents or a prompt, e.g. /acs:create-design TKT-123."
   ],
   "GATE-015": [
     "acs pre-merge-pr: blocked",

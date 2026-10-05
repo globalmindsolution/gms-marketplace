@@ -1,7 +1,7 @@
 ---
 name: code-trivial
 description: Implement a subject's plan on the TRIVIAL delivery path — one implementer, the plan's own test strategy as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path trivial; never chosen by hand.
-argument-hint: "[ticket-id | prompt | document]"
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 

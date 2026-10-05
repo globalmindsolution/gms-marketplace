@@ -1,9 +1,10 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-2/ticket.md }
-pattern: '^parent: "EVAL-1"\n(?:[a-z_]+:[^\n]*\n|  [^\n]*\n)*needs_design: false$'
+target: { source: file, path: .acs/state-machine/example-shop/EVAL-2/ticket.json }
+pattern: '^\s*"parent": "EVAL-1",?$'
 flags: m
 ---
 
-Each child records the epic as its `parent` and carries `needs_design:
-false` -- the epic carries the design, and children inherit it.
+Each child records the epic as its `parent` -- the epic carries the design,
+and children inherit it. The child lives in the workspace partition's
+`ticket.json`: since ADR-0128 no ticket file is written into the repo.

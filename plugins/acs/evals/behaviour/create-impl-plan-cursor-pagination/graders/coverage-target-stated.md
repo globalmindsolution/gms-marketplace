@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/plan.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/plan.md }
 pattern: '\b90[ \t]*%|fail-under[= \t]*90\b|coverage[^\n]*\b90\b'
 flags: i
 ---

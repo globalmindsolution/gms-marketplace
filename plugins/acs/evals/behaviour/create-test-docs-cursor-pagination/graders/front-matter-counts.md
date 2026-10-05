@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/test-cases.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/test-cases.md }
 pattern: '^-{3}\n(?=(?:[a-z0-9_]+:[^\n]*\n)*cases:[ \t]*[1-9]\d*[ \t]*\n)(?=(?:[a-z0-9_]+:[^\n]*\n)*e2e_cases:[ \t]*\d+[ \t]*\n)'
 ---
 

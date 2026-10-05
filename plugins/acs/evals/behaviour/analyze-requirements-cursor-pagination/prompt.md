@@ -2,11 +2,11 @@
 description: >-
   /acs:analyze-requirements on a seeded story (cursor pagination for GET
   /customers) with every clarification answered up front. The skill should
-  survey the code, publish analysis.md to the ticket's docs folder with its
+  survey the code, publish analysis.md to the run's development folder with its
   machine-read front matter and seven sections, left uncommitted on main, and
   close its step through the post-hook -- without asking anything.
 expected_outcome: >-
-  docs/tickets/EVAL-1/analysis.md exists with ticket EVAL-1, api_surface true
+  docs/development/customer-listing/EVAL-1/analysis.md exists with ticket EVAL-1, api_surface true
   and the seven headings in order, its impact map names src/shop/__init__.py,
   main is still checked out with nothing committed, and the step's state.json
   records the run completed.
@@ -18,7 +18,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:analyze-requirements skill for ticket EVAL-1 (cursor pagination
 for GET /customers) and take it all the way through: survey, analysis
-published to the ticket's docs folder and left uncommitted (no branch, no
+published to the run's development folder and left uncommitted (no branch, no
 commit: /acs:create-pr commits later), and the step finished.
 
 I can't answer questions during this run, so here are the answers to anything

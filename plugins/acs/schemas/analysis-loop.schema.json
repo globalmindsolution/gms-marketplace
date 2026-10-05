@@ -12,7 +12,7 @@
     "version": {"const": 1},
     "skill": {"const": "analyze-requirements"},
     "run_id": {"type": "string", "minLength": 1},
-    "ticket_id": {"type": "string", "minLength": 1},
+    "ticket_id": {"description": "The run's ticket, or null for a ticketless run (ADR-0128): requirements come from any container, and a Discovery analysis carries `feature` in its front matter instead.", "type": ["string", "null"], "minLength": 1},
     "invocation": {"type": "integer", "minimum": 0},
     "cap": {"const": 3},
     "iteration": {"type": "integer", "minimum": 1},

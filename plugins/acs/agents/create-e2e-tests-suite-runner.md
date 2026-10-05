@@ -142,7 +142,7 @@ ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the written suite files, the test-writer's authoring notes
 (`iter-<n>/authoring.md`), the test-writer report
 (`iter-<n>/test-writer.json`, or one `iter-<n>/test-writer-<k>.json` per
-test-writer slice), `test-cases.md` (or the ticket document on the
+test-writer slice), `test-cases.md` (or the requirements document (`requirements.md`) on the
 acceptance-criteria fallback),
 `api-contract.md` when it exists, and the repo's existing e2e suites),
 `<constraints>` (at least `e2e_command`, `e2e_root`, `tc_ids` — the `TC-<n>`

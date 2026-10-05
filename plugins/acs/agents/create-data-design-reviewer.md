@@ -17,7 +17,7 @@ Your prompt contains an XML `<task skill="create-data-design" phase="reviewer"
 slice="<id>" ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (the joined
 notes `iter-1/authoring.md` and later iterations' `iter-<n>/authoring-write.md`, the
 designer report(s), `iter-1/gaps.md` when the gap analysis ran, the baseline status file
-`baseline-status.txt`, the ticket, the HLD files and every written document),
+`baseline-status.txt`, the requirements (`requirements.md`), the HLD files and every written document),
 `<constraints>` (at minimum `partition` — the absolute ticket-partition path —
 `architecture_dir`, `feature`, `lld_types`, `dimensions` and one
 `required_sections:<file>` per document), and on iteration > 1 a `<context>` listing the

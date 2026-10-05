@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/api-contract.md }
+target: { source: file, path: docs/architecture/lld/order-tracking/EVAL-1/api-contract.md }
 pattern: '^## Surface[ \t]*$(?:(?!^## )[\s\S])*^### [^\n]*order\.shipped(?:(?!^## )[\s\S])*event_id'
 flags: m
 ---

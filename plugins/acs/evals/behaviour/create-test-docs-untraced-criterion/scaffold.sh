@@ -14,6 +14,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
+ACS_FEATURES=customer-listing
 acs_ticket "Cursor pagination for GET /customers" story false \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
 printf '%s' '{"acceptance_criteria": [
@@ -23,8 +24,8 @@ printf '%s' '{"acceptance_criteria": [
   "The pagination code is clean and easy to maintain"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/architecture/lld/customer-listing/EVAL-1 docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
@@ -74,10 +75,10 @@ has no observable outcome; C-5 asks what would measure it -- open.
 
 Ready for planning; api_surface true; no design needed.
 MD
-cat > docs/tickets/EVAL-1/plan.md <<'MD'
+cat > docs/development/customer-listing/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Cursor pagination for GET /customers
 
-Planned from docs/tickets/EVAL-1/analysis.md (api_surface true).
+Planned from docs/development/customer-listing/EVAL-1/analysis.md (api_surface true).
 
 ## Approach
 
@@ -111,7 +112,7 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/__init__.py, tests/test_customers.py, README.md
 MD
-cat > docs/tickets/EVAL-1/api-contract.md <<'MD'
+cat > docs/architecture/lld/customer-listing/EVAL-1/api-contract.md <<'MD'
 ---
 ticket: EVAL-1
 items: 1
@@ -122,7 +123,7 @@ contract_files: []
 
 ## Scope & sources
 
-The surface docs/tickets/EVAL-1/plan.md adds to GET /customers.
+The surface docs/development/customer-listing/EVAL-1/plan.md adds to GET /customers.
 
 ## Surface
 

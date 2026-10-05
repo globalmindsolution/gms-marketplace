@@ -1,7 +1,7 @@
 ---
 name: ship
 description: Umbrella command that drives the delivery pipeline declared in workflows/ship.yaml for one run — asking the run's cursor which step is due, invoking it, and asking again, always stopping before merge. Use when the user wants work shipped end-to-end with one command, or wants to resume a run from where it left off. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id | prompt | document | --run <run-id>]"
+argument-hint: "[ticket-id] [documents…] [prompt] [--run <run-id>]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -78,12 +78,18 @@ on", a subject means "this one", and an id is only for disambiguation.
 | a ticket id (`[A-Z][A-Z0-9]*-[0-9]+`, e.g. `SHOP-123`) | the latest non-terminal run whose subject is that ticket; a new run if there is none |
 | free text | a new run from that prompt — or, if this checkout's current run already has that subject, that run |
 | a path to a file that exists | a new run from that document, resolved the same way |
+| a mix — `SHOP-12 ~/Downloads/spec.pdf "also bulk export"` | the run of the primary subject (ticket > document > prompt), with every one of them recorded as its requirements |
 | `--run <run-id>` | exactly that run; the only form that names an id, for the rare second run on one subject |
 
-You do not have to resolve this yourself: `acs run next` takes the subject
-as a flag — `--ticket <id>`, `--prompt "<text>"` or `--document <path>` —
-resolves it exactly as the table says (creating the run when there is none)
-and answers from the run it finds. When nothing resolves — no
+A ticket id, documents (in the repo, or attached from outside it — copied into
+the run) and a prompt are only containers of the REQUIREMENTS; no ticket is
+needed, and the run's `requirements.md` holds what all of them said.
+
+You do not have to resolve this yourself: `acs run next --args "$ARGUMENTS"`
+takes the raw arguments — or the subject as a flag, `--ticket <id>`,
+`--prompt "<text>"` or `--document <path>` — resolves it exactly as the table
+says (creating the run when there is none, its requirements recorded) and
+answers from the run it finds. When nothing resolves — no
 pointer, no subject — ask the user what to ship rather than guessing.
 
 There is no `flow: product` refusal any more: a run has a SUBJECT, not a flow,
@@ -104,14 +110,16 @@ memory, decides what comes next:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" run next
 ```
 
-On entry, pass the subject you were given as its flag (`--ticket`, `--prompt`
-or `--document`, per Step 2), or `--run <run-id>` when you were given one; with
-none, it reads this checkout's current run. After a step returns, the run is
+On entry, pass what you were given — `--args "$ARGUMENTS"` (or the subject
+as its flag, `--ticket`, `--prompt` or `--document`, per Step 2), or
+`--run <run-id>` when you were given one; with none, it reads this checkout's
+current run. After a step returns, the run is
 current, so the bare command is enough. It prints one JSON object:
 
 | Field | What you do with it |
 |---|---|
 | `run_id` | the run you are driving; quote it in your report |
+| `args` | the argument text to invoke the step with (see below) |
 | `next` | the cursor: the first step to run now, or `null` |
 | `due` | every step to run now — `[next]` for a plain step, each unfinished member for a parallel group |
 | `parallel` | `true` when `due` holds more than one step → "Running a parallel group" |
@@ -132,7 +140,12 @@ Branch strictly on what comes back:
 5. Otherwise invoke the step `next` names.
 
 Invoking a step is always the same: the Skill tool with skill `acs:<next>` and
-args = the run's subject when it is a ticket (the id alone), else nothing.
+args = the `args` field `run next` printed — the arguments you were given
+(`$ARGUMENTS`) when you passed them, else the run's own subject (its ticket id,
+document path or prompt), for every subject kind. A step re-reads the run's
+requirements either way, and a source it already recorded is a no-op, so even
+on a host whose hooks never fired every source reaches the run's
+`requirements.md`.
 Never pass a partition — the step resolves it itself. Never pass a delivery
 path: it is judged once, by `/acs:create-impl-plan`, and recorded in the
 plan's `## Contract` block, and `/acs:code` dispatches to its leg from there.
@@ -152,7 +165,7 @@ yourself after that.
 
 Invoke the Skill tool directly and follow that step skill to completion as its
 coordinator, in your own context, holding the Agent tool the step needs to
-spawn its own subagents. Keep what you pass lean — the ticket id is enough.
+spawn its own subagents. Keep what you pass lean — the `args` `run next` printed is enough.
 
 You do not prompt a subagent; you run the step skill yourself. A few
 properties of every step skill you must understand as its coordinator:
@@ -313,7 +326,7 @@ interrupted — ends your final message with the standard block (INTERNALS.md
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: per-step status from `run.json` (one line per step); the PR reference when the run reached its last step
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <run-directory files, ticket docs folder, the uncommitted files the steps wrote (until `/acs:create-pr`), then the branch and PR URL it created>
+- **Artifacts**: <run-directory files, the phase folders the steps wrote (`<development_dir>/<feature>/<id>/`, the design records), the uncommitted files the steps wrote (until `/acs:create-pr`), then the branch and PR URL it created>
 - **Metrics**: <wall time>
 - **Next**: review the PR yourself, then `/acs:merge-pr <ticket-id>`; on a failed step: the resume command (`/acs:ship <ticket-id>` or `/acs:<skill> <ticket-id>`)
 ```

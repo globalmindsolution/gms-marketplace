@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: docs/tickets/EVAL-1/plan.md
+path: docs/development/customer-listing/EVAL-1/plan.md
 ---
 
 The coordinator's Publish step copies the verified draft to the ticket's docs

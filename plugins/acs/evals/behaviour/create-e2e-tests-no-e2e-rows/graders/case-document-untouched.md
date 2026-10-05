@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/test-cases.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/test-cases.md }
 pattern: '^e2e_cases: 0$(?![\s\S]*\|\s*e2e\s*\|)'
 flags: m
 ---

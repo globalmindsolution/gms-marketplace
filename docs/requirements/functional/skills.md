@@ -7,41 +7,62 @@ writes, or which group it belongs to, because nothing needs to: each skill
 reads what it finds and falls back to the run's subject when an upstream
 artifact is absent.
 
-The groups below are a reader's aid, not a structure the code knows about:
+The groups below are a reader's aid, not a structure the code knows about
+([ADR-0129](../../architecture/adr/0129-discovery-design-development-regroup.md)):
 
-- **Product & design** — `/acs:create-prd`, `/acs:create-architecture`,
-  `/acs:create-ticket`, `/acs:create-design`, `/acs:create-data-design`,
-  `/acs:create-flows` (the last two write a ticket's low-level design,
-  [ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). The quality, operations,
+- **Discovery** — `/acs:create-prd`, `/acs:analyze-requirements` (run on
+  its own with no ticket, it analyses a PRD feature, a prompt or an attached
+  specification into the feature's living analysis,
+  `<prd_dir>/features/<feature>/analysis.md` —
+  [ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)).
+- **Design** — `/acs:create-architecture`, `/acs:create-api-contract`,
+  `/acs:create-data-design`, `/acs:create-flows` (the last two write the
+  living low-level design,
+  [ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)),
+  `/acs:create-design`. The quality, operations,
   principles and standards doc sets are written by hand: no skill bootstraps
   them since `/acs:create-docs` was removed
   ([ADR-0124](../../architecture/adr/0124-remove-create-docs.md)), and the
   skills that read them find them where the repo keeps them.
-- **Implementation** — `/acs:analyze-requirements`,
-  `/acs:create-impl-plan`, `/acs:create-api-contract`,
-  `/acs:create-test-docs`, `/acs:code` and its four delivery-path legs,
-  `/acs:review-code`, `/acs:docs-sync`.
-- **Test** — `/acs:create-e2e-tests`, `/acs:run-e2e-tests`.
-- **Ship** — `/acs:create-pr`, `/acs:merge-pr`, `/acs:release`.
+- **Development** — `/acs:ship` and the steps it drives:
+  `/acs:analyze-requirements` (first, on a ticket or a prompt),
+  `/acs:create-impl-plan`, `/acs:create-api-contract` (still a `ship.yaml`
+  step), `/acs:create-test-docs`, `/acs:code` and its four delivery-path
+  legs, `/acs:review-code`, `/acs:create-e2e-tests`, `/acs:docs-sync`,
+  `/acs:run-e2e-tests`, `/acs:create-pr` — plus `/acs:merge-pr`.
 - **Audit** — `/acs:audit-design` (the design compared with the code),
   `/acs:audit-security` (the repository's security): read-only, ticketless,
   runnable at any time, each writing a report
   ([ADR-0123](../../architecture/adr/0123-audit-phase-and-audit-security.md)).
-- **Utility** — `/acs:setup`, `/acs:update`, `/acs:handoff`, `/acs:ship`.
+- **Utility** — `/acs:setup`, `/acs:update`, `/acs:release`, `/acs:handoff`,
+  `/acs:create-ticket`. A ticket is one container of requirements, cut when
+  the work needs one — after a feature's analysis, again after a design — not
+  a phase of its own.
+
+Every skill takes **requirements from any container** — a ticket id,
+documents (in the repo, or attached from outside it and copied into the run)
+and a prompt, mixed as needed; **no skill requires a ticket**
+([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)).
+A skill reads them from the run (`context.requirements`, `acs.py
+requirements show`, `<run>/requirements.md`), never from `ticket.json`;
+ticket-only steps (`acs.py ticket save`, tracker sync) run only when there is
+a ticket.
 
 The ORDER of the implementation skills is `workflows/ship.yaml`'s list, and
 nothing else states it. A run's progress over that list is `run.json`; a
 skill's own progress inside a step is `steps/<skill>/state.json`.
 
-The phase a skill sits in is a grouping, not an order. The order the Build,
-Test and Ship steps run in for a ticket is declared in
+The phase a skill sits in is a grouping, not an order. The order the
+Development steps run in is declared in
 `plugins/acs/workflows/ship.yaml` ([workflow.md](workflow.md#pipeline)), and
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
 Nineteen of the twenty-eight are **hooked** (a pre-hook and a post-hook
-each): the six Product & design skills, all seven Implementation skills,
-both Test skills, `/create-pr`, `/merge-pr` and both Audit skills. Five (`/setup`, `/ship`,
+each): both Discovery skills, all five Design skills, the other eight
+Development steps (`/create-impl-plan`, `/create-test-docs`, `/code`,
+`/review-code`, `/docs-sync`, `/create-e2e-tests`, `/run-e2e-tests`,
+`/create-pr`) and `/merge-pr`, both Audit skills and `/create-ticket`. Five (`/setup`, `/ship`,
 `/handoff`, `/update`, `/acs:release`) are unhooked and take no position in a
 run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
 itself. `/run-e2e-tests` is a hooked step like any other; the `/acs:test`
@@ -81,11 +102,13 @@ Every **workflow** skill MUST:
 - have its safety brakes checked by a pre-hook and its outcome persisted by a
   post-hook ([hooks.md](hooks.md)) — neither hook enforces pipeline order,
   and neither refuses because an upstream artifact is missing;
-- write state **only** inside `<workspace>/<repo>/<ticket-id>/`, and write
-  the ticket's human-facing documents only under the fixed
-  `docs/tickets/<ticket-id>/` (the consumer repo is
-  otherwise touched only where the skill's job requires it, e.g. `/code`
-  edits source files);
+- write state **only** inside the workspace (`<workspace>/<repo>/runs/<run-id>/`,
+  and a ticket's own partition), and write its human-facing documents only
+  in the run's phase folder — Discovery `<prd_dir>/features/<feature>/`,
+  Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`,
+  Development `<development_dir>/<feature>/<ticket-id or run-id>/` — never
+  `docs/tickets/` (ADR-0128; the consumer repo is otherwise touched only
+  where the skill's job requires it, e.g. `/code` edits source files);
 - read configuration from the `.acs` `settings.json`
   ([configuration.md](configuration.md)), and spawn each subagent on the
   model and effort of its role's tier configured there — `planner` for survey
@@ -93,11 +116,13 @@ Every **workflow** skill MUST:
   `verifier` for judge roles
   ([configuration.md](configuration.md#subagent-models)) (apply-work skills
   run inline and spawn none);
-- (except `/create-ticket`) resolve the target `<ticket-id>` before doing
-  anything — explicit argument, else session context, else branch name
+- resolve what it works on before doing anything — this checkout's current
+  run, else the sources in its arguments (ticket ids, documents, a prompt) —
+  and stop and ask when neither resolves
   ([workflow.md](workflow.md#ticket-context));
-- record every requirement Q&A in the per-ticket **clarification ledger**
-  (`clarifications.json`): research first, ask once at the cheapest phase
+- record every requirement Q&A in the **clarification ledger**
+  (`clarifications.json` — the ticket partition's for a ticket run, the run's
+  own `runs/<run-id>/clarifications.json` for a ticketless one): research first, ask once at the cheapest phase
   (re-asking an answered question is a defect), record answers before acting
   on them, and record unanswerable decisions as visible **assumptions** with
   rationale ([workspace-and-state.md](workspace-and-state.md)); when ≥2
@@ -659,7 +684,8 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   and propose a PRD amendment (a `/create-prd` re-run, user-confirmed)
   before proceeding. MUST propose the ticket's `features` — the slugs of the
   PRD features it traces to (`acs.py slug --text "<feature name>"`), which
-  name its `lld/<feature>/` design folders — and record the confirmed list
+  name its `lld/<feature>/` design folders and the feature folders its runs'
+  documents go to (ADR-0128) — and record the confirmed list
   ([ADR-0120](../../architecture/adr/0120-design-document-catalog-and-ticket-features.md)).
 - MUST interact with the user to resolve ambiguities before finalizing
   (clarifying questions).
@@ -783,11 +809,14 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 Purpose: settle the system design before implementation is specified — for
 tickets where the change is architecturally significant.
 
-- Runs only when the ticket carries **`needs_design: true`** (set for epics
+- Runs only when the run's requirements carry **`needs_design: true`** —
+  refined by `/analyze-requirements`, else the ticket's flag (set for epics
   only; stories/tasks are always `false` and skip straight to `/code`, unless
-  they inherit a parent epic's design). All other tickets skip straight to
-  `/code`.
-- MUST analyze the ticket, the codebase, and existing docs; MUST evaluate
+  they inherit a parent epic's design). A ticketless run with no recorded
+  `needs_design` runs it when the user invoked the skill with requirements:
+  the invocation is the ask (ADR-0128).
+- MUST analyze the requirements, the feature's living analysis, the
+  codebase, and existing docs; MUST evaluate
   **multiple options with trade-offs** and interact with the user on the
   genuinely open decision points before settling.
 - MUST take the product architecture doc set (found in the repo) as
@@ -795,8 +824,8 @@ tickets where the change is architecturally significant.
   documented architecture** or explicitly lists the architecture changes it
   requires — which `/code` then applies to the doc set as part of the
   change.
-- Produces **`design.md`** in the ticket's docs folder
-  (`docs/tickets/<ID>/`) — the designer drafts it
+- Produces **`design.md`** in the run's Design folder
+  (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128) — the designer drafts it
   under `steps/create-design/` and the coordinator publishes the reviewed
   bytes — with required sections:
   **context & constraints (incl. NFRs such as security and performance),
@@ -834,9 +863,12 @@ physical schema of the PRD features it traces to — before implementation
 ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)).
 Design-phase work, run by the SA or Tech Lead on a ticket.
 
-- A ticket-scoped Design skill (`PLANNING_SKILLS`, beside `/create-design`):
-  hooked, takes no run position, and runnable on its own at any time before
-  implementation. Input: the ticket, its `analysis.md` and `design.md`, the
+- A Design skill (`PLANNING_SKILLS`, beside `/create-design`): hooked, takes
+  no run position, and runnable on its own at any time before
+  implementation, on a ticket, a feature slug, a prompt or documents — the
+  feature comes from the argument, the requirements' features or the ticket,
+  and no ticket is needed (ADR-0128). Input: the run's requirements, the
+  feature's living analysis, the change's `analysis.md` and `design.md`, the
   HLD (`hld/data-model.md`, `hld/cross-cutting.md`, `hld/tech-stack.md`,
   `hld/c4-container.md`), the feature's `api/` documents and its existing
   `data/` documents, each read when present; else the ticket and the code's
@@ -884,9 +916,11 @@ state machines of the entities they change, and, when enabled, its component
 detail — before implementation
 ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)).
 
-- A ticket-scoped Design skill (`PLANNING_SKILLS`, beside `/create-design`):
-  hooked, takes no run position, runnable on its own. Input: the ticket, its
-  `analysis.md` and `design.md`, the HLD, and the feature's `api/` and `data/`
+- A Design skill (`PLANNING_SKILLS`, beside `/create-design`): hooked, takes
+  no run position, runnable on its own on a ticket, a feature slug, a prompt
+  or documents (the feature from the argument, the requirements or the
+  ticket; ADR-0128). Input: the run's requirements, the feature's living
+  analysis, the change's `analysis.md` and `design.md`, the HLD, and the feature's `api/` and `data/`
   documents — participants, operations and entities are named as those name
   them — each read when present.
 - MUST write **documents only** — never source or machine-readable contracts.
@@ -928,14 +962,31 @@ detail — before implementation
 
 ## 2a. `/analyze-requirements`
 
-Purpose: the first Build step — understand the ticket against the product
-docs and the codebase before anything is planned, make its requirements clear
-with the user, and say plainly whether it is ready to plan.
+Purpose: understand a change's requirements against the product docs and
+the codebase before anything is designed or planned, make them clear with the
+user, and say plainly whether they are ready to plan. It works in two phases
+([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md),
+[ADR-0129](../../architecture/adr/0129-discovery-design-development-regroup.md)):
 
-- Input: the ticket, the PRD / requirements / architecture doc sets, the
-  codebase, the clarification ledger and the previously published
-  `analysis.md`, each read when present. Pre-hook check: the ticket resolves. Brake: an **epic** is
-  refused (epics are designed and fanned out, never implemented).
+- **Discovery** — run on its own, with no ticket: a PRD feature, a prompt,
+  PRD documents or an attached specification are analysed into the
+  feature's **living analysis**, `<prd_dir>/features/<feature>/analysis.md`
+  (ADR-0122 version front matter plus `feature`). A run with no ticket MUST
+  name or infer its feature: the one grouped ask proposes the PRD's feature
+  slugs (`acs.py slug`), or a new slug when none fits.
+- **Development** — a run with a ticket, or one `/acs:ship` drives (its
+  first step), on a ticket or a prompt; `acs.py requirements refine` may set
+  the phase explicitly: the analysis is
+  written to `<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`,
+  and the survey MUST start from the feature's living analysis when one
+  exists.
+
+- Input: the run's requirements (`requirements.md` — the ticket, the prompt
+  and the documents it was given), the PRD / requirements / architecture doc
+  sets, the codebase, the clarification ledger and the previously published
+  analysis, each read when present. Pre-hook check: the subject resolves.
+  Brake: an **epic** ticket is refused (epics are designed and fanned out,
+  never implemented).
 - MUST run three stages, in order (2026-09-27):
   1. **Impact — survey the codebase.** The survey MUST be separate from the
      DRAFT pass and runs as parallel lanes the controller names (ADR-0114):
@@ -961,10 +1012,11 @@ with the user, and say plainly whether it is ready to plan.
      ledger check (recorded answers are never re-asked), every remaining
      question from all four groups MUST be asked in ONE grouped
      AskUserQuestion, conventional defaults included, as confirmations. Each
-     answer is its own `clarify.py add` entry. Confirmed refined criteria and
-     a confirmed `needs_design` MUST be written into the ticket through
-     `acs.py ticket save` (a PATCH), so every later skill plans from the
-     clarified ticket; a rejected proposal is recorded and not applied. At
+     answer is its own `clarify.py add` entry. Confirmed refined criteria,
+     a confirmed `needs_design`, the features and the feature MUST be
+     recorded through `acs.py requirements refine` — the run's
+     `## Refined` requirements, and also a PATCH of the ticket when the run
+     has one — so every later skill plans from the clarified requirements; a rejected proposal is recorded and not applied. At
      most ONE follow-up grouped round; anything still open after it is a
      blocker. No questions → the stage is skipped, and the report says so.
      Only when the user is unreachable (a non-interactive run with no answers
@@ -976,24 +1028,29 @@ with the user, and say plainly whether it is ready to plan.
      (`pass` = `draft`) writes the analysis from the reconciled notes and the
      recorded answers; the impact reviewer judges it (analyse → impact
      review, at most 3 rounds); the coordinator publishes it into the
-        ticket's docs folder and records the paths — it commits nothing
+        phase folder above and records the paths — it commits nothing
         ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)). A reviewer finding that is a
      new question for the user goes back through Stage 2.
-- MUST write `analysis.md` to the ticket's docs folder with front matter
-  `{ticket, ready_for_planning, api_surface, needs_design_recommendation}`
+- MUST write `analysis.md` to its phase folder with front matter
+  `{ticket | feature, ready_for_planning, api_surface, needs_design_recommendation}`
   and the sections: Problem restated; Impact
   map (components/files/tests likely touched); Questions; Assumptions;
   Risks; Refined acceptance criteria; Verdict. `## Questions` lists every
   `C-n` with its answer or status, `## Refined acceptance criteria` states
   which criteria were confirmed into the ticket, and `## Assumptions` holds
   only what the user did not answer.
-- The published `docs/tickets/<ID>/analysis.md` is the reusable record:
-  `/create-impl-plan`, `/create-api-contract` and `/create-test-docs` read it,
-  and the next run of this skill starts from it. It falls back to the
-  workspace partition only when there is no checkout.
+- The published analysis is the reusable record: the feature's living
+  analysis is read by `/create-architecture`, `/create-data-design`,
+  `/create-flows`, `/create-design` and by every later run on the feature;
+  a Development run's is read by `/create-impl-plan`, `/create-api-contract`,
+  `/create-test-docs` and `/code`, and the next run of this skill starts from
+  it. A legacy `docs/tickets/<ID>/analysis.md` is still read when the phase
+  folder has none; the workspace partition answers only when there is no
+  checkout.
 - The impact reviewer MUST check that every `## Questions for the user` item
   was answered in the ledger or carried as an open/assumed entry, and that
-  every criterion the analysis marks confirmed matches the ticket.
+  every criterion the analysis marks confirmed matches the refined
+  requirements.
 - MUST NOT set any rigor itself. The stakes recommendation this step used to
   run over the impact paths went with the axis (ADR-0095); what replaces it is
   EVIDENCE, not a setting. When the impact map reaches a surface the repo
@@ -1003,7 +1060,7 @@ with the user, and say plainly whether it is ready to plan.
   plan and what the delivery-path judgement is then made from.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
 - `api_surface: true` is what makes `ship.yaml`'s `create-api-contract` step
-  apply to this ticket; `api_surface: false` skips it.
+  apply to this run; `api_surface: false` skips it.
 - Subagents: `analyze-requirements-analyst` (requirements lane, synthesis and
   draft passes), `analyze-requirements-impact-analyst` (one code-impact lane per
   area — ADR-0114), `analyze-requirements-impact-reviewer` (analyse → impact
@@ -1017,16 +1074,17 @@ with the user, and say plainly whether it is ready to plan.
 Purpose: `/code`'s plan phase, carved out whole into its own skill, ending in
 an approved `plan.md`.
 
-- Input: the ticket, `analysis.md` and `design.md` when present (the API
-  contract comes *after* the plan — the plan is what names the API surface
-  to build); with neither, the ticket alone. Pre-hook check: the ticket
-  resolves. Brake: an epic is refused.
+- Input: the run's requirements, `analysis.md` and `design.md` when present
+  (the API contract comes *after* the plan — the plan is what names the API
+  surface to build); with neither, the requirements alone. Pre-hook check:
+  the subject resolves. Brake: an epic is refused.
 - MUST keep every mechanism the phase had inside `/code`, unchanged: the
   survey (the former planner charter, carried by the `planner` role), the
   spec fold, the executor file map, plan approval
   (`standard`/`complex` only, run by those legs) and the plan-revocation path
   (`plan-superseded-<k>.md` in the workspace).
-- MUST write `plan.md` to the ticket's docs folder (`docs/tickets/<ID>/`).
+- MUST write `plan.md` to the run's Development folder
+  (`<development_dir>/<feature>/<ticket-id or run-id>/`, ADR-0128).
   It is always authored by the planner:
   the ADR-0074 fast path, on which the coordinator authored the plan itself
   with no subagent spawn, went with the lanes it forked on (ADR-0095). The
@@ -1054,13 +1112,14 @@ Purpose: pin the API surface a ticket changes before it is implemented, so
 `/code` builds against a contract and `/create-test-docs` derives cases from
 it.
 
-- Input: `plan.md`, `analysis.md`, the ticket, the architecture doc set, and
-  the repo's existing contract files, wherever the repo keeps them (else
-  `docs/api/`), each read when present; with no plan, the ticket's
-  acceptance criteria bound the contract. Pre-hook check: the ticket
-  resolves. A plan whose contract declares no API surface makes the step an
+- Input: `plan.md`, `analysis.md`, the run's requirements, the architecture
+  doc set, and the repo's existing contract files, wherever the repo keeps
+  them (else `docs/api/`), each read when present; with no plan, the
+  requirements' acceptance criteria bound the contract. Pre-hook check: the
+  subject resolves. A plan whose contract declares no API surface makes the step an
   evidenced no-op (`no_surface_owed`).
-- MUST write `api-contract.md`: every endpoint/command/message the plan adds
+- MUST write `api-contract.md` to the run's Design folder
+  (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128): every endpoint/command/message the plan adds
   or changes, request/response shapes, error codes, compatibility and
   versioning notes, and examples — each traced to an acceptance criterion
   **and** to a plan item.
@@ -1073,13 +1132,15 @@ it.
 
 ## 2d. `/create-test-docs`
 
-Purpose: turn the ticket's acceptance criteria (plus the plan and the API
+Purpose: turn the run's acceptance criteria (plus the plan and the API
 contract when they exist) into an explicit, traceable set of test cases,
 before any test is written.
 
-- Input: the ticket's acceptance criteria; `plan.md` when present;
-  `api-contract.md` when present. Pre-hook check: the ticket resolves.
-- MUST write `test-cases.md` with front matter `{ticket, cases}` and a
+- Input: the requirements' acceptance criteria (`AC-n`, refined when
+  `/analyze-requirements` refined them); `plan.md` when present;
+  `api-contract.md` when present. Pre-hook check: the subject resolves.
+- MUST write `test-cases.md` to the run's Development folder with front
+  matter `{ticket, cases}` (`ticket` only when there is one) and a
   table/list of cases: id `TC-n`, traced acceptance criterion, type
   `unit | integration | e2e`, preconditions, steps, expected result, target
   suite/module.
@@ -1460,7 +1521,7 @@ branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create
   prompt-subject); with a prompt and no current run it opens a prompt-subject
   run whose changeset is every uncommitted change against HEAD, grouped by
   layer — documents by doc set (the PRD, `hld/`, each `lld/<feature>/`, the
-  ADRs, the ticket docs), then tests, then code — placing each file by the
+  ADRs, the run's documents), then tests, then code — placing each file by the
   paths other runs recorded in `states.files`. The `verifier_passed` brake
   applies only when the run has a code step; a commit subject names a ticket
   only when there is one, and a PR with no ticket is labelled `acs-exempt`.

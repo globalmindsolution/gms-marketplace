@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/design.md }
+target: { source: file, path: docs/architecture/lld/order-tracking/EVAL-1/design.md }
 pattern: '^## Rollout/migration[ \t]*$(?:(?!^## )[\s\S])*\b(?:child|children|slices?)\b'
 flags: mi
 ---

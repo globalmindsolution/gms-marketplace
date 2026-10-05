@@ -3,7 +3,7 @@
 # p95 < 300 ms) and architecture docs (a C4 context with one external system),
 # and one epic, EVAL-1 "Order tracking", minted through new-ticket.py (epics
 # default to needs_design true, so the gate opens) and given its epic-level
-# acceptance criteria through `acs.py ticket save`. No branch, no docs/tickets/
+# acceptance criteria through `acs.py ticket save`. No branch, no ticket docs
 # folder, no children: the design runs before the fan-out.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -13,6 +13,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
+ACS_FEATURES=order-tracking
 acs_ticket "Order tracking" epic true \
   "Shoppers track an order from payment to delivery: status updates from our two shipping carriers, an order status page, and an email to the shopper on every status change. PRD feature F3."
 printf '%s' '{"acceptance_criteria": [

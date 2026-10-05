@@ -1,6 +1,6 @@
 # 0120 — Design documents are a fixed catalog chosen at setup; tickets name their PRD features
 
-**Status**: Accepted · **Date**: 2026-10-04
+**Status**: Accepted — amended by [0128](0128-requirements-from-any-container.md) (a run's features come from its requirements, ticket or not; a feature slug also names `<prd_dir>/features/<feature>/` and `<development_dir>/<feature>/`) · **Date**: 2026-10-04
 
 **Amends**: [0118](0118-discovery-design-development-phases.md) (gives its
 "types chosen at `/acs:setup`" and "LLD partitioned by feature" their contracts).

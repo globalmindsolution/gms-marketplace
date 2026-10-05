@@ -71,7 +71,7 @@ class TestGates(AcsWorkspaceCase):
         with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-architecture",
                                "SKILL.md"), encoding="utf-8") as fh:
             body = " ".join(fh.read().split())
-        self.assertIn("no PRD found — working from <the subject>", body)
+        self.assertIn("no PRD found — working from <the requirements>", body)
         self.assertNotIn("run /acs:create-prd first", body)
 
     def test_code_requires_resolvable_ticket(self):

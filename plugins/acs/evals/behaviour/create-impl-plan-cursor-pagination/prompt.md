@@ -7,7 +7,7 @@ description: >-
   contract owed, and the executor file map -- declare that file map through
   `acs.py filemap set`, and close its step, without asking anything.
 expected_outcome: >-
-  docs/tickets/EVAL-1/plan.md exists with a Contract block (delivery_path,
+  docs/development/customer-listing/EVAL-1/plan.md exists with a Contract block (delivery_path,
   owes.api_contract true, an Executor tasks & file map naming
   src/shop/__init__.py) and the 90% coverage target; the code step's
   iteration-1 filemap.json names src/shop/__init__.py; the step's state.json
@@ -26,7 +26,7 @@ commit: /acs:create-pr commits later), the executor file map declared, and the
 step finished.
 
 I can't answer questions during this run, so don't ask me anything. Every
-open point is already settled in docs/tickets/EVAL-1/analysis.md. The tests
+open point is already settled in docs/development/customer-listing/EVAL-1/analysis.md. The tests
 are pytest under tests/, and the coverage target is the repo's configured
 90%. If the plan looks large, keep it as one pull request — do not split the
 ticket.

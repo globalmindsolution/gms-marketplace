@@ -7,7 +7,7 @@ description: >-
   error, write no test or production code, and close its step with outcome
   cases_written -- without asking anything.
 expected_outcome: >-
-  docs/tickets/EVAL-1/test-cases.md exists with integer cases and e2e_cases in
+  docs/development/customer-listing/EVAL-1/test-cases.md exists with integer cases and e2e_cases in
   the front matter, the four headings in order, TC rows citing AC-1, AC-2 and
   AC-3 and a row expecting invalid_cursor; nothing under src/ or tests/ was
   created; run.json records the step completed with outcome cases_written.

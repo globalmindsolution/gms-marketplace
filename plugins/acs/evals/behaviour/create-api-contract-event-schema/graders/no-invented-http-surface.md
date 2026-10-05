@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/api-contract.md }
+target: { source: file, path: docs/architecture/lld/order-tracking/EVAL-1/api-contract.md }
 pattern: '^### [^\n]*\b(?:GET|POST|PUT|PATCH|DELETE) /'
 flags: m
 match: not_contains

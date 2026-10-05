@@ -244,5 +244,7 @@ The plan-authoring write role belongs to `/acs:create-impl-plan`, not
 plan-authoring step at all and its implementers start from the approved plan
 as an input. And `WS` splits in two: the phase artifacts,
 verdicts, ledger and lock stay in the workspace partition, while the plan and
-the other human-facing ticket documents are written to the fixed
-`docs/tickets/<ID>/` in the repo (ADR-0090, ADR-0102).
+the other human-facing documents are written to the run's phase folders in the
+repo — the plan and test cases under `docs/development/<feature>/<id>/`, the
+design records under `lld/<feature>/<id>/` — and never to a
+`docs/tickets/<ID>/` folder, which is only read for older tickets (ADR-0128).

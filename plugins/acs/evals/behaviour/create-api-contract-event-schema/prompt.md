@@ -9,7 +9,7 @@ description: >-
   repo's existing convention, invent no docs/api/ tree, and close with outcome
   contract_written.
 expected_outcome: >-
-  docs/tickets/EVAL-1/api-contract.md exists with a Surface item for
+  docs/architecture/lld/order-tracking/EVAL-1/api-contract.md exists with a Surface item for
   order.shipped naming event_id and no HTTP-verb item, its Contract files
   section naming schemas/events/; a new schemas/events/*shipped*.json was
   created and no docs/api/ file; run.json records the step completed with

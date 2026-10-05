@@ -151,7 +151,7 @@ the load-bearing constraint the five seats below orbit.
 
 | Seat | Owns (decision rights) | Operates (skills) |
 |------|------------------------|--------------------|
-| **Product Manager (PdM)** | PRD / roadmap / ticket requirements; clarification answers | `/acs:create-prd`, `/acs:create-ticket` |
+| **Product Manager (PdM)** | PRD / roadmap / feature and ticket requirements; clarification answers | `/acs:create-prd`, `/acs:analyze-requirements` run on its own (Discovery: a feature's analysis, no ticket needed — [ADR-0129](../architecture/adr/0129-discovery-design-development-regroup.md)), `/acs:create-ticket` |
 | **Principal AI Platform** | Architecture sign-off; design sign-off; standards/principles; platform + org policy — at a **declared capacity split** (a per-team-declared attribute of this role, not a number this PRD fixes) | `/acs:create-architecture`, the principles and standards docs (hand-written), org-policy configuration |
 | **AI Product Builder** ×N | Code/docs/PR/merge execution judgment within the gated pipeline; runs **parallel worktree pipelines**; subject to a **cross-review quota** (a per-team policy knob — see **C-3**; the normative rule is WIP capped by human review bandwidth, above) | `/acs:code`, `/acs:docs-sync`, `/acs:create-pr`, `/acs:merge-pr`, `/acs:ship`, `/acs:handoff` |
 | **AI Quality & Evals Engineer** *(renamed from "AI QA")* | The verification **system**: eval suites, e2e config, coverage policy, verifier efficacy, failure-mode dashboards | `/acs:run-e2e-tests`, the test strategy and coverage policy (hand-written), eval-harness maintenance, failure-observability panels |
@@ -274,6 +274,14 @@ growth path.
   and reviewed in the PR; the ticket's `status` is derived from
   the ledger rather than stored (ADR-0090). That location is fixed, not a
   setting ([ADR-0102](../architecture/adr/0102-documents-are-found-not-configured.md)).
+  **Amended by ADR-0128:** tickets are no longer stored in the docs folder —
+  a ticket lives in the workspace and the tracker — and a run's documents
+  live one folder per phase: the feature's living analysis under
+  `<prd_dir>/features/<feature>/`, the design records under
+  `lld/<feature>/<id>/`, and the analysis, plan and test cases of a
+  Development run under `docs/development/<feature>/<id>/`; existing
+  `docs/tickets/<ID>/` folders are still read
+  ([ADR-0128](../architecture/adr/0128-requirements-from-any-container.md)).
   `default_state_root()` now derives the state root,
   `<main-checkout>/.acs/state-machine`, anchored to the main checkout so
   linked worktrees share one state root; no setting overrides it.

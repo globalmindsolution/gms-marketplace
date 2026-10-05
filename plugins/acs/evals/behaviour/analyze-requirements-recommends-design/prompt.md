@@ -4,12 +4,14 @@ description: >-
   inbound integration with two carriers, a new stored shape, an outbound email
   flow) but was minted with needs_design false. The survey should recommend a
   design, and because the prompt confirms any design recommendation up front,
-  the skill records that answer in the ledger and applies needs_design true to
-  the ticket through `acs.py ticket save`, publishing the analysis with
+  the skill records that answer in the ledger and applies needs_design true
+  through `acs.py requirements refine` -- which records it in the run's
+  requirements and patches the ticket -- publishing the analysis with
   needs_design_recommendation true.
 expected_outcome: >-
-  The ticket's ticket.json now has needs_design true;
-  docs/tickets/EVAL-1/analysis.md has needs_design_recommendation true in its
+  The run's requirements-refined.json and the ticket's ticket.json both have
+  needs_design true;
+  docs/development/order-tracking/EVAL-1/analysis.md has needs_design_recommendation true in its
   front matter; the clarification ledger holds a design question from analyze-
   requirements; the step's state.json records the run completed.
 tags: [behaviour]
@@ -20,7 +22,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:analyze-requirements skill for ticket EVAL-1 (live order tracking
 from carrier updates) and take it all the way through: survey, analysis
-published to the ticket's docs folder and left uncommitted (no branch, no
+published to the run's development folder and left uncommitted (no branch, no
 commit: /acs:create-pr commits later), and the step finished.
 
 I can't answer questions during this run, so here are my answers — record

@@ -14,6 +14,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 acs_prd
+ACS_FEATURES=service-health
 acs_ticket "Show the app version on GET /health" story false \
   "GET /health returns the package version alongside ok, so operators can see what is deployed."
 printf '%s' '{"acceptance_criteria": [

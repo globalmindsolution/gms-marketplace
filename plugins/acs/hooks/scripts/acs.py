@@ -31,9 +31,9 @@ Conventions, uniform across every subcommand:
 Usage:
   acs.py context
   acs.py gate --skill code [--run MAR-1]
-  acs.py run new --ticket MAR-1 | --prompt "..." | --document path.md
+  acs.py run new --ticket MAR-1 | --prompt "..." | --document path.md | --args "MAR-1 spec.pdf ..."
   acs.py run show [--run MAR-1]
-  acs.py run next [--run MAR-1]
+  acs.py run next [--run MAR-1 | --ticket MAR-1 | --prompt "..." | --document p | --args "..."]
   acs.py run check [--run MAR-1]
   acs.py run abandon --run MAR-1 --reason "superseded by MAR-2"
   acs.py step start --step code [--run MAR-1]
@@ -66,7 +66,10 @@ Usage:
   acs.py workflow show
   acs.py workflow validate [--file PATH]
   acs.py artifacts migrate [--dry-run]
-  acs.py artifacts show --ticket MAR-1
+  acs.py artifacts show [--run R | --ticket MAR-1]
+  acs.py requirements show [--run R]
+  acs.py requirements add --args "MAR-1 ~/spec.pdf also bulk export"
+  acs.py requirements refine --from refined.json
   acs.py analysis next [--run MAR-1]
   acs.py analysis plan --areas api,web
   acs.py analysis record-survey | record-synthesis | record-clarify | record-draft
@@ -110,6 +113,7 @@ import acs_model_commands  # noqa: E402
 import acs_design_commands  # noqa: E402
 import acs_job_commands  # noqa: E402
 import acs_changes_commands  # noqa: E402
+import acs_requirements_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -169,6 +173,8 @@ def build_parser():
     rnew.add_argument("--ticket", help="subject: a ticket id")
     rnew.add_argument("--prompt", help="subject: free text")
     rnew.add_argument("--document", help="subject: a path to a document")
+    rnew.add_argument("--args", help="subject: a raw invocation -- ticket ids, documents "
+                                     "and a prompt, mixed (ADR-0128)")
     rnew.set_defaults(func=cmd_run_new)
 
     rshow = run_sub.add_parser("show", help="the run ledger")
@@ -180,6 +186,8 @@ def build_parser():
     rnext.add_argument("--ticket", help="subject: a ticket id (its live run, else a new one)")
     rnext.add_argument("--prompt", help="subject: free text (a new run unless current)")
     rnext.add_argument("--document", help="subject: a path to a document")
+    rnext.add_argument("--args", help="subject: the raw invocation /acs:ship was given -- "
+                                      "ticket ids, documents and a prompt, mixed")
     rnext.set_defaults(func=cmd_run_next)
 
     rcheck = run_sub.add_parser("check", help="invariants I1-I5")
@@ -370,15 +378,18 @@ def build_parser():
     wvalidate.set_defaults(func=cmd_workflow_validate)
 
 
-    artifacts = group("artifacts", help="the ticket documents in the repo docs tree")
+    artifacts = group("artifacts", help="a run's documents in the repo's phase folders")
     artifacts_sub = artifacts.add_subparsers(dest="cmd")
 
-    ashow = artifacts_sub.add_parser("show", help="where one ticket's documents live, and its derived status")
-    ashow.add_argument("--ticket")
+    ashow = artifacts_sub.add_parser("show", help="where one run's documents live (and, "
+                                                   "for a ticket, its derived status)")
+    ashow.add_argument("--run", help="a run other than this checkout's current one")
+    ashow.add_argument("--ticket", help="the ticket's latest run (or the ticket alone)")
     ashow.set_defaults(func=cmd_artifacts_show)
 
     amigrate = artifacts_sub.add_parser(
-        "migrate", help="move live partitions' ticket documents into the repo docs tree")
+        "migrate", help="retired (ADR-0128): tickets are no longer stored in the docs "
+                    "tree; reports and writes nothing")
     amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
                           help="list the moves without making them")
     amigrate.set_defaults(func=cmd_artifacts_migrate)
@@ -388,6 +399,7 @@ def build_parser():
     acs_design_commands.add_parser(group)
     acs_job_commands.add_parser(group)
     acs_changes_commands.add_parser(group)
+    acs_requirements_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

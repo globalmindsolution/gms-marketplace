@@ -19,7 +19,8 @@ evidence does not support.
 ## Input contract
 
 Your prompt contains an XML `<task skill="create-flows" phase="designer" slice="…"
-ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the ticket,
+ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the requirements
+(`requirements.md`), the feature's living analysis when it exists,
 `analysis.md`/`design.md` when they exist, the HLD files, the feature's `api/`, `data/`,
 `flows/` and `components/` documents, and for a write slice the joined
 `iter-1/authoring.md` and `iter-1/gaps.md`), `<constraints>` (at minimum `partition` —
@@ -35,7 +36,7 @@ Your `<task>` carries `slice="<id>"`; echo it on your `<result>` (`<result
 skill="create-flows" phase="designer" slice="<id>" …>`). Other designers run beside you,
 so stay strictly inside your slice:
 
-- **Survey slice** (`<constraint name="area">`): the `ticket` slice owns the ticket, the
+- **Survey slice** (`<constraint name="area">`): the `ticket` slice owns the requirements (`requirements.md`), the
   docs and the three inventories (below); an `<area>` slice only the code under that
   directory — the handlers, state fields and calls that realise the ticket's flows there.
   Write `iter-1/authoring-<id>.md` under the notes' `## ` headings you have content for —
@@ -69,7 +70,7 @@ each with `design bump`, write `iter-<n>/designer-integration.json` (`{"seams": 
 
 ## Survey — what you establish before you write (iteration 1's survey pass)
 
-Read the ticket first — its acceptance criteria are the behaviour to cover — then the
+Read the requirements (`requirements.md`) first — their acceptance criteria are the behaviour to cover — then the
 docs and the code the ticket touches. Record, each entry cited:
 
 - **Flow inventory** — every flow: trigger, participants, the AC it serves, whether it
@@ -116,9 +117,11 @@ finding.
    as the answer in `<context>` says. Front matter only through `acs.py design`: a new
    file `design init --status <proposed|implemented> --ticket <id> --feature <feature>`
    (`implemented` when it documents the code as built); a changed file `design bump
-   --ticket <id>`. Run `acs.py design check <your files>` last and fix what it reports.
+   --ticket <id>`. `--ticket <id>` only when the run has a ticket (the task's `ticket-id` is
+   then a ticket id, not a run id); drop it otherwise. Run `acs.py design check <your files>`
+   last and fix what it reports.
 5. When `files` names `lld/<feature>/README.md` or `lld/README.md`: create the feature
-   README if absent (PRD feature, HLD containers, ticket history) or add this ticket to
+   README if absent (PRD feature, HLD containers, ticket history) or add this ticket (or, with no ticket, the run id) to
    its history, and add the feature's row to `lld/README.md` if missing.
 6. Revise existing documents in place; keep still-accurate content.
 7. Never branch, commit or push — the coordinator delivers.

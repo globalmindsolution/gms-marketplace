@@ -1,6 +1,6 @@
 # 0127 — Only `/acs:create-pr` branches, commits and pushes
 
-**Status**: Accepted · **Date**: 2026-10-04
+**Status**: Accepted — amended by [0128](0128-requirements-from-any-container.md) (the documents `/acs:create-pr` commits first are the run's phase folders, not `docs/tickets/<ID>/`; every skill takes requirements from a ticket, documents or a prompt) · **Date**: 2026-10-04
 
 **Amends**: [0090](0090-ticket-artifacts-in-repo-docs-tree.md) (who commits the
 ticket's documents, and when), [0114](0114-analyze-requirements-controller-driven-loop.md)

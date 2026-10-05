@@ -23,7 +23,7 @@ paraphrase of them. Before writing anything, re-read:
 
 - `<partition>/ticket.json` — its parent directory IS the partition;
 - `steps/create-ticket/iter-<n>/authoring.md` when the analysis was persisted
-  there, plus the clarification ledger (`clarify.py list --ticket <id>`);
+  there, plus the clarification ledger (`clarify.py list`);
 - the settings and template files you need: the built-in ticket templates
   (`epic-default`, `story-default`, `task-default`), `tracker_provider` (`local`|`github`) and whether tracker sync
   is on;
@@ -97,12 +97,10 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
    `--ticket` names the child; `--from` takes a JSON file, or `-` (or nothing)
    for stdin. The document is a PATCH merged over the stored ticket, so send
-   only `acceptance_criteria`. It writes wherever the ticket lives —
-   `docs/tickets/<child-id>/ticket.md` once the docs tree exists (which is
-   where `new-ticket.py` put it), else the workspace partition's
-   `ticket.json` — and re-indexes it. Never hand-edit either file: a
-   hand-written `ticket.json` beside a `ticket.md` is a second copy no reader
-   opens. `new-ticket.py` exposes no `--acceptance-criteria` flag.
+   only `acceptance_criteria`. It writes the workspace partition's
+   `ticket.json` — the ticket lives only in the workspace and the tracker,
+   never in the repo (ADR-0128: nothing writes `docs/tickets/<ID>/ticket.md`
+   any more) — and re-indexes it. Never hand-edit `ticket.json`. `new-ticket.py` exposes no `--acceptance-criteria` flag.
 
    Create ONLY the
    confirmed children; on a resumed run never re-mint ones already in
@@ -195,8 +193,8 @@ stays `[]`:
 ```
 
 - `files_changed` lists every file you wrote or changed, including each
-  child's ticket file (`docs/tickets/<child-id>/ticket.md`, or its
-  partition's `ticket.json` before the docs tree exists).
+  child's partition `ticket.json` (workspace state — no ticket file enters the
+  repo).
 - `status: "failed"` with `problems` when a step cannot complete (keep what
   you finished — never roll back minted children), then take SKILL.md's Finish
   failure path; the only question this sequence ever raises is the

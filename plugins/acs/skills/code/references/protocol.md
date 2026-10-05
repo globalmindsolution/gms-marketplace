@@ -26,13 +26,13 @@ which leg wrote them.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step code
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step code --args "$ARGUMENTS"
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
 improvise a workaround. The pre-hook refuses only what running now would
-damage: the run must resolve to a live, unlocked partition, an epic is never
-implemented, and when a plan records a deep path its approval must be present
+damage: the run must resolve to a live, unlocked partition, an epic ticket is
+never implemented, and when a plan records a deep path its approval must be present
 and current. It never refuses because an upstream artifact is missing and
 requires no predecessor step to have completed — the order lives in
 `workflows/ship.yaml`, not in this gate. A run with no plan on disk is
@@ -42,10 +42,22 @@ from the subject (see `/acs:code`'s **No plan at all**).
 Parse the printed context JSON. Fields you will use:
 
 - `run_id`, `subject` — what this run is about. A subject is a **ticket, a
-  prompt or a document** (§3.11); `subject.kind` says which. The implementation
-  must satisfy it.
+  prompt or a document** (§3.11), or a mix of them (`subject.sources`).
+- `requirements` — `{path, sources, acceptance_criteria, features, feature,
+  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+  show` — a ticket id, documents and a prompt are only where they came from;
+  never read ticket.json for acceptance criteria.** The implementation must
+  satisfy every criterion in `requirements.path` (the run's `requirements.md`).
+  `ticket` is present only when a ticket is one of the sources.
 - `partition` — absolute path of the run directory. Read `plan.md` (see Plan
-  input resolution), `test-cases.md` and `api-contract.md` when they exist.
+  input resolution), `test-cases.md` and `api-contract.md` when they exist —
+  `acs.py artifacts show` reports each (`<development_dir>/<feature>/<id>/` for
+  `plan.md` and `test-cases.md`, `<architecture_dir>/lld/<feature>/<id>/` for
+  `api-contract.md` and `design.md`, a legacy `docs/tickets/<ID>/` file only
+  when the new folder has none) — and the analyses it reports: the run's
+  `analysis.md` and the feature's living analysis (`feature_analysis`,
+  `<prd_dir>/features/<feature>/analysis.md`), for the impact map and risks the
+  change was planned against.
   Step artifacts go in `steps/code/`.
 - `iteration` — the review loop's current iteration. The context carries
   **no** `verdict` key: on iteration `n` ≥ 2, read the verdict the previous
@@ -94,7 +106,8 @@ Messaging rules (the SubagentStop hook checks them):
 - Send each implementer one task message, `<task skill="code"
   phase="implementer" …>`, carrying `objective`, `inputs` (file refs: the
   resolved `plan.md`, `test-cases.md` and `api-contract.md` when they exist,
-  the subject document, `design.md` when it applies, repo paths) and
+  `requirements.md`, the analysis and the feature's living analysis when they
+  exist, `design.md` when it applies, repo paths) and
   `constraints`. The implementer returns a `<result skill="code"
   phase="implementer" …>` document as its final content. When several
   implementers run at once, each task and its result carry the slice id,
@@ -120,7 +133,7 @@ Messaging rules (the SubagentStop hook checks them):
 
 ### Epics are never implemented
 
-An epic subject is refused by the `code` gate before this skill ever starts —
+An epic ticket (a ticket-only check: a prompt or document run has no type) is refused by the `code` gate before this skill ever starts —
 the epic brake runs for every implementation step, so an epic is turned away
 at `analyze-requirements` rather than three steps later with a plan on disk.
 Every ticket that reaches this
@@ -186,7 +199,7 @@ The plan is an INPUT here, never an output: `/acs:create-impl-plan` wrote it
 and this skill reads it. It is at `steps/create-impl-plan/plan.md` when
 `/acs:create-impl-plan` ran for this run (`acs.py plan path` names the one it
 read). On a standalone run with no plan, `/acs:code` derived an implicit plan
-from the subject for the cheap paths and recorded it at `steps/code/plan.md`;
+from the requirements for the cheap paths and recorded it at `steps/code/plan.md`;
 that file is the plan for this run. There is no approval mirror: one plan, one
 path, and `plan-approval.json` hashes that same file.
 
@@ -205,7 +218,7 @@ steps, and point at `/acs:create-impl-plan`.
 
 ## Docs-only subjects
 
-When the subject carries the user-confirmed `docs_only` flag, the TDD steps
+When the run's ticket carries the user-confirmed `docs_only` flag, the TDD steps
 relax — the delivery guarantees do not: implementers skip
 write-failing-tests-first and new-test generation, and the existing tests are
 still run once and must be green (a docs-only change that breaks the build is a

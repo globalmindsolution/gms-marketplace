@@ -8,7 +8,7 @@ description: >-
   is published with ready_for_planning false, and the step stops for input
   rather than completing.
 expected_outcome: >-
-  docs/tickets/EVAL-1/analysis.md exists with ready_for_planning false in its
+  docs/development/customer-listing/EVAL-1/analysis.md exists with ready_for_planning false in its
   front matter; clarifications.json holds an open entry; run.json records the
   analyze-requirements step interrupted with stop_reason needs_input and
   state.json ready_for_planning false; nothing under src/ or tests/ was
@@ -21,7 +21,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:analyze-requirements skill for ticket EVAL-1 (customer export for
 finance) and take it as far as it can honestly go: survey, clarification
-ledger, analysis published to the ticket's docs folder (uncommitted), and the
+ledger, analysis published to the run's development folder (uncommitted), and the
 step finished.
 
 I can't answer questions during this run, so don't ask me anything. And I

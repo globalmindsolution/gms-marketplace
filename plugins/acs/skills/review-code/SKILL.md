@@ -1,7 +1,7 @@
 ---
 name: review-code
 description: Review any branch, diff, PR or ticket's changes — with or without a ticket id, "this branch against main" or someone else's branch against origin/main — whenever the user asks to review, audit, examine, scrutinize, critique or check them; prefer it over a generic code review. Call it as your first action on such a request — do not Glob, Grep, Read, ToolSearch or look for a shell or git first: it runs git itself and finds the changeset and base ref. It reviews in three stages — five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. It never edits the code under review: its verdict is recorded in acs's own state outside the working tree, so "don't change anything", "no edits, just a verdict" and "just tell me what's wrong" requests are exactly what it is for. On blocking findings /acs:code reads the verdict and fixes them. Use after /acs:code, or on its own against any base ref.
-argument-hint: "[ticket-id | prompt | document] [--base <ref>]"
+argument-hint: "[ticket-id] [documents…] [prompt] [--base <ref>]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -41,7 +41,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step review-co
 ```
 
 This records the step `in_progress` and tells you the run, the iteration and
-whether a previous verdict exists. `${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`
+whether a previous verdict exists. **Requirements: `context.requirements` /
+`acs.py requirements show` — a ticket id, documents and a prompt are only where
+they came from; never read ticket.json for acceptance criteria.**
+`requirements.path` (the run's `requirements.md`) is lens A's input, and `acs.py
+artifacts show` reports the run's `plan.md`, `test-cases.md` (Development
+folder), `api-contract.md` and `design.md` (design records under
+`<architecture_dir>/lld/<feature>/<id>/`), the run's `analysis.md` and the
+feature's living analysis (`feature_analysis`) — a legacy `docs/tickets/<ID>/`
+file only when the new folder has none. `${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`
 carries Start, resume-and-reconcile, context pressure and the completion
 report — the parts every acs skill shares.
 
@@ -120,7 +128,8 @@ conformance to the API contract and the design; on a run whose
 `create-api-contract` recorded `no_surface_owed` and whose subject has no
 `design.md`, it has nothing to judge — record that in `lens-C.md` and do not
 spawn it. Lens A without `requirements.md` falls back to the subject
-(§3.11); with neither, it records that it had no requirement to judge against.
+(§3.11) — a ticket is one container of requirements, never required; with
+neither, it records that it had no requirement to judge against.
 
 What **never** scales down, on any delivery path: lenses A, B, D and E,
 per-finding adjudication, and the gate. There is no rigor setting, and you do

@@ -73,11 +73,11 @@ class TheRetiredRuleIsGone(unittest.TestCase):
 class TheCommitPhase(unittest.TestCase):
 
     def test_a_ticket_a_prompt_or_the_current_run_plan_through_the_cli(self):
-        """No skill needs a ticket: a ticket id, a prompt, or nothing (the
-        current run) all plan through the same CLI call, and no `--docs` mode
-        survives."""
+        """No skill needs a ticket: a ticket id, documents, a prompt, a mix of
+        them, or nothing (the current run) all plan through the same CLI call,
+        and no `--docs` mode survives (ADR-0128)."""
         body = skill()
-        self.assertRegex(body, r'(?m)^argument-hint: "\[ticket-id \| prompt\]"$')
+        self.assertRegex(body, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         text = flat(body)
         self.assertIn("acs.py\" pr plan-commits \\ --out", text)
         for invocation in ("`/acs:create-pr <ticket-id>`", "`/acs:create-pr` (no argument)",

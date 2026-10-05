@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/clarifications.schema.json",
   "title": "acs clarifications.json",
-  "description": "Per-ticket requirement-clarification ledger at <workspace>/<repo>/<ticket-id>/clarifications.json — the single source of truth for every ambiguity resolved (or assumed) during the pipeline. Append-only via clarify.py; coordinators read it before asking the user anything (re-asking an answered question is a defect).",
+  "description": "Requirement-clarification ledger: per ticket at <workspace>/<repo>/<ticket-id>/clarifications.json, or, for a run with no ticket (ADR-0128), per run at <workspace>/<repo>/runs/<run-id>/clarifications.json — the single source of truth for every ambiguity resolved (or assumed) during the pipeline. Append-only via clarify.py; coordinators read it before asking the user anything (re-asking an answered question is a defect).",
   "type": "object",
-  "required": ["ticket_id", "clarifications"],
+  "required": ["clarifications"],
   "properties": {
-    "ticket_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
+    "ticket_id": {"oneOf": [{"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"}, {"type": "null"}]},
+    "run_id": {"description": "The run whose ledger this is, when it has no ticket.", "type": "string"},
     "clarifications": {
       "type": "array",
       "items": {

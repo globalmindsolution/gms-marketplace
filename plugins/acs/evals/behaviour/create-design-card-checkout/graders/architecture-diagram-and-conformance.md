@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/design.md }
+target: { source: file, path: docs/architecture/lld/checkout-with-card-payments/EVAL-1/design.md }
 pattern: '^## Architecture[ \t]*$(?:(?!^## )[\s\S])*^```mermaid[ \t]*$(?:(?!^## )[\s\S])*^### Architecture conformance'
 flags: m
 ---

@@ -22,12 +22,13 @@ parallel (see **When you are one slice**) — and:
 - `<objective>` — which plan task (or which findings) this task implements;
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
   the plan artifact `plan.md` — the path supplied in `<inputs>`, which the
-  coordinator resolved (the ticket's docs folder,
+  coordinator resolved (the change's Development folder,
   `steps/create-impl-plan/plan.md`, or — on a standalone run with no plan —
   the implicit plan `/acs:code` recorded at `steps/code/plan.md`); your task's
   file map and
   test strategy live there — `test-cases.md` when `/acs:create-test-docs` has
-  written one, the ticket document, and `design.md` when one applies. READ
+  written one, the requirements document (`requirements.md`), the analysis
+  and the feature's living analysis when they exist, and `design.md` when one applies. READ
   EVERY ONE. Derive `<partition>` from the directory containing the run
   ledger named in `<inputs>`;
 - `<constraints>` — at least `coverage_target`;

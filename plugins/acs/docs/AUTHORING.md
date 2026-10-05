@@ -14,7 +14,7 @@ win — change them first, then the implementation.
 |-------|------|
 | `name` | Equals the directory name, kebab-case. Users invoke `/acs:<name>`. |
 | `description` | 1–2 sentences: what it does **and when to use it** — this text is what drives model auto-invocation, so write the trigger condition into it ("Use when …"). Keep it under ~2 lines; details belong in the body. |
-| `argument-hint` | Always set for skills taking arguments (`"[ticket-id]"`, `"<request or remote-key>"`). |
+| `argument-hint` | Always set for skills taking arguments. A skill that works on requirements takes them from any container (ADR-0128): `"[ticket-id] [documents…] [prompt]"`, plus the skill's own extras (`"<request or remote-key>"` for `/acs:create-ticket`). |
 | `disable-model-invocation` | **Do not set.** No skill carries it: the CLI refuses a Skill call to a skill that sets it, and the entry point `/acs:code` dispatches to its internal legs — listed in `acs_lib.skills.SKILL_LEGS` — with a real Skill call. `/ship` invokes each step skill the same way. |
 | `disallowed-tools` | `Edit, NotebookEdit` on every hooked skill and `/ship`: coordinators orchestrate — they Write workspace files but never edit repo source themselves (a fix is a remediation iteration through the skill's write role, not a coordinator hot-patch). `/setup` and `/handoff` stay unrestricted (user-present utility skills; `/setup` legitimately edits `.gitignore`). |
 | `model` / `effort` / `context` / `agent` | **Do not set.** Hooked skills must run in the invoking context so they can talk to the user; `context: fork` would break clarifying questions. Model/effort for *subagents* comes from `settings.json`, not frontmatter. |
@@ -43,14 +43,18 @@ win — change them first, then the implementation.
    was said earlier", rewrite it to read a file — and make sure something wrote
    that file. Which file depends on the audience: the run ledger
    (`<skill>-state.json`, `run.json`, phase artifacts) stays in the
-   workspace partition; the documents a human reads or reviews (`ticket.md`,
-   `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`)
-   live in the repo's ticket docs tree. NEVER hard-code either path: resolve a
-   ticket artifact with `acs_lib.artifacts.artifact_path(...)` (or
-   `workflow.ticket_artifact_path(...)` from a predicate), which looks in the
-   docs folder, then the partition, then the legacy location, and which returns
-   the correct WRITE target when nothing exists yet — that one helper is what
-   keeps a partition built before the move working instead of broken. A repo
+   workspace partition; the documents a human reads or reviews (`design.md`,
+   `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`) live in the
+   repo one folder per phase, keyed by the run's feature and its ticket or run
+   id (ADR-0128): the feature's living analysis under
+   `<prd_dir>/features/<feature>/`, design records under
+   `<architecture_dir>/lld/<feature>/<id>/`, Development documents under
+   `<development_dir>/<feature>/<id>/`. A ticket is not one of them — it lives
+   in the workspace and the tracker, and nothing writes `docs/tickets/`.
+   NEVER hard-code a document path: resolve it BY RUN with `acs.py artifacts
+   show` (`acs_lib.run_docs.document_path(...)` in code), which looks in the
+   phase folder, then a legacy `docs/tickets/<ID>/`, then the partition, and
+   returns the WRITE target when nothing exists yet. A repo
    document (the PRD, the architecture set, the ADR folder) has no setting
    either: find it the way any session does — `CLAUDE.md`, the docs index it
    points at, then a search — and create a missing one at its `docs/`
@@ -250,15 +254,26 @@ them for ordering or safety guarantees.
 
 ## Cross-cutting rules
 
+- **Requirements, not tickets.** A skill reads what it is asked from the run:
+  `context.requirements` from `acs step start`, or `acs.py requirements show`
+  — the generated `<run>/requirements.md` holding the ticket, the prompt and
+  the documents it was given (ADR-0128). A ticket id, documents and a prompt
+  are only where requirements came from; never read `ticket.json` for
+  acceptance criteria, and never refuse a run for having no ticket. Steps that
+  only make sense with a ticket (`acs.py ticket save`, tracker sync) run only
+  when there is one, and refined criteria go through `acs.py requirements
+  refine`, which patches the ticket when there is one.
 - **Clarification ledger.** All requirement Q&A goes through
-  `clarify.py` into `<partition>/clarifications.json` (see INTERNALS.md
-  "Requirement clarification"): research first, ask once at the cheapest
+  `clarify.py` into `clarifications.json` — the ticket partition's for a
+  ticket run, `runs/<run-id>/clarifications.json` for a ticketless one (see
+  INTERNALS.md "Requirement clarification"): research first, ask once at the cheapest
   phase, record everything, assumptions are visible debt. A skill that asks
   the user something the ledger already answers — or acts on an answer
   without recording it — is defective.
 - **Altitude boundaries between pipeline artifacts.** Each artifact owns one
-  altitude and does not duplicate the next one down: `ticket.md` owns the WHY
-  and the acceptance criteria; `design.md` owns options/decision/architecture;
+  altitude and does not duplicate the next one down: the run's requirements
+  (`requirements.md`, refined by analyze-requirements) own the WHY and the
+  acceptance criteria; `design.md` owns options/decision/architecture;
   `analysis.md` owns the impact map, assumptions and risks; `api-contract.md`
   owns the external surface; `test-cases.md` owns the WHAT to prove — `TC-n`
   cases traced to ACs; `plan.md` owns the HOW — the authoritative file map,

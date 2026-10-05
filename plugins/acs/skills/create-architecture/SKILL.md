@@ -1,7 +1,7 @@
 ---
 name: create-architecture
 description: Bootstrap or regenerate the product's high-level design (HLD) — the overview, tech stack and cross-cutting conventions plus the HLD views the repo enabled at /acs:setup (C4 context, container and component views, conceptual data model, API landscape, deployment, project structure, and opt-in data-flow and capability maps), all Mermaid — from the PRD and the codebase, left as local changes for /acs:create-pr to commit and open as a PR. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the HLD after a major architectural shift. Not for a ticket's low-level design. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[focus notes]"
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -16,7 +16,7 @@ design (`lld/<feature>/`) is not yours: the Design skills write it per ticket
 (ADR-0118). This is a product-level skill: it is
 ticket-independent and runs on its own — the PRD is its primary input, which
 you look for yourself at Start, and when there is none it works from the
-run's subject instead. You orchestrate two subagents — the
+run's requirements instead. You orchestrate two subagents — the
 **architect**, which surveys and writes, and the **reviewer**, which judges —
 and never write the architecture docs yourself.
 
@@ -29,10 +29,11 @@ content. Found → that file is `<prd>`, and its roadmap (located the same way) 
 `<roadmap>`.
 
 None found → the skill still runs; it does not wait for /acs:create-prd. The
-bar the architecture is judged against falls back to the run's subject: a
-document `$ARGUMENTS` names (its goals, NFRs and constraints), else the focus
-notes in `$ARGUMENTS` — and, on an existing codebase, the code itself. Tell
-the user in one line: "no PRD found — working from <the subject>;
+bar the architecture is judged against falls back to the run's requirements
+(`context.requirements`, below): the documents, prompt (focus notes) or ticket
+`$ARGUMENTS` named — their goals, NFRs and constraints — and, on an existing
+codebase, the code itself. Tell the user in one line: "no PRD found — working
+from <the requirements>;
 /acs:create-prd can baseline one later." Before the architect's first pass,
 confirm the product goals, product-level NFRs and constraints the
 architecture must satisfy (User interaction) and record each as its own
@@ -58,7 +59,11 @@ no branch.
 
 If `acs step start` exits non-zero: stop immediately and surface its stderr to the
 user verbatim. Otherwise parse the printed context JSON; the fields you need:
-`partition`, `run_id`, `settings` (`design.hld_types` — the HLD types this repo
+`partition`, `run_id`, `requirements` (`{path, sources, acceptance_criteria,
+features, feature, needs_design}` — **Requirements: `context.requirements` /
+`acs.py requirements show` — a ticket id, documents and a prompt are only where
+they came from; never read ticket.json for acceptance criteria**; its `path`,
+the run's `requirements.md`, goes to every architect task in `<inputs>`), `settings` (`design.hld_types` — the HLD types this repo
 writes — and `parallel.max_agents`), `agents`
 (the agent name to spawn per role; the architect's and the reviewer's model and
 effort come from `settings.models.create-architecture.<role>`, inheriting when
@@ -98,7 +103,12 @@ where the summary points.
 
 The PRD is the primary input when there is one: read `<checkout_root>/<prd>`
 and `<checkout_root>/<roadmap>` (absent → the recorded goals from Start stand
-in for them). Then pick the mode:
+in for them). The features' living analyses — every
+`<prd_dir>/features/<feature>/analysis.md` beside the PRD (`<prd_dir>` is the
+PRD's directory), written by `/acs:analyze-requirements` in Discovery — are
+read with it when present: their impact maps, risks and design needs name the
+containers, integrations and data each feature touches. Pass their paths to
+the architect in `<inputs>`; absent ones are simply absent. Then pick the mode:
 
 - **Existing codebase** (the repo contains source beyond docs/config):
   reverse-engineer the CURRENT architecture from code and docs — manifests

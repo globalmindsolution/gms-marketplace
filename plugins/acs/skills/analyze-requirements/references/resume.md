@@ -44,11 +44,13 @@ written from the artifacts, not from a session's memory (ADR-0114).
    file: an analysis recorded published that is not on disk is not published,
    and `record-publication` refuses it. A published analysis from an EARLIER
    run is Stage 1's reuse input, not this run's output.
-3. Read the clarification ledger (`clarify.py list --ticket <id>`): questions
+3. Read the clarification ledger (`clarify.py list`, `--ticket <id>` on a
+   ticket run): questions
    the prior run asked are already recorded, and answers that arrived since are
    the point of the resume. Ask, in ONE grouped ask, only the questions with
    no entry (a follow-up round the prior run already asked is not asked
-   again), then `ticket save` any confirmed amendment not yet in the ticket.
+   again), then `acs.py requirements refine` any confirmed refinement (or
+   the feature) not yet in the run's `## Refined` requirements.
 4. There is no plan artifact to reuse: the authoring notes
    (`iter-<n>/authoring.md`) belong to their iteration, and the controller
    never hands out a survey or a review it has already recorded.

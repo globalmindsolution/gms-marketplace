@@ -90,6 +90,7 @@ printf '__pycache__/\n' >> .gitignore
 git add -A
 git commit -qm "HTTP front and its e2e harness"
 
+ACS_FEATURES=customer-listing
 acs_ticket "Cap the customer page size at 100" task false \
   "list_customers must clamp limit to at most 100."
 
@@ -113,8 +114,8 @@ class PageCap(unittest.TestCase):
 PY
 
 # ... and the ticket's case document, where acs resolves it: no e2e row.
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/test-cases.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/test-cases.md <<'MD'
 ---
 ticket: EVAL-1
 cases: 2

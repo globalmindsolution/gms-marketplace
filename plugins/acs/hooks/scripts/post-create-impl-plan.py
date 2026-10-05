@@ -3,8 +3,9 @@
 updates run.json and tickets-index.json.
 
 Result-document `states` this run records for the steps that follow it:
-  * plan_path      str  — where plan.md was written (the ticket docs folder, or
-    the partition when docs/tickets/ is not in use). The /acs:code gate
+  * plan_path      str  — where plan.md was written (the run's Development
+    folder `<development_dir>/<feature>/<id>/`, ADR-0128, or the partition when
+    the run has no feature). The /acs:code gate
     resolves the file itself; this records which path the run chose.
   * plan_approved  bool — whether plan approval ran and passed (STANDARD/COMPLEX
     lanes only; TRIVIAL/SMALL plans are coordinator-authored and unapproved).

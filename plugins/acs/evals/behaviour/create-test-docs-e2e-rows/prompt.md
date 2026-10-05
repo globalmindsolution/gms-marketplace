@@ -8,7 +8,7 @@ description: >-
   result matching the table, target the e2e suite, write no test code, and
   close with outcome cases_written.
 expected_outcome: >-
-  docs/tickets/EVAL-1/test-cases.md exists with at least one TC row whose Type
+  docs/development/customer-listing/EVAL-1/test-cases.md exists with at least one TC row whose Type
   cell is exactly e2e and a positive integer e2e_cases in the front matter;
   the step state records a positive e2e_cases; run.json records the step
   completed with outcome cases_written; nothing under src/ or tests/ was

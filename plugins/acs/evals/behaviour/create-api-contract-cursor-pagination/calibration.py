@@ -4,7 +4,7 @@ IDEAL does what /acs:create-api-contract's coordinator does, through the
 plugin's own writers where they exist: `acs step start`, the
 contract-author's draft in the step directory (mode
 no-machine-readable-contracts, so no contract files), the Publish copy into
-docs/tickets/EVAL-1/ left uncommitted on main (ADR-0127: no branch, no
+docs/architecture/lld/customer-listing/EVAL-1/ left uncommitted on main (ADR-0127: no branch, no
 commit), then result.json with outcome contract_written and the post-hook.
 """
 
@@ -14,7 +14,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-api-contract"
-PUBLISHED = "docs/tickets/EVAL-1/api-contract.md"
+PUBLISHED = "docs/architecture/lld/customer-listing/EVAL-1/api-contract.md"
 
 CONTRACT = r"""---
 ticket: EVAL-1
@@ -26,9 +26,9 @@ contract_files: []
 
 ## Scope & sources
 
-The surface docs/tickets/EVAL-1/plan.md adds: GET /customers gains a `cursor`
+The surface docs/development/customer-listing/EVAL-1/plan.md adds: GET /customers gains a `cursor`
 query parameter, a `next_cursor` response field and an `invalid_cursor` error.
-Sources: the plan, docs/tickets/EVAL-1/analysis.md, src/shop/__init__.py,
+Sources: the plan, docs/development/customer-listing/EVAL-1/analysis.md, src/shop/__init__.py,
 README.md's API section.
 
 ## Surface
@@ -97,7 +97,7 @@ def _finish(ws, outcome, items, published):
 
 def _publish(ws, text):
     ws.write(STEP + "/api-contract.md", text)
-    ws.sh('cp "%s/api-contract.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p "%s" && cp "%s/api-contract.md" "%s"' % (os.path.dirname(PUBLISHED), STEP, PUBLISHED))
 
 
 def IDEAL(ws):

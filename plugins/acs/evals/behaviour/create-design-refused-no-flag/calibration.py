@@ -10,7 +10,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-PUBLISHED = "docs/tickets/EVAL-1/design.md"
+PUBLISHED = "docs/architecture/lld/service-health/EVAL-1/design.md"
 DESIGN = "# Design — EVAL-1: Show the app version on GET /health\n\n## Context & constraints\n\nx\n"
 
 
@@ -37,7 +37,7 @@ def _worked_around(ws):
     _gate(ws)
     refused = ws.acs("step", "start", "--step", "create-design", "--ticket", "EVAL-1")
     assert refused.returncode == 2, refused.stderr
-    ws.sh("mkdir -p docs/tickets/EVAL-1")
+    ws.sh("mkdir -p docs/architecture/lld/service-health/EVAL-1")
     ws.write(PUBLISHED, DESIGN)
     ws.reply = "Design written for EVAL-1 (needs_design was false, so I wrote it directly)."
 

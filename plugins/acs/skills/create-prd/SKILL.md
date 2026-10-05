@@ -1,7 +1,7 @@
 ---
 name: create-prd
 description: Define or amend the product PRD — vision, problem, personas, goals with measurable success metrics, prioritized features, NFRs, constraints — plus a roadmap, left as local changes for /acs:create-pr to commit and open as a PR. Use when starting a product, onboarding acs onto an existing codebase, or when scope changes require a PRD amendment. Use for any request to write down what a product is, its problem, users and success metrics, or to amend its scope, priorities or roadmap — including when leadership cuts or reprioritizes a feature the existing PRD still lists. Invoke it directly on such a request — it confirms scope and gathers what it needs from the user itself, so there is nothing to ask before running it.
-argument-hint: "[product notes | amendment request]"
+argument-hint: "[ticket-id] [documents…] [product notes | amendment request]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -49,8 +49,13 @@ Parse the printed context JSON. Key fields: `partition`, `run_id`,
 `settings` (`ticket_prefix`, `parallel.max_agents`), `agents` (agent name to
 spawn per role), `reconcile`, `handoff_summary`, `checkout_root`.
 
-Keep the free text of `$ARGUMENTS` (product notes, amendment request): it is
-surveyor and author input. `<prd>` and `<roadmap>` are the repo-relative paths
+**Requirements: `context.requirements` / `acs.py requirements show` — a ticket
+id, documents and a prompt are only where they came from.** The product notes or
+amendment request (the prompt), any documents `$ARGUMENTS` named — a brief, a
+spec, a PDF or an image, in the repo or attached from outside it (copied into
+the run; PDFs and images cited for you to Read) — and a ticket when one was
+named, are all recorded in the run's `requirements.md` (`requirements.path`):
+it is surveyor and author input, named by path in their `<inputs>`. `<prd>` and `<roadmap>` are the repo-relative paths
 every later section uses.
 
 ## Resume & reconcile

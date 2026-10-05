@@ -3,7 +3,8 @@
 IDEAL does what /acs:analyze-requirements' coordinator does when its survey
 recommends a design and the user has confirmed it: `acs step start`, the
 relayed answers recorded with `clarify.py add` (the design question among
-them), the confirmed flag applied with `acs.py ticket save`, the draft, the
+them), the confirmed flag applied with `acs.py requirements refine` (which
+patches the ticket too), the draft, the
 Publish copy left uncommitted (ADR-0127), result.json and the post-hook."""
 
 import json
@@ -39,7 +40,7 @@ def _finish(ws, status="completed", ready=True, api_surface=True, questions_open
 def _publish(ws, text):
     """The Publish copy, left uncommitted on the checked-out branch (ADR-0127)."""
     ws.write(STEP + "/analysis.md", text)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md' % STEP)
+    ws.sh('mkdir -p docs/development/order-tracking/EVAL-1 && cp "%s/analysis.md" docs/development/order-tracking/EVAL-1/analysis.md' % STEP)
 
 
 def _clarify(ws, question, answer=None, source=None, rationale=None):
@@ -59,9 +60,21 @@ def _start(ws):
 
 
 def _flag(ws):
+    saved = ws.acs("requirements", "refine", "--from", "-",
+                   stdin=json.dumps({"needs_design": True}))
+    assert saved.returncode == 0, saved.stderr
+
+
+def _ticket_saved_only(ws):
+    """The pre-ADR-0128 write: the ticket patched with `acs.py ticket save`,
+    the run's requirements left saying no design is needed."""
+    _start(ws)
+    _clarify(ws, "Does this ticket need a design before it is planned?", "Yes, confirmed")
     saved = ws.acs("ticket", "save", "--ticket", "EVAL-1", "--from", "-",
                    stdin=json.dumps({"needs_design": True}))
     assert saved.returncode == 0, saved.stderr
+    _publish(ws, ANALYSIS)
+    _finish(ws)
 
 
 def IDEAL(ws):
@@ -97,6 +110,7 @@ BAD = {
     "recommended a design but left the ticket unflagged": _recommended_only,
     "saw no need for a design": _no_recommendation,
     "fired the skill, started the step, wrote nothing": _started_only,
+    "flagged the ticket but not the run's requirements": _ticket_saved_only,
 }
 
 

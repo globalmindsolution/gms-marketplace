@@ -9,8 +9,8 @@ description: >-
   step -- without asking anything or allocating a new id.
 expected_outcome: >-
   EVAL-1's ticket.json lists children EVAL-2, EVAL-3, EVAL-4 and is still the
-  epic titled Order tracking; exactly three ticket.md files were created under
-  docs/tickets/, each with parent EVAL-1, needs_design false and a non-empty
+  epic titled Order tracking; exactly three child tickets were minted in the
+  workspace (no ticket file enters the repo), each with parent EVAL-1, needs_design false and a non-empty
   acceptance-criteria list; the create-ticket step state records completed.
 tags: [behaviour]
 max_turns: 100
@@ -20,7 +20,7 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:create-ticket skill with arguments `EVAL-1 --fan-out`: fan the
 epic EVAL-1 (Order tracking) out into its child tickets now that its design
-is approved and published at docs/tickets/EVAL-1/design.md.
+is approved and published at docs/architecture/lld/order-tracking/EVAL-1/design.md.
 
 I can't answer questions during this run, so here is my confirmation of the
 breakdown — don't ask me anything. I confirm the three slices in the design's

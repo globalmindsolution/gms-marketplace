@@ -72,7 +72,7 @@ Parse the printed context JSON. Fields you will use:
 - `ticket_id`, `ticket` — the resolved ticket; `ticket.external`
   (`{provider, key}` or null) drives the tracker sync, `ticket.parent` is why
   epic auto-done exists (handled by the post-hook, not you).
-- `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
+- `partition` — absolute path of the run directory (`<workspace>/<repo-id>/runs/<run-id>/`). Phase
   artifacts go in `steps/merge-pr/`.
 - `settings` — `settings.merge_strategy` (`squash` | `merge` | `rebase`,
   default `squash`) and `settings.tracker` (`provider` `local`/`github`
@@ -366,7 +366,7 @@ removed):
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction (e.g. a single AskUserQuestion containing all open questions as a
@@ -376,7 +376,7 @@ per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
-`clarify.py add --skill merge-pr --question "..." --answer "..." --ticket <ticket-id>`
+`clarify.py add --skill merge-pr --question "..." --answer "..."`
 BEFORE acting on it, and apply the relevant `C-n` entries yourself as you
 merge and clean up (no subagent receives them). If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
@@ -406,7 +406,7 @@ verdicts gathered so far, which cleanup steps completed, user answers,
 gotchas) to `steps/merge-pr/handoff-context.md`, then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints, and stop.

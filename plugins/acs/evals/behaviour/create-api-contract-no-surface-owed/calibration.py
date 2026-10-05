@@ -12,7 +12,7 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-api-contract"
-PUBLISHED = "docs/tickets/EVAL-1/api-contract.md"
+PUBLISHED = "docs/architecture/lld/customer-listing/EVAL-1/api-contract.md"
 
 
 def _written(ws):
@@ -41,7 +41,7 @@ def _wrote_one_anyway(ws):
     ws.skill("create-api-contract")
     ws.acs("step", "start", "--step", "create-api-contract", "--ticket", "EVAL-1")
     ws.write(STEP + "/api-contract.md", "---\nticket: EVAL-1\nitems: 1\ncontract_files: []\n---\n")
-    ws.sh('cp "%s/api-contract.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p "%s" && cp "%s/api-contract.md" "%s"' % (os.path.dirname(PUBLISHED), STEP, PUBLISHED))
     result = {"status": "completed", "outcome": "contract_written", "summary": "x",
               "states": {"items": 1, "contract_path": PUBLISHED}, "findings": [], "errors": []}
     result["states"]["files"] = _written(ws)

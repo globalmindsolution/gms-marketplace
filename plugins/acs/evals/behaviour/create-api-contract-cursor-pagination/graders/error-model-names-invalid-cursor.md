@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/api-contract.md }
+target: { source: file, path: docs/architecture/lld/customer-listing/EVAL-1/api-contract.md }
 pattern: '^## Error model[ \t]*$(?:(?!^## )[\s\S])*invalid_cursor'
 flags: m
 ---
