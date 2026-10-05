@@ -37,6 +37,11 @@ SCHEMAS_DIR = os.path.join(PLUGIN, "schemas")
 # code-verifier.md, went with the verifier itself when v0.5.0 replaced the
 # per-skill verifier pass with /acs:review-code's lens set.
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
+#: Progressive disclosure then moved the plan's shape -- the provenance
+#: sentence with it -- out of SKILL.md into this reference, behind a pointer:
+#: the survivor is the same line, in the file the skill now reads it from.
+IMPL_PLAN_SHAPE_REF = os.path.join(SKILLS_DIR, "create-impl-plan", "references",
+                                   "plan-shape.md")
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
 
 # --- This spec's sweep-set files ---
@@ -71,7 +76,7 @@ CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
 # template. What survives is the provenance sentence, which says where the
 # spec content went rather than demanding a plan recite it.
 PROVENANCE_SUBSTRINGS = [
-    (IMPL_PLAN_SKILL,
+    (IMPL_PLAN_SHAPE_REF,
      "what a standalone create-spec planner would once have written"),
     (IMPL_PLAN_PLANNER, "migrated from the deleted create-spec-planner.md"),
 ]
@@ -169,7 +174,8 @@ def changelog_entry_section(body):
 class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
     plugins/acs/{skills,agents}/** containing "create-spec" is exactly
-    {create-impl-plan/SKILL.md, create-impl-plan-planner.md} with per-file
+    {create-impl-plan/references/plan-shape.md, create-impl-plan-planner.md}
+    (the plan skill's survivor moved there with the plan's shape) with per-file
     line-hit counts {1, 1}. Requires spec 01 already landed (see the
     spec's "Why this spec is last")."""
 
@@ -178,16 +184,16 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
         cls.counts = line_hit_counts([SKILLS_DIR, AGENTS_DIR])
 
     def test_exact_file_set(self):
-        expected_files = {IMPL_PLAN_SKILL, IMPL_PLAN_PLANNER}
+        expected_files = {IMPL_PLAN_SHAPE_REF, IMPL_PLAN_PLANNER}
         self.assertEqual(
             set(self.counts.keys()), expected_files,
             "plugins/acs/{skills,agents}/** must contain \"create-spec\" in "
-            "exactly {create-impl-plan/SKILL.md, "
+            "exactly {create-impl-plan/references/plan-shape.md, "
             "create-impl-plan-planner.md} after the sweep, got: %r"
             % (sorted(self.counts.keys()),))
 
     def test_per_file_line_hit_counts(self):
-        expected = {IMPL_PLAN_SKILL: 1, IMPL_PLAN_PLANNER: 1}
+        expected = {IMPL_PLAN_SHAPE_REF: 1, IMPL_PLAN_PLANNER: 1}
         for path, n in expected.items():
             with self.subTest(path=path):
                 self.assertEqual(

@@ -62,23 +62,9 @@ and fanned out, never given one contract). No ticket is required. It never refus
 and there is no predecessor-completed check: order lives in
 `workflows/ship.yaml`, not in this gate.
 
-What you find decides how you scope the run, never whether it runs:
-
-- `plan.md` present — **the primary input**; the contract covers exactly the
-  surface this plan adds or changes.
-- `plan.md` absent — work from the requirements: their acceptance criteria
-  (whether a ticket, a prompt or documents carried them) and the code are the scope. Say so in
-  `## Scope & sources` and in the completion report, where the pointer is
-  "run /acs:create-impl-plan <id> first" for a contract scoped by a plan.
-- the analysis present — its API-surface assessment (`api_surface` in its
-  `README.md` front matter) and its evidence inform the survey. When it declares `api_surface: false` and you
-  were invoked anyway, run: the contract-author's survey either finds the
-  surface the analysis missed — report that disagreement — or finds none, and
-  the run completes with `outcome: no_surface_owed`.
-  Do not work around it by editing the analysis yourself — the analysis is
-  `/acs:analyze-requirements`'s artifact; a stale one is re-run there.
-- the analysis absent — the survey assesses the surface from the plan (or
-  the subject) and the code alone.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/inputs.md`
+before the first spawn — what you find (plan, analysis) decides how you scope
+the run, never whether it runs.
 
 Parse the printed context JSON. Fields you will use:
 
@@ -164,92 +150,23 @@ a copy of those exact bytes (see Publish).
 
 ### Machine-readable contract files
 
-The repo's machine-readable contracts — an OpenAPI document, JSON Schemas,
-`.proto` files, a GraphQL SDL, a CLI reference generated from the parser,
-whatever this repo already uses — live where the repo keeps them, else at
-`docs/api/`, the conventional default. Locate them the way any session finds a
-document: CLAUDE.md and whatever docs index it or the repo points at (e.g.
-`docs/README.md`), then a Glob/Grep by file name or content, and `docs/api/`.
-Resolve the mode ONCE, before the first subagent is spawned, and state it in
-every task's `<constraints>`:
-
-- none found → mode `no-machine-readable-contracts`. Do NOT invent the
-  convention: record that in `## Contract files` and leave the tree absent.
-  Introducing a contract format a repo has never used is an architecture
-  decision, not this skill's call — raise it as a question if it matters; a
-  format the user adopts goes in `docs/api/`.
-- found → mode is the repo-relative directory that holds them
-  (`<contracts_dir>`). Identify the files that describe the touched surface (by
-  reading them, not by guessing filenames) and update them as part of this run,
-  in the format they already use.
-
-Those two token values are what `<constraint name="contracts_mode">` carries
-into every phase, so the contract-author and the contract-reviewer work against
-the same resolution. The same resolution decides whether the contract-authors
-run sliced (see Writer slices): decide that here too, once, before the first
-spawn.
+Read
+`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/contract-files.md`
+once, before the first spawn — it resolves `contracts_mode`, which every task's
+`<constraints>` carries.
 
 ## Resume & reconcile
 
-If `context.reconcile` is true, verify recorded progress against reality BEFORE
-continuing:
-
-1. Read `steps/create-api-contract/state.json` (`invocations[-1]`, `states`) and
-   the artifacts under `steps/create-api-contract/`.
-2. Re-resolve `<contract_path>` and read it if it exists; check
-   `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --name-only`
-   for contract-file changes a prior run left in the working tree. Trust
-   nothing you cannot see in a file.
-3. Continue from the first unfinished phase — a contract-author report
-   (`iter-<n>/contract-author.json`) with no contract-reviewer report →
-   review it; a contract-reviewer report (`iter-<n>/contract-reviewer.md`)
-   with findings and no later contract-author → re-run the contract-author
-   with those findings as `<context>`; nothing on disk → iteration 1
-   contract-author.
-4. The contract-author's authoring notes (`iter-<n>/authoring.md`) belong to
-   their iteration, and a resumed run never re-runs an iteration whose
-   contract-reviewer report is already on disk.
-5. A sliced phase resumes slice by slice: a resumed iteration re-runs ONLY the
-   slices whose report is missing — a writer slice without
-   `iter-<n>/contract-author-<k>.json`, a reviewer slice without
-   `iter-<n>/contract-reviewer-<slice>.md` — spawned together in one message,
-   then runs the join. Every writer slice's report on disk but no
-   `iter-<n>/contract-author-integration.json` → run the integration pass, then
-   the join. Every report on disk but no joined file (`iter-<n>/authoring.md`
-   and the draft, or `iter-<n>/contract-reviewer.md`) → run the join alone;
-   never re-run a slice whose report is on disk.
-
-If `context.handoff_summary` exists, read it plus
-`steps/create-api-contract/handoff-context.md` (when present), do
-a light reconcile, and continue from where it points.
+Read
+`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/not-a-first-run.md`
+when `context.reconcile` or `context.handoff_summary` is set — verify recorded
+progress against reality, then resume.
 
 ## Inputs — gather before the loop
 
-Name these by path in the contract-author's `<inputs>` (never inline a file
-body); an input that does not exist is named as absent, never invented:
-
-1. `plan.md` (the path `artifacts show` reported), when it exists — **the
-   primary input**. The contract covers the surface THIS plan adds or changes:
-   its executor tasks, file map and API/data-changes content are the scope
-   boundary. A surface the plan does not touch is out of scope, however
-   tempting. With no plan, the requirements' acceptance criteria are the boundary.
-2. The analysis, when it exists — the API-surface assessment and its
-   evidence, the impact map, the assumptions and the refined acceptance
-   criteria — and the feature's living analysis (`feature_analysis`) when one
-   exists. Each is a folder (ADR-0133): read its `README.md` first, then only
-   the context files whose API notes touch the surface; a legacy single
-   `analysis.md` is read whole.
-3. The requirements document (`requirements.path`, the run's
-   `requirements.md`) — the acceptance criteria every item traces to.
-4. `<design_doc>` when `design.required` — interface decisions the
-   design already settled are binding; the contract renders them, never
-   re-opens them.
-5. The architecture doc set when it exists: `<architecture_dir>/lld/contracts.md`
-   and the `lld/flows/` diagrams for the touched flows.
-6. The existing contract files under `<checkout_root>/<contracts_dir>/` when
-   the repo keeps them, plus the code that implements today's surface (the
-   handler, the parser, the emitter) — the current shape is what "changed" is
-   measured against.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/inputs.md`
+for the list — each input is named by path in `<inputs>`, never inlined or
+invented.
 
 ## Reflection loop — contract-author → contract-reviewer
 
@@ -268,72 +185,17 @@ contract-author authors the remediation.
 Decomposition is YOURS alone — subagents never spawn subagents, so every
 parallel fan-out below is yours to spawn and yours to join.
 
-Messaging rules (`the SubagentStop hook's message check`):
-
-- Send each subagent one `<task skill="create-api-contract"
-  phase="contract-author|contract-reviewer" ticket-id="<id>" iteration="n">` with
-  `<objective>`, `<inputs>` (file refs) and `<constraints>` — always
-  `required_sections` (the seven headings below), `audience_style_profile`
-  (`integrators (precise shapes + examples)`), and `contracts_mode` (the mode
-  resolved above).
-- A sliced instance's task carries its slice id,
-  `<task skill="create-api-contract" phase="contract-reviewer" slice="trace" …>`,
-  and its `<result … slice="trace" …>` echoes it, so the SubagentStop snapshot
-  lands at `iter-<n>/<phase>-<slice>-message.xml` and parallel results never
-  overwrite each other. A single, un-sliced instance omits `slice`.
-- Validate EVERY message you send and receive — the SubagentStop hook checks
-  each returned `<result>`'s `skill=`, `phase=` and `iteration=`. On invalid:
-  re-request once with the validation error quoted; still invalid → fail the
-  run and record the error in the result document's `errors`.
-- Every phase output is persisted at the phase boundary, BEFORE the next phase
-  starts: the SubagentStop hook snapshots each returned message to
-  `steps/create-api-contract/iter-<n>/<phase>-message.xml` (`<phase>` is the
-  role); if that snapshot is missing (a host that does not fire the hook),
-  write the `<task>` and `<result>` there yourself.
-- Spawn subagents with the Agent tool: `subagent_type:
-  "acs:create-api-contract-contract-author"` and
-  `"acs:create-api-contract-contract-reviewer"` — fall back to the
-  un-namespaced name (`create-api-contract-contract-author`,
-  `create-api-contract-contract-reviewer`) only if the runtime rejects the
-  namespaced one. Spawn each role under the name in
-  `context.agents.<role>` — the plugin's `acs:create-api-contract-<role>`, or the
-  generated `acs-create-api-contract-<role>` copy `acs step start` wrote where
-  `settings.models` sets a model or effort for it. Model and effort travel with
-  that agent, so pass none of your own. If the runtime rejects the agent, FAIL
-  the run with that exact error — no silent fallback.
-
-**Spawn in the foreground and wait on the result, never on a clock.** Pass
-`run_in_background: false` to the Agent tool: the phase's `<result>` is your
-next input and nothing else can usefully happen while it runs. If the
-runtime moves the agent to the background anyway, wait for its completion
-notification — never poll with `sleep` loops (`for i in $(seq 1 40); do
-sleep 15; done` and its kin), which wait a fixed ten minutes whatever the
-agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/messaging.md`
+before the first spawn — the `<task>`/`<result>` rules, snapshots and agent
+names.
 
 ### Phase: contract-author — `acs:create-api-contract-contract-author`
 
-Objective, iteration 1: enumerate the surface. From the plan, the analysis,
-the design and the code (or, with no plan, the subject and the code), record in
-the authoring notes
-(`steps/create-api-contract/iter-<n>/authoring.md`) one entry per
-endpoint/command/message/schema/signature the plan adds or changes — each
-with its kind, its current shape (or "new"), the plan item and acceptance
-criterion it traces to, the compatibility question it raises, and which
-machine-readable contract file (when the tree exists) describes it — plus the
-genuinely open questions (a versioning or breaking-change decision the plan
-does not settle is exactly such a question). Then write the contract draft
-from those notes. The notes are what the contract-reviewer checks the draft
-against.
-
-If the contract-author returns `needs_input` with `<questions>`, resolve them
-in User interaction and re-run the contract-author for the same iteration with
-the answers in `<context>`.
-
-If the survey finds no surface at all — nothing the plan or the subject adds or
-changes is an endpoint, command, message, schema, signature or persisted
-format — the contract-author says so in its report (`items: 0`) and writes no
-draft. Skip the contract-reviewer, publish nothing, and complete with
-`outcome: no_surface_owed` and the survey's reason in `summary`.
+Read
+`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/contract-author.md`
+when you task the contract-author — its iteration-1 objective (enumerate the
+surface into the authoring notes, then draft from them), its `needs_input` and
+no-surface exits, and the draft's skeleton.
 
 The same phase then writes the contract draft to
 `steps/create-api-contract/api-contract.md` — one draft per run,
@@ -343,172 +205,15 @@ them uncommitted in the working tree. When the contract-authors run sliced (Writ
 slices, below), each slice does all of this for its own group only, and you
 assemble the one draft from their fragments.
 
-The draft's front matter and its seven headings, in this order:
-
-```markdown
----
-ticket: SHOP-123
-items: 3
-contract_files: ["docs/api/openapi.yaml"]
----
-
-# API contract — SHOP-123: Accept CSV imports over 10 MB
-
-## Scope & sources
-## Surface
-## Error model
-## Compatibility & versioning
-## Examples
-## Traceability
-## Contract files
-```
-
-`## Surface` carries one `### ` subsection per item — what each holds is
-defined in `create-api-contract-contract-author.md`. `items` in the front matter is
-the number of those subsections, and `contract_files` is the repo-relative list
-of machine-readable files this run changed (`[]` when none).
-
 On iteration ≥ 2 the contract-author fixes every finding in `<context>` and
 nothing else.
 
 #### Writer slices — one contract-author per contract-file group
 
-When the contract splits into disjoint files, the contract-authors run in
-parallel from iteration 1 — that is the default, not an optimisation to reach
-for. Decide it once, after `contracts_mode` is resolved and before the first
-spawn:
-
-- **When.** `plan.md` exists, `contracts_mode` is a real `<contracts_dir>`, and
-  the plan's file map (or its API/data-changes content) touches two or more
-  contract-file groups. Otherwise — `no-machine-readable-contracts`, no plan,
-  or a single group — ONE contract-author writes the whole draft, un-sliced:
-  the contract is then a single document with nothing disjoint to hand out.
-- **The partition rule.** A group is a set of machine-readable contract files
-  under `<contracts_dir>` that describe one API: files that reference one
-  another (a `$ref`, an `import`, an `include`) or that describe the same item
-  are ONE group. Establish the groups by reading the files the plan names,
-  never from their names; when you cannot establish them, do not slice. One
-  slice owns one group — its contract files (only that slice edits
-  them), the surface items those files describe, and its own fragment of the
-  draft — and the FIRST slice also owns every item no contract file describes
-  (a CLI flag, a library signature). Every contract file is in exactly one
-  group and every item has exactly one owner: that is the guarantee two slices
-  cannot overlap. Each task names its own group's files AND every other
-  group's in `<constraint name="slice_scope">`, so a slice knows what it must
-  not touch.
-- **Slice ids.** The group's primary file stem, lowercase (`openapi`,
-  `events`, `billing-api`) — `acs.py notes merge` reads a slice id as what
-  follows the prefix its inputs share, so a hyphen is fine. `preamble` and
-  `integration` are reserved.
-- **What a slice writes.** Its notes `iter-<n>/authoring-<k>.md`; its fragment
-  `steps/create-api-contract/api-contract-<k>.md` — the seven headings in
-  order, no front matter and no title, only its own items, revised in place
-  across iterations; its report `iter-<n>/contract-author-<k>.json`; and its
-  group's contract files.
-- **One message.** Spawn every slice of a wave in ONE message — one Agent call
-  per slice, all in the same assistant message, in the foreground — then wait
-  for ALL of them before anything else happens. At most
-  `settings.parallel.max_agents` (default 4) slices per message; more groups
-  run in waves of that size, the next wave spawned only once every slice of
-  the previous one returned.
-- **One working tree, no git writes.** Each slice writes ONLY its own group's
-  files and lists them in its report's `contract_files`; no slice stages,
-  commits or touches a branch, so siblings never contend for the index. The
-  join is the reports plus the file-map guard: a write outside a slice's
-  group is its defect, never a sibling's.
-- **Questions and failures.** The `<questions>` of every slice that returned
-  `needs_input` go to the user in ONE grouped ask (User interaction); then only
-  those slices re-run, under the same id, with the answers in `<context>`. A
-  slice that `failed` is re-run alone once; still failed → the run fails. The
-  join waits until every slice of the iteration has `completed`.
-- **The integration pass — synthesis, before the join and before the
-  reviewer.** A mechanical join is not a synthesis: slices that each wrote
-  their own group can disagree where the groups meet. Once every slice has
-  completed, spawn ONE more contract-author with `slice="integration"` (the
-  pattern `/acs:code-complex`'s final integration implementer uses). Its
-  `<inputs>` name every slice's fragment, latest notes, latest report and
-  contract files. It reconciles ONLY the seams between groups, and edits the
-  fragments and contract files in place to do it:
-  - **error codes** — a code two groups return carries one meaning, one
-    wording and one status across every fragment's `## Error model` table;
-  - **shared definitions** — a type, enum, field name or identifier two
-    groups both use (a shared error body, a status enum, an id format) is
-    spelled and shaped the same in every fragment and every contract file;
-  - **cross-references** — an item in one group that names an item in
-    another (an endpoint that emits a message, a command that prints a
-    schema) names it exactly as the owning fragment's `### ` heading does;
-  - **compatibility decisions** — two slices citing the same `C-n` state the
-    same verdict and decision;
-  - **scope and traceability hand-offs** — a surface one slice excluded as
-    "another group's" is specified by that group (nothing dropped between
-    slices), and an acceptance criterion one slice marks as a gap is not
-    covered by another slice's item;
-  - **indexes** — any index or README under `<contracts_dir>` that lists the
-    contract files names every group's files.
-
-  It never rewrites a slice's substance and never adds or removes an item —
-  the derived `items` count stays true. Where the slices' notes contradict
-  each other, it records the resolution with its evidence under a
-  `## Synthesis` heading in its own notes, `iter-<n>/authoring-integration.md`,
-  never silently picking one; a genuine conflict it cannot resolve from the
-  evidence comes back as `status="needs_input"` with the question. It writes
-  `iter-<n>/contract-author-integration.json` listing each seam it changed
-  (file, what, why, which slices), and lists every contract file it touched in
-  that report, leaving them uncommitted like every slice. The pass is
-  skipped when the contract-author ran un-sliced — one writer has no seams —
-  and, on iteration 2+, when there is nothing at a seam to reconcile (below).
-- **The join — deterministic, never by hand.** Once the integration pass
-  completed:
-  1. Join the notes — each slice's LATEST notes (this iteration's when it ran,
-     else those of the iteration it last ran), in slice order, and the
-     integration pass's notes last:
-
-     ```bash
-     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
-       --out <partition>/steps/create-api-contract/iter-<n>/authoring.md \
-       <partition>/steps/create-api-contract/iter-<n>/authoring-<k1>.md <…/authoring-<k2>.md> … \
-       <partition>/steps/create-api-contract/iter-<n>/authoring-integration.md
-     ```
-
-  2. Write `steps/create-api-contract/api-contract-preamble.md`: the front
-     matter and the `# API contract — <id>: <title>` line, nothing else, every
-     value DERIVED — `ticket` is `<id>`, `items` the sum of the slices' latest
-     reports' `items`, `contract_files` the union of their `contract_files`.
-     It is the one draft file you write, and it holds no contract content.
-  3. Join the draft, the preamble first and then the fragments of every slice
-     with `items` > 0, in slice order:
-
-     ```bash
-     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge --no-markers \
-       --out <partition>/steps/create-api-contract/api-contract.md \
-       <partition>/steps/create-api-contract/api-contract-preamble.md \
-       <partition>/steps/create-api-contract/api-contract-<k1>.md <…/api-contract-<k2>.md> …
-     ```
-
-  The merge keeps the first input's preamble — the derived front matter — and
-  lays each fragment's body under the one heading they share; `--no-markers`
-  leaves out the `<!-- slice: … -->` lines, because this draft is what Publish
-  copies into the repo (the notes and reviewer-report joins keep them — they
-  stay in the workspace), so the
-  contract-reviewer, the deterministic checks and Publish all read ONE draft
-  with each of the seven headings once. A slice whose report miscounts its
-  items is caught there: the reviewer's `front-matter` dimension checks the
-  derived `items` against the `### ` subsections.
-- **Iteration 2+.** Group the findings by the slice that owns the item or
-  contract file each one names, and re-run only those slices — each with
-  EVERY finding verbatim in its `<context>`, fixing the ones in its own group.
-  A seam finding — one that spans two groups, or names an inconsistency
-  between fragments — goes to the next iteration's integration pass, not to
-  the slices. A slice not re-run keeps its fragment, notes and report as they
-  are. The integration pass then runs again, with every finding in its
-  `<context>` (alone, when only seam findings were open) — but only when a
-  seam finding is open or a re-run slice's report lists a `seams` entry (its
-  fix changed something another group names). With neither, nothing at a
-  seam has moved since the last integration pass, so skip it: the join uses
-  that pass's latest notes, like any slice not re-run. Then the join follows.
-- **No surface.** Every slice reporting `items: 0` completes the run with
-  `outcome: no_surface_owed`, exactly as un-sliced. A slice with `items: 0`
-  writes no fragment and is left out of the draft join; its notes still join.
+Read
+`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/writer-slices.md`
+when the plan touches two or more contract-file groups — one contract-author
+per group, an integration pass, then the join.
 
 ### Phase: contract-reviewer — `acs:create-api-contract-contract-reviewer`
 
@@ -529,22 +234,13 @@ iteration's integration pass.
 
 #### Reviewer slices — the eight dimensions in three parallel judges
 
-The contract-reviewer has eight check dimensions, so every review runs as
-three fresh instances of the SAME agent, one per slice, each told its
-dimensions in `<constraint name="dimensions">`:
+Read
+`${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/reviewer-slices.md`
+before every review — three slices (`surface`, `trace`, `files`) in ONE
+message, de-duplication, and the pass rule.
 
-| slice | dimensions | owns the check |
-| --- | --- | --- |
-| `surface` | 1 `completeness`, 2 `accuracy`, 7 `scope` | re-deriving the surface from the plan (or the subject) and the code |
-| `trace` | 3 `traceability`, 4 `compatibility`, 8 `authoring-conformance` | `clarify.py list` against the ledger |
-| `files` | 5 `contract-files`, 6 `front-matter` and `structure` | `front_matter_check.py`, `structure_lint.py`, the contract files as they stand in the working tree (`acs.py changes diff --name-only`) |
-
-Spawn the three in ONE message — one Agent call per slice, all in the same
-assistant message, in the foreground (three is within the default
-`settings.parallel.max_agents` of 4; a lower setting runs them in waves of
-that size) — and wait for ALL of them. Each writes
-`iter-<n>/contract-reviewer-<slice>.md`; join them, in the table's order, into
-the one report every reader expects:
+Join the three slices' reports, in the table's order, into the one report
+every reader expects:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
@@ -553,23 +249,6 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
   <partition>/steps/create-api-contract/iter-<n>/contract-reviewer-trace.md \
   <partition>/steps/create-api-contract/iter-<n>/contract-reviewer-files.md
 ```
-
-**De-duplication — the join is the synthesis.** The slices own disjoint
-dimensions, so the merge is the synthesis; you additionally drop a finding
-that cites the same location and the same defect as another slice's finding,
-keeping the one with the higher severity, and say so in the joined report:
-append a `## De-duplicated findings` section to
-`iter-<n>/contract-reviewer.md` naming each dropped finding, its slice, and
-the kept finding it duplicates. Two findings on the same location for
-different defects are both kept.
-
-**The pass rule for sliced reviewers.** The iteration passes only if EVERY
-slice returned `status="completed"` with zero blocking findings. Any slice's
-blocking finding blocks, and all three slices' findings — de-duplicated,
-otherwise verbatim — go to the next contract-author. A slice that returned
-`status="failed"` or no usable `<result>` (after the one re-request) fails
-the iteration exactly as a blocking finding does —
-never "pass with a missing slice".
 
 ALL blocking findings block — zero blocking findings = pass.
 `status="completed"` means the review RAN; the empty `<findings>` is the
@@ -720,33 +399,10 @@ MANDATORY final step — never skipped, also on failure or handoff:
    }
    ```
 
-   Canonical `states` keys — EXACT names; `acs step finish`
-   documents them and the next steps read them:
-   - `contract_path`: where `api-contract.md` was published (the design
-     record folder, or the partition when there is no checkout or feature to
-     anchor it to).
-   - `items` (int): how many endpoints/commands/messages the contract
-     declares — the same number as the front matter's `items` and as the
-     `### ` subsections under `## Surface`.
-   - `traced_acs` (list): the acceptance-criteria ids the items trace to, each
-     appearing at least once in `## Traceability` (the union of the slices'
-     reports when the contract-authors ran sliced).
-   - `files` (list): every repo-relative path this run wrote and left
-     uncommitted — the published contract (not when kept local) plus each
-     machine-readable contract file the slices' reports list. `/acs:create-pr` commits them.
-
-   `outcome` is required on every `completed` result document — the post-hook
-   refuses one without it, because this step completes in two ways: `contract_written`
-   when the loop ran, `no_surface_owed` when the survey found no surface to
-   specify (then `items` is `0` and `traced_acs` is `[]`). The pre-hook
-   records `no_surface_owed` itself when the plan's `## Contract` block owes
-   no contract, and this coordinator never runs.
-
-   The machine-readable contract files stay uncommitted in the working tree,
-   listed in `files`; name them in the completion report too. On failure
-   keep whatever is true: `contract_path` only when a contract was actually
-   published, the open findings in `findings`, and the reason (iteration cap,
-   needs input) in `summary`.
+   Read
+   `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/result-states.md`
+   as you write it — the canonical `states` keys (`files` names nothing that
+   was kept local) and when each `outcome` applies.
 
 2. Run the post-hook:
 

@@ -5,6 +5,12 @@ an interrupted prior run to reconcile against, or a published `plan.md` that
 is now wrong. A first run over a ticket with no partition history reads
 neither half.
 
+Nearly all of the skill is one flow: the planner surveys the ticket and
+authors a plan draft, the plan reviewer judges it, you publish it. What a run
+does when the ticket already carries an interrupted prior run, or a published
+plan that has since been superseded, is not — which is why it lives here, so a
+first run never reads it.
+
 Both halves answer the same question — what already exists on disk, and what
 may be done to it — from the two directions a re-run can come from. The
 reconcile half trusts nothing it can cheaply re-check; the revocation half

@@ -36,10 +36,12 @@ SKILL_PATH = os.path.join(PLUGIN, "skills", "create-api-contract", "SKILL.md")
 AGENTS = os.path.join(PLUGIN, "agents")
 
 sys.path.insert(0, HOOKS)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
+from skill_text import skill_contract  # noqa: E402
 
 ROLES = ("contract-author", "contract-reviewer")
 
@@ -61,6 +63,14 @@ def frontmatter(text, path):
     parts = text.split("---\n", 2)
     assert len(parts) >= 3 and parts[0] == "", "%s: missing frontmatter" % path
     return parts[1], parts[2]
+
+
+def contract():
+    """What the skill SAYS: SKILL.md with the `references/` it points at read
+    in place (progressive disclosure moved the procedure a run reads only in
+    some arms, or at one phase, behind one-line pointers). Pins on the
+    SKILL.md file itself -- its front matter -- still read SKILL_PATH."""
+    return skill_contract("create-api-contract")
 
 
 def agent(role):
@@ -112,7 +122,7 @@ class TestLifecycleWiring(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
 
     def test_start_hook_is_the_mandatory_first_action(self):
         self.assertIn('acs.py" step start', self.body)
@@ -150,7 +160,7 @@ class TestGateAgreement(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
 
     def test_a_missing_plan_is_a_fallback_not_a_refusal(self):
         """The generic input gate (`reads_of`, the per-skill manifest) is gone:
@@ -182,7 +192,7 @@ class TestContractFrontMatterContract(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
         cls.specs = flag_values(cls.body, "--require")
         cls.example = doc_front_matter_example(cls.body)
 
@@ -224,7 +234,7 @@ class TestContractSectionContract(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
         cls.sections = flag_values(cls.body, "--sections")
 
     def test_the_skill_declares_the_seven_sections_in_order(self):
@@ -265,7 +275,7 @@ class TestTraceability(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
 
     def test_the_skill_states_the_two_way_trace(self):
         self.assertRegex(self.body, r"traces back to an\s+acceptance criterion AND to the plan item")
@@ -294,7 +304,7 @@ class TestContractsPathModes(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
 
     def test_the_found_location_and_the_default_are_both_described(self):
         norm = " ".join(self.body.split())
@@ -342,7 +352,7 @@ class TestResultDocument(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
         cls.post_hook = read(os.path.join(HOOKS, "post-create-api-contract.py"))
 
     def test_the_skill_records_exactly_the_documented_states(self):
@@ -382,7 +392,7 @@ class TestUserDecisions(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
 
     def test_breaking_changes_are_asked_before_they_are_specified(self):
         self.assertRegex(self.body, r"compatibility questions")
@@ -403,7 +413,7 @@ class TestPublishing(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
 
     def test_the_artifact_path_is_resolved_by_the_cli_not_guessed(self):
         self.assertIn('acs.py" artifacts show\n', self.body)
@@ -470,13 +480,13 @@ class TestTriadShape(unittest.TestCase):
             with self.subTest(role=role):
                 self.assertIn('<result skill="create-api-contract" phase="%s"' % role,
                               agent(role))
-                self.assertIn("acs:create-api-contract-%s" % role, read(SKILL_PATH))
+                self.assertIn("acs:create-api-contract-%s" % role, contract())
 
     def test_no_planner_and_a_capped_loop(self):
         """ADR-0092 class D: the deliverable is the document, so a plan for it
         would be a second copy of the work — the contract-author surveys and
         writes, the contract-reviewer judges, and nothing plans in between."""
-        body = read(SKILL_PATH)
+        body = contract()
         self.assertRegex(body, r"contract-author → contract-reviewer")
         self.assertNotIn("acs:create-api-contract-planner", body)
         self.assertNotIn("iter-1-plan.md", body)
@@ -521,7 +531,7 @@ class TestParallelFanOut(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
         cls.author = agent("contract-author")
         cls.reviewer = agent("contract-reviewer")
         cls.slices = reviewer_slices(cls.body)
@@ -650,7 +660,7 @@ class TestSynthesisAfterFanOut(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = contract()
         cls.author = agent("contract-author")
         cls.reviewer = agent("contract-reviewer")
 

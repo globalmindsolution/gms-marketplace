@@ -13,11 +13,12 @@ and settle the bounded contexts the analysis splits into; and, once the
 coordinator has taken the questions to the user, author the analysis draft
 from the reconciled notes and the answers — a folder,
 `steps/analyze-requirements/iter-<n>/analysis/`, holding a `README.md` and one
-file per context, with the front matter and sections below (ADR-0133). You never plan the implementation (that is
-/acs:create-impl-plan's job, one step later), you never ask the user yourself
-(the coordinator does, between your passes), you do not judge your own work (a
-fresh impact reviewer does that from the artifacts alone), and you never write
-outside the workspace partition.
+file per context, with the front matter and sections the analysis templates
+set (ADR-0133). You never plan the implementation (that is /acs:create-impl-plan's
+job, one step later), you never ask the user yourself (the coordinator does,
+between your passes), you do not judge your own work (a fresh impact reviewer
+does that from the artifacts alone), and you never write outside the workspace
+partition.
 
 ## Which pass you run
 
@@ -58,13 +59,7 @@ handed ARE the survey, reconciled and answered.
    iteration ≥ 2 the controller has seeded that folder with the previous
    iteration's files: revise them IN PLACE, delete a context file the analysis
    no longer has, never start a second folder. Write and revise every file
-   through Bash — `cat > <path> <<'EOF' … EOF` for a file, a `python3 -
-   <<'PY'` text substitution for an in-place revision — never through the
-   Write or Edit tool: the runtime refuses a subagent's Write/Edit of a file
-   named like a report ("Subagents should return findings as text, not write
-   report files"), analysis files trip that rule on every run, and each
-   refused attempt is a turn lost before the same content lands via Bash
-   anyway.
+   through Bash, never the Write or Edit tool (the templates say how and why).
 4. On iteration ≥ 2, fix every finding listed in `<context>` and nothing
    beyond what your notes cover; leaving a listed finding unaddressed fails
    the next impact review.
@@ -78,7 +73,8 @@ settle silently). What code they TOUCH — the impact surface, the tests that ju
 API-surface evidence — is the impact analysts' lane
 (`acs:analyze-requirements-impact-analyst`, one per code area); do not map it
 here. Start from the previously published analysis when `<inputs>` names one
-(Reuse, below); otherwise from the requirements and the code.
+(read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/reuse.md` first);
+otherwise from the requirements and the code.
 
 1. **Problem, as the code sees it.** Restate what the requirements ask for in
    terms of the repository: which behaviour changes, for whom, and what "done"
@@ -137,25 +133,6 @@ here. Start from the previously published analysis when `<inputs>` names one
    The survey COMPLETES with its questions in the notes — it does not return
    `needs_input` for them.
 
-### Reuse — when a previous analysis exists
-
-When `<inputs>` names the previously published analysis (its `README.md` and
-context files, or a legacy single `analysis.md`), it is where the survey
-starts, not an answer key:
-
-- Its impact-map rows are re-verified by the impact lanes — still true /
-  changed / gone; you re-verify its problem statement and criteria the same
-  way, each with the evidence you opened now.
-- Carry forward its answered `C-n` entries: they are answers, never questions
-  again. Name any the ledger (`clarify.py list`) lacks, so the
-  coordinator re-records them instead of asking.
-- Record what changed since under a `## Changes since the last analysis`
-  section of the notes: criteria the requirements have gained or lost;
-  questions answered since and questions newly raised.
-- The feature's living analysis (a Development run's second reuse input) is
-  the whole feature: carry over only what bears on THIS change, cite it, and
-  re-verify it like any other previous analysis.
-
 ## When you are one survey slice
 
 The survey is always sliced: your requirements lane is one slice
@@ -179,41 +156,9 @@ the requirements slice:
 
 ## When you run the synthesis pass
 
-After every survey lane returned you are spawned with `slice="synthesis"` and
-the joined `iter-1/authoring.md` in `<inputs>`. The joined notes are a join,
-not a synthesis — synthesizing them is your job, and it happens BEFORE the
-user is asked anything. Do not re-survey the areas; open the cited files you
-need to settle a contradiction.
-
-- Read every section across its `<!-- slice: <id> -->` markers and find
-  where two slices contradict each other: a fact one lane states and another
-  denies, API-surface evidence from two areas that points different ways, one
-  path claimed by two areas' seams with different changes, a criterion your
-  requirements lane calls testable that an impact lane shows the code
-  contradicts.
-- Write a `## Synthesis` section to `iter-1/authoring-synthesis.md` with one
-  entry per contradiction: the slices involved, what each claimed (cited), and
-  either the resolution with the evidence you opened that settles it, or a
-  group-(a) question in your `## Questions for the user` when no source does.
-  Never silently pick one slice's claim; with no contradictions, the section
-  says `_No contradictions between slices._` and names the seams you checked.
-- Write a `## Contexts` section to the same file: the bounded contexts the
-  analysis splits into, settled from the impact lanes' context names and your
-  requirements lane's candidates — one line each: the name in plain words,
-  the kebab-case file name (`acs.py slug --text "<name>"`), a one-line
-  purpose, and the impact rows it owns. Merge two candidates that share their
-  rules; split one whose rows answer to different rules. Every impact row
-  belongs to exactly ONE context; even a single context is one entry. On a
-  re-analysis keep the previous analysis's file names unless a context
-  changed.
-- Write a `## Questions for the user` section to the same file: the slices'
-  lists de-duplicated into ONE list, in the four groups, each item naming the
-  slice question(s) it stands for, plus any question your synthesis raised.
-- Write your report to `iter-1/analyst-synthesis.json` (`analysis_path`
-  null). Never write the merged `iter-1/authoring.md` — the controller joins
-  your file into it last.
-- Your result carries the slice:
-  `<result skill="analyze-requirements" phase="analyst" slice="synthesis" …>`.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/synthesis.md`
+before you start — what you reconcile, the `## Synthesis`, `## Contexts` and
+`## Questions for the user` sections you write, and your report and result.
 
 ## The authoring notes (mandatory, every iteration)
 
@@ -236,136 +181,13 @@ On iteration ≥ 2 the draft pass writes `iter-<n>/authoring.md` carrying a
 **Findings addressed** section mapping each `<context>` finding to what you
 changed.
 
-
 ## The analysis draft (mandatory shape)
 
-The `draft` pass writes a folder for people first: plain-word headings, short
-sections, a README someone can read without opening anything else. Every file
-name is `README.md` or kebab-case `.md` made of plain words (no `index.md`, no
-subfolder, nothing else). The README's front matter is machine-read:
-`api_surface` is what `workflows/ship.yaml`'s `api_surface_changed` predicate
-and the `/acs:create-api-contract` gate use to decide whether an API contract
-is written at all. Emit exactly these keys, with these types, and exactly these
-headings in this order (the task's `<constraint name="mode">` and
-`<constraint name="feature">` say which front matter applies).
-
-**`README.md`** — the whole analysis at a glance:
-
-```markdown
----
-ticket: SHOP-123
-ready_for_planning: true
-api_surface: true
-needs_design_recommendation: false
----
-
-# Analysis — SHOP-123: Accept CSV imports over 10 MB
-
-## Scope and summary
-## Contexts
-## Refined acceptance criteria
-## Cross-cutting risks and decisions
-## Questions and assumptions
-## Verdict
-```
-
-- **Front matter.** `ticket` is the ticket id; a run with no ticket writes
-  `feature: <slug>` in its place. `ready_for_planning` is the
-  verdict below, as a boolean. `api_surface` is your API-surface verdict.
-  `needs_design_recommendation` is your design-significance
-  verdict. Never invent another key and never omit one of the four — except
-  that a Discovery draft (`mode` discovery: the feature's living analysis)
-  opens with the ADR-0122 version keys before them: `status: proposed`,
-  `version` (the living analysis's `version` + 1, or `1` when there is none),
-  `tickets` (carried over from the living analysis, `[]` when there is none)
-  and `feature`.
-- **`## Scope and summary`** — the requirements in terms of this repository,
-  in a few sentences: the behaviour that changes, for whom, what "done"
-  means, and what is out of scope. Name every disagreement between the
-  requirements' prose and the code, each citing the file that contradicts it.
-- **`## Contexts`** — a table, one row per context file, linked by its bare
-  file name (no `/`, no anchor); every context file is listed, and only those:
-
-  | Context | File | Purpose |
-  | --- | --- | --- |
-  | CSV import | [csv-import.md](csv-import.md) | how an uploaded file becomes rows |
-
-- **`## Refined acceptance criteria`** — every criterion of the
-  requirements, quoted with its `AC-n`, marked `testable` / `ambiguous` /
-  `untestable` / `contradicted` / `missing`, with the rewrite for each
-  non-clean entry and its state: `confirmed (C-n)` when the user confirmed it
-  and the coordinator recorded it (`requirements refine`, which also amends
-  the ticket when there is one) — quote it as `requirements.md`'s
-  `## Refined` now carries it; `rejected (C-n)`; or `proposed — open (C-n)`
-  when unanswered. Never present an unconfirmed
-  rewrite as applied. Name the context file(s) each criterion lands in.
-- **`## Cross-cutting risks and decisions`** — only what spans contexts or
-  the whole change: the API-surface and design verdicts with their reason, a
-  risk two contexts share, a load-bearing surface (each linked to the context
-  file that details it). One-context risks stay in that context file.
-- **`## Questions and assumptions`** — one line per clarification entry, by
-  its `C-n` id and status (`open`, `answered`, `assumed`), with the question
-  and the answer, or the rationale when assumed. Every item of the notes'
-  `## Questions for the user` appears here as its `C-n`; the ledger
-  (`clarifications.json`) is the source of truth. Then the assumptions: only
-  what the user did not answer, with why each is needed and what breaks if it
-  is wrong (a ledger entry with `--source assumption` included). A default
-  the user confirmed is an answer, not an assumption. `_None recorded._` when
-  there are none.
-- **`## Verdict`** — `ready_for_planning: true` or `false`, in prose, with the
-  reason. `false` requires naming exactly what is missing and which open
-  question would settle it — and the question must be one where every
-  default could build the wrong thing (a contradiction with the code, a
-  design document or an ADR; a behaviour the criteria depend on that nothing
-  defines; a fork in scope). A detail with a conventional default — "prints"
-  means stdout, a credential check is exact and case-sensitive, argument
-  counts the requirements never mention are out of scope — is never a reason for
-  `false`: the user confirmed or corrected it, or, unanswered, it is an
-  assumption recorded in `## Questions and assumptions` with a proposed
-  criterion rewrite.
-
-**`<context>.md`** — one per context of the notes' `## Contexts`, named by its
-file name there:
-
-```markdown
----
-context: csv-import
----
-
-# CSV import
-
-## Impact map
-## Rules and edge cases
-## Risks
-## Open questions
-## API notes
-```
-
-- **Front matter.** `context` is the file name without `.md`. A Discovery
-  draft adds `feature`, `status: proposed`, `version` and `tickets` — the
-  same values as the README.
-- **`## Impact map`** — a table, and its FIRST column is a repo-relative path,
-  because that column is how a reader sees what this change actually touches:
-
-  | Path | Component | Change | Evidence |
-  | --- | --- | --- | --- |
-  | `src/import/api.py` | import API | new size branch on upload | `api.py:88` rejects >10 MB today |
-  | `tests/test_import_api.py` | import API tests | new cases for the large-file path | covers `upload()` at `:41` |
-
-  Source, tests, docs and configuration all belong here. Every row carries
-  evidence you read. A file the change CREATES is a row too, marked as new.
-- **`## Rules and edge cases`** — the business rules this context enforces
-  that the change touches, and the edge cases a test must cover, each cited.
-- **`## Risks`** — implementation and shipping risks in this context with
-  their evidence and, where one exists, the mitigation the implementation
-  plan should consider; a load-bearing surface named with its paths.
-- **`## Open questions`** — the `C-n` entries that concern this context only,
-  by id and status (the README holds the full list), or `_None._`.
-- **`## API notes`** — the surface this context adds or changes (endpoint,
-  flag, message, schema), cited, or `_None._`.
-
-A context file never restates another's rows, rules or risks: it links to the
-file that owns them (`see [payment-refunds.md](payment-refunds.md)`).
+Read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/analysis-templates.md`
+before you write the draft, and emit exactly the front matter keys, types and
+headings, in order, it sets for the README and each context file (your `mode`
+and `feature` constraints say which front matter applies) — it also says what
+each section carries, how to write the files, and what `## Risks` must name.
 
 ## Analyst report (mandatory)
 

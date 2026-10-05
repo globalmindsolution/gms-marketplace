@@ -30,6 +30,7 @@ TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TESTS_ACS)
 
 import evidence_sidecar  # noqa: E402
+from skill_text import skill_contract  # noqa: E402
 
 IMPL_PLAN_PLANNER = os.path.join(PLUGIN, "agents", "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
@@ -204,7 +205,7 @@ class PlanSkillFoldPointerTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        cls.body = skill_contract("create-impl-plan")
         start = cls.body.index("**The plan IS the spec content.**")
         end = cls.body.index("### Plan review (per iteration)")
         cls.fold = cls.body[start:end]
@@ -230,7 +231,7 @@ class PlanSkillUserInteractionSplitTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        body = read(IMPL_PLAN_SKILL)
+        body = skill_contract("create-impl-plan")
         start = body.index("## User interaction")
         end = body.index("## Context pressure")
         cls.section = body[start:end]
@@ -288,7 +289,7 @@ class PlanSkillFinishStep3BothSitesTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        body = read(IMPL_PLAN_SKILL)
+        body = skill_contract("create-impl-plan")
         start = body.index("3. Report a compact summary")
         end = body.index("## Completion report")
         cls.step3 = body[start:end]
@@ -404,10 +405,11 @@ class NegativeGuardsTest(unittest.TestCase):
         """One line, not two: the second was a MANDATORY CLAUSE the plan had
         to recite verbatim to be approved, which went with the template (3.2).
         code/SKILL.md keeps none, since the fold prose left it entirely."""
-        body = read(IMPL_PLAN_SKILL)
+        body = skill_contract("create-impl-plan")
         lines = [ln for ln in body.splitlines() if "create-spec" in ln]
         self.assertEqual(len(lines), 1,
-                         "create-impl-plan/SKILL.md must carry exactly the one "
+                         "create-impl-plan (SKILL.md and its references) must "
+                         "carry exactly the one "
                          "surviving create-spec provenance line: %r" % lines)
         self.assertNotIn("create-spec", read(CODE_SKILL))
 
