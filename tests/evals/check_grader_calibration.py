@@ -141,10 +141,11 @@ def _files(ws):
     workspace, `.git/acs/` (ADR-0136), which a run creates like any file."""
     out = set()
     for root, dirs, names in os.walk(ws):
-        if os.path.relpath(root, ws) == ".git":
+        rel = os.path.relpath(root, ws)
+        if rel == ".git":
             dirs[:] = [d for d in dirs if d == "acs"]
             names = []
-        else:
+        elif rel != ".":
             dirs[:] = [d for d in dirs if d != ".git"]
         for name in names:
             out.add(os.path.relpath(os.path.join(root, name), ws).replace(os.sep, "/"))
