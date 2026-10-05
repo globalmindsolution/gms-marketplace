@@ -139,7 +139,12 @@ never quietly do code work under a docs-only ticket.
    divergence in the implementer-report `problems` field so it surfaces in the
    coordinator's result document and PR body. Do NOT edit intent content. When
    the changeset alters no factual item, this step is a no-op for prd.md and
-   roadmap.md.
+   roadmap.md. A factual edit is a new version: run `python3
+   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design bump [--ticket <id>]
+   <file>` once per edited file (`--ticket` when the task names one), never
+   touch the front-matter block by hand, leave a file without a block without
+   one, and never edit a `deprecated` file — flag its stale claim in
+   `problems` instead.
 
    **Boy-scout drift items — carry them into `problems`:** when the plan's
    documentation map names a doc section that already disagrees with the

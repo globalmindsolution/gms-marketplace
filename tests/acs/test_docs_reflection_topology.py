@@ -461,15 +461,16 @@ class SkillsMdUnchangedTest(unittest.TestCase):
         `/acs:audit-design`, then 27 when ADR-0123 added the read-only
         `/acs:audit-security`, then 26 again when ADR-0124 removed
         `/acs:create-docs`, then 28 when ADR-0126 added
-        `/acs:create-data-design` and `/acs:create-flows`; the word is pinned
+        `/acs:create-data-design` and `/acs:create-flows`, then 29 when
+        ADR-0130 added the `/acs:set-doc-status` utility; the word is pinned
         here because prose is where a count goes stale."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        self.assertIn("Twenty-eight skills", body)
-        self.assertEqual(D["n_skills"], 28)
+        self.assertIn("Twenty-nine skills", body)
+        self.assertEqual(D["n_skills"], 29)
         for stale in ("Twenty-three skills", "Twenty-five skills", "Twenty-six skills",
-                      "Twenty-seven skills", "Thirty-two skills", "Thirty skills"):
+                      "Twenty-seven skills", "Twenty-eight skills", "Thirty-two skills",
+                      "Thirty skills"):
             self.assertNotIn(stale, body)
-        self.assertNotIn("Twenty-nine skills", body)
 
     def test_authoring_list_intact(self):
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))

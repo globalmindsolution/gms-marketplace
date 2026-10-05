@@ -111,7 +111,7 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-ticket",
 # skills/code/references/.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 ALL_SKILLS = (HOOKED_SKILLS + CODE_PATH_LEGS
-              + ["setup", "ship", "handoff", "update", "release"])
+              + ["setup", "ship", "handoff", "update", "release", "set-doc-status"])
 #: Every role acs spawns, and its kind (survey / write / judge).
 ROLES = list(lib.AGENT_ROLES)
 ROLE_KINDS = dict(lib.ROLE_KINDS)
@@ -209,6 +209,10 @@ class TestSkillContracts(unittest.TestCase):
         for name in ("setup", "handoff", "update"):
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertNotIn("disallowed-tools", fm, name)
+        # /acs:set-doc-status moves a status ONLY through `acs.py design
+        # status` (ADR-0130): it may not hand-edit a front-matter block.
+        fm, _ = frontmatter(read(self.skill_path("set-doc-status")), "set-doc-status")
+        self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit, Write$")
 
     def test_ship_no_per_step_subagent_spawn(self):
         # /acs:ship drives the pipeline by invoking each step skill DIRECTLY via

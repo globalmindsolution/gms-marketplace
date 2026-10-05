@@ -4,11 +4,19 @@
     acs.py design init   --status S [--ticket ID] [--feature F] <doc>...
                                                           first front matter (a doc that has one is left alone)
     acs.py design bump   [--ticket ID] <doc>...           a change: version + 1, re-opened as proposed
-    acs.py design status --set S [--ticket ID] <doc>...   a legal status transition
+    acs.py design status --set S [--by NAME] [--reason TEXT] [--ticket ID] <doc>...
+                                                          a legal status transition, recording
+                                                          status_by / status_at / status_reason
+    acs.py design list   [--phase discovery|design] [--feature F] [--root DIR]
+                                                          the versionable documents, grouped by
+                                                          phase and doc set, with their legal moves
 
-Every verb prints one JSON object. `check` exits 0 whatever it finds (`ok` says
-whether every document is clean); a write verb that is refused exits 2 and
-writes nothing for the document it refused.
+Every verb prints one JSON object. `check` and `list` exit 0 whatever they find
+(`ok` on check says whether every document is clean); a write verb that is
+refused exits 2. `status` is atomic (ADR-0130): every document is checked
+before any is written, and one refusal writes none -- the error names each
+refused document and why. `--by` defaults to `git config user.name
+<user.email>`, else `unknown`.
 """
 
 import os
@@ -44,9 +52,27 @@ def cmd_design_bump(args):
                                 for p in _existing(args.docs)]})
 
 
+def default_actor(cwd=None):
+    """`<user.name> <<user.email>>` from git config, whichever half is set, else `unknown`."""
+    cwd = cwd or os.getcwd()
+    name = lib._git(["config", "user.name"], cwd)
+    email = lib._git(["config", "user.email"], cwd)
+    if name and email:
+        return "%s <%s>" % (name, email)
+    return name or email or "unknown"
+
+
 def cmd_design_status(args):
-    emit({"ok": True, "files": [dict(D.set_status(p, args.set, args.ticket), path=p)
-                                for p in _existing(args.docs)]})
+    by = args.by if args.by and args.by.strip() else default_actor()
+    emit({"ok": True, "files": D.set_status_many(args.docs, args.set, ticket=args.ticket,
+                                                  by=by, reason=args.reason)})
+
+
+def cmd_design_list(args):
+    root = args.root or lib.checkout_root(os.getcwd()) or os.getcwd()
+    if not os.path.isdir(root):
+        raise lib.GateError("no such directory: %s" % root)
+    emit(D.list_documents(os.path.abspath(root), phase=args.phase, feature=args.feature))
 
 
 def add_parser(group):
@@ -72,5 +98,13 @@ def add_parser(group):
     status = sub.add_parser("status", help="move documents to a status (legal transitions)")
     status.add_argument("--set", required=True, choices=D.STATUSES)
     status.add_argument("--ticket")
+    status.add_argument("--by", help="who moves it (default: git user.name <user.email>)")
+    status.add_argument("--reason", help="why (recorded as status_reason)")
     status.add_argument("docs", nargs="+")
     status.set_defaults(func=cmd_design_status)
+
+    listing = sub.add_parser("list", help="the versionable documents by phase and doc set")
+    listing.add_argument("--phase", choices=D.PHASES)
+    listing.add_argument("--feature", help="only this PRD feature's groups")
+    listing.add_argument("--root", help="the checkout root (default: this checkout)")
+    listing.set_defaults(func=cmd_design_list)

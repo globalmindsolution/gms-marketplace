@@ -127,6 +127,31 @@ matching section here, and merge to `main` — the Release workflow tags
   (versioned front matter plus `feature`), choosing the feature from the PRD's slugs
   in its one grouped ask. A later run on that feature — a ticket, or `/acs:ship` —
   starts from it, and the Design skills read it.
+- **`/acs:set-doc-status`** (ADR-0130): a new unhooked Utility skill that approves,
+  or otherwise moves the status of, the versioned Discovery and Design documents —
+  the PRD, the roadmap, each feature's living analysis, the HLD and each feature's
+  living LLD. It lists them by phase and feature, picks whole features, design
+  areas or single documents in one grouped ask, offers only the legal targets
+  (`approved` first for a proposed document) and a reason (required for
+  `deprecated`), confirms, and runs one `acs.py design status --set`. Arguments skip the asks
+  (`/acs:set-doc-status approved wishlist`). It commits nothing: it lists the
+  changed files and points at `/acs:create-pr`. 29 skills.
+- **The PRD and roadmap are versioned** (ADR-0130). `prd.md` and `roadmap.md` carry
+  the design documents' version front matter: `/acs:create-prd` inits a new one
+  `proposed`, bumps a changed one and checks both in its $0 floor; its author's
+  byte-for-byte rule and its reviewer exempt the block, and a changed document must
+  show a bumped version. `/acs:code`'s implementer bumps either when it reconciles
+  a factual claim in it.
+- **`acs.py design status` records the approver and is all or nothing**
+  (ADR-0130). `--by NAME` (default `git config user.name <user.email>`) and
+  `--reason TEXT` write `status_by`, `status_at` and `status_reason` beside the
+  status; every document is validated before any is written, so a refused move
+  leaves all of them as they were (doc 1 used to be written before doc 2 was
+  refused).
+- **`acs.py design list [--phase P] [--feature F]`** (ADR-0130): the versioned
+  Discovery and Design documents grouped by phase and feature, each with its
+  `status`, `version`, `problems` and the `allowed` targets from its status; a
+  run's design-record folders (`lld/<feature>/<id>/`) are not listed.
 
 ### Changed
 

@@ -113,7 +113,15 @@ Mode rules:
 - **amend** — edit `prd.md` in place, preserving untouched sections byte-for-byte;
   touch `roadmap.md` only where the amendment changes it. Before reporting done, run
   `git diff -- "<prd>" "<roadmap>"` and confirm only the intended sections changed;
-  if stray hunks appear, revert them.
+  if stray hunks appear, revert them. The leading front-matter block is exempt
+  from the byte-for-byte rule: the coordinator bumps its version after you.
+
+**The version front matter is never yours.** A file may open with a `---`
+block (`status`, `version`, `tickets`, maybe `status_by`/`status_at`/
+`status_reason`): leave it exactly as it is — never write, edit, reorder or
+remove it — and write the sections below it. A new file starts at its title,
+with no block. The coordinator gives a new file its first block and bumps a
+changed one through `acs.py design` (ADR-0122, ADR-0130).
 
 On iteration 2+, fix EVERY finding listed in `<context>` and nothing else beyond
 what fixing them requires.

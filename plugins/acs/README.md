@@ -159,7 +159,7 @@ The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 28 skills
+## The 29 skills
 
 The tables group the skills by phase — Discovery, Design, Development, Audit
 or Utility ([ADR-0129](../../docs/architecture/adr/0129-discovery-design-development-regroup.md)). There is no registry file and no per-skill manifest: a skill is its
@@ -197,7 +197,7 @@ phase: it is one container of requirements, made with `/acs:create-ticket`
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
-| `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; runs without a ticket and leaves the documents uncommitted, listed in `states.files`, for `/acs:create-pr "<prompt>"`. |
+| `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; `prd.md` and `roadmap.md` are versioned (`proposed` when new, the version bumped on each change — approve them with `/acs:set-doc-status`); runs without a ticket and leaves the documents uncommitted, listed in `states.files`, for `/acs:create-pr "<prompt>"`. |
 | `/acs:analyze-requirements` | Subject resolves (a ticket, documents, a prompt or a mix); not an epic ticket | Reads the run's requirements, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria (recorded with `acs.py requirements refine`), and the `api_surface` verdict the pipeline branches on. Run on its own with no ticket — a PRD feature, a prompt, an attached spec — it writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis.md` (proposing the PRD's feature slugs when the feature is not named); as `/acs:ship`'s first step, or on a ticket, it writes `docs/development/<feature>/<id>/analysis.md`, starting from the feature's analysis ([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)). |
 
 ### Design — how to build it
@@ -275,7 +275,7 @@ report breaks it and derives the counts it records from the report itself.
 | `/acs:audit-design` | Settings exist; no ticket — `acs step start` opens the audit's own run | Read-only: compares the architecture set — the HLD and every `lld/<feature>/`, or one feature's — with the code and reports every gap, cited on both sides: unimplemented (designed, not built; *planned* when its document is still `proposed`/`approved`), undocumented (built, not designed) or drifted (both, disagreeing), plus any document with no version front matter. Writes `report.md` from `templates/audit-design-report.md`. Never edits a document or the code; offers to ticket the gap groups you pick ([ADR-0122](../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)). |
 | `/acs:audit-security` | Settings exist; no ticket — `acs step start` opens the audit's own run | Read-only, report-only security audit: one auditor per category in parallel — `code` (OWASP Top 10 weakness classes with their CWE, one per code area), `secrets-config` (hard-coded credentials, insecure configuration, CI), `dependencies` (only through the scanners the repo already has installed; never installs one, never names a CVE from memory) and `threat-model` (the code against `hld/data-flow.md` and `hld/cross-cutting.md`, when the architecture set has them) — then one fresh-context adjudicator per candidate, prompted to refute it. Writes a severity-ranked `report.md` from `templates/audit-security-report.md`: each confirmed finding with CWE, `file:line`, evidence, exploit scenario, fix guidance and `resolved_when`. A category it could not examine is reported as uncovered, never clean; a secret's value never appears. Files no ticket and emits no SARIF. |
 
-### Utility — setup, releases, handoff and tickets
+### Utility — setup, releases, handoff, tickets and document status
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
@@ -284,6 +284,7 @@ report breaks it and derives the counts it records from the report itself.
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 | `/acs:handoff` | — (utility) | Flushes in-flight work and decisions to the run, marks the in-flight step `interrupted` with a `stop_reason`, releases the lock, prints the command to continue in a fresh session. |
 | `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
+| `/acs:set-doc-status` | — (unhooked) | Approves, or otherwise moves the status of, the versioned Discovery and Design documents — the PRD, the roadmap, feature analyses, the HLD and each feature's LLD. Lists them by phase and feature (`acs.py design list`), lets you pick whole features, design areas or single documents in one ask, offers only the legal moves, then runs one all-or-nothing `acs.py design status --set` that records who moved them, when and why (`status_by`, `status_at`, `status_reason`). Commits nothing: it lists the changed files for `/acs:create-pr` ([ADR-0130](../../docs/architecture/adr/0130-prd-versions-and-set-doc-status.md)). Also `/acs:set-doc-status approved wishlist`. |
 
 ## How gating works
 
