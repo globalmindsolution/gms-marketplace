@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # /acs:create-e2e-tests on a ticket whose case document owes no e2e coverage:
-# EVAL-1 clamps list_customers' limit to 100 (a library change, done and
-# committed on its branch with its unit test), and the ticket's committed
+# EVAL-1 clamps list_customers' limit to 100 (a library change, done and left
+# uncommitted on main with its unit test, ADR-0127), and the ticket's
 # test-cases.md types BOTH its cases `unit` (front matter `e2e_cases: 0`). The
 # repo has an e2e harness (tests/e2e/, a stdlib unittest suite driving the
 # WSGI app in process) configured as the `e2e` suite, so the only thing missing
@@ -92,9 +92,8 @@ git commit -qm "HTTP front and its e2e harness"
 
 acs_ticket "Cap the customer page size at 100" task false \
   "list_customers must clamp limit to at most 100."
-acs_branch task/EVAL-1-cap-the-customer-page-size-at-100
 
-# The ticket branch: /acs:code's change and its unit test ...
+# /acs:code's change and its unit test, uncommitted ...
 sed -i.bak 's/"limit": limit}/"limit": min(limit, 100)}/' src/shop/__init__.py && rm -f src/shop/__init__.py.bak
 cat > tests/unit/test_page_cap.py <<'PY'
 import unittest
@@ -112,8 +111,6 @@ class PageCap(unittest.TestCase):
         self.assertEqual(list_customers(limit=100)["limit"], 100)
         self.assertEqual(list_customers(limit=7)["limit"], 7)
 PY
-git add -A
-git commit -qm "EVAL-1 cap the customer page size at 100"
 
 # ... and the ticket's case document, where acs resolves it: no e2e row.
 mkdir -p docs/tickets/EVAL-1
@@ -148,5 +145,3 @@ through unchanged, so the cap is fully proven at the function.
 
 - No end-to-end case: the route adds no behaviour of its own to the cap.
 MD
-git add -A
-git commit -qm "EVAL-1 test cases"

@@ -12,6 +12,13 @@
         },
         "branch": {
           "type": "string"
+        },
+        "commits": {
+          "type": "array",
+          "description": "The commits /acs:create-pr made from the user-confirmed commit plan, in order, as `acs.py pr commit` printed them (ADR-0127).",
+          "items": {
+            "type": "object"
+          }
         }
       },
       "additionalProperties": false

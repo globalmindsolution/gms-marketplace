@@ -8,7 +8,7 @@
 | State | JSON (pretty-printed, atomic writes), JSON Schema 2020-12 | Human-auditable, machine-validated |
 | Messaging | JSON validated against `schemas/result.schema.json` and `schemas/verdict.schema.json`, in the hook | Fail-fast malformed coordinator↔subagent traffic, with one schema language rather than two |
 | Diagrams | Mermaid (C4, ER, sequence, state) | Diffable, GitHub-rendered, agent-maintainable |
-| VCS / delivery | git, GitHub via `gh` CLI — acs's **sole** GitHub transport, by decision (ADR-0088; no MCP fallback) | Branch-per-ticket, PR-based delivery |
+| VCS / delivery | git, GitHub via `gh` CLI — acs's **sole** GitHub transport, by decision (ADR-0088; no MCP fallback) | Branch-per-ticket, PR-based delivery; only `/acs:create-pr` branches and commits (ADR-0127) |
 | Trackers (optional) | `gh` (Projects v2) | Two-way sync; the CLI owns auth — no secrets in settings; a failed `gh` call is classified **critical** (verbatim stderr + one canonical hint, stop) or **non-critical** (info finding + replayable command, continue) per ADR-0088 |
 | CI / release | GitHub Actions | Per-plugin shape-conditional tests + validation per PR (`tests/acs/`; per-plugin schemas, hooks, skills presence-gated; no eval calls in CI); tag-on-version-bump releases |
 | Tests | `unittest` (stdlib) | Multi-plugin test discovery: `python3 -m unittest discover -s tests` finds every `tests/<plugin>/` package automatically; per-plugin `__init__.py` package markers prevent import collisions |

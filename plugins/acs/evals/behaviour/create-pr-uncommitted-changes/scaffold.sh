@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# EVAL-1 implemented, committed and recorded on its ticket branch -- and the
-# branch is checked out with UNCOMMITTED work on top: an edit to the module
-# and a new, untracked test file that /acs:code never recorded.
+# EVAL-1 implemented and recorded by /acs:code -- and, as every acs step now
+# leaves its work (ADR-0127), UNCOMMITTED on the checked-out main: no step
+# before /acs:create-pr branches, stages or commits. Around it, two files the
+# commit plan must leave alone:
 #
-# create-pr never commits new work: "if uncommitted implementation changes
-# exist, that is /acs:code's job: surface it as a problem and stop", and in a
-# non-interactive run it does not guess -- it finishes `failed`. gh cannot
-# reach a forge here either, and base detection (critical) runs before the
-# push, so every correct run stops before pushing whichever it meets first.
-# What the case pins: the uncommitted work is neither committed, stashed nor
-# discarded, and nothing reaches the local origin.
+# * notes/release-plan.md -- the user's own untracked note, already there
+#   when the run's baseline was recorded (the plan's `excluded`);
+# * src/shop/pagination.py -- WIP written after the code run that no step
+#   recorded (the plan's `left_out`).
+#
+# The prompt approves the proposed plan up front, so a correct run commits it
+# through `acs.py pr commit` -- tests and code as separate commits on a new
+# branch -- and leaves both files uncommitted. gh cannot reach a forge here,
+# and base detection (critical) runs before the push, so nothing reaches the
+# local origin.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
@@ -19,8 +23,14 @@ acs_ticket "Cap the customer page size at 100" task false \
   "list_customers must refuse a limit above 100 with ValueError; 100 itself is allowed."
 acs_local_origin
 
-branch=task/EVAL-1-cap-the-customer-page-size-at-100
-acs_branch "$branch"
+# The user's own note, dirty before the run began.
+mkdir -p notes
+printf '# Release plan\n\n- ship the page-size cap in 2.5.0\n' > notes/release-plan.md
+
+# /acs:code: the step start records the run's baseline, the implementation is
+# written and left uncommitted, and the result records the paths it wrote.
+run="$ACS_PARTITION/runs/EVAL-1"
+python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null 2>&1
 cat > src/shop/__init__.py <<'PY'
 PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
@@ -49,27 +59,22 @@ def test_limit_above_100_is_refused():
     with pytest.raises(ValueError):
         list_customers(limit=101)
 PY
-git add -A
-git commit -qm "EVAL-1 Cap the customer page size at 100"
-
-run="$ACS_PARTITION/runs/EVAL-1"
-python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null 2>&1
-cat > "$run/steps/code/result.json" <<JSON
+cat > "$run/steps/code/result.json" <<'JSON'
 {"status": "completed", "outcome": "implemented",
  "summary": "list_customers refuses a limit above MAX_PAGE_SIZE (100)", "iteration": 1,
- "states": {"branch": "$branch", "tasks_implemented": ["01-page-size-cap"],
+ "states": {"specs_implemented": ["01-page-size-cap"],
+            "files": ["src/shop/__init__.py", "tests/test_customers.py"],
             "tests": {"passed": 3, "failed": 0}, "docs_updated": []},
  "findings": [], "errors": []}
 JSON
 python3 "$ACS_SCRIPTS/post-code.py" --result-file "$run/steps/code/result.json" > /dev/null
 
-# Work in progress nobody recorded: left uncommitted on the checked-out branch.
-cat >> src/shop/__init__.py <<'PY'
+# Work in progress nobody recorded, written after the code run.
+cat > src/shop/pagination.py <<'PY'
+from shop import PAGE_SIZE
 
 
 def page_count(total, limit=PAGE_SIZE):
     """WIP: number of pages for `total` customers."""
     return (total + limit - 1) // limit
 PY
-printf 'from shop import page_count\n\n\ndef test_page_count():\n    assert page_count(41, 20) == 3\n' \
-  > tests/test_page_count.py

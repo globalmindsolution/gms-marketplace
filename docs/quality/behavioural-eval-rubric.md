@@ -77,8 +77,9 @@ The case's scaffold must actually satisfy what its prompt presupposes. This is t
 prompt false — the model looked for the thing, did not find it, and asked
 instead of acting. It was **first mis-triaged as a description defect**.
 
-So: if a prompt says "the code change is done", the scaffold must commit a
-change. If it says "this repo has no tooling", the workspace must be bare. A
+So: if a prompt says "the code change is done", the scaffold must make that
+change — uncommitted in the working tree, where the pipeline leaves it until
+`/acs:create-pr` (ADR-0127). If it says "this repo has no tooling", the workspace must be bare. A
 case whose presupposition is false measures the scaffold, not the skill.
 
 **Two routing cases break this rule today**, knowingly:

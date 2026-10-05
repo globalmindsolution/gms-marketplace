@@ -45,7 +45,7 @@ import acs_lib as lib  # noqa: E402
 ROLES = ("test-designer", "trace-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
-STATES_KEYS = ("cases", "e2e_cases", "untraced_acs")
+STATES_KEYS = ("cases", "e2e_cases", "untraced_acs", "files")
 
 #: The four headings, in order.
 SECTIONS = ["Scope", "Cases", "Traceability", "Gaps and assumptions"]

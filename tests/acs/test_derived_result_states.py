@@ -333,6 +333,8 @@ class PostHookDerivationTest(DeriveCase):
         self.assertIn("states.verifier_passed was True", out.stderr)
         self.assertIn("without a verdict", out.stderr)
 
+        # The brake holds a run whose /acs:code produced a result (ADR-0127).
+        lib.write_json(lib.result_path(self.rdir_path, "code"), {"status": "completed"})
         gate = self.pre("create-pr", self.ticket)
         self.assertEqual(gate.returncode, 2)
         self.assertIn("verifier_passed", gate.stderr)

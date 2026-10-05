@@ -59,7 +59,9 @@ def _brake_code(ctx, rdir, doc, wf):
 
 
 def _brake_create_pr(ctx, rdir, doc, wf):
-    """A review that did not pass never becomes a PR. `verifier_passed` is
+    """A review that did not pass never becomes a PR -- for a run whose
+    /acs:code produced a result; a run with no code result has nothing for a
+    review to hold (ADR-0127). `verifier_passed` is
     DERIVED from review-code's verdict by the post-hook (MAR-523/527), so this
     reads what the kernel computed rather than any skill's self-report.
 
@@ -69,6 +71,11 @@ def _brake_create_pr(ctx, rdir, doc, wf):
     something, and sent the changeset back. Reading the ledger let every
     blocking review through the instant it re-entered the loop.
     """
+    if not os.path.isfile(step_machine.result_path(rdir, "code")):
+        # No /acs:code result on this run (ADR-0127): a PR of a prompt's or a
+        # ticket's documents, or of work done by hand, has no code run whose
+        # review could hold it. The brake is about THIS run's code.
+        return None
     if not os.path.isfile(step_machine.state_path(rdir, "review-code")):
         return None  # no review has run at all; the order advisory says so
     state = step_machine.load_state(rdir, "review-code", doc["run_id"])

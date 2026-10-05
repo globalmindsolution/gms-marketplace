@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # create-api-contract: the shop repo, story EVAL-1 minted and given its
-# acceptance criteria through the plugin's own CLIs, and the ticket branch
-# carrying what /acs:analyze-requirements and /acs:create-impl-plan would
-# have PUBLISHED there: docs/tickets/EVAL-1/analysis.md (api_surface: true)
-# and docs/tickets/EVAL-1/plan.md, whose Contract block owes an API contract
-# (so the pre-hook does NOT settle the step as no_surface_owed).
+# acceptance criteria through the plugin's own CLIs, and the working tree
+# (main, nothing committed -- ADR-0127) carrying what /acs:analyze-requirements
+# and /acs:create-impl-plan would have PUBLISHED there, uncommitted:
+# docs/tickets/EVAL-1/analysis.md (api_surface: true) and
+# docs/tickets/EVAL-1/plan.md, whose Contract block owes an API contract (so
+# the pre-hook does NOT settle the step as no_surface_owed).
 #
 # acs has no writer command for either document -- each coordinator copies
-# its verified draft into the docs folder with cp and commits it -- so both
-# are written in exactly the format their SKILL.md specifies (the analysis
-# passes front_matter_check.py and structure_lint.py; the plan's Contract
-# block parses through acs_lib.plan_contract) and committed as ordinary repo
-# files. No workspace step state is forged: the create-api-contract gate reads
-# both when present and requires no predecessor step. The repo keeps no
-# machine-readable contract (no OpenAPI, no docs/api/).
+# its verified draft into the docs folder with cp and leaves it uncommitted --
+# so both are written in exactly the format their SKILL.md specifies (the
+# analysis passes front_matter_check.py and structure_lint.py; the plan's
+# Contract block parses through acs_lib.plan_contract). No workspace step
+# state is forged: the create-api-contract gate reads both when present and
+# requires no predecessor step. The repo keeps no machine-readable contract
+# (no OpenAPI, no docs/api/).
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -30,7 +31,6 @@ printf '%s' '{"acceptance_criteria": [
   "A malformed cursor is rejected with HTTP 400 and error code invalid_cursor"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-cursor-pagination-for-get-customers
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/analysis.md <<'MD'
 ---
@@ -80,8 +80,6 @@ The three criteria on the ticket are confirmed as written.
 
 Ready for planning; api_surface true; no design needed.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze cursor pagination"
 cat > docs/tickets/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Cursor pagination for GET /customers
 
@@ -133,5 +131,3 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/__init__.py, tests/test_customers.py, README.md
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan cursor pagination"

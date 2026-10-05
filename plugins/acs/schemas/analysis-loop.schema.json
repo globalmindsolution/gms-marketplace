@@ -113,15 +113,17 @@
         {"type": "null"},
         {
           "type": "object",
-          "required": ["path", "sha256", "bytes", "committed", "commit", "at"],
+          "required": ["path", "sha256", "bytes", "at"],
           "properties": {
             "path": {"type": "string", "minLength": 1},
             "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
             "bytes": {"type": "integer", "minimum": 0},
             "docs_dir": {"type": ["string", "null"]},
-            "committed": {"type": "boolean"},
-            "commit": {"type": ["string", "null"]},
-            "message": {"type": ["string", "null"]},
+            "files": {"type": "array", "items": {"type": "string"},
+                      "description": "Repo-relative paths of the ticket docs folder publish wrote, left uncommitted for /acs:create-pr (ADR-0127)."},
+            "committed": {"type": "boolean", "description": "Legacy: a publication recorded before ADR-0127, when publish committed."},
+            "commit": {"type": ["string", "null"], "description": "Legacy, as committed."},
+            "message": {"type": ["string", "null"], "description": "Legacy, as committed."},
             "verified": {"type": "boolean"},
             "at": {"type": "string"}
           }

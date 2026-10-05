@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# /acs:review-code on a ticket branch whose changeset is CLEAN: a negative
+# /acs:review-code on a ticket whose changeset -- uncommitted on main, as
+# /acs:code leaves it (ADR-0127) -- is CLEAN: a negative
 # page offset is refused with ValueError, every acceptance criterion has a
 # test, the CHANGELOG records it and the README states it. Nothing is wrong,
 # so no candidate finding should survive adjudication, stage 3's gate (build,
 # lint, the full unit suite, coverage) runs, and the kernel derives a pass.
 #
-# Seeded only through ordinary committed repo files and the plugin's own CLIs:
+# Seeded only through ordinary repo files and the plugin's own CLIs:
 # new-ticket.py mints EVAL-1, `acs.py ticket save` records its acceptance
-# criteria, and `acs.py run new` records the run over it (no lock, no step).
+# criteria, and a `code` step opened with `acs.py step start` and closed with
+# post-code.py brackets the change (no lock left held).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
@@ -19,7 +21,10 @@ acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers(offset=-1) raises ValueError", "list_customers(offset=0) still returns the first page"]}' \
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch "task/EVAL-1-reject-a-negative-page-offset"
+# /acs:code's step, opened before the change it leaves behind: its start
+# records the run's baseline (ADR-0127) on the clean tree, so the change
+# below is the run's changeset, uncommitted on main as /acs:code leaves it.
+acs step start --step code --ticket EVAL-1 > /dev/null 2>&1
 cat > src/shop/__init__.py <<'PY'
 PAGE_SIZE = 20
 
@@ -58,6 +63,7 @@ log = open("CHANGELOG.md").read().replace(
     "## [2.4.0]", "## [Unreleased]\n\n- A negative page offset is refused.\n\n## [2.4.0]")
 open("CHANGELOG.md", "w").write(log)
 PY
-git add -A
-git commit -qm "EVAL-1 Reject a negative page offset"
-acs run new --ticket EVAL-1 > /dev/null
+python3 "$ACS_SCRIPTS/post-code.py" > /dev/null <<'JSON'
+{"status": "completed", "summary": "implemented; nothing committed (ADR-0127)",
+ "findings": [], "errors": []}
+JSON

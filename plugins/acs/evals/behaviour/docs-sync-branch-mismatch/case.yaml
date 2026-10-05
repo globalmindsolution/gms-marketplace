@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: docs-sync-branch-mismatch
-context:
-  scaffold_script: scaffold.sh

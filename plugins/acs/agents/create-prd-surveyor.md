@@ -19,13 +19,12 @@ coordinator — read everything from the `<task>` and its file paths.
 ## Input contract
 
 Your prompt contains one `<task skill="create-prd" phase="surveyor"
-ticket-id="SHOP-1" iteration="1">` element (schema: `the SubagentStop hook's message check`) with:
+iteration="1">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — what to establish this round;
-- `<inputs>` — absolute paths: the delivery `ticket.json` (derive `<partition>`
-  from its directory), existing `prd.md`/`roadmap.md` in amend mode, and the repo
+- `<inputs>` — absolute paths: existing `prd.md`/`roadmap.md` in amend mode, and the repo
   docs and code the coordinator selected. READ EVERY ONE before writing a word;
-- `<constraints>` — at least `prd` and `roadmap` (the repo-relative files the
+- `<constraints>` — at least `partition` (the absolute run-partition path), `prd` and `roadmap` (the repo-relative files the
   coordinator located, or the `docs/product/` defaults when the repo has no PRD),
   `required_sections`, `amend_rule` — and, when you are one slice of a
   parallel survey, `survey_area` (see When you are one slice);
@@ -231,7 +230,7 @@ Write `steps/create-prd/iter-<n>/surveyor.json` (`<n>` = the task's
   file. Bash is for read-only inspection (`git log`, `git ls-files`, `grep`, `ls`).
   The only files you write are your authoring notes and your surveyor report
   (their `-<id>` names when you are a slice).
-- Do not create/switch branches, run step start/post-hooks, or edit `ticket.json`,
+- Do not create/switch branches, run step start/post-hooks, or edit
   `run.json`, `clarifications.json` or any other workspace state — all coordinator
   work.
 
@@ -241,10 +240,10 @@ Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING a
 Self-check it:
 
 ```xml
-<result skill="create-prd" phase="surveyor" ticket-id="SHOP-1" iteration="1" status="needs_input">
+<result skill="create-prd" phase="surveyor" iteration="1" status="needs_input">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/authoring.md</file>
-    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/surveyor.json</file>
+    <file>/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a/steps/create-prd/iter-1/authoring.md</file>
+    <file>/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a/steps/create-prd/iter-1/surveyor.json</file>
   </outputs>
   <questions>
     <question id="Q1">Who is the primary persona — solo merchants or agencies?</question>

@@ -374,10 +374,10 @@ that supplies its own `<checkout_root>/.acs/templates/design-default.md` has its
 
 The designer adds a subsection
 `### Decision records` under "Decision & rationale" listing each accepted
-decision as a one-line ADR title and noting: "/acs:docs-sync commits these as
+decision as a one-line ADR title and noting: "/acs:docs-sync writes these as
 ADRs under `<adr_dir>` once the changeset exists." `/acs:code` no longer
 authors ADR or other general doc updates (MAR-65); `/acs:docs-sync`'s
-doc-updater is the sole producer, and its `adr` doc area commits the binding
+doc-updater is the sole producer, and its `adr` doc area writes the binding
 design's accepted decision records. Designer and design-reviewer tasks both
 carry `adr_dir`.
 
@@ -475,16 +475,15 @@ equal the verified bytes:
 cp "<partition>/steps/create-design/design.md" "<design_path>"
 ```
 
-Committing it: `/acs:create-design` is Design-phase work and normally runs
-BEFORE any ticket branch exists, so it never commits to the repo's default
-branch. Leave the published file in the working tree — the first Build step
-(`/acs:analyze-requirements`) creates the ticket branch and commits the ticket's
-docs folder, which carries this design into the branch and into the PR. If a
-ticket branch for `<id>` is ALREADY the checked-out branch (a re-design
-mid-ticket), commit `<design_path>` on it yourself with
-the repo's own commit style (naming the ticket id) and do not push — `/acs:create-pr` pushes.
-A design published to the workspace partition (no docs folder, above) is
-never committed.
+Never commit it: this skill never creates, switches or names a branch, and
+never stages, commits or pushes (ADR-0127) — not on the default branch, and
+not on a ticket branch that happens to be checked out for a re-design
+mid-ticket. Leave the published file as an uncommitted change in the working
+tree and record its repo-relative path in the result's `states.files`;
+`/acs:create-pr` is the only skill that branches and commits, and it carries
+the ticket's docs folder — this design included — into the PR as its first
+commit. A design published to the workspace partition (no docs folder, above)
+never enters the repo.
 
 ## User interaction
 
@@ -555,7 +554,8 @@ MANDATORY final step — never skipped, including on failure or handoff:
      "summary": "design reviewer passed with zero findings on iteration 2",
      "states": {
        "design_path": "docs/tickets/SHOP-123/design.md",
-       "decision": "Queue-backed export worker behind the existing API gateway (Option B)"
+       "decision": "Queue-backed export worker behind the existing API gateway (Option B)",
+       "files": ["docs/tickets/SHOP-123/design.md"]
      },
      "findings": [],
      "errors": []
@@ -565,7 +565,9 @@ MANDATORY final step — never skipped, including on failure or handoff:
    `design_path` is the PUBLISHED path this run resolved (`<design_path>` —
    repo-relative inside the docs tree, or `"design.md"` when it was published
    to the partition); `decision` is the one-line decision statement from "Decision &
-   rationale". On `failed`: keep whatever is true (e.g. `design_path` when a
+   rationale"; `files` lists every repo-relative path this run wrote and left
+   uncommitted (the published `design.md`; empty when it went to the
+   partition) — `/acs:create-pr` commits them. On `failed`: keep whatever is true (e.g. `design_path` when a
    draft exists but was never published, naming the draft), put the design reviewer's
    blocking findings in `findings`, and the reason in `summary`.
 
@@ -581,7 +583,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
 3. Report:
    - Direct invocation: a compact summary — decision (one line), options
      considered, conformance vs. required architecture changes, iterations used,
-     and the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,
+     the uncommitted files left in the working tree, and the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,
      break it down into child tickets with `/acs:create-ticket <id>` (epic
      fan-out), then run `/acs:code` on a child, each of which inherits this
      design.
@@ -605,9 +607,9 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: `design.md` (the published `<design_path>`); the decision in one line; architecture changes required (or "conforms")
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <partition files, repo paths, branch, PR URL>
+- **Artifacts**: <uncommitted files written (repo-relative), partition files>
 - **Metrics**: iterations <n>/<cap> · <wall time>
 - **Next**: `/acs:code <ticket-id>` for a non-epic ticket; for an epic,
   `/acs:create-ticket <ticket-id>` (epic fan-out), then `/acs:code` on a
-  child
+  child. The files stay uncommitted until `/acs:create-pr <ticket-id>`
 ```

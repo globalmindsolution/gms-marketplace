@@ -2,8 +2,8 @@
 
 IDEAL does what /acs:create-test-docs' coordinator does, through the
 plugin's own writers where they exist: `acs step start`, the draft, the gate's
-own counter (`acs_lib.e2e_case_count`) over it, the Publish copy and its
-commit, result.json with outcome cases_written and the post-hook."""
+own counter (`acs_lib.e2e_case_count`) over it, the Publish copy (left
+uncommitted), result.json with outcome cases_written and the post-hook."""
 
 import json
 import os
@@ -15,6 +15,13 @@ STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
 PUBLISHED = "docs/tickets/EVAL-1/test-cases.md"
 CASES = '---\nticket: EVAL-1\ncases: 4\ne2e_cases: 2\n---\n\n# Test cases — EVAL-1: Serve the customer listing over HTTP\n\n## Scope\n\nThe three criteria, per docs/tickets/EVAL-1/plan.md: the HTTP behaviour end\nto end through the configured `e2e` suite, the offset guard at unit level.\n\n## Cases\n\n| ID | AC | Type | Preconditions | Steps | Expected | Suite |\n| --- | --- | --- | --- | --- | --- | --- |\n| TC-1 | AC-1 | e2e | none | `GET /customers` | 200, JSON body with `limit` 20 | e2e |\n| TC-2 | AC-2 | e2e | none | `GET /customers?offset=40&limit=10` | 200, body `offset` 40 and `limit` 10 | e2e |\n| TC-3 | AC-3 | unit | none | `list_customers(offset=-1)` | raises `ValueError` | `tests/unit/test_customers.py` |\n| TC-4 | AC-1 | unit | none | `list_customers()` | offset 0, limit 20 | `tests/unit/test_customers.py` |\n\n## Traceability\n\n| AC | Cases |\n| --- | --- |\n| AC-1 | TC-1, TC-4 |\n| AC-2 | TC-2 |\n| AC-3 | TC-3 |\n\n## Gaps and assumptions\n\n_None._\n'
 
+
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _start(ws):
     ws.skill("create-test-docs")
     started = ws.acs("step", "start", "--step", "create-test-docs", "--ticket", "EVAL-1")
@@ -23,8 +30,7 @@ def _start(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/test-cases.md", text)
-    ws.sh('cp "%s/test-cases.md" "%s" && git add "%s" && git commit -qm "EVAL-1 Test cases"'
-          % (STEP, PUBLISHED, PUBLISHED))
+    ws.sh('cp "%s/test-cases.md" "%s"' % (STEP, PUBLISHED))
 
 
 def _finish(ws, cases, e2e, status="completed", untraced=(), stop_reason=None):
@@ -35,6 +41,7 @@ def _finish(ws, cases, e2e, status="completed", untraced=(), stop_reason=None):
         result["outcome"] = "cases_written"
     if stop_reason:
         result["stop_reason"] = stop_reason
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-test-docs.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 
@@ -77,3 +84,13 @@ BAD = {
     "backticked the e2e type cell": _backticked,
     "wrote the e2e suite itself": _wrote_the_suite,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """The pre-ADR-0127 publish: everything right, then a ticket branch and a
+    commit -- only /acs:create-pr branches and commits now."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b story/EVAL-1-x && git add -A && git commit -qm "EVAL-1 publish"')
+
+
+BAD["committed what it published on a new ticket branch"] = _committed_on_a_ticket_branch

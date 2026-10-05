@@ -60,6 +60,11 @@ class _Run(object):
         self.finish(step, **kw)
 
 
+def _snapshot(ws):
+    """`reviewed_sha`: the working-tree snapshot the review judged (ADR-0127)."""
+    return json.loads(ws.acs("changes", "snapshot").stdout)["tree"]
+
+
 def _through_review(ws, source=CAPPED, review=True):
     run = _Run(ws)
     run.step("analyze-requirements")
@@ -67,17 +72,15 @@ def _through_review(ws, source=CAPPED, review=True):
     run.step("create-api-contract", outcome="no_surface_owed")
     run.step("create-test-docs", outcome="no_cases_owed")
     run.start("code")
-    ws.sh("git checkout -q -b " + BRANCH)
     ws.write("src/shop/__init__.py", source)
-    ws.sh("git add -A src && git commit -qm 'Cap the customer page size at 100'")
     run.finish("code", outcome="implemented",
-               states={"branch": BRANCH, "tasks_implemented": ["page-size-cap"],
+               states={"files": ["src/shop/__init__.py"], "tasks_implemented": ["page-size-cap"],
                        "tests": {"passed": 3, "failed": 0}, "docs_updated": []})
     if not review:
         return run
     run.start("review-code")
     verdict = json.dumps({"skill": "review-code", "run_id": run.run_id, "iteration": 1,
-                          "reviewed_sha": ws.sh("git rev-parse HEAD").strip(),
+                          "reviewed_sha": _snapshot(ws),
                           "passed": True, "findings": []})
     ws.write(run.dir + "/steps/review-code/iter-1/verdict.json", verdict)
     ws.write(run.dir + "/steps/review-code/verdict.json", verdict)
@@ -123,6 +126,7 @@ def _stopped_after_code(ws):
 def _pushed_and_merged(ws):
     run = _through_review(ws)
     _create_pr_fails(ws, run)
+    ws.sh("git switch -q -c %s && git add -A src && git commit -qm 'Cap'" % BRANCH)
     ws.sh("git push -q -u origin " + BRANCH)
     ws.called("Bash", command="gh pr merge %s --squash" % BRANCH)
     ws.reply = "create-pr failed on gh, so I pushed the branch and tried gh pr merge."

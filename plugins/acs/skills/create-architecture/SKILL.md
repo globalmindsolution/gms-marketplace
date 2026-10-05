@@ -1,14 +1,17 @@
 ---
 name: create-architecture
-description: Bootstrap or regenerate the product's high-level design (HLD) — the overview, tech stack and cross-cutting conventions plus the HLD views the repo enabled at /acs:setup (C4 context, container and component views, conceptual data model, API landscape, deployment, project structure, and opt-in data-flow and capability maps), all Mermaid — from the PRD and the codebase, delivered as a docs-only PR on its own delivery ticket. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the HLD after a major architectural shift. Not for a ticket's low-level design. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[delivery-ticket-id to resume | focus notes]"
+description: Bootstrap or regenerate the product's high-level design (HLD) — the overview, tech stack and cross-cutting conventions plus the HLD views the repo enabled at /acs:setup (C4 context, container and component views, conceptual data model, API landscape, deployment, project structure, and opt-in data-flow and capability maps), all Mermaid — from the PRD and the codebase, left as local changes for /acs:create-pr to commit and open as a PR. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the HLD after a major architectural shift. Not for a ticket's low-level design. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:create-architecture. You produce the product's
 **high-level design** — the `hld/` part of the architecture set, wherever the
 repo already keeps it, else at `docs/architecture/hld/` — judged against the
-PRD, and ship it as a docs-only PR on a fresh delivery ticket. The low-level
+PRD, and leave it as uncommitted changes in the working tree — no ticket, no
+branch, no commit, no PR (ADR-0127); `/acs:create-pr`, given a prompt (e.g.
+`/acs:create-pr "Regenerate the HLD"`), commits it and opens the PR when the user
+is ready. The low-level
 design (`lld/<feature>/`) is not yours: the Design skills write it per ticket
 (ADR-0118). This is a product-level skill: it is
 ticket-independent and runs on its own — the PRD is its primary input, which
@@ -19,7 +22,7 @@ and never write the architecture docs yourself.
 
 ## Start
 
-MANDATORY first action — locate the PRD, before anything is allocated. Documents
+MANDATORY first action — locate the PRD, before the run starts. Documents
 are found, not configured: read CLAUDE.md and whatever docs index it or the repo
 points at (e.g. `docs/README.md`), then Glob/Grep for `prd.md` or a PRD by
 content. Found → that file is `<prd>`, and its roadmap (located the same way) is
@@ -41,36 +44,25 @@ Locate the architecture set the same way (an existing set is the directory
 holding `hld/tech-stack.md`): found → that directory is `<architecture_dir>`;
 none → `<architecture_dir>` = `docs/architecture/`, the conventional default.
 
-Then run exactly one of:
-
-- Fresh run (the normal case; each run gets its own delivery ticket):
+Then run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-architecture --allocate --args "$ARGUMENTS"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-architecture --args "$ARGUMENTS"
 ```
 
-- Resume: if `$ARGUMENTS` contains an existing delivery-ticket id (e.g.
-  `SHOP-2` from a handoff `continue_with` command), do NOT allocate — rejoin
-  that partition:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-architecture --ticket SHOP-2
-```
+An architecture run needs no ticket: `step start` opens a run over the
+invocation — or resumes this checkout's interrupted create-architecture run, so
+re-running the skill after a handoff picks up where it stopped — and the
+post-hook concludes it. Nothing is minted: no delivery ticket, no tracker sync,
+no branch.
 
 If `acs step start` exits non-zero: stop immediately and surface its stderr to the
 user verbatim. Otherwise parse the printed context JSON; the fields you need:
-`partition`, `ticket_id`, `ticket`, `settings` (`tracker`, and `design.hld_types`
-— the HLD types this repo writes), `agents`
+`partition`, `run_id`, `settings` (`design.hld_types` — the HLD types this repo
+writes — and `parallel.max_agents`), `agents`
 (the agent name to spawn per role; the architect's and the reviewer's model and
 effort come from `settings.models.create-architecture.<role>`, inheriting when
-unset), `reconcile`, `handoff_summary`,
-`post_hook`, `pipeline`, `checkout_root`.
-
-The allocated delivery ticket is type `task`, titled
-`Product architecture doc set` (`PRODUCT_TICKET_TITLES`); `acs step start` has
-already created the partition, ticket.json, the lock, the session pointer,
-and the `in_progress` run entry. If `settings.tracker.provider` is `github`,
-sync the ticket out via `gh` per the tracker config.
+unset), `reconcile`, `handoff_summary`, `checkout_root`.
 
 ## Resume & reconcile
 
@@ -81,9 +73,7 @@ BEFORE continuing:
   `iter-<n>/<role>-message.xml` snapshots (`architect`, `reviewer`) tell you
   the last completed phase and iteration.
 - Re-read the actual artifacts: which files under
-  `<checkout_root>/<architecture_dir>/` exist and are complete; whether the
-  ticket branch exists (`git branch --list`), is committed, pushed, or
-  already has a PR (`gh pr list --head <branch>`).
+  `<checkout_root>/<architecture_dir>/` exist and are complete.
 - Distrust the record where it is cheap to re-check (a doc "written" but
   missing or truncated counts as not done).
 - Continue from the first unfinished phase of the recorded iteration.
@@ -320,7 +310,8 @@ PRD; its `<context>` is the recorded answers (the drifted gaps' included), its
 `<constraint name="hld_types">` the enabled types. A slice writes ONLY its
 group's files, in the container/component/entity vocabulary the notes pinned —
 never inventing a name — and reports `iter-<n>/architect-write-<group>.json`.
-Create the branch (Delivery) before spawning them.
+No branch is created: the slices write into the working tree on whatever branch
+is checked out.
 
 **Seams.** The groups meet where a file names what another group draws: the
 container and component names of the C4 views, the entities of the data model,
@@ -358,17 +349,18 @@ iteration 1's notes carry every `## Synthesis` entry the reviewer checks.
 
 **Design versions (ADR-0122).** Every HLD file carries version front matter
 (`status`, `version`, `tickets`), set only through `acs.py design`: a new file
-gets `design init --ticket <delivery-ticket>` with `--status implemented` when it
-documents the code as built and `--status proposed` when it designs ahead of the
-code (greenfield, or a planned element); a changed file gets `design bump --ticket
-<delivery-ticket>`, which re-opens it as `proposed`; a file the run leaves
-unchanged keeps its block. Elements that are designed but not built are drawn with
-a dashed `planned` classDef and marked `(planned)` in prose. The team's approval of
-the docs PR is the design's approval; `/acs:docs-sync` later moves a design to
-`implemented` when its code lands.
+gets `design init` with `--status implemented` when it documents the code as
+built and `--status proposed` when it designs ahead of the code (greenfield, or a
+planned element); a changed file gets `design bump`, which re-opens it as
+`proposed`; a file the run leaves unchanged keeps its block. The run has no
+ticket, so no `--ticket` is passed and `tickets` gains no entry. Elements that are
+designed but not built are drawn with a dashed `planned` classDef and marked
+`(planned)` in prose. The team's approval of the docs PR `/acs:create-pr` opens is
+the design's approval; `/acs:docs-sync` later moves a design to `implemented` when
+its code lands.
 
-The architects write files only and never commit: you commit once, after
-the review passes (Delivery).
+The architects write files only and never commit — and neither do you: the
+documents stay as uncommitted changes (Delivery).
 
 On iterations 2-3 re-run only the write slices whose group's files the
 findings name, each receiving ALL the reviewer's findings verbatim in
@@ -389,7 +381,7 @@ survey architect task (un-sliced; a survey slice adds `slice="<id>"` and
 for the files in its `<constraint name="files">`):
 
 ```xml
-<task skill="create-architecture" phase="architect" ticket-id="SHOP-2" iteration="1">
+<task skill="create-architecture" phase="architect" iteration="1">
   <objective>Survey pass: read the PRD and inventory the codebase; decide reverse-engineer vs greenfield; record the per-file outline of the enabled HLD types, the canonical component vocabulary and the open points in the authoring notes. Write no doc file.</objective>
   <inputs>
     <file>docs/product/prd.md</file>
@@ -397,6 +389,7 @@ for the files in its `<constraint name="files">`):
     <file>docs/architecture/</file>
   </inputs>
   <constraints>
+    <constraint name="partition">/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d</constraint>
     <constraint name="prd">docs/product/prd.md</constraint>
     <constraint name="architecture_dir">docs/architecture</constraint>
     <constraint name="hld_types">c4-context, c4-container, c4-component, data-model, integration-map, deployment, project-structure</constraint>
@@ -478,36 +471,25 @@ slice". On findings (the joined `iter-<n>/reviewer.md` holds them), feed
 them verbatim into the next iteration's architect `<task>` `<context>` and
 re-run architect -> review. After iteration 3 with findings
 remaining: stop, final status `failed`, findings recorded in the result
-document; commit whatever was written to the local ticket branch so
-nothing is lost, but do NOT push or open the PR.
+document; whatever was written stays in the working tree, listed in
+`states.files`.
 
-## Delivery (branch, commit, PR)
+## Delivery
 
-The delivery-ticket pattern, done by you
-(/acs:create-design and /acs:code are not involved):
-
-1. **Branch** (before the write slices write): require a clean working
-   tree (`git status --porcelain` empty — if not, ask the user before
-   proceeding). Name the branch
-   `<type>/<ticket_id>-<slug>` with `type=task`, the ticket id, and the
-   slugified title — e.g. `task/SHOP-2-product-architecture-doc-set` — and
-   `git checkout -b` it from the default branch.
-2. **Commit** (after the reviewer passes): stage ONLY
-   `<architecture_dir>/` and verify the diff is docs-only
-   (`git diff --cached --name-only` — every path under
-   `<architecture_dir>`). Commit in the repo's own style, naming the ticket id
-   (default `<ticket_id> <summary>`), e.g.
-   `SHOP-2 Add product architecture doc set` (or `Regenerate …` on re-run).
-3. **Push & PR**: `git push -u origin <branch>`, then follow
-   `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` — the label,
-   the PR title, the body template, the pre-open self-check, `gh pr
-   create`, and recording `{number, url, branch}` for the result document.
-   Nothing about this skill changes those steps.
+Documents only, and they stay local (/acs:create-design and /acs:code are not involved):
+no branch, no commit, no push, no PR — whichever branch is checked out
+(ADR-0127). Leave every file the architects
+wrote under `<architecture_dir>/hld/` as an uncommitted change and record every
+path, repo-relative, in result `states.files`. The final message lists those files
+and points the user at `/acs:create-pr "<what the architecture change is>"` (e.g.
+`/acs:create-pr "HLD for the orders API"`) — given a prompt, it groups the
+uncommitted changes by layer (`hld/` its own commit), commits them on a branch of
+their own and opens the PR when the user is ready.
 
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction (e.g. a single AskUserQuestion containing all open questions as a
@@ -517,11 +499,11 @@ per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
-`clarify.py add --skill create-architecture --question "..." --answer "..." --ticket <ticket-id>`
+`clarify.py add --skill create-architecture --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`. If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
-in the completion report's Findings and the PR body until a user confirms.
+in the completion report's Findings until a user confirms.
 Before a needs_input handoff, record the outgoing questions as `open`
 (`clarify.py add` without `--answer`).
 
@@ -534,7 +516,7 @@ ask about things the PRD or the code already answers.
 If you genuinely cannot reach the user (e.g. a non-interactive run), do not
 guess — run Finish with `status: "interrupted"` and
 `stop_reason: "needs_input"`, then return a `<handoff skill="create-architecture"
-ticket-id="<id>" status="needs_input">` with the `<questions>` list instead.
+status="needs_input">` with the `<questions>` list instead.
 
 ## Context pressure
 
@@ -544,11 +526,11 @@ gotchas) to `steps/create-architecture/handoff-context.md`,
 then run:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
 Tell the user the `continue_with` command it prints (re-running this skill
-with the delivery-ticket id resumes via the Start section's resume form).
+resumes the run, see Start).
 
 ## Finish
 
@@ -556,19 +538,20 @@ MANDATORY final step — never skipped, also on failure:
 
 1. Write `steps/create-architecture/result.json` per the
    result-document contract in INTERNALS.md. Canonical `states` keys (exact
-   names): `architecture` and `pr`. `hld` entries are paths relative to
-   `<path>/hld/`:
+   names): `architecture` and `files`. `hld` entries are paths relative to
+   `<path>/hld/`; `files` lists EVERY repo path written, repo-relative — the
+   paths `/acs:create-pr` groups into the HLD's commit:
 
 ```json
 {
   "status": "completed",
-  "summary": "doc set reviewed against PRD and codebase; docs-only PR opened",
+  "summary": "doc set reviewed against PRD and codebase; left as local changes",
   "states": {
     "architecture": {
       "path": "docs/architecture",
       "hld": ["overview.md", "tech-stack.md", "cross-cutting.md", "c4-context.md", "c4-container.md", "c4-component.md", "data-model.md", "integration-map.md", "deployment.md", "project-structure.md"]
     },
-    "pr": {"number": 7, "url": "https://github.com/owner/repo/pull/7", "branch": "task/SHOP-2-product-architecture-doc-set"}
+    "files": ["docs/architecture/hld/overview.md", "docs/architecture/hld/tech-stack.md", "docs/architecture/hld/cross-cutting.md", "docs/architecture/hld/c4-context.md", "docs/architecture/hld/c4-container.md", "docs/architecture/hld/c4-component.md", "docs/architecture/hld/data-model.md", "docs/architecture/hld/integration-map.md", "docs/architecture/hld/deployment.md", "docs/architecture/hld/project-structure.md"]
   },
   "findings": [],
   "errors": []
@@ -576,8 +559,8 @@ MANDATORY final step — never skipped, also on failure:
 ```
 
    On failure: `status: "failed"`, the blocking findings in `findings`, the
-   reason in `summary`, keep whatever is true in `states` (e.g. the
-   written `architecture` files without `pr`). On
+   reason in `summary`, keep whatever is true in `states` (the
+   `architecture` files and `files` written so far). On
    handoff you write no result document: the Context-pressure path's
    `handoff.py` finalizes the step `interrupted` with
    `stop_reason: context_pressure` and records its summary on the invocation.
@@ -589,13 +572,13 @@ MANDATORY final step — never skipped, also on failure:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-architecture.py" --result-file "<the result.json you just wrote>"
 ```
 
-3. Report a compact summary to the user: mode, files written, review
-   iterations, PR URL, and that /acs:merge-pr (after their review) lands it
-   — for a greenfield product, the next step once merged is to ticket the
-   scaffold (`/acs:create-ticket "Scaffold the repository per the architecture
-   docs"`) and ship it. If you genuinely cannot reach the user (a non-interactive run),
+3. Report a compact summary to the user: mode, the uncommitted files written,
+   review iterations, and that `/acs:create-pr "<what the architecture change
+   is>"` (after their review) commits them and opens the PR — for a greenfield product, the next
+   step is to ticket the scaffold (`/acs:create-ticket "Scaffold the repository
+   per the architecture docs"`) and ship it. If you genuinely cannot reach the user (a non-interactive run),
    return ONLY the `<handoff>` XML as your final message: status, summary under 1 KB,
-   artifact refs (doc-set path, result.json, PR URL), and `<next-step>`.
+   artifact refs (doc-set path, result.json, the uncommitted files), and `<next-step>`.
 
 ## Completion report (normative)
 
@@ -605,13 +588,13 @@ interrupted, or handed off — ends your final message with the standard block
 succeeded. Same labels, same order, `none` where empty; under /acs:ship your final message is the `<handoff>` XML instead — this report is for direct invocations:
 
 ```markdown
-## /acs:create-architecture · <ticket-id> · <status>
+## /acs:create-architecture · <mode> · <status>
 
-- **Ticket**: <id> — <title> (<type>)
+- **Ticket**: none — a ticketless run; the documents are delivered by `/acs:create-pr`
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: HLD files written at `<architecture_dir>/hld/` (and the enabled types); delivery ticket id; PR number/URL
+- **Results**: HLD files written at `<architecture_dir>/hld/` (and the enabled types), left as uncommitted changes (`states.files`)
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <partition files, repo paths, branch, PR URL>
+- **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:create-ticket` (greenfield: a scaffold ticket first, then `/acs:ship` it)
+- **Next**: review the listed files, then `/acs:create-pr "<what the architecture change is>"` (e.g. `/acs:create-pr "HLD for the orders API"`) to commit them and open the PR; then `/acs:create-ticket` (greenfield: a scaffold ticket first, then `/acs:ship` it)
 ```

@@ -2,16 +2,17 @@
 description: >-
   /acs:create-prd amend mode after a scope change: leadership cut order
   tracking, which the existing PRD lists as a Should-have with its own v2.6.0
-  milestone. It should mint an "Amend PRD:" delivery ticket, move order
-  tracking to Won't and Out of scope, drop its milestone and release row from
-  the roadmap, leave every other section byte-for-byte, push the delivery
-  branch, and report the failed gh PR step as a finding.
+  milestone. It should run ticketless, move order tracking to Won't and Out
+  of scope, drop its milestone and release row from the roadmap, leave every
+  other section byte-for-byte, and leave both documents as uncommitted local
+  changes listed in states.files -- no ticket, branch, commit, push or PR
+  (ADR-0127).
 expected_outcome: >-
-  EVAL-1 titled "Amend PRD: ..."; docs/product/prd.md lists order tracking
-  under Won't and Out of scope, with Vision through Goals and the NFR and
-  Constraints sections unchanged; docs/product/roadmap.md keeps Checkout
-  v2.5.0 and no longer mentions v2.6.0; a task/EVAL-1-* branch pushed with
-  upstream set; result.json records the gh failure and no PR.
+  docs/product/prd.md lists order tracking under Won't and Out of scope, with
+  Vision through Goals and the NFR and Constraints sections unchanged;
+  docs/product/roadmap.md keeps Checkout v2.5.0 and no longer mentions
+  v2.6.0; HEAD is still the scaffold's last commit on main and nothing was
+  pushed; the step finished with both files in states.files and no PR.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 2400
@@ -29,6 +30,3 @@ ask me anything:
   from the Release versions table. Checkout stays in v2.5.0.
 - Nothing else changes: every other section of the PRD and the rest of the
   roadmap stay exactly as they are, word for word.
-
-Pushing to origin works from this machine, but there is no GitHub access
-here: when a gh call fails, handle it the way the skill says to, and finish.

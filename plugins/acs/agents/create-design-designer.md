@@ -39,7 +39,7 @@ ticket's `design.md`.
      coordinator lifts it verbatim into `states.decision`), then why the
      winner wins and why the others lose, citing the user's answers where they
      settled a trade-off. Then `### Decision records` — a one-line ADR title
-     per accepted decision, plus the note that /acs:docs-sync commits them
+     per accepted decision, plus the note that /acs:docs-sync writes them
      under the `adr_dir` your task constraints carry (/acs:code no longer
      authors ADRs).
    - `## Architecture` — components (new/changed, mapped to the C4

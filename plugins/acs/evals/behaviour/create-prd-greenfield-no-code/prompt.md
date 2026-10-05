@@ -4,14 +4,16 @@ description: >-
   fact supplied in the prompt, since the run cannot answer questions. It
   should write docs/product/prd.md with the eight required sections carrying
   exactly the stated facts, a roadmap mapping the two milestones to v0.1.0
-  and v0.2.0, write no code, push its delivery branch, and report the failed
-  gh PR step as a finding.
+  and v0.2.0, write no code, and leave both documents as uncommitted local
+  changes listed in states.files -- no ticket, branch, commit, push or PR
+  (ADR-0127).
 expected_outcome: >-
   docs/product/prd.md with the eight sections, the 500-bookings and 5%
   no-show metrics, the 2 s and 99.5% NFRs and the Won't item;
   docs/product/roadmap.md with a Release versions table mapping v0.1.0 and
-  v0.2.0; no source file created; a task/EVAL-1-* branch pushed with upstream
-  set; result.json records the gh failure and no PR.
+  v0.2.0; no source file created; HEAD still the scaffold's commit on main and
+  nothing pushed; the step finished with both files in states.files and no
+  PR.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 2400
@@ -43,6 +45,3 @@ answered below. Treat all of it as confirmed and do not ask me anything.
 - Roadmap: milestone "Booking MVP" delivers online booking and SMS reminders
   in release v0.1.0; milestone "Deposits" delivers deposits in release
   v0.2.0.
-
-Pushing to origin works from this machine, but there is no GitHub access
-here: when a gh call fails, handle it the way the skill says to, and finish.

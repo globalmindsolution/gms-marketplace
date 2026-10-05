@@ -19,8 +19,8 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
 Run the /acs:create-impl-plan skill for ticket EVAL-1 (storefront order
-management). The analysis is already published on the ticket branch that is
-checked out.
+management). The analysis is already published in the ticket's docs folder,
+uncommitted, on main.
 
 I can't answer questions during this run, so here is my answer in advance —
 don't ask me anything: if the plan comes out too large for one reviewable

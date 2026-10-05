@@ -70,14 +70,16 @@ than one.
   `code-trivial` 1). More partitions than that run in waves of that size, each
   wave one message,
   the next wave spawned only once every slice of the previous one returned.
-- **One branch, one working tree.** Every slice commits on the run's branch.
-  An implementer stages and commits ONLY its own file map's paths, by name —
-  never `git add -A` or `git commit -a`, which would sweep up a sibling's work
-  in flight — and on `index.lock` contention it waits briefly and retries the
-  commit. Nothing is ever forced.
+- **One working tree, no git writes.** Every slice writes into the same
+  working tree, on whatever is checked out. An implementer writes ONLY its own
+  file map's paths and lists every one it changed in its report's
+  `files_changed`; no implementer stages, commits, switches a branch or pushes
+  (ADR-0127), so siblings never contend for the index. The join is the reports
+  plus the file-map guard — `/acs:create-pr` later turns each partition's
+  `files_changed` into its tests commit and its code commit.
 - **After the wave.** Every slice `completed` → the partition work is done. A
   slice that returned `needs_input` or `failed` does not undo its siblings'
-  green commits: resolve that slice (answer its questions, adjust its file
+  green work: resolve that slice (answer its questions, adjust its file
   map) and re-run THAT slice alone, under the same `k`.
 - **Then the seams — a join is not a synthesis.** Parallel slices can disagree
   where their partitions meet: a call site that crosses the boundary, a type
@@ -85,7 +87,7 @@ than one.
   implementer lists what it saw in its report's `seams` field. The integration
   slice, `slice="integration"`, is the one pass that reconciles them: ONE more
   implementer, spawned alone after every slice returned and before
-  `/acs:review-code`, given every slice's report and the union of their diffs.
+  `/acs:review-code`, given every slice's report and the union of their changes (`acs.py changes diff`).
   It reconciles ONLY the seams — never a slice's substance — returns
   `needs_input` with a question on a conflict the evidence cannot settle, and
   writes `iter-<n>/implementer-integration.json` listing each seam it changed
@@ -167,9 +169,10 @@ parallel) must, in order:
    implementer does NOT repair it in this step — it copies the item verbatim,
    with the cited doc section and `file:line` disagreement, into the
    implementer report's `problems` field, so `/acs:docs-sync` (which reads
-   every implementer report's `problems` as a mandatory input) repairs it on
-   the same branch/PR.
-5. **Commit** the spec's work on the ticket branch in
-   the repo's own commit style, naming the ticket id (one or a few coherent commits per spec), staging
-   only the implementer's own paths by name; on `index.lock` contention, wait
-   briefly and retry. Never push, never force.
+   every implementer report's `problems` as a mandatory input) repairs it in
+   the same working tree before the PR.
+5. **Leave the work uncommitted and report it.** Every path the implementer
+   wrote stays an uncommitted change in the working tree and is listed in its
+   report's `files_changed` — tests and code alike, since `/acs:create-pr`
+   splits each partition into a tests commit and a code commit from that list.
+   Never stage, commit, switch a branch or push (ADR-0127).

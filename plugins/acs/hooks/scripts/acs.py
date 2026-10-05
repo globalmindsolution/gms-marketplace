@@ -43,6 +43,8 @@ Usage:
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py pr metadata fill --ticket MAR-1 --pr 42
+  acs.py pr plan-commits [--ticket MAR-1] [--run R] [--out plan.json]
+  acs.py pr commit --plan plan.json
   acs.py tracker sync --ticket MAR-1 --ticket MAR-2
   acs.py readiness --pr 42
   acs.py readiness --from recorded-pr.json
@@ -73,6 +75,8 @@ Usage:
   acs.py job wait --name gate-build --name gate-suite [--timeout 540]
   acs.py job status --name gate-suite
   acs.py job stop --name gate-suite
+  acs.py changes snapshot
+  acs.py changes diff [--since TREE] [--name-only | --stat | --patch]
 """
 
 import argparse
@@ -105,6 +109,7 @@ import acs_analysis_commands  # noqa: E402
 import acs_model_commands  # noqa: E402
 import acs_design_commands  # noqa: E402
 import acs_job_commands  # noqa: E402
+import acs_changes_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -249,7 +254,7 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
-    pr = group("pr", help="PR metadata the forge, not the model, decides")
+    pr = group("pr", help="PR metadata, and the commits /acs:create-pr makes (ADR-0127)")
     pr_sub = pr.add_subparsers(dest="cmd")
     metadata = pr_sub.add_parser("metadata", help="PR metadata fill")
     metadata_sub = metadata.add_subparsers(dest="subcmd")
@@ -261,6 +266,7 @@ def build_parser():
     fill.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
                       help="replay recorded gh output instead of calling gh")
     fill.set_defaults(func=cmd_pr_metadata_fill)
+    acs_changes_commands.add_pr_parsers(pr_sub)
 
     tracker = group("tracker", help="tracker sync")
     tracker_sub = tracker.add_subparsers(dest="cmd")
@@ -381,11 +387,28 @@ def build_parser():
     acs_model_commands.add_parser(group)
     acs_design_commands.add_parser(group)
     acs_job_commands.add_parser(group)
+    acs_changes_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,
                        help="delegated to %s" % DELEGATED[name])
     return parser, sub.choices
+
+
+def _bind_args_values(argv):
+    """`--args VALUE` -> `--args=VALUE`. `--args` carries a skill's raw
+    argument text verbatim (`--args "$ARGUMENTS"`), and argparse refuses a
+    separate value that starts with a dash, so a prompt such as
+    `--dry-run the export` would otherwise be a usage error."""
+    out, i = [], 0
+    while i < len(argv):
+        if argv[i] == "--args" and i + 1 < len(argv):
+            out.append("--args=" + argv[i + 1])
+            i += 2
+            continue
+        out.append(argv[i])
+        i += 1
+    return out
 
 
 def main(argv=None):
@@ -400,7 +423,7 @@ def main(argv=None):
         sys.exit(delegate(argv[0], rest))
 
     parser, groups = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(_bind_args_values(argv))
     func = getattr(args, "func", None)
     if func is None:
         # A group with no subcommand ("acs.py path") — show THAT group's usage,

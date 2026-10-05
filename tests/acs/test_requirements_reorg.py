@@ -372,9 +372,10 @@ REWORDED_BY_ADR_0102 = {
         # The settings-table rows became rows of the conventional-defaults
         # table, which carry each set's producer/consumer obligations over.
         '| `adr_path` | string (repo-relative path) or `null` | `"docs/architecture/adr"` | No | `/code` commits the accepted decision records from the ticket\'s `design.md` to this path as part of its documentation updates — on by default so decisions outlive archived ticket partitions. Explicit `null` disables (designs then stay workspace-only). |':
-            "| ADRs | `docs/architecture/adr/` | `/code` commits the accepted decision records "
-            "from the ticket's `design.md` here, so decisions outlive archived "
-            "ticket partitions. |",
+            # ADR-0127 reworded it again: /code writes them, /create-pr commits.
+            "| ADRs | `docs/architecture/adr/` | `/code` writes the accepted decision records "
+            "from the ticket's `design.md` here (and `/create-pr` commits them), so "
+            "decisions outlive archived ticket partitions. |",
         '| `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |':
             # ADR-0121 reworded it again: the HLD is create-architecture's, the
             # LLD the Design skills', per ticket.
@@ -467,6 +468,22 @@ RETIRED_BY_ADR_0118 = {
     ),
 }
 
+#: ADR-0127: only `/acs:create-pr` branches, commits and pushes. The
+#: product-level skills mint no delivery ticket any more, `/code` commits
+#: nothing (its commit-message clause has no step left to bind), and
+#: `/create-pr` no longer finds a branch `/code` created -- it creates it. The
+#: successors are stated in their own words in skills.md ("Product-level
+#: delivery (no ticket)", `/code` "MUST NOT branch, stage or commit",
+#: `/create-pr` "MUST split the working tree's uncommitted changes"), not as
+#: rewordings of these clauses.
+RETIRED_BY_ADR_0127 = {
+    'skills.md': (
+        '- Commit messages MUST follow the commit message format configured in',
+        '- MUST create a PR containing the new changes for the implementation. The',
+        'skills, while not running the ticket pipeline, MUST each create their own',
+    ),
+}
+
 REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103,
                     REWORDED_BY_ADR_0109)
 
@@ -477,7 +494,8 @@ def _retired():
     for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
                   RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING,
                   RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105,
-                  RETIRED_BY_ADR_0116, RETIRED_BY_ADR_0117, RETIRED_BY_ADR_0118):
+                  RETIRED_BY_ADR_0116, RETIRED_BY_ADR_0117, RETIRED_BY_ADR_0118,
+                  RETIRED_BY_ADR_0127):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     for rewording in REWORDING_TABLES:

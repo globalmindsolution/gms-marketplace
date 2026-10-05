@@ -1,17 +1,19 @@
 """Calibration plays for create-prd-brownfield-baseline (see
 tests/evals/check_grader_calibration.py). The ideal run does what the skill
-does, through its own writers: `acs step start --allocate` mints the delivery
-ticket, the author writes the two documents, the coordinator commits and
-pushes the delivery branch, gh fails, and the result document goes through
-the real post-hook."""
+does, through its own writers: `acs step start` resumes the ticketless run the
+scaffold opened, the author writes the two documents and leaves them
+uncommitted, and the result document, listing both in `states.files`, goes
+through the real post-hook. Nothing is branched, committed or pushed
+(ADR-0127)."""
 
 import json
 import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-prd.py")
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-prd"
+STEP = ".acs/state-machine/example-shop/runs/write-the-first-prd-96bb/steps/create-prd"
 BRANCH = "task/EVAL-1-product-definition-prd"
+FILES = ("docs/product/prd.md", "docs/product/roadmap.md")
 
 PRD = """# PRD — shop
 
@@ -74,44 +76,42 @@ Delivers order tracking.
 | v2.6.0 | Order tracking | Order tracking |
 """
 
-GH_FINDING = {"severity": "critical", "area": "pr",
-              "message": "gh pr create failed; the docs-only PR was not opened",
-              "command": "gh pr create --base main --head %s --label ACS" % BRANCH,
-              "error": "gh: command not found",
-              "hint": "check `gh auth status` and repo access"}
 
 
 def _start(ws):
     ws.skill("create-prd")
-    started = ws.acs("step", "start", "--step", "create-prd", "--allocate")
+    started = ws.acs("step", "start", "--step", "create-prd", "--args", '')
     assert started.returncode == 0, started.stderr
 
 
 def _write_docs(ws, prd=PRD, roadmap=ROADMAP):
-    ws.sh("git checkout -q -b %s main" % BRANCH)
     ws.write("docs/product/prd.md", prd)
     ws.write("docs/product/roadmap.md", roadmap)
+
+
+def _commit(ws):
+    """The pre-ADR-0127 delivery: a delivery branch and a commit."""
+    ws.sh("git checkout -q -b %s" % BRANCH)
     ws.sh("git add docs/product && git commit -qm 'EVAL-1 Add product requirements document and roadmap'")
 
 
-def _finish(ws, findings=(GH_FINDING,), pr=None, status="completed"):
-    states = {"prd": {"path": "docs/product",
-                      "files": ["docs/product/prd.md", "docs/product/roadmap.md"]}}
+def _finish(ws, files=FILES, pr=None, status="completed"):
+    states = {"prd": {"path": "docs/product"}, "files": list(files)}
     if pr:
         states["pr"] = pr
     ws.write(STEP + "/result.json", json.dumps({
-        "status": status, "summary": "PRD written and branch pushed; gh failed, no PR opened",
-        "states": states, "findings": list(findings), "errors": []}, indent=2))
+        "status": status, "summary": "PRD written and reviewed; left as local changes",
+        "states": states, "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
 def IDEAL(ws):
     _start(ws)
     _write_docs(ws)
-    ws.sh("git push -q -u origin %s" % BRANCH)
     _finish(ws)
-    ws.reply = ("EVAL-1: PRD and roadmap written on %s and pushed. The PR could not be "
-                "opened: gh pr create failed (gh unavailable), recorded as a finding." % BRANCH)
+    ws.reply = ("PRD and roadmap written. Uncommitted: docs/product/prd.md, "
+                "docs/product/roadmap.md. Review them, then run /acs:create-pr to commit them "
+                "and open the PR.")
 
 
 def _allocated_only(ws):
@@ -123,35 +123,41 @@ def _template_prd(ws):
     generic = PRD.replace("3.5%", "a higher rate").replace("300 ms", "fast").replace(
         "**Won't**", "**Later**")
     _write_docs(ws, prd=generic, roadmap="# Roadmap\n\n- Checkout\n- Order tracking\n")
-    ws.sh("git push -q -u origin %s" % BRANCH)
     _finish(ws)
 
 
-def _never_pushed(ws):
+def _committed(ws):
     _start(ws)
     _write_docs(ws)
+    _commit(ws)
+    _finish(ws)
+
+
+def _pushed(ws):
+    _start(ws)
+    _write_docs(ws)
+    _commit(ws)
+    ws.sh("git push -q -u origin %s" % BRANCH)
     _finish(ws)
 
 
 def _invented_pr(ws):
     _start(ws)
     _write_docs(ws)
-    ws.sh("git push -q -u origin %s" % BRANCH)
-    _finish(ws, findings=(), pr={"number": 1, "branch": BRANCH,
-                                 "url": "https://github.com/example/shop/pull/1"})
+    _finish(ws, pr={"number": 1, "url": "https://github.com/example/shop/pull/1"})
 
 
-def _hid_the_failure(ws):
+def _recorded_no_files(ws):
     _start(ws)
     _write_docs(ws)
-    ws.sh("git push -q -u origin %s" % BRANCH)
-    _finish(ws, findings=())
+    _finish(ws, files=())
 
 
 BAD = {
-    "allocated the ticket and wrote nothing": _allocated_only,
+    "started the run and wrote nothing": _allocated_only,
     "wrote a generic PRD without the stated facts or versions": _template_prd,
-    "committed but never pushed the delivery branch": _never_pushed,
+    "committed the documents on a delivery branch": _committed,
+    "pushed a delivery branch": _pushed,
     "recorded a PR that cannot exist": _invented_pr,
-    "finished with the gh failure unrecorded": _hid_the_failure,
+    "recorded no files in states.files": _recorded_no_files,
 }

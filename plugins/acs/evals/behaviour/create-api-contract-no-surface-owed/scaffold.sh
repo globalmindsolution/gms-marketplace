@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # create-api-contract (nothing owed): the shop repo, story EVAL-1 "Log slow
-# customer listings", and the ticket branch carrying its published analysis
+# customer listings", and the working tree (main, uncommitted -- ADR-0127) carrying its published analysis
 # (api_surface: false) and plan, whose Contract block says
 # `api_contract: false` with a reason. The create-impl-plan step is RUN, not
-# just its document committed, because the no-op is read from the run's own
+# just its document written, because the no-op is read from the run's own
 # plan (runs/EVAL-1/steps/create-impl-plan/plan.md): `acs step start`, the
 # draft, `acs.py filemap set`, result.json and post-create-impl-plan.py --
 # the plugin's own writers, exactly what the planning coordinator does. The
@@ -26,7 +26,6 @@ printf '%s' '{"acceptance_criteria": [
   "A call that takes 200 ms or less logs nothing"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-log-slow-customer-listings
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/analysis.md <<'MD'
 ---
@@ -73,8 +72,6 @@ Ready for planning; no API surface changes (the return value, parameters and
 errors of GET /customers are untouched; the log line is operator output); no
 design needed.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze slow listing log"
 cat > docs/tickets/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Log slow customer listings
 
@@ -112,8 +109,6 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/__init__.py, tests/test_slow_listing_log.py
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan slow listing log"
 step="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan"
 python3 "$ACS_SCRIPTS/acs.py" step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
 cp docs/tickets/EVAL-1/plan.md "$step/plan.md"

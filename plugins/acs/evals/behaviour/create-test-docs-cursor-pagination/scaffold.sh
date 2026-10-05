@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # create-test-docs: the shop repo, story EVAL-1 minted and given its three
-# acceptance criteria through the plugin's own CLIs, and the ticket branch
-# carrying what the earlier Build steps would have PUBLISHED there:
+# acceptance criteria through the plugin's own CLIs, and the working tree
+# (main, nothing committed -- ADR-0127) carrying what the earlier Build steps would have PUBLISHED there, uncommitted:
 # docs/tickets/EVAL-1/analysis.md, plan.md (whose Contract block owes test
 # cases, so the pre-hook does NOT settle the step as no_cases_owed) and
 # api-contract.md (one item, GET /customers, with the invalid_cursor error).
 #
 # acs has no writer command for any of the three -- each coordinator copies
-# its verified draft into the docs folder with cp and commits it -- so they
+# its verified draft into the docs folder with cp and leaves it uncommitted -- so they
 # are written in exactly the format their SKILL.md specifies (each passes
 # front_matter_check.py / structure_lint.py; the plan's Contract block parses
-# through acs_lib.plan_contract) and committed as ordinary repo files. No
+# through acs_lib.plan_contract) and left uncommitted as ordinary repo files. No
 # workspace step state is forged: the create-test-docs gate reads them when
 # present and requires no predecessor step.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
@@ -29,7 +29,6 @@ printf '%s' '{"acceptance_criteria": [
   "A malformed cursor is rejected with HTTP 400 and error code invalid_cursor"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-cursor-pagination-for-get-customers
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/analysis.md <<'MD'
 ---
@@ -79,8 +78,6 @@ The three criteria on the ticket are confirmed as written.
 
 Ready for planning; api_surface true; no design needed.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze cursor pagination"
 cat > docs/tickets/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Cursor pagination for GET /customers
 
@@ -132,8 +129,6 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/__init__.py, tests/test_customers.py, README.md
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan cursor pagination"
 cat > docs/tickets/EVAL-1/api-contract.md <<'MD'
 ---
 ticket: EVAL-1
@@ -187,5 +182,3 @@ Backward compatible, in place: `offset` clients keep working (C-2).
 Mode `no-machine-readable-contracts`: the repo keeps no OpenAPI, schema or
 `docs/api/` tree, and this run introduces none.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Contract for cursor pagination"

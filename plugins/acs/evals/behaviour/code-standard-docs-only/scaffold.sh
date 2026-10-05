@@ -13,7 +13,7 @@
 #   the draft at runs/EVAL-1/steps/create-impl-plan/plan.md (the planner's
 #     Write; no CLI writer exists for its bytes)
 #   acs.py filemap set --skill code --iteration 1 (the map the guard enforces)
-#   the published copy in docs/tickets/EVAL-1/, committed on the ticket branch
+#   the published copy in docs/tickets/EVAL-1/, left uncommitted on main
 #   post-create-impl-plan.py (finishes the step, releases the lock)
 # and then APPROVED through the sole writer of plan-approval.json, `acs.py plan
 # check`, which the standard path's pre-hook requires.
@@ -30,7 +30,6 @@ printf '%s\n' '{"docs_only": true, "acceptance_criteria": ["docs/api/customers.m
 grep -q '"docs_only": true' "$ACS_PARTITION/EVAL-1/ticket.json"
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "story/EVAL-1-document-the-customer-listing-api"
 draft="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Document the customer listing API
@@ -73,8 +72,6 @@ acs filemap set --skill code --iteration 1 --task 2 \
   --file README.md --file CHANGELOG.md > /dev/null
 mkdir -p docs/tickets/EVAL-1
 cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; two disjoint documentation tasks",

@@ -178,3 +178,7 @@ cat >> README.md <<'MD'
 MD
 git add -A && git commit -qm "Drop the export worker and Redis; add the orders API"
 acs_local_origin
+acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
+# The run the skill resumes: a ticketless run (ADR-0127), opened here so
+# its id -- and so every grader path -- is deterministic.
+acs run new --prompt "Regenerate the architecture after the shift" > /dev/null

@@ -109,22 +109,15 @@ points at (e.g. `docs/README.md`), then a Glob/Grep by file name or content.
 Its repo-relative directory is `<architecture_dir>` below. A repo without one
 simply has none; this skill does not create it.
 
-## Branch — the contract is a repo file
+## Working tree — the contract is a repo file
 
 `api-contract.md` (in the ticket's docs folder, `docs/tickets/<id>/`) and
-every machine-readable contract file belong on the ticket branch with the rest
-of the change. Name the branch `<type>/<ticket_id>-<slug>` with
-`<ticket_id>`, `<type>` (`ticket.type`) and `<slug>`
-(`acs.py slug --text "<title>"`), then create or reuse it:
-
-```bash
-git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
-```
-
-The branch normally already exists — `/acs:analyze-requirements` and
-`/acs:create-impl-plan` ran before this step. Reuse it; never recreate or reset
-it. Commit in the repo's own style, naming the ticket id (default
-`<ticket_id> <summary>`). Do NOT push — `/acs:create-pr` pushes.
+every machine-readable contract file are repo files that travel with the rest
+of the change. This skill never creates, switches or names a branch, and
+never stages, commits or pushes (ADR-0127): it leaves every file it wrote as
+an uncommitted change in the working tree, on whatever is checked out, and
+records each repo-relative path in the result's `states.files`.
+`/acs:create-pr` is the only skill that branches and commits.
 
 ### Contract artifact resolution
 
@@ -182,9 +175,10 @@ continuing:
 
 1. Read `steps/create-api-contract/state.json` (`invocations[-1]`, `states`) and
    the artifacts under `steps/create-api-contract/`.
-2. Re-resolve `<contract_path>` and read it if it exists; check `git status` /
-   `git log` for contract-file changes a prior run committed. Trust nothing you
-   cannot see in a file or a commit.
+2. Re-resolve `<contract_path>` and read it if it exists; check
+   `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --name-only`
+   for contract-file changes a prior run left in the working tree. Trust
+   nothing you cannot see in a file.
 3. Continue from the first unfinished phase — a contract-author report
    (`iter-<n>/contract-author.json`) with no contract-reviewer report →
    review it; a contract-reviewer report (`iter-<n>/contract-reviewer.md`)
@@ -320,8 +314,8 @@ draft. Skip the contract-reviewer, publish nothing, and complete with
 The same phase then writes the contract draft to
 `steps/create-api-contract/api-contract.md` — one draft per run,
 revised in place across iterations — and, when the mode says the repo keeps
-machine-readable contracts, update those files in the consumer repo and commit
-them on the ticket branch. When the contract-authors run sliced (Writer
+machine-readable contracts, update those files in the consumer repo and leave
+them uncommitted in the working tree. When the contract-authors run sliced (Writer
 slices, below), each slice does all of this for its own group only, and you
 assemble the one draft from their fragments.
 
@@ -370,7 +364,7 @@ spawn:
   another (a `$ref`, an `import`, an `include`) or that describe the same item
   are ONE group. Establish the groups by reading the files the plan names,
   never from their names; when you cannot establish them, do not slice. One
-  slice owns one group — its contract files (only that slice edits and commits
+  slice owns one group — its contract files (only that slice edits
   them), the surface items those files describe, and its own fragment of the
   draft — and the FIRST slice also owns every item no contract file describes
   (a CLI flag, a library signature). Every contract file is in exactly one
@@ -393,11 +387,11 @@ spawn:
   `settings.parallel.max_agents` (default 4) slices per message; more groups
   run in waves of that size, the next wave spawned only once every slice of
   the previous one returned.
-- **One branch, one working tree.** Each slice stages and commits ONLY its own
-  group's files, by name (`git commit -m "<msg>" -- <its files>`) — never
-  `git add -A` or `git commit -a`, which would sweep up a sibling's work in
-  flight — and on `index.lock` contention it waits briefly and retries the
-  commit. Nothing is ever forced.
+- **One working tree, no git writes.** Each slice writes ONLY its own group's
+  files and lists them in its report's `contract_files`; no slice stages,
+  commits or touches a branch, so siblings never contend for the index. The
+  join is the reports plus the file-map guard: a write outside a slice's
+  group is its defect, never a sibling's.
 - **Questions and failures.** The `<questions>` of every slice that returned
   `needs_input` go to the user in ONE grouped ask (User interaction); then only
   those slices re-run, under the same id, with the answers in `<context>`. A
@@ -435,8 +429,8 @@ spawn:
   never silently picking one; a genuine conflict it cannot resolve from the
   evidence comes back as `status="needs_input"` with the question. It writes
   `iter-<n>/contract-author-integration.json` listing each seam it changed
-  (file, what, why, which slices), and commits any contract file it touched
-  by name, retrying on `index.lock` contention like every slice. The pass is
+  (file, what, why, which slices), and lists every contract file it touched in
+  that report, leaving them uncommitted like every slice. The pass is
   skipped when the contract-author ran un-sliced — one writer has no seams —
   and, on iteration 2+, when there is nothing at a seam to reconcile (below).
 - **The join — deterministic, never by hand.** Once the integration pass
@@ -519,7 +513,7 @@ dimensions in `<constraint name="dimensions">`:
 | --- | --- | --- |
 | `surface` | 1 `completeness`, 2 `accuracy`, 7 `scope` | re-deriving the surface from the plan (or the subject) and the code |
 | `trace` | 3 `traceability`, 4 `compatibility`, 8 `authoring-conformance` | `clarify.py list` against the ledger |
-| `files` | 5 `contract-files`, 6 `front-matter` and `structure` | `front_matter_check.py`, `structure_lint.py`, `git log` / `git show` of the contract files |
+| `files` | 5 `contract-files`, 6 `front-matter` and `structure` | `front_matter_check.py`, `structure_lint.py`, the contract files as they stand in the working tree (`acs.py changes diff --name-only`) |
 
 Spawn the three in ONE message — one Agent call per slice, all in the same
 assistant message, in the foreground (three is within the default
@@ -594,10 +588,11 @@ input the implementers of `/acs:code` are later checked against. Copy, never re-
 cp "<partition>/steps/create-api-contract/api-contract.md" "<contract_path>"
 ```
 
-Then commit `<contract_path>` on the ticket branch when it is inside the repo,
-in the same commit as the machine-readable contract files the run changed (one
-coherent "contract for <id>" commit). The partition draft is workspace state
-and is never committed.
+Leave `<contract_path>` as an uncommitted change when it is inside the repo,
+beside the machine-readable contract files the run changed, and record every
+one of those paths in `states.files` — `/acs:create-pr` commits them together
+as the ticket's docs. The partition draft is workspace state and never enters
+the repo.
 
 ## User interaction
 
@@ -633,8 +628,8 @@ the Finish steps, and return a `<handoff status="needs_input">` whose
 ## Context pressure
 
 If your context window is running low mid-run: do NOT burn the remainder on
-work that would be lost. Commit any published contract and contract files on
-the branch, flush in-flight state plus soft context (decisions, settled items,
+work that would be lost. Leave any published contract and contract files in
+the working tree, flush in-flight state plus soft context (decisions, settled items,
 gotchas) to `steps/create-api-contract/handoff-context.md`, then
 run:
 
@@ -655,11 +650,12 @@ MANDATORY final step — never skipped, also on failure or handoff:
    {
      "status": "completed",
      "outcome": "contract_written",
-     "summary": "contract-reviewer passed with zero findings on iteration 2; contract published and committed",
+     "summary": "contract-reviewer passed with zero findings on iteration 2; contract published, left uncommitted",
      "states": {
        "contract_path": "docs/tickets/SHOP-123/api-contract.md",
        "items": 3,
-       "traced_acs": ["AC-1", "AC-2", "AC-4"]
+       "traced_acs": ["AC-1", "AC-2", "AC-4"],
+       "files": ["docs/tickets/SHOP-123/api-contract.md", "docs/api/openapi.yaml"]
      },
      "findings": [],
      "errors": []
@@ -677,6 +673,9 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - `traced_acs` (list): the acceptance-criteria ids the items trace to, each
      appearing at least once in `## Traceability` (the union of the slices'
      reports when the contract-authors ran sliced).
+   - `files` (list): every repo-relative path this run wrote and left
+     uncommitted — the published contract plus each machine-readable contract
+     file the slices' reports list. `/acs:create-pr` commits them.
 
    `outcome` is required on every `completed` result document — the post-hook
    refuses one without it, because this step completes in two ways: `contract_written`
@@ -685,8 +684,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    records `no_surface_owed` itself when the plan's `## Contract` block owes
    no contract, and this coordinator never runs.
 
-   The machine-readable contract files are committed on the ticket branch, not
-   recorded in `states`; name them in the completion report instead. On failure
+   The machine-readable contract files stay uncommitted in the working tree,
+   listed in `files`; name them in the completion report too. On failure
    keep whatever is true: `contract_path` only when a contract was actually
    published, the open findings in `findings`, and the reason (iteration cap,
    needs input) in `summary`.
@@ -704,8 +703,9 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - Direct invocation: a compact summary — the contract path, the items
      specified, which acceptance criteria they trace to, the compatibility
      verdict (backward compatible / breaking, and what was decided), the
-     machine-readable contract files changed, open findings, and the next step
-     (`/acs:create-test-docs <id>`).
+     machine-readable contract files changed, the uncommitted files left in the
+     working tree, open findings, and the next step
+     (`/acs:create-test-docs <id>`; `/acs:create-pr <id>` commits them later).
    - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      published contract and the contract files, `<questions>` when
@@ -726,7 +726,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: contract path; items specified; acceptance criteria traced; compatibility verdict; machine-readable contract files changed
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <contract path, contract files, partition phase artifacts, branch>
+- **Artifacts**: <uncommitted files written (contract path, contract files), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:create-test-docs <ticket-id>`
+- **Next**: `/acs:create-test-docs <ticket-id>` (the files stay uncommitted until `/acs:create-pr <ticket-id>`)
 ```

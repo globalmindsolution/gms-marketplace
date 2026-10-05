@@ -23,10 +23,18 @@
           "type": "array"
         },
         "commits": {
-          "type": "array"
+          "type": "array",
+          "description": "Legacy and optional: commits a run made before ADR-0127. /acs:code commits nothing now; /acs:create-pr does."
         },
         "delivery_path": {
           "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Repo-relative paths this run wrote and left uncommitted in the working tree (ADR-0127); /acs:create-pr groups them per plan slice from the implementer reports' `files_changed`."
         }
       },
       "additionalProperties": false

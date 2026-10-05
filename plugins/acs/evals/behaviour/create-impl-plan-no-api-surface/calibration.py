@@ -2,8 +2,7 @@
 
 IDEAL does what /acs:create-impl-plan's coordinator does, through the
 plugin's own writers: `acs step start`, the planner's draft in the step
-directory, the Publish copy and its commit on the ticket branch the scaffold
-checked out, `acs.py filemap set`, then result.json and the post-hook."""
+directory, the Publish copy left uncommitted on main (ADR-0127), `acs.py filemap set`, then result.json and the post-hook."""
 
 import json
 import os
@@ -16,6 +15,13 @@ PUBLISHED = "docs/tickets/EVAL-1/plan.md"
 FILES = ["src/shop/__init__.py", "tests/test_slow_listing_log.py"]
 PLAN = '# Plan — EVAL-1: Log slow customer listings\n\nPlanned from docs/tickets/EVAL-1/analysis.md (api_surface false).\n\n## Approach\n\nWrap the body of `list_customers` in `src/shop/__init__.py` with\n`time.perf_counter()`; above `SLOW_LISTING_MS = 200` log one WARNING on\n`logging.getLogger("shop")` naming offset, limit and elapsed ms. The return\nvalue and signature do not change.\n\n## Tests\n\n| AC | Test (tests/test_slow_listing_log.py) |\n|---|---|\n| AC-1 | a patched 250 ms call logs exactly one WARNING on `shop` |\n| AC-2 | that warning names offset, limit and 250 |\n| AC-3 | a patched 200 ms call logs nothing |\n\nRun `python3 -m pytest -q --cov=src --cov-fail-under=90`; coverage target 90%.\n\n## Documentation\n\ndocs/product/prd.md and docs/product/roadmap.md make no claim this changes.\n\n## Contract\ndelivery_path: trivial\nowes:\n  api_contract: false\n  test_cases: true\n  e2e: false\n  reason: "Operator log line only: GET /customers keeps its parameters, response and errors"\n\n### Executor tasks & file map\n- task 1: src/shop/__init__.py, tests/test_slow_listing_log.py\n'
 
+
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _start(ws):
     ws.skill("create-impl-plan")
     started = ws.acs("step", "start", "--step", "create-impl-plan", "--ticket", "EVAL-1")
@@ -25,8 +31,7 @@ def _start(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/plan.md", text)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/plan.md" "%s" && git add "%s" && git commit -qm "EVAL-1 Plan"'
-          % (STEP, PUBLISHED, PUBLISHED))
+    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/plan.md" "%s"' % (STEP, PUBLISHED))
 
 
 def _declare(ws, files):
@@ -42,6 +47,7 @@ def _finish(ws, status="completed", file_map=None, published=True, summary="cali
         states["plan_path"] = PUBLISHED
     result = {"status": status, "summary": summary, "states": states,
               "findings": [], "errors": []}
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-impl-plan.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 
@@ -76,3 +82,13 @@ BAD = {
     "left owes out of the Contract block": _silent_owes,
     "fired the skill, started the step, wrote nothing": _started_only,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """The pre-ADR-0127 publish: everything right, then a ticket branch and a
+    commit -- only /acs:create-pr branches and commits now."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b story/EVAL-1-x && git add -A && git commit -qm "EVAL-1 publish"')
+
+
+BAD["committed what it published on a new ticket branch"] = _committed_on_a_ticket_branch

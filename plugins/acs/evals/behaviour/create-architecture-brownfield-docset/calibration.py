@@ -1,9 +1,10 @@
 """Calibration plays for create-architecture-brownfield-docset (see
-tests/evals/check_grader_calibration.py). The ideal run: `acs step start
---allocate` mints the delivery ticket, the architect writes the high-level
-design (hld/ only, nothing under lld/), the coordinator commits and pushes the
-delivery branch, gh fails, and the result document goes through the real
-post-hook. Every hld/ file gets its version front matter through `acs design
+tests/evals/check_grader_calibration.py). The ideal run: `acs step start`
+resumes the ticketless run the scaffold opened, the architect writes the
+high-level design (hld/ only, nothing under lld/) and leaves it uncommitted,
+and the result document, listing every written path in `states.files`, goes
+through the real post-hook. Nothing is branched, committed or pushed
+(ADR-0127). Every hld/ file gets its version front matter through `acs design
 init --status implemented` -- the set documents the code as built (ADR-0122)."""
 
 import json
@@ -11,7 +12,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-architecture.py")
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-architecture"
+STEP = ".acs/state-machine/example-shop/runs/document-the-current-architecture-9451/steps/create-architecture"
 BRANCH = "task/EVAL-1-product-architecture-doc-set"
 ARCH = "docs/architecture"
 
@@ -44,19 +45,15 @@ LLD = {
                                "  participant shop\n  Shopper->>shop: GET /customers\n```\n",
 }
 
-GH_FINDING = {"severity": "critical", "area": "pr",
-              "message": "gh pr create failed; the docs-only PR was not opened",
-              "error": "gh: command not found", "hint": "check `gh auth status` and repo access"}
 
 
 def _start(ws):
     ws.skill("create-architecture")
-    started = ws.acs("step", "start", "--step", "create-architecture", "--allocate", "--args", "")
+    started = ws.acs("step", "start", "--step", "create-architecture", "--args", "")
     assert started.returncode == 0, started.stderr
 
 
 def _write_docs(ws, hld=None, skip=(), lld=None, versioned=True):
-    ws.sh("git checkout -q -b %s main" % BRANCH)
     written = []
     for name, text in (hld or HLD).items():
         if name not in skip:
@@ -66,34 +63,37 @@ def _write_docs(ws, hld=None, skip=(), lld=None, versioned=True):
         ws.write("%s/lld/%s" % (ARCH, name), text)
     if versioned:
         # A new file documenting the code as built: `design init --status
-        # implemented`, recording the delivery ticket (ADR-0122).
-        done = ws.acs("design", "init", "--status", "implemented", "--ticket", "EVAL-1", *written)
+        # implemented`; the run is ticketless, so no `--ticket` (ADR-0122, 0127).
+        done = ws.acs("design", "init", "--status", "implemented", *written)
         assert done.returncode == 0, done.stderr
-    ws.sh("git add %s && git commit -qm 'EVAL-1 Add product architecture doc set'" % ARCH)
 
 
-def _finish(ws, findings=(GH_FINDING,), pr=None, hld=None):
-    states = {"architecture": {"path": ARCH, "hld": list(hld or HLD)}}
+def _finish(ws, pr=None, hld=None, files=None):
+    hld = list(hld or HLD)
+    states = {"architecture": {"path": ARCH, "hld": hld},
+              "files": ["%s/hld/%s" % (ARCH, n) for n in hld] if files is None else files}
     if pr:
         states["pr"] = pr
     ws.write(STEP + "/result.json", json.dumps({
-        "status": "completed", "summary": "HLD reviewed; branch pushed; gh failed, no PR",
-        "states": states, "findings": list(findings), "errors": []}, indent=2))
+        "status": "completed", "summary": "HLD reviewed; left as local changes",
+        "states": states, "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
 def _push(ws):
+    """The pre-ADR-0127 delivery: a delivery branch, a commit and a push."""
+    ws.sh("git checkout -q -b %s main" % BRANCH)
+    ws.sh("git add %s && git commit -qm 'EVAL-1 Add product architecture doc set'" % ARCH)
     ws.sh("git push -q -u origin %s" % BRANCH)
 
 
 def IDEAL(ws):
     _start(ws)
     _write_docs(ws)
-    _push(ws)
     _finish(ws)
-    ws.reply = ("EVAL-1: high-level design written under docs/architecture/hld/ on %s and "
-                "pushed. gh pr create failed (no GitHub access), so no PR was opened; recorded "
-                "as a finding." % BRANCH)
+    ws.reply = ("High-level design written under docs/architecture/hld/ and left uncommitted "
+                "(10 files, listed in states.files). Review them, then run /acs:create-pr to "
+                "commit them and open the PR.")
 
 
 def _allocated_only(ws):
@@ -111,7 +111,6 @@ def _from_the_prd_only(ws):
                                "## Data conventions\n\nUUID keys.\n\n## Security\n\nOAuth.\n\n"
                                "## Observability\n\nLogs.\n")
     _write_docs(ws, hld=hld, skip=("data-model.md", "project-structure.md"))
-    _push(ws)
     _finish(ws)
 
 
@@ -119,21 +118,18 @@ def _wrote_the_lld_too(ws):
     """The pre-ADR-0118 doc set: the HLD plus contracts and a sequence flow."""
     _start(ws)
     _write_docs(ws, lld=LLD)
-    _push(ws)
     _finish(ws)
 
 
 def _no_cross_cutting(ws):
     _start(ws)
     _write_docs(ws, skip=("cross-cutting.md",))
-    _push(ws)
     _finish(ws, hld=[n for n in HLD if n != "cross-cutting.md"])
 
 
 def _no_integration_map(ws):
     _start(ws)
     _write_docs(ws, skip=("integration-map.md",))
-    _push(ws)
     _finish(ws, hld=[n for n in HLD if n != "integration-map.md"])
 
 
@@ -141,31 +137,36 @@ def _unversioned(ws):
     """Wrote the HLD with no version front matter on any file."""
     _start(ws)
     _write_docs(ws, versioned=False)
-    _push(ws)
     _finish(ws)
 
 
-def _never_pushed(ws):
+def _delivered_it_itself(ws):
     _start(ws)
     _write_docs(ws)
+    _push(ws)
     _finish(ws)
 
 
 def _invented_pr(ws):
     _start(ws)
     _write_docs(ws)
-    _push(ws)
-    _finish(ws, findings=(), pr={"number": 7, "branch": BRANCH,
-                                 "url": "https://github.com/example/shop/pull/7"})
+    _finish(ws, pr={"number": 7, "url": "https://github.com/example/shop/pull/7"})
+
+
+def _recorded_no_files(ws):
+    _start(ws)
+    _write_docs(ws)
+    _finish(ws, files=[])
 
 
 BAD = {
-    "allocated the ticket and wrote nothing": _allocated_only,
+    "started the run and wrote nothing": _allocated_only,
     "wrote an incomplete HLD from the PRD alone": _from_the_prd_only,
     "wrote LLD contracts and flows beside the HLD": _wrote_the_lld_too,
     "left out hld/cross-cutting.md": _no_cross_cutting,
     "left out hld/integration-map.md": _no_integration_map,
     "wrote the HLD without version front matter": _unversioned,
-    "committed but never pushed the delivery branch": _never_pushed,
+    "committed and pushed a delivery branch": _delivered_it_itself,
     "recorded a PR that cannot exist": _invented_pr,
+    "recorded no files in states.files": _recorded_no_files,
 }

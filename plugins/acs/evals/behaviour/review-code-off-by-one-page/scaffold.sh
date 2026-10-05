@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# /acs:review-code on a ticket branch whose changeset carries a REAL, obvious
+# /acs:review-code on a ticket whose changeset -- uncommitted on main, as
+# /acs:code leaves it (ADR-0127) -- carries a REAL, obvious
 # defect: `page_bounds` documents 1-based pages and computes 0-based bounds, so
 # page 1 returns customers 20-39 and the first page is unreachable. The
 # changeset's own test only checks a page's LENGTH, so it passes -- the defect
 # is visible in the diff and against the ticket's acceptance criteria, not in a
 # red test. A correct review confirms a blocking finding on it.
 #
-# Seeded only through ordinary committed repo files and the plugin's own CLIs:
+# Seeded only through ordinary repo files and the plugin's own CLIs:
 # new-ticket.py mints EVAL-1, `acs.py ticket save` records its acceptance
-# criteria, and `acs.py run new` records the run over it (no lock, no step).
+# criteria, and a `code` step opened with `acs.py step start` and closed with
+# post-code.py brackets the change (no lock left held).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
@@ -20,7 +22,10 @@ acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers_page(customers, page=1) returns the first per_page customers", "list_customers_page(customers, page=2) returns the next per_page customers", "page numbers start at 1"]}' \
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch "task/EVAL-1-add-1-based-page-numbers-to-the-customer"
+# /acs:code's step, opened before the change it leaves behind: its start
+# records the run's baseline (ADR-0127) on the clean tree, so the change
+# below is the run's changeset, uncommitted on main as /acs:code leaves it.
+acs step start --step code --ticket EVAL-1 > /dev/null 2>&1
 cat > src/shop/__init__.py <<'PY'
 PAGE_SIZE = 20
 
@@ -63,6 +68,7 @@ log = open("CHANGELOG.md").read().replace(
     "## [2.4.0]", "## [Unreleased]\n\n- Page numbers for the customer listing.\n\n## [2.4.0]")
 open("CHANGELOG.md", "w").write(log)
 PY
-git add -A
-git commit -qm "EVAL-1 Add 1-based page numbers to the customer listing"
-acs run new --ticket EVAL-1 > /dev/null
+python3 "$ACS_SCRIPTS/post-code.py" > /dev/null <<'JSON'
+{"status": "completed", "summary": "implemented; nothing committed (ADR-0127)",
+ "findings": [], "errors": []}
+JSON

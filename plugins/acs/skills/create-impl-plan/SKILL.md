@@ -83,27 +83,18 @@ gate would have raised: design the epic with `/acs:create-design <id>`, fan it
 out with `/acs:create-ticket <id>`, then run `/acs:create-impl-plan` on a
 child.
 
-## Branch — the plan is a repo file
+## Working tree — the plan is a repo file
 
 `plan.md` is a file in the consumer repo — the ticket's docs folder,
-`docs/tickets/<id>/` — and belongs on the ticket branch with every other
-change for this ticket. Name the
-branch `<type>/<ticket_id>-<slug>` with
-`<ticket_id>`, `<type>` (`ticket.type`) and `<slug>` (the slugified ticket title —
-`acs.py slug --text "<title>"`), then create or reuse it:
-
-```bash
-git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
-```
-
-On resume the branch usually already exists — reuse it, never recreate or reset
-it. Commit the published plan in the repo's own commit style, naming the ticket id (default
-`<ticket_id> <summary>`). Do NOT push — `/acs:create-pr` pushes.
+`docs/tickets/<id>/`. This skill never creates, switches or names a branch,
+and never stages, commits or pushes (ADR-0127): the published plan is left as
+an uncommitted change in the working tree, on whatever is checked out, and its
+path is recorded in the result's `states.files`. `/acs:create-pr` is the only
+skill that branches and commits.
 
 When `acs.py artifacts show` reports no `docs_dir` (no checkout to anchor the
-docs folder to) the plan is written to the workspace partition instead, nothing
-enters the repo, and this step is a no-op beyond staying on (or creating) the
-ticket branch for the skills that follow.
+docs folder to) the plan is written to the workspace partition instead, and
+nothing enters the repo.
 
 ### Plan artifact resolution
 
@@ -498,9 +489,9 @@ draft="steps/create-impl-plan/plan.md"
 mkdir -p "$(dirname "<plan_path>")" && cp "$draft" "<plan_path>"
 ```
 
-Then commit `<plan_path>` on the ticket branch when it is inside the repo
-(the ticket docs folder); the run's own copy is workspace state and is never
-committed.
+Leave `<plan_path>` as an uncommitted change when it is inside the repo (the
+ticket docs folder) and record it in `states.files`; the run's own copy is
+workspace state and never enters the repo.
 
 ### Plan approval happens later, not here
 
@@ -596,7 +587,7 @@ the Finish steps, and return a `<handoff status="needs_input">` whose
 ## Context pressure
 
 If your context window is running low mid-run: do NOT burn the remainder on
-work that would be lost. Commit any published plan on the branch, flush
+work that would be lost. Leave any published plan in the working tree, flush
 in-flight state plus soft context (user answers, decisions, which sections are
 settled, gotchas) to
 `steps/create-impl-plan/handoff-context.md`, then run:
@@ -622,7 +613,8 @@ MANDATORY final step — never skipped, also on failure:
        "plan_path": "docs/tickets/SHOP-123/plan.md",
        "plan_approved": false,
        "file_map": {"1": ["src/import/api.py", "tests/test_import_api.py"],
-                    "2": ["docs/api/import.md"]}
+                    "2": ["docs/api/import.md"]},
+       "files": ["docs/tickets/SHOP-123/plan.md"]
      },
      "findings": [],
      "errors": []
@@ -642,6 +634,9 @@ MANDATORY final step — never skipped, also on failure:
    - `file_map`: the declared executor file map as `acs.py filemap set`
      returned it (task id → repo paths), so a later run can see what scope the
      plan claimed.
+   - `files`: every repo-relative path this run wrote and left uncommitted
+     (the published `plan.md`; empty when the plan went to the partition).
+     `/acs:create-pr` commits them.
 
    On failure keep whatever is true: the `plan_path` only when a plan was
    actually published, `plan_approved: false`, the file map as far as it was
@@ -657,7 +652,8 @@ MANDATORY final step — never skipped, also on failure:
    If it exits non-zero, surface its stderr verbatim — the run is not closed
    until it succeeds.
 
-3. Report a compact summary to the user: the published plan path, the executor
+3. Report a compact summary to the user: the published plan path (an
+   uncommitted file in the working tree), the executor
    tasks and whether their file maps are disjoint, the AC-to-test mapping
    count, approval, open findings, and the next step (`/acs:code <id>`, or
    `/acs:create-api-contract <id>` first when the analysis declared an API
@@ -682,7 +678,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: plan path; executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code implementers will run
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <plan path, partition phase artifacts, branch>
+- **Artifacts**: <uncommitted files written (the plan path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:code <ticket-id>`; `/acs:create-api-contract <ticket-id>` first when the analysis declared an API surface change; after a split answer, `/acs:create-ticket split <ticket-id>`
+- **Next**: `/acs:code <ticket-id>`; `/acs:create-api-contract <ticket-id>` first when the analysis declared an API surface change; after a split answer, `/acs:create-ticket split <ticket-id>`. The files stay uncommitted until `/acs:create-pr <ticket-id>`
 ```

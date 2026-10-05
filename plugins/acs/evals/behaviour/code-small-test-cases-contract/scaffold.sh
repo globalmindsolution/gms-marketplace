@@ -7,9 +7,9 @@
 #
 # Seeded through the plugin's own writers wherever one exists:
 #   create-impl-plan   acs.py step start, the planner's draft, acs.py filemap
-#                      set, the published copy committed, post-create-impl-plan.py
+#                      set, the published copy (uncommitted), post-create-impl-plan.py
 #   create-test-docs   acs.py step start, the test designer's test-cases.md in
-#                      the step directory and its published copy committed,
+#                      the step directory and its published copy (uncommitted),
 #                      result.json, post-create-test-docs.py
 # `small` needs no approval.
 set -euo pipefail
@@ -25,7 +25,6 @@ printf '%s\n' '{"acceptance_criteria": ["list_customers(limit=0) and list_custom
 run="$ACS_PARTITION/runs/EVAL-1"
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "task/EVAL-1-reject-a-non-positive-page-limit"
 draft="$run/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Reject a non-positive page limit
@@ -62,8 +61,6 @@ acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_list_customers.py > /dev/null
 mkdir -p docs/tickets/EVAL-1
 cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
 cat > "$run/steps/create-impl-plan/result.json" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",
  "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
@@ -108,8 +105,6 @@ docs/tickets/EVAL-1/plan.md plans. The plan owes no e2e.
 _None._
 MD
 cp "$run/steps/create-test-docs/test-cases.md" docs/tickets/EVAL-1/test-cases.md
-git add docs/tickets/EVAL-1/test-cases.md
-git commit -qm "EVAL-1 Test cases for the page limit guard"
 cat > "$run/steps/create-test-docs/result.json" <<'JSON'
 {"status": "completed", "outcome": "cases_written", "summary": "3 cases, every AC traced",
  "states": {"cases": 3, "e2e_cases": 0, "untraced_acs": []}, "findings": [], "errors": []}

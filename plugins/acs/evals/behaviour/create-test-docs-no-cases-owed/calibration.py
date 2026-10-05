@@ -15,6 +15,12 @@ STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
 PUBLISHED = "docs/tickets/EVAL-1/test-cases.md"
 
 
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _start(ws):
     ws.skill("create-test-docs")
     started = ws.acs("step", "start", "--step", "create-test-docs", "--ticket", "EVAL-1")
@@ -23,8 +29,7 @@ def _start(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/test-cases.md", text)
-    ws.sh('cp "%s/test-cases.md" "%s" && git add "%s" && git commit -qm "EVAL-1 Test cases"'
-          % (STEP, PUBLISHED, PUBLISHED))
+    ws.sh('cp "%s/test-cases.md" "%s"' % (STEP, PUBLISHED))
 
 
 def _finish(ws, cases, e2e, status="completed", untraced=(), stop_reason=None):
@@ -35,6 +40,7 @@ def _finish(ws, cases, e2e, status="completed", untraced=(), stop_reason=None):
         result["outcome"] = "cases_written"
     if stop_reason:
         result["stop_reason"] = stop_reason
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-test-docs.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 

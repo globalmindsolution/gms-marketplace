@@ -38,8 +38,10 @@ A shape that is wrong here is built wrong and tested wrong.
    authored breaking change with no recorded decision is a blocking finding.
 5. `contract-files` — under a real `contracts_mode` tree: the machine-readable
    files the plan named are updated, in their existing format, consistent with
-   the markdown contract, and committed on the ticket branch (check `git log` /
-   `git show`); `contract_files` in the front matter lists exactly those files.
+   the markdown contract, and present in the working tree — check the files
+   themselves and `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --name-only`
+   (they are uncommitted by design, ADR-0127; never look for them in
+   `git log`); `contract_files` in the front matter lists exactly those files.
    Under `no-machine-readable-contracts`: no repo contract file was touched.
 6. `front-matter` and `structure` — the three front-matter keys are present
    with the right types, `items` equals the number of `### ` subsections under
@@ -74,7 +76,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket SHOP-123
 
 Then read the implementation of every CHANGED item and each contract file the
 draft claims to have updated. Bash is read-only inspection (`grep`, `ls`,
-`find`, `git log`, `git show`, `git diff`); you change nothing.
+`find`, `git diff`, `acs.py changes diff`); you change nothing.
 
 ## When you are one slice
 

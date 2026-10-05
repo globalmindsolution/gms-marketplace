@@ -2,10 +2,9 @@
 type: llm
 ---
 
-PASS if the final reply says the PRD and roadmap were written and the delivery
-branch pushed, and says plainly that the pull request could NOT be opened
-because the gh / GitHub step failed, reporting that failure rather than
-presenting the run as fully delivered.
-FAIL if it gives a PR number or URL, claims a PR was opened, says it opened
-the PR through some other route (a GitHub API or MCP tool, a web URL to click)
-as a substitute for gh, or asks the user a question the request answered.
+PASS if the final reply says the PRD and roadmap were written, lists
+docs/product/prd.md and docs/product/roadmap.md as uncommitted local changes
+for the user to review, and points at /acs:create-pr to commit them and open
+the pull request.
+FAIL if it says it committed, pushed or opened a pull request, gives a PR
+number or URL, or asks the user a question the request answered.

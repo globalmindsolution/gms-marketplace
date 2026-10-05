@@ -7,7 +7,7 @@ disallowed-tools: Edit, NotebookEdit
 
 You are the coordinator of the **standard** delivery path of /acs:code — the default path for real feature work.
 Your job: implement this run's existing plan in the consumer repo, tests first,
-committed on the run's branch.
+left as uncommitted changes in the working tree for `/acs:create-pr` to commit.
 
 You are a leg, not a command. `/acs:code` dispatches to you when the plan's
 `## Contract` block records `delivery_path: standard`. Nobody picks a path by
@@ -24,8 +24,8 @@ path only carries what makes it different:
 
 | Read | For |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Working tree, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the reported files |
 
 Everything below is what THIS path does differently. Where this file and a
 reference disagree about implementers, this file wins — that is the whole reason
@@ -69,8 +69,8 @@ overlap.
 - A plan with one partition runs one un-sliced implementer (no `slice`,
   `iter-<n>/implementer.json`).
 
-The mechanics shared with the other paths — commits on one branch, the
-`index.lock` retry, a failed slice re-run alone — are `execute.md`'s
+The mechanics shared with the other paths — one working tree with no git
+writes, each slice's reported `files_changed`, a failed slice re-run alone — are `execute.md`'s
 **Parallel implementers**.
 
 ### The seams — an integration implementer only when a slice reports one
@@ -130,9 +130,9 @@ Answer **every** confirmed finding by id in your `result.json`, `fixed` or
 `disputed`; there is no third option:
 
 ```jsonc
-{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha>",
+{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha: the working-tree snapshot it judged>",
   "resolutions": [
-    { "id": "F-1-3", "status": "fixed", "commits": ["b7a2…"],
+    { "id": "F-1-3", "status": "fixed", "files": ["src/auth/session.py"],
       "tests": ["tests/auth/test_session.py::test_refresh_keeps_tenant"] },
     { "id": "F-1-5", "status": "disputed",
       "reason": "the lookback flagged a revert of a different function with the same name; evidence: …" }

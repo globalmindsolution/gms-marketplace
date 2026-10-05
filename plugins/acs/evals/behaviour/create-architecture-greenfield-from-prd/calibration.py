@@ -1,9 +1,10 @@
 """Calibration plays for create-architecture-greenfield-from-prd (see
-tests/evals/check_grader_calibration.py). The ideal run: `acs step start
---allocate` mints the delivery ticket, the architect designs the HLD from
-the PRD and the confirmed answers -- the high-level design only, nothing under
-lld/ -- the coordinator commits and pushes the delivery branch, gh fails, and
-the result document goes through the real post-hook. Every hld/ file gets its
+tests/evals/check_grader_calibration.py). The ideal run: `acs step start`
+resumes the ticketless run the scaffold opened, the architect designs the HLD
+from the PRD and the confirmed answers -- the high-level design only, nothing
+under lld/ -- and leaves it uncommitted, and the result document, listing every
+written path in `states.files`, goes through the real post-hook. Nothing is
+branched, committed or pushed (ADR-0127). Every hld/ file gets its
 version front matter through `acs design init --status proposed`: nothing is
 built yet, so the whole design is ahead of the code (ADR-0122)."""
 
@@ -12,7 +13,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-architecture.py")
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-architecture"
+STEP = ".acs/state-machine/example-shop/runs/design-the-groomr-architecture-a90a/steps/create-architecture"
 BRANCH = "task/EVAL-1-product-architecture-doc-set"
 ARCH = "docs/architecture"
 
@@ -69,41 +70,42 @@ LLD = {
                                "  reminder-worker->>SMS: send\n```\n"),
 }
 
-GH_FINDING = {"severity": "critical", "area": "pr",
-              "message": "gh pr create failed; the docs-only PR was not opened",
-              "error": "gh: command not found", "hint": "check `gh auth status` and repo access"}
 
 
 def _start(ws):
     ws.skill("create-architecture")
-    started = ws.acs("step", "start", "--step", "create-architecture", "--allocate", "--args", "")
+    started = ws.acs("step", "start", "--step", "create-architecture", "--args", "")
     assert started.returncode == 0, started.stderr
 
 
-def _deliver(ws, hld=None, lld=None, extra=(), status="proposed"):
-    ws.sh("git checkout -q -b %s main" % BRANCH)
+def _deliver(ws, hld=None, lld=None, extra=(), status="proposed", commit=False):
     written = []
     for name, text in (hld or HLD).items():
         written.append("%s/hld/%s" % (ARCH, name))
         ws.write(written[-1], text)
     if status:
         # A new file designed ahead of the code: `design init --status
-        # proposed`, recording the delivery ticket (ADR-0122).
-        done = ws.acs("design", "init", "--status", status, "--ticket", "EVAL-1", *written)
+        # proposed`; the run is ticketless, so no `--ticket` (ADR-0122, 0127).
+        done = ws.acs("design", "init", "--status", status, *written)
         assert done.returncode == 0, done.stderr
     for name, text in (lld or {}).items():
         ws.write("%s/lld/%s" % (ARCH, name), text)
     for rel, text in extra:
         ws.write(rel, text)
-    ws.sh("git add -A && git commit -qm 'EVAL-1 Add product architecture doc set'")
-    ws.sh("git push -q -u origin %s" % BRANCH)
+    if commit:
+        # The pre-ADR-0127 delivery: a delivery branch, a commit and a push.
+        ws.sh("git checkout -q -b %s main" % BRANCH)
+        ws.sh("git add -A && git commit -qm 'EVAL-1 Add product architecture doc set'")
+        ws.sh("git push -q -u origin %s" % BRANCH)
 
 
-def _finish(ws, findings=(GH_FINDING,), hld=None):
+def _finish(ws, hld=None):
+    hld = list(hld or HLD)
     ws.write(STEP + "/result.json", json.dumps({
-        "status": "completed", "summary": "greenfield HLD reviewed; gh failed, no PR",
-        "states": {"architecture": {"path": ARCH, "hld": list(hld or HLD)}},
-        "findings": list(findings), "errors": []}, indent=2))
+        "status": "completed", "summary": "greenfield HLD reviewed; left as local changes",
+        "states": {"architecture": {"path": ARCH, "hld": hld},
+                   "files": ["%s/hld/%s" % (ARCH, n) for n in hld]},
+        "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
@@ -111,9 +113,9 @@ def IDEAL(ws):
     _start(ws)
     _deliver(ws)
     _finish(ws)
-    ws.reply = ("EVAL-1 (greenfield): high-level design written under docs/architecture/hld/ on "
-                "%s and pushed. gh pr create failed, so no PR was opened. Next, once merged: "
-                "/acs:create-ticket for the repository scaffold, then /acs:ship." % BRANCH)
+    ws.reply = ("Greenfield: high-level design written under docs/architecture/hld/ and left "
+                "uncommitted. Review it, then /acs:create-pr to commit it and open the PR. Next: "
+                "/acs:create-ticket for the repository scaffold, then /acs:ship.")
 
 
 def _monolith(ws):
@@ -175,6 +177,12 @@ def _claimed_implemented(ws):
     _finish(ws)
 
 
+def _delivered_it_itself(ws):
+    _start(ws)
+    _deliver(ws, commit=True)
+    _finish(ws)
+
+
 BAD = {
     "designed a single invented container": _monolith,
     "scaffolded code beside the docs": _scaffolded_too,
@@ -182,7 +190,8 @@ BAD = {
     "wrote LLD contracts and flows beside the HLD": _wrote_the_lld_too,
     "left out hld/integration-map.md": _no_integration_map,
     "left out hld/cross-cutting.md": _no_cross_cutting,
-    "allocated the ticket and wrote nothing": _start,
+    "started the run and wrote nothing": _start,
+    "committed and pushed a delivery branch": _delivered_it_itself,
     "wrote the HLD without version front matter": _unversioned,
     "marked a design with no code behind it implemented": _claimed_implemented,
 }

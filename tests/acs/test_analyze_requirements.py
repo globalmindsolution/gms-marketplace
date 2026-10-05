@@ -69,7 +69,7 @@ import acs_lib as lib  # noqa: E402
 ROLES = ("analyst", "impact-analyst", "impact-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
-STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open")
+STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open", "files")
 
 #: The seven headings, in order. Declared here so a reordering in the prose is
 #: a failure rather than a silent contract change.
@@ -471,13 +471,17 @@ class TestPublishing(unittest.TestCase):
 
     def test_publishing_is_the_controller_s_script(self):
         """ADR-0114 §5: no prose `cp`/`git add` -- the controller copies the
-        reviewed bytes and commits the docs folder (tests/acs/test_analysis_loop.py
-        proves the bytes, the pathspec and the absent push)."""
+        reviewed bytes; ADR-0127: it records the docs folder for /acs:create-pr
+        and never stages, commits or pushes (tests/acs/test_analysis_loop.py
+        proves the bytes and that nothing was committed)."""
         self.assertIn('acs.py" analysis publish', self.body)
         self.assertIn('acs.py" analysis record-publication', self.body)
         self.assertNotRegex(self.body, r"(?m)^cp ")
         self.assertNotIn('git add "<docs_dir>"', self.body)
-        self.assertIn("It never pushes.", self.body)
+        self.assertNotRegex(self.body, r"git (add|commit|checkout -b|switch -c)\b")
+        norm = " ".join(self.body.split())
+        self.assertIn("It never stages, commits or pushes", norm)
+        self.assertIn("`publication.files` into your result's `states.files`", norm)
 
     def test_the_coordinator_never_publishes_and_the_guard_is_named(self):
         self.assertIn("You never copy or commit the analysis yourself, and no "

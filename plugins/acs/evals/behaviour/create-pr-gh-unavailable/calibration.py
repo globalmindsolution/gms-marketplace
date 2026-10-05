@@ -1,8 +1,10 @@
 """Plays for create-pr-gh-unavailable (tests/evals/check_grader_calibration.py).
 
 IDEAL follows create-pr/SKILL.md with gh unable to reach a forge: `acs step
-start`, verify the branch, `gh repo view` fails (critical) -> stop before the
-push, write the failed result document, run the post-hook.
+start`, `acs.py pr plan-commits` finds nothing left to commit (the work is
+already committed on the checked-out branch), verify the branch, `gh repo
+view` fails (critical) -> stop before the push, write the failed result
+document, run the post-hook.
 """
 import json
 import os
@@ -24,6 +26,10 @@ def _start(ws):
     ws.skill("create-pr")
     started = ws.acs("step", "start", "--step", "create-pr")
     assert started.returncode == 0, started.stderr
+    ws.called("Bash", command='python3 "%s/acs.py" pr plan-commits' % SCRIPTS)
+    planned = ws.acs("pr", "plan-commits")
+    assert planned.returncode == 0, planned.stderr
+    assert not json.loads(planned.stdout)["groups"], planned.stdout
     ws.sh("git rev-parse --verify " + BRANCH)
 
 

@@ -217,8 +217,8 @@ for an upstream artifact.
 | `/code` | ticket resolves | not an epic; on the standard and complex paths, the plan's approval matches the plan on disk; lock free |
 | `/docs-sync` | ticket resolves | lock free |
 | `/create-e2e-tests` | ticket resolves (a plan declaring no e2e impact settles the step as an evidenced no-op) | not an epic; lock free |
-| `/create-pr` | ticket resolves | a recorded `/acs:review-code` step must not have left `verifier_passed != true` (a run with **no** recorded review is allowed); lock free |
-| `/merge-pr` | ticket resolves | a PR reference is recorded: `/create-pr` completed (pipeline tickets), or the product-level skill completed with the PR reference in its state file (delivery tickets — [skills.md](skills.md#product-level-delivery-tickets)); lock free |
+| `/create-pr` | a ticket id, a prompt, or this checkout's current run (no ticket required — ADR-0127) | when the run has a code step, a recorded `/acs:review-code` step must not have left `verifier_passed != true` (a run with **no** recorded review is allowed); lock free |
+| `/merge-pr` | ticket resolves | a PR reference is recorded: `/create-pr` completed; lock free. A PR opened from a prompt (`/create-pr "<prompt>"`) names no ticket and lands through `/merge-pr --pr <n>` ([skills.md](skills.md#product-level-delivery-no-ticket)) |
 
 **A skill the workflow does not name is still gated.** `/create-design` and
 `/merge-pr` are deliberately not steps of `ship.yaml` and MUST NOT become
@@ -264,9 +264,9 @@ worth stating explicitly, because each used to be an order gate:
   current run and step (one directory per repo checkout/worktree, so parallel
   sessions never clash). Hooks read it to
   resolve the current ticket; the **branch name is the fallback** when no
-  pointer exists. Product-level skills create their **delivery ticket** at
-  start, so their hooks resolve a normal ticket partition like any other
-  skill ([skills.md](skills.md#product-level-delivery-tickets)). Skills themselves resolve via argument → session context →
+  pointer exists. Product-level skills run ticketless: `acs step start`
+  opens (or resumes) a run over the invocation and points the checkout at it,
+  the way the audits do ([skills.md](skills.md#product-level-delivery-no-ticket)). Skills themselves resolve via argument → session context →
   branch name ([workflow.md](workflow.md#ticket-context)). The
   `sessions/` directory also holds each checkout's gate evidence — see
   [workspace-and-state.md](workspace-and-state.md).

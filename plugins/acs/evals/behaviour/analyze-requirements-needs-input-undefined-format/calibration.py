@@ -2,8 +2,8 @@
 
 IDEAL follows references/not-ready-for-planning.md through the plugin's own
 writers: `acs step start`, the blocking question recorded OPEN with
-`clarify.py add` (no --answer), the not-ready draft, the ticket branch and the
-Publish copy with its commit, then result.json as an interrupted step with
+`clarify.py add` (no --answer), the not-ready draft, the Publish copy left
+uncommitted (ADR-0127), then result.json as an interrupted step with
 stop_reason needs_input, and the post-hook."""
 
 import json
@@ -16,6 +16,12 @@ STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-customer-export-for-finance"
 ANALYSIS = "---\nticket: EVAL-1\nready_for_planning: false\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Customer export for finance\n\n## Problem restated\n\nFinance needs every customer in a file their accounting system imports.\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | new export built on `list_customers` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents the export | README.md:5 |\n\n## Questions\n\n- C-1 which accounting system and import format — OPEN: blocks; every\n  format we could pick (CSV, OFX, a vendor schema) may be the wrong one.\n\n## Assumptions\n\n- Export columns follow the fields `list_customers` returns.\n\n## Risks\n\n- A new public endpoint (README.md's API section).\n\n## Refined acceptance criteria\n\nAC-2 cannot be tested until C-1 names the target format.\n\n## Verdict\n\nNot ready for planning: C-1 is open and blocks the build.\n"
 
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _finish(ws, status="completed", ready=True, api_surface=True, questions_open=0,
             stop_reason=None):
     result = {"status": status, "summary": "calibration",
@@ -24,19 +30,16 @@ def _finish(ws, status="completed", ready=True, api_surface=True, questions_open
               "findings": [], "errors": []}
     if stop_reason:
         result["stop_reason"] = stop_reason
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-analyze-requirements.py" --result-file "%s/result.json"'
           % (SCRIPTS, STEP))
 
 
-def _publish(ws, text, branch, commit=True):
+def _publish(ws, text):
+    """The Publish copy, left uncommitted on the checked-out branch (ADR-0127)."""
     ws.write(STEP + "/analysis.md", text)
-    ws.sh('git rev-parse --verify --quiet "%s" >/dev/null && git checkout -q "%s" || git checkout -q -b "%s"'
-          % (branch, branch, branch))
-    cmd = 'mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md' % STEP
-    if commit:
-        cmd += ' && git add docs/tickets/EVAL-1 && git commit -qm "EVAL-1 Analyze"'
-    ws.sh(cmd)
+    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md' % STEP)
 
 
 def _clarify(ws, question, answer=None, source=None, rationale=None):
@@ -58,7 +61,7 @@ def _start(ws):
 def IDEAL(ws):
     _start(ws)
     _clarify(ws, "Which accounting system does finance use, and what file format does it import?")
-    _publish(ws, ANALYSIS, BRANCH)
+    _publish(ws, ANALYSIS)
     _finish(ws, status="interrupted", ready=False, questions_open=1, stop_reason="needs_input")
 
 
@@ -68,7 +71,7 @@ def _guessed_csv(ws):
     _clarify(ws, "Which file format does finance import?", "CSV", "assumption", "most common")
     ready = (ANALYSIS.replace("ready_for_planning: false", "ready_for_planning: true")
              .replace("OPEN: blocks", "assumed CSV"))
-    _publish(ws, ready, BRANCH)
+    _publish(ws, ready)
     _finish(ws)
 
 
@@ -87,3 +90,13 @@ BAD = {
     "fired the skill, started the step, wrote nothing": _started_only,
     "implemented an export anyway": _built_a_csv_export,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """The pre-ADR-0127 publish: everything right, then a ticket branch and a
+    commit -- only /acs:create-pr branches and commits now."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b "%s" && git add docs && git commit -qm "EVAL-1 Analyze"' % BRANCH)
+
+
+BAD["committed the analysis on a new ticket branch"] = _committed_on_a_ticket_branch

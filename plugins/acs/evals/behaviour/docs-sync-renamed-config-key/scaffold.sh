@@ -5,10 +5,10 @@
 # old name is no longer read). README.md's Configuration section and
 # docs/configuration.md's table both still document SHOP_PAGE_SIZE. /acs:code's
 # step is recorded completed through the plugin's own writers (`acs.py step
-# start`, then `post-code.py`), with no doc updated. What the run must
-# produce: BOTH docs naming SHOP_CUSTOMERS_PAGE_SIZE as the setting, committed
-# as new commit(s) on the SAME ticket branch, and both listed in
-# docs_committed.
+# start`, then `post-code.py`), with no doc updated and the change left
+# UNCOMMITTED on main (ADR-0127). What the run must produce: BOTH docs naming
+# SHOP_CUSTOMERS_PAGE_SIZE as the setting, left uncommitted, and both listed
+# in the result's `files`.
 #
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -50,7 +50,6 @@ git commit -qm "Environment configuration and its docs"
 
 acs_ticket "Rename SHOP_PAGE_SIZE to SHOP_CUSTOMERS_PAGE_SIZE" task false \
   "The page-size variable is renamed to SHOP_CUSTOMERS_PAGE_SIZE so it names what it pages. The old name is no longer read."
-acs_branch task/EVAL-1-rename-shop-page-size-to-shop-customers-page-size
 
 python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null 2>&1
 sed -i.bak 's/"SHOP_PAGE_SIZE"/"SHOP_CUSTOMERS_PAGE_SIZE"/' src/shop/config.py && rm -f src/shop/config.py.bak
@@ -68,11 +67,9 @@ def test_the_old_name_is_ignored(monkeypatch):
     monkeypatch.setenv("SHOP_PAGE_SIZE", "50")
     assert page_size() == 20
 PY
-git add -A
-git commit -qm "EVAL-1 rename SHOP_PAGE_SIZE to SHOP_CUSTOMERS_PAGE_SIZE"
 python3 "$ACS_SCRIPTS/post-code.py" > /dev/null <<'JSON'
 {"status": "completed",
  "summary": "page_size() reads SHOP_CUSTOMERS_PAGE_SIZE; SHOP_PAGE_SIZE is no longer read",
- "states": {"branch": "task/EVAL-1-rename-shop-page-size-to-shop-customers-page-size", "docs_updated": []},
+ "states": {"docs_updated": [], "files": ["src/shop/config.py", "tests/test_config.py"]},
  "findings": [], "errors": []}
 JSON

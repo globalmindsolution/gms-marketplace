@@ -9,7 +9,7 @@ below belongs to exactly one of them:
 |---|----------------|---------------------|
 | **Where** | `<repo>/docs/tickets/<ID>/` (fixed — no setting) | `<workspace>/<repo>/<ticket-id>/` |
 | **Holds** | the human-facing ticket documents: `ticket.md`, `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md` | the run ledger: `run.json`, `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
-| **Versioned** | yes — committed on the ticket branch, reviewed in the PR | no — gitignored |
+| **Versioned** | yes — written uncommitted by the skills, committed by `/create-pr` on the ticket branch (ADR-0127), reviewed in the PR | no — gitignored |
 | **Written by** | the coordinator and the ticket skills; an executor MUST NOT write there (the file-map guard treats it as a control input) | hooks and the skills' own subagents |
 
 The docs-tree location is **fixed, never discovered**, and the split has no
@@ -116,10 +116,13 @@ The workspace (gitignored, the run ledger):
     ├── archive/                        # runs of done tickets move here post-merge
     ├── tickets/<ticket-id>/ticket.json # only until artifacts migrate moves it
     └── runs/
-        ├── SHOP-1/                     # a product-level delivery run (here: PRD)
+        ├── SHOP-1/                     # a ticket's run
         │   ├── run.json                # THE RUN MACHINE
         │   ├── subject/                # ticket.json | prompt.md | the document
-        │   └── steps/create-prd/state.json   # incl. the docs PR reference
+        │   ├── baseline.json           # HEAD, branch and already-dirty paths at the first step start (ADR-0127)
+        │   └── steps/<skill>/state.json
+        ├── acs-create-prd-3f9a/        # a ticketless product-level run (here: /acs:create-prd)
+        │   └── steps/create-prd/state.json   # incl. states.files, the uncommitted documents
         ├── fix-the-login-timeout-3f2a/ # a run started from a PROMPT, not a ticket
         │   ├── run.json
         │   └── subject/prompt.md
@@ -183,12 +186,12 @@ Repo-level files (all maintained by hooks):
 - **`archive/`** — completed ticket partitions are moved here by
   `post-merge-pr` (the partition is archived, never deleted).
 
-Product-level skills have **no repo-level state**: each run creates its own
-delivery ticket, and the skill's state file (`create-prd-state.json`,
-`create-architecture-state.json`) lives in
-that ticket's partition; the skills' *outputs* (PRD, architecture doc set)
-live in the consumer repo
-([skills.md](skills.md#product-level-delivery-tickets)).
+Product-level skills have **no repo-level state** and no ticket: each run is a
+ticketless run over its invocation, and the skill's state
+(`steps/create-prd/`, `steps/create-architecture/`) lives in that run's
+partition; the skills' *outputs* (PRD, architecture doc set) live in the
+consumer repo as uncommitted changes until `/create-pr "<prompt>"` commits them
+([skills.md](skills.md#product-level-delivery-no-ticket)).
 
 The **ticket document** is the local source of truth for the ticket:
 `docs/tickets/<ID>/ticket.md` when the docs tree is active, else the
@@ -383,18 +386,18 @@ worktree per ticket**:
   reported with the regime that produced it, because a pid from another
   container is not probeable here: a same-host lock is judged by process
   liveness, a cross-host one only by age.
-- Product-level skills lock their **delivery ticket's** partition like any
+- Product-level skills lock their ticketless run's partition like any
   other skill — no separate locking scheme.
 - **Parallel instances inside one step** (ADR-0110) share the step's
-  partition, lock and branch. Each instance carries a slice id, and every file
+  partition, lock and working tree. Each instance carries a slice id, and every file
   it writes under `steps/<skill>/iter-<n>/` carries it too
   (`<role>-<id>.json`, `<role>-<id>.md`, `authoring-<id>.md`,
   `<role>-<id>-message.xml`), so parallel siblings MUST never write the same
   file; the coordinator joins the slices into the unsliced names with
   `acs.py notes merge`. Each running agent is recorded in its own
   `agents/<agent_id>.json`, so no fan-out can lose a record to a
-  read-modify-write race. Commits from parallel writers on the one branch that
-  meet git's `index.lock` MUST wait and retry, never delete the lock.
+  read-modify-write race. Parallel writers commit nothing (ADR-0127): they
+  write disjoint files into the working tree and list them in their reports.
 - **A parallel group of steps** (ADR-0110) runs inside ONE `/ship` session
   under the run's one lock: its members are steps of the same run, each with
   its own `steps/<skill>/state.json`, so no second lock or pointer is needed.
@@ -461,7 +464,7 @@ is therefore resolved from EXPLICIT inputs only:
   id rather than prose citing one.
 
 The session pointer and the branch name — which `resolve_ticket_id` consults
-on the non-allocating path — MUST NOT be consulted here. Product-level skills
-can run concurrently (a PRD amendment beside an architecture regeneration)
-passing neither, and resolving through either would collapse two independent
-delivery tickets into one.
+on the non-allocating path — MUST NOT be consulted here: two `/create-ticket`
+runs passing neither would otherwise collapse two independent tickets into
+one. Since ADR-0127 `--allocate` is `/acs:create-ticket`'s alone; the
+product-level skills no longer mint a ticket.

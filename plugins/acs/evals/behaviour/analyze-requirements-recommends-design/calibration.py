@@ -4,8 +4,7 @@ IDEAL does what /acs:analyze-requirements' coordinator does when its survey
 recommends a design and the user has confirmed it: `acs step start`, the
 relayed answers recorded with `clarify.py add` (the design question among
 them), the confirmed flag applied with `acs.py ticket save`, the draft, the
-ticket branch, the Publish copy and its commit, result.json and the
-post-hook."""
+Publish copy left uncommitted (ADR-0127), result.json and the post-hook."""
 
 import json
 import os
@@ -17,6 +16,12 @@ STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-live-order-tracking-from-carrier-updates"
 ANALYSIS = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: true\n---\n\n# Analysis — EVAL-1: Live order tracking from carrier updates\n\n## Problem restated\n\nCarriers push shipment status to the shop; the shop stores every change per\norder, serves the latest, and emails the shopper.\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | new tracking store, webhook intake, order status | src/shop/__init__.py:1 |\n| docs/architecture/lld/flows.md | docs | new inbound carrier flow | docs/architecture/lld/flows.md:3 |\n\n## Questions\n\n- C-1 how carriers deliver updates — answered: signed webhooks.\n- C-2 design needed — answered: yes, confirmed; needs_design set on the ticket.\n\n## Assumptions\n\n_None._\n\n## Risks\n\n- New inbound surface from third parties (authentication); a new stored shape.\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Verdict\n\nReady for planning once designed; api_surface true; needs a design.\n'
 
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _finish(ws, status="completed", ready=True, api_surface=True, questions_open=0,
             stop_reason=None):
     result = {"status": status, "summary": "calibration",
@@ -25,19 +30,16 @@ def _finish(ws, status="completed", ready=True, api_surface=True, questions_open
               "findings": [], "errors": []}
     if stop_reason:
         result["stop_reason"] = stop_reason
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-analyze-requirements.py" --result-file "%s/result.json"'
           % (SCRIPTS, STEP))
 
 
-def _publish(ws, text, branch, commit=True):
+def _publish(ws, text):
+    """The Publish copy, left uncommitted on the checked-out branch (ADR-0127)."""
     ws.write(STEP + "/analysis.md", text)
-    ws.sh('git rev-parse --verify --quiet "%s" >/dev/null && git checkout -q "%s" || git checkout -q -b "%s"'
-          % (branch, branch, branch))
-    cmd = 'mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md' % STEP
-    if commit:
-        cmd += ' && git add docs/tickets/EVAL-1 && git commit -qm "EVAL-1 Analyze"'
-    ws.sh(cmd)
+    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md' % STEP)
 
 
 def _clarify(ws, question, answer=None, source=None, rationale=None):
@@ -67,7 +69,7 @@ def IDEAL(ws):
     _clarify(ws, "How do carriers deliver status updates?", "Signed webhooks, one secret per carrier")
     _clarify(ws, "Does this ticket need a design before it is planned?", "Yes, confirmed")
     _flag(ws)
-    _publish(ws, ANALYSIS, BRANCH)
+    _publish(ws, ANALYSIS)
     _finish(ws)
 
 
@@ -75,7 +77,7 @@ def _recommended_only(ws):
     """Recommended a design in the analysis but never applied the flag."""
     _start(ws)
     _clarify(ws, "Does this ticket need a design before it is planned?", "Yes, confirmed")
-    _publish(ws, ANALYSIS, BRANCH)
+    _publish(ws, ANALYSIS)
     _finish(ws)
 
 
@@ -83,7 +85,7 @@ def _no_recommendation(ws):
     """Judged no design needed."""
     _start(ws)
     _publish(ws, ANALYSIS.replace("needs_design_recommendation: true",
-                                  "needs_design_recommendation: false"), BRANCH)
+                                  "needs_design_recommendation: false"))
     _finish(ws)
 
 
@@ -96,3 +98,13 @@ BAD = {
     "saw no need for a design": _no_recommendation,
     "fired the skill, started the step, wrote nothing": _started_only,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """The pre-ADR-0127 publish: everything right, then a ticket branch and a
+    commit -- only /acs:create-pr branches and commits now."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b "%s" && git add docs && git commit -qm "EVAL-1 Analyze"' % BRANCH)
+
+
+BAD["committed the analysis on a new ticket branch"] = _committed_on_a_ticket_branch

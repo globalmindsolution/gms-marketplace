@@ -16,6 +16,13 @@
         "questions_open": {
           "type": "integer",
           "minimum": 0
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Repo-relative paths this run wrote and left uncommitted in the working tree (ADR-0127); /acs:create-pr commits them."
         }
       },
       "additionalProperties": false

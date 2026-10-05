@@ -39,13 +39,14 @@ Setup writes only what differs from a default, to the committed
 ```text
 /create-prd            # reverse-engineers a baseline PRD from code + docs,
                        #   asks you to confirm open points
-                       # → delivery ticket SHOP-1, docs PR "Product definition"
-/merge-pr SHOP-1       # after you review the PR yourself
-
-/create-architecture   # reverse-engineers HLD (C4 1–3, data model, deployment)
-                       #   + LLD (key flows you confirm), all Mermaid
-                       # → delivery ticket SHOP-2, docs PR
-/merge-pr SHOP-2
+                       # → docs/product/prd.md + roadmap.md, uncommitted
+/create-architecture   # reverse-engineers the HLD (C4 1–3, data model,
+                       #   API landscape, deployment), all Mermaid
+                       # → docs/architecture/hld/*.md, uncommitted
+/create-pr "Baseline the PRD and architecture"
+                       # no ticket: previews one commit per doc set,
+                       #   commits on a branch of its own, opens one PR
+/merge-pr --pr <n>     # after you review the PR yourself
 ```
 
 ### Fresh product (greenfield)
@@ -169,7 +170,8 @@ the tests for specs marked implemented) before continuing.
 ```text
 /create-ticket Let customers share wishlists publicly
   → diverges from the PRD (sharing is out-of-scope) — amend the PRD?
-/create-prd            # confirmed amendment → new delivery ticket + docs PR
+/create-prd            # confirmed amendment → PRD edited in place, uncommitted
+/create-pr "Amend the PRD: public wishlists"   # → a PR for the amendment
 ```
 
 ## Where everything lives

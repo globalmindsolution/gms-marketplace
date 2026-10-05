@@ -15,9 +15,15 @@ mirrors the exemption constants; a test keeps the two in step.
 #: the id being in it.
 BRANCH_FORMAT = "{type}/{ticket_id}-{slug}"
 
-#: The subject of a commit a script makes (analyze-requirements' publish).
-#: Commits a model makes follow the repo's own style, ticket id first.
+#: The subject of a commit a script makes (`acs.py pr commit`, ADR-0127) when
+#: the run's subject is a ticket. Commits a model makes follow the repo's own
+#: style, ticket id first.
 COMMIT_SUBJECT = "{ticket_id} {summary}"
+#: The same, for a run whose subject is NOT a ticket (a prompt or a document):
+#: every skill takes a prompt as well as a ticket id, so there is no id to
+#: lead with and the subject is the summary alone. acs ships no commit-msg
+#: hook (ADR-0116), and the CI check reads the PR description, not commits.
+COMMIT_SUBJECT_NO_TICKET = "{summary}"
 
 #: Branches the CI ticket-link check skips: releases and bot PRs.
 EXEMPT_BRANCHES = ("release/*", "dependabot/*", "renovate/*")
@@ -44,6 +50,13 @@ TICKET_TITLE_PREFIX = {"epic": "[EPIC] "}
 
 def branch_name(type_, ticket_id, slug):
     return BRANCH_FORMAT.format(type=type_, ticket_id=ticket_id, slug=slug)
+
+
+def commit_subject(ticket_id, summary):
+    """`<ticket_id> <summary>` for a ticket's run, else `<summary>`."""
+    if ticket_id:
+        return COMMIT_SUBJECT.format(ticket_id=ticket_id, summary=summary)
+    return COMMIT_SUBJECT_NO_TICKET.format(summary=summary)
 
 
 def ticket_title(type_, title):

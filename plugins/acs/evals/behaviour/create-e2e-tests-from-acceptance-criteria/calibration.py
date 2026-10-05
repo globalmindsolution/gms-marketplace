@@ -3,7 +3,7 @@
 IDEAL does what /acs:create-e2e-tests does on the acceptance-criteria
 fallback, through its real writers: `acs.py step start`, `acs.py artifacts
 show` reporting no test-cases.md, `acs.py filemap set`, the suite in the
-repo's own harness, a pathspec commit on the ticket branch, and
+repo's own harness, left uncommitted (ADR-0127), and
 `post-create-e2e-tests.py` fed the result document on stdin.
 """
 
@@ -52,7 +52,7 @@ def _finish(ws, suites, cases):
     result = {"status": "completed", "outcome": "tests_written",
               "summary": "no test-cases.md: 2 flows derived from the acceptance criteria; "
                          "suite-runner passed on iteration 1",
-              "states": {"suites_written": suites, "cases_covered": cases},
+              "states": {"suites_written": suites, "cases_covered": cases, "files": suites},
               "findings": [], "errors": []}
     ws.sh("python3 '%s/post-create-e2e-tests.py' <<'JSON'\n%s\nJSON" % (SCRIPTS, json.dumps(result)))
 
@@ -71,7 +71,6 @@ def IDEAL(ws):
     _start(ws)
     ws.write(SUITE, GOOD_SUITE)
     ws.sh(E2E)  # the suite-runner's one run: green
-    _commit(ws, SUITE)
     _finish(ws, [SUITE], ["AC-1", "AC-2"])
     ws.reply = REPLY
 
@@ -81,7 +80,6 @@ def _wrote_the_case_document(ws):
     ws.write("docs/tickets/EVAL-1/test-cases.md",
              "| ID | AC | Type |\n| --- | --- | --- |\n| TC-1 | AC-1 | e2e |\n| TC-2 | AC-2 | e2e |\n")
     ws.write(SUITE, GOOD_SUITE.replace("AC-1", "TC-1").replace("AC-2", "TC-2"))
-    _commit(ws, SUITE)
     _finish(ws, [SUITE], ["TC-1", "TC-2"])
     ws.reply = "Wrote test-cases.md and %s covering TC-1 and TC-2." % SUITE
 
@@ -89,14 +87,15 @@ def _wrote_the_case_document(ws):
 def _covered_one(ws):
     _start(ws)
     ws.write(SUITE, GOOD_SUITE)
-    _commit(ws, SUITE)
     _finish(ws, [SUITE], ["AC-1"])
     ws.reply = REPLY
 
 
-def _uncommitted(ws):
+def _committed(ws):
+    """The pre-ADR-0127 behaviour: a commit -- only /acs:create-pr commits."""
     _start(ws)
     ws.write(SUITE, GOOD_SUITE)
+    _commit(ws, SUITE)
     _finish(ws, [SUITE], ["AC-1", "AC-2"])
     ws.reply = REPLY
 
@@ -113,6 +112,6 @@ BAD = {
     "fired the skill and wrote nothing": lambda ws: ws.skill("create-e2e-tests"),
     "wrote the case document itself and invented TC ids": _wrote_the_case_document,
     "covered only one criterion": _covered_one,
-    "wrote the suite but never committed it": _uncommitted,
+    "committed the suite": _committed,
     "treated a missing case document as nothing owed": _refused_without_cases,
 }

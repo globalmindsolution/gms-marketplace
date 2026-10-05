@@ -62,7 +62,9 @@ sequenceDiagram
         end
         note over SH: context may be cleared/compacted here — the ledger holds the pipeline
         note over SH,SK: review-code recording blocking findings sends the cursor<br/>back to `code` — the workflow's ONE loop, max 3 rounds, then fail
+        note over SK,WS: every step before create-pr leaves its files uncommitted<br/>and lists them in states.files (ADR-0127)
     end
+    note over SH,SK: create-pr, the last step: acs pr plan-commits, a preview Dev confirms,<br/>acs pr commit (one commit per group), push, open the PR
     SH-->>Dev: pipeline report + "Review the PR, then /acs:merge-pr SHOP-123"
     note over Dev: /ship never invokes /acs:merge-pr — merge-pr may not even appear in a workflow file
 ```
@@ -82,10 +84,22 @@ session of their own within one run. Invariant I1 allows the members of one
 group, and nothing else, to be `in_progress` at once; when a member fails,
 the others finish the phase in flight, are recorded `interrupted`, and the run
 stops. Parallelism inside a step — sliced writers, judges and surveys, joined
-by `acs.py notes merge` (ADR-0110) — remains that skill's own business. Epic fan-out — its own `--fan-out` invocation, run
+by `acs.py notes merge` (ADR-0110) — remains that skill's own business.
+
+**Nothing is committed until `create-pr`** (ADR-0127). Every step before it
+writes into the working tree on whatever branch is checked out and records
+the paths it wrote; the run's `baseline.json`, written by its first `acs.py
+step start`, says what was already dirty before. `create-pr` turns the
+changeset into a commit plan (`acs.py pr plan-commits`: the ticket docs, the
+design docs, per plan slice its tests then its code, `docs-sync`'s updates,
+the e2e suites), shows it as a preview the developer confirms or edits, then
+`acs.py pr commit` creates the ticket branch when needed and commits each group
+by pathspec before the push. A changed file no step recorded is left out and
+listed; a file that was dirty at the baseline is never swept in. Epic fan-out — its own `--fan-out` invocation, run
 once after the epic's design is approved, never part of the epic's creation
 run — mints the children, and each child's implementation walk above then
-runs independently (parallel worktrees supported).
+runs independently (parallel worktrees supported — and needed when two run at
+once, since nothing is committed before `create-pr`).
 
 ## Planning pipeline (epics)
 
@@ -112,7 +126,9 @@ sequenceDiagram
 
 The epic path in one sentence: `create-ticket` (epic, `children: []`) →
 `create-design` → `create-ticket <epic-id> --fan-out` → STOP; implementation
-is the separate, per-child pipeline diagrammed above.
+is the separate, per-child pipeline diagrammed above. Each child runs in a
+worktree of its own when two are in flight at once: one checkout has one
+working tree, and so one changeset.
 
 ## The declared order
 
@@ -154,7 +170,8 @@ mechanism this document used to describe at length:
   answers it and records why, so the same answer is reached whether `/ship`
   reached the skill or a person typed it.
 - **`[create-e2e-tests, docs-sync]` is a parallel group** (ADR-0110). Both
-  follow the reviewed changeset and write disjoint files (suites vs docs), so
+  follow the reviewed changeset and write disjoint files (suites vs docs) into
+  the one working tree, uncommitted, so
   running them one after the other only cost wall time; `run-e2e-tests` waits
   for both and runs the suites the first one wrote. A group is declared,
   never derived, and neither end of a loop may sit inside one.
@@ -169,7 +186,7 @@ mechanism this document used to describe at length:
 > ADR-0097 (two state machines; `handed_off` is `interrupted` plus a
 > `stop_reason`), ADR-0098 (the path is the plan's) and ADR-0099 (the review
 > is a step). The mechanisms those notes introduced that still stand — doc
-> sync on the same branch as additional commits, never a second PR; a
+> sync in the same PR (its own commit since ADR-0127), never a second PR; a
 > ticket-scoped e2e run after the code is written; the epic planning pipeline
 > above — are stated in their own right in this document rather than as
 > amendments.

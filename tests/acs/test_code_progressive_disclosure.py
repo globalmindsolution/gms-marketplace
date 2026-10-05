@@ -187,7 +187,7 @@ class EachLegDeclaresItsOwnMachineryTest(unittest.TestCase):
         the same pass only when an implementer reports a seam (a join is not a
         synthesis), and `trivial` never has two implementers to reconcile."""
         complex_body = norm(leg_body("code-complex"))
-        for token in ("integration implementer", "union of the partitions' diffs",
+        for token in ("integration implementer", "union of the partitions' changes",
                       "intersection of their boundaries",
                       "seams reported or not"):
             with self.subTest(token=token):
@@ -246,10 +246,14 @@ class TheSharedProtocolIsSharedNotCopiedTest(unittest.TestCase):
                                  "Start belongs to references/protocol.md; a leg that "
                                  "restates it owns a second copy that can drift")
 
-    def test_the_shared_protocol_carries_start_branch_and_finish(self):
+    def test_the_shared_protocol_carries_start_working_tree_and_finish(self):
+        """ADR-0127 turned the Branch section into Working tree: the legs
+        create no branch and make no commit."""
         body = read(os.path.join(REFERENCES, "protocol.md"))
-        for token in ("step start --step code", "## Branch", "## Finish",
-                      "## Completion report"):
+        self.assertNotIn("## Branch", body)
+        self.assertNotIn("git checkout -b", body)
+        for token in ("step start --step code", "## Working tree — no branch, no commits",
+                      "## Finish", "## Completion report"):
             with self.subTest(section=token):
                 self.assertIn(token, body)
 
@@ -312,11 +316,17 @@ class ParallelImplementersTest(unittest.TestCase):
         self.assertIn("## When you are one slice",
                       read(os.path.join(PLUGIN, "agents", "code-implementer.md")))
 
-    def test_parallel_commits_on_one_branch_retry_and_never_force(self):
+    def test_parallel_slices_share_one_working_tree_and_never_commit(self):
+        """ADR-0127: no implementer stages or commits, so the index.lock
+        retry is gone; each slice reports `files_changed`, which is what
+        /acs:create-pr splits into a tests commit and a code commit."""
         for body in (self.execute, self.implementer):
-            self.assertIn("index.lock", body)
-            self.assertRegex(body, r"(?i)never `git add -A`")
-        self.assertIn("Nothing is ever forced", self.execute)
+            self.assertNotIn("index.lock", body)
+            self.assertNotRegex(body, r"git commit -m")
+            self.assertIn("files_changed", body)
+        self.assertIn("One working tree, no git writes.", self.execute)
+        self.assertRegex(self.execute, r"no implementer stages, commits, switches a branch or pushes")
+        self.assertRegex(self.implementer, r"NEVER `git add`, `git commit`, `git stash` or push")
 
     def test_a_resumed_iteration_re_runs_only_the_missing_slices(self):
         self.assertIn("re-run only the slices whose report", self.protocol)

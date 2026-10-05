@@ -1,8 +1,7 @@
-"""acs_lib.analysis_publish — publication of the reviewed analysis (ADR-0114 §5).
+"""acs_lib.analysis_publish — publication of the reviewed analysis (ADR-0114 §5, ADR-0127).
 
 Publishing used to be a prose `cp` and `git add`: nothing checked that the
-published bytes were the reviewed bytes, or that the commit carried the
-ticket's docs folder and nothing else. This is that step as code:
+published bytes were the reviewed bytes. This is that step as code:
 
   1. refuse unless the loop's last review passed, and the draft is still the
      exact bytes that review judged (its sha256 was recorded at review time).
@@ -12,53 +11,20 @@ ticket's docs folder and nothing else. This is that step as code:
      review is a clean check;
   2. copy the draft byte-for-byte to the resolved analysis path, and read it
      back to prove the copy;
-  3. inside the repo, `git add` ONLY the ticket's docs folder and commit ONLY
-     that pathspec with `conventions.COMMIT_SUBJECT`. It never pushes:
-     /acs:create-pr does.
+  3. record the ticket docs folder's files as the paths this step wrote. It
+     NEVER stages or commits (ADR-0127): only /acs:create-pr commits, and it
+     reads these paths to group the ticket docs into their own commit.
 
-`record_publication` then re-derives all of it from disk and git before the
-loop is `completed`.
+`record_publication` then re-derives it from the working tree before the loop
+is `completed`.
 """
 
 import hashlib
 import os
-import subprocess
 
 from ._common import GateError, now_iso
 from .analysis_loop import _advance, _block, _expect, draft_path
 from .artifacts import artifact_path, ticket_docs_dir
-from . import conventions
-
-
-def _git(cwd, *args, check=True):
-    proc = subprocess.run(["git"] + list(args), cwd=cwd, capture_output=True)
-    if check and proc.returncode != 0:
-        raise GateError("git %s failed: %s" % (" ".join(args),
-                                               proc.stderr.decode("utf-8", "replace").strip()))
-    return proc
-
-
-def _default_branches(root):
-    """The repo's default branch names: origin/HEAD's target when the remote
-    records one, plus the conventional `main` and `master` either way."""
-    names = {"main", "master"}
-    ref = _git(root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD", check=False)
-    if ref.returncode == 0:
-        names.add(ref.stdout.decode().strip().rsplit("/", 1)[-1])
-    return names
-
-
-def refuse_default_branch(root):
-    """acs never commits to the default branch (ADR 0090): the analysis is the
-    first commit of the ticket's branch. A detached HEAD has no branch to carry
-    the commit at all."""
-    branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.decode().strip()
-    if branch == "HEAD":
-        raise GateError("refusing to publish: HEAD is detached -- check out the "
-                        "ticket's branch first")
-    if branch in _default_branches(root):
-        raise GateError("refusing to publish on the default branch %r -- acs never "
-                        "commits there; check out the ticket's branch first" % branch)
 
 
 def _sha(data):
@@ -77,13 +43,6 @@ def resolve_target(ctx, tdir, ticket_id):
     copy, else the docs folder, else the partition fallback."""
     root = ctx.get("checkout_root")
     return artifact_path(root, tdir, ticket_id, "analysis.md"), ticket_docs_dir(root, ticket_id)
-
-
-def commit_message(settings, ticket, summary):
-    """The subject of the publish commit: `<ticket_id> <summary>` (a script's
-    commit cannot ask the repo's style, so it uses the fixed form)."""
-    return conventions.COMMIT_SUBJECT.format(
-        ticket_id=ticket.get("id") or "", summary=summary)
 
 
 def _reviewed_sha(loop):
@@ -107,9 +66,6 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
                         "(reviewed %s, now %s)" % ((reviewed or "-")[:12], _sha(data)[:12]))
     path, docs_dir = resolve_target(ctx, tdir, loop["ticket_id"])
     root = ctx.get("checkout_root")
-    if root and _inside(path, docs_dir):
-        refuse_default_branch(root)  # before anything is written
-    existed = os.path.isfile(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".acs-tmp"
     with open(tmp, "wb") as handle:
@@ -118,28 +74,33 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
     with open(path, "rb") as handle:
         if handle.read() != data:  # pragma: no cover -- a filesystem that lies
             raise GateError("published bytes at %s differ from the draft" % path)
-    committed, commit, message = False, None, None
-    if root and _inside(path, docs_dir):
-        summary = summary or ("Update requirements analysis" if existed
-                              else "Add requirements analysis")
-        message = commit_message(ctx.get("settings"), ticket, summary)
-        _git(root, "add", "--", docs_dir)
-        staged = _git(root, "diff", "--cached", "--quiet", "--", docs_dir, check=False)
-        if staged.returncode == 1:
-            _git(root, "commit", "-q", "-m", message, "--", docs_dir)
-            commit = _git(root, "rev-parse", "HEAD").stdout.decode().strip()
-            committed = True
+    files = _docs_files(root, docs_dir) if root and _inside(path, docs_dir) else []
     loop["publication"] = {"path": path, "sha256": _sha(data), "bytes": len(data),
-                           "docs_dir": docs_dir, "committed": committed, "commit": commit,
-                           "message": message, "verified": False, "at": now_iso()}
-    loop["events"].append({"at": now_iso(), "event": "publish",
-                           "detail": "%s%s" % (path, " @ %s" % commit[:12] if commit else "")})
+                           "docs_dir": docs_dir, "files": files,
+                           "verified": False, "at": now_iso()}
+    loop["events"].append({"at": now_iso(), "event": "publish", "detail": path})
     return loop, {"published": True, "publication": loop["publication"]}
 
 
+def _docs_files(root, docs_dir):
+    """Every file in the ticket's docs folder, repo-relative and sorted: the
+    paths this step leaves uncommitted for /acs:create-pr (ADR-0127)."""
+    out = []
+    real_root = os.path.realpath(root)
+    for base, dirs, names in os.walk(docs_dir):
+        dirs.sort()
+        for name in sorted(names):
+            if name.endswith(".acs-tmp"):
+                continue
+            rel = os.path.relpath(os.path.realpath(os.path.join(base, name)), real_root)
+            out.append(rel.replace(os.sep, "/"))
+    return sorted(out)
+
+
 def record_publication(rdir, loop, ctx):
-    """Re-derive the publication from disk and git: the published bytes are
-    the reviewed bytes, and inside the repo they are what HEAD carries."""
+    """Re-derive the publication from the working tree: the published bytes
+    are still the reviewed bytes. Nothing is committed, so HEAD is not asked
+    (ADR-0127): the working tree is what /acs:create-pr will commit."""
     _expect(loop, "publish")
     pub = loop.get("publication")
     if not pub:
@@ -155,13 +116,6 @@ def record_publication(rdir, loop, ctx):
         _block(loop, "machinery", "the published analysis %s is not the reviewed bytes"
                % pub["path"])
         return loop
-    root = ctx.get("checkout_root")
-    if root and _inside(pub["path"], pub.get("docs_dir")):
-        rel = os.path.relpath(os.path.realpath(pub["path"]), os.path.realpath(root))
-        shown = _git(root, "show", "HEAD:%s" % rel.replace(os.sep, "/"), check=False)
-        if shown.returncode != 0 or shown.stdout != data:
-            _block(loop, "machinery", "HEAD does not carry the published analysis %s" % rel)
-            return loop
     pub["verified"] = True
     _advance(loop, "completed", "record-publication", pub["path"])
     return loop

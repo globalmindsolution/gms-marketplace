@@ -21,9 +21,9 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Resume the interrupted /acs:create-impl-plan run for ticket EVAL-1 (cursor
 pagination for GET /customers) — run the skill on EVAL-1 and take it all the
-way through: plan published to the ticket's docs folder and committed on the
-ticket branch that is checked out, the executor file map declared, and the
-step finished.
+way through: plan published to the ticket's docs folder and left uncommitted
+(no branch, no commit: /acs:create-pr commits later), the executor file map
+declared, and the step finished.
 
 The earlier session was handed off part-way, after I had answered its
 question; my answer is in the ticket's clarification ledger. I have nothing

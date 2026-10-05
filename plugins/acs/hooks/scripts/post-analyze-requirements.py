@@ -9,6 +9,8 @@ Result-document `states` this run records for the steps that follow it:
     analysis.md's front matter, which is what ship.yaml's `api_surface_changed`
     predicate and the /acs:create-api-contract gate actually read.
   * questions_open      int  — clarifications still unanswered in the ledger.
+  * files               list — the ticket docs folder's paths the publish wrote
+    and left uncommitted (ADR-0127); /acs:create-pr commits them.
 
 The needs_design recommendation the analysis may carry is applied through its
 own CLI (`acs.py ticket save`), so it is a finding here, not a state.

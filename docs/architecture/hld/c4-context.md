@@ -15,7 +15,7 @@ C4Context
 
     Rel(dev, cc, "types /acs:* commands, answers questions")
     Rel(cc, mkt, "loads skills/agents, fires PreToolUse / SessionEnd hooks")
-    Rel(mkt, repo, "reads code/docs; /code edits source on ticket branches")
+    Rel(mkt, repo, "reads code/docs; skills edit the working tree; only /create-pr commits")
     Rel(mkt, ws, "all pipeline state: tickets, states, ledger, locks")
     Rel(mkt, gh, "push branch, open/merge PR; sync issues/Projects")
 ```

@@ -120,7 +120,8 @@ The loop sent the cursor back here because `/acs:review-code` recorded
 from the review — not the lens reports, not the adjudication transcripts. Every
 **confirmed** finding must be answered by id in your `result.json`:
 
-- `fixed` — naming the commit, and for a behavioural finding the test you wrote
+- `fixed` — naming the files the fix changed (`files`; nothing is committed
+  before `/acs:create-pr`), and for a behavioural finding the test you wrote
   first. TDD holds inside the loop.
 - `disputed` — with the evidence that defeats the claim. This is not a way out:
   the next adjudicator receives your dispute and rules again, and a finding

@@ -4,8 +4,8 @@ description: >-
   architecture docs, with every reverse-engineering point answered up front.
   It should write the high-level design only -- the ten default hld/ files,
   cross-cutting conventions and API landscape included, nothing under lld/ --
-  grounded in the real code, push its delivery branch to origin, and report
-  the failed gh PR step as a finding.
+  grounded in the real code, and leave the set as uncommitted local changes
+  listed in states.files -- no ticket, branch, commit, push or PR (ADR-0127).
 expected_outcome: >-
   The ten default hld/ files exist under docs/architecture/hld/ (overview,
   tech-stack, cross-cutting, the three C4 views, data-model,
@@ -13,9 +13,9 @@ expected_outcome: >-
   written; integration-map.md is a Mermaid flowchart naming the real
   /customers and /health APIs; cross-cutting.md carries its four required
   sections and the code's offset/limit pagination; hld/tech-stack.md opens
-  with version front matter, status implemented, EVAL-1 in tickets
-  (ADR-0122); a task/EVAL-1-* branch is
-  pushed with upstream set; result.json records the gh failure and no PR.
+  with version front matter, status implemented (ADR-0122); HEAD is still
+  the scaffold's commit on main and nothing was pushed; the step finished
+  with the written files in states.files and no PR.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 3000
@@ -37,6 +37,3 @@ answered below. Treat all of it as confirmed and do not ask me anything.
 - Deployment: the service runs as a single container behind a load balancer;
   there is no CI configuration in the repo yet.
 - Anything else you would confirm: take what the code and the PRD say.
-
-Pushing to origin works from this machine, but there is no GitHub access
-here: when a gh call fails, handle it the way the skill says to, and finish.

@@ -348,7 +348,7 @@ notes and its report, and its `<stop-reason>` counts the questions per group
 
 - Write ONLY inside `steps/analyze-requirements/`: your authoring
   notes, the analysis draft and your analyst report. NEVER the consumer repo, NEVER the published
-  `analysis.md` (the coordinator publishes and commits it), NEVER the ticket,
+  `analysis.md` (the coordinator publishes it), NEVER the ticket,
   the clarification ledger, `run.json`, another ticket's partition,
   or another phase's artifacts.
 - Run ONLY the pass your task names: a requirements or synthesis pass never

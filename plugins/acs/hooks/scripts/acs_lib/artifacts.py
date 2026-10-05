@@ -54,7 +54,7 @@ import os
 import re
 import sys
 
-from ._common import DELIVERY_TICKET_SKILLS, GateError, now_iso, read_json, write_json, write_text
+from ._common import LEGACY_DELIVERY_TICKET_SKILLS, GateError, now_iso, read_json, write_json, write_text
 from . import repo as _repo
 from .settings import load_settings
 from . import yamlsubset
@@ -489,7 +489,9 @@ def derive_status(tdir, ticket=None):
         return "done"
     if status_of("create-pr") == "completed":
         return "in_review"
-    if any(status_of(skill) == "completed" and _recorded_pr(tdir, skill) for skill in DELIVERY_TICKET_SKILLS):
+    # A delivery ticket minted before ADR-0127 recorded its own PR.
+    if any(status_of(skill) == "completed" and _recorded_pr(tdir, skill)
+           for skill in LEGACY_DELIVERY_TICKET_SKILLS):
         return "in_review"
     if children == "active":
         return "in_progress"

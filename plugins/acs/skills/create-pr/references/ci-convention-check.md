@@ -10,7 +10,10 @@ before it.
 
 The check exempts, by fixed rule, a PR labelled `acs-exempt` and branches
 `release/*`, `dependabot/*` and `renovate/*`; every other PR's description must
-name its ticket as an id, a `#<n>` reference or an issue link.
+name its ticket as an id, a `#<n>` reference or an issue link. A PR from a run
+with no ticket (`/acs:create-pr "<prompt>"`) names none and carries
+`acs-exempt`, so a red check on one means the label did not land — verify the
+labels before anything else.
 
 **Where the cross-references below point.** The `gh run list` read this
 section governs is classified as non-critical by SKILL.md's "GitHub call

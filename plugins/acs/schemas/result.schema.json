@@ -100,7 +100,7 @@
       "type": "string"
     },
     "since_sha": {
-      "description": "code only: the base the review diffs from, copied from the verdict it answered.",
+      "description": "code only: the base the review diffs from, copied from the verdict it answered -- the working-tree snapshot tree id it recorded as `reviewed_sha` (ADR-0127); `acs.py changes diff --since <since_sha>` is what changed after it.",
       "type": "string"
     },
     "resolutions": {
@@ -123,6 +123,13 @@
             ]
           },
           "commits": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "files": {
+            "description": "The repo-relative files the fix changed, left uncommitted (ADR-0127).",
             "type": "array",
             "items": {
               "type": "string"

@@ -26,7 +26,7 @@ C4Container
     Rel(skills, hooks, "acs step start / post-hook / helpers (Bash)")
     Rel(agents, ws, "phase artifacts (per-role reports, lens/adjudication)")
     Rel(hooks, ws, "state files, ledger, locks, index")
-    Rel(agents, repo, "write roles edit source/docs on ticket branch")
+    Rel(agents, repo, "write roles edit source/docs in the working tree, uncommitted")
     Rel(skills, trackers, "gh (sync, PRs) -- critical calls stop the run, incl. gate-input reads whose failure leaves a readiness gate unevaluable; metadata calls degrade to findings and continue (ADR-0088)")
     Rel(skills, schemas, "validate messages & state; render templates")
     Rel(tests_plugin, mkt, "validates per-plugin schemas, hooks, skills presence-gated")

@@ -19,9 +19,10 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:create-test-docs skill for ticket EVAL-1 (cursor pagination for
 GET /customers). The analysis, the implementation plan and the API contract
-are already published on the ticket branch that is checked out. Take the skill
-all the way through: test cases published to the ticket's docs folder and
-committed on that branch, and the step finished.
+are already published in the ticket's docs folder, uncommitted, on main. Take
+the skill all the way through: test cases published to the ticket's docs
+folder and left uncommitted (no branch, no commit: /acs:create-pr commits
+later), and the step finished.
 
 I can't answer questions during this run, so don't ask me anything. Each of
 the three acceptance criteria means what it says; the tests are pytest under

@@ -5,7 +5,7 @@ MAR-300 first dropped the per-iteration re-plan (plan once, then execute ->
 verify). ADR-0092 followed that to its conclusion: the doc-delta list is a
 derivation only its own writer uses, so iteration 1's doc-updater re-derives
 the doc impact from the six-input contract into its authoring notes and
-commits the doc updates from them; the drift-reviewer re-derives the impact
+writes the doc updates from them (uncommitted -- ADR-0127); the drift-reviewer re-derives the impact
 itself and judges the result fresh. The per-skill subagents replaced the
 generic executor/verifier pair with those two roles. This module pins that
 topology so a planner cannot creep back in through prose, the agents tree, or
@@ -86,7 +86,7 @@ class DocUpdaterDriftReviewerLoopTest(unittest.TestCase):
         self.assertIn("After iteration 3", self.norm)
         self.assertRegex(self.norm, r"(?i)an iteration counts:\*\* one doc-updater → drift-reviewer round")
 
-    def test_iteration_one_derives_then_commits(self):
+    def test_iteration_one_derives_then_writes(self):
         self.assertRegex(self.norm, r"(?i)iteration 1'?s doc-updater re-derives the doc impact from the six inputs")
         self.assertRegex(self.norm, r"(?i)findings go verbatim into the next doc-updater `<task>` `<context>`")
 
@@ -155,8 +155,8 @@ class DocUpdaterDriftReviewerLoopTest(unittest.TestCase):
 
 class ParallelFanOutTest(unittest.TestCase):
     """The doc-updater runs one instance per doc area from iteration 1
-    (disjoint by longest-prefix ownership, committing on the shared branch
-    with pathspec commits and an index.lock retry); the drift-reviewer's six
+    (disjoint by longest-prefix ownership, writing into one working tree and
+    never touching the index -- ADR-0127); the drift-reviewer's six
     dimensions run as three slices; both joins are `acs.py notes merge`."""
 
     AREAS = ("requirements", "architecture", "adr", "general")
@@ -179,12 +179,18 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertRegex(self.norm, r"(?i)\*\*longest matching prefix\*\*, and to `general` when none matches")
         self.assertRegex(self.norm, r"(?i)two doc-updaters can never write the same file")
 
-    def test_shared_branch_commits_are_pathspec_scoped_with_lock_retry(self):
+    def test_one_working_tree_and_no_git_writes(self):
+        """ADR-0127: the doc-updaters write, list their paths in `files`,
+        and never stage or commit -- /acs:create-pr is the only committer,
+        so there is no index.lock race left to retry."""
         for body in (self.norm, norm(self.doc_updater)):
-            self.assertIn('git commit -m "<msg>" -- <paths>', body)
-            self.assertRegex(body, r"(?i)never `git add -A`, `git add \.` or `git commit -a`")
-            self.assertRegex(body, r"(?i)`index\.lock` contention .{0,120}wait briefly and retry the same command")
-            self.assertRegex(body, r"(?i)never delete the lock, never force anything")
+            self.assertNotIn("git commit -m", body)
+            self.assertNotIn("index.lock", body)
+            self.assertRegex(body, r"report's `files`")
+        self.assertIn("**One working tree, no git writes.**", self.norm)
+        self.assertRegex(self.norm, r"(?i)none stages, commits, stashes or touches a branch")
+        self.assertRegex(norm(self.doc_updater),
+                         r"NEVER `git add`, `git commit`, `git stash` or push")
 
     def test_every_instance_of_a_phase_spawns_in_one_message_under_the_cap(self):
         self.assertRegex(self.norm, r"(?i)spawn every instance of a phase in ONE message")
@@ -237,7 +243,7 @@ class ParallelFanOutTest(unittest.TestCase):
                      "**each area's \"Out-of-area impact\" notes**"):
             self.assertIn(seam, self.skill)
         self.assertRegex(self.norm, r"(?i)every out-of-area item must be applied by the owning area or explicitly resolved")
-        self.assertRegex(self.norm, r"(?i)It commits only the seam files, with the same pathspec rule")
+        self.assertRegex(self.norm, r"(?i)It writes only the seam files, lists them in its report like the areas, commits nothing")
         self.assertRegex(self.norm, r"(?i)It never rewrites an area'?s substance")
 
     def test_integration_pass_synthesizes_contradictions(self):
@@ -276,19 +282,22 @@ class ParallelFanOutTest(unittest.TestCase):
 
 
 class StateFragmentTest(unittest.TestCase):
-    """`states.docs_committed` is the list of paths SKILL.md and the
-    post-hook's result carry, not a boolean; `commits` and `review` are
-    declared beside it."""
+    """`states.files` is the list of doc paths docs-sync wrote and left
+    uncommitted for /acs:create-pr (ADR-0127), not a boolean; `review` is
+    declared beside it. `docs_committed` and `commits` are gone: nothing is
+    committed here any more."""
 
-    def test_docs_committed_is_an_array_of_paths(self):
+    def test_files_is_an_array_of_paths(self):
         import json
         with open(os.path.join(PLUGIN, "skills", "docs-sync", "state.schema.json"), encoding="utf-8") as fh:
             states = json.load(fh)["properties"]["states"]["properties"]
-        self.assertEqual(states["docs_committed"]["type"], "array")
-        self.assertEqual(states["docs_committed"]["items"], {"type": "string"})
-        self.assertEqual(states["commits"]["type"], "array")
+        self.assertEqual(states["files"]["type"], "array")
+        self.assertEqual(states["files"]["items"], {"type": "string"})
+        self.assertNotIn("docs_committed", states)
+        self.assertNotIn("commits", states)
         self.assertEqual(set(states["review"]["properties"]), {"iterations", "findings_open", "guard_denials"})
-        self.assertIn('"docs_committed": ["docs/api/import.md", "README.md"]', read(SKILL))
+        self.assertIn('"files": ["docs/api/import.md", "README.md"]', read(SKILL))
+        self.assertNotIn("docs_committed", read(SKILL))
 
 
 class DriftReviewerIndependenceUnchangedTest(unittest.TestCase):

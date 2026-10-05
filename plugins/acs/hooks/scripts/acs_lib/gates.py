@@ -21,7 +21,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 import claude_code_adapter as cc  # noqa: E402
 
-from ._common import (DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS,
+from ._common import (LEGACY_DELIVERY_TICKET_SKILLS, GateError, HOOKED_SKILLS, PRODUCT_SKILLS,
                       now_iso, plugin_root, read_json, write_json)
 from .settings import load_settings, validate_settings
 from .repo import GuardTimeout, archive_dir, checkout_id, current_branch, checkout_root, find_ticket_partition, index_path, main_repo_root, pointer_path, repo_partition_id, resolve_ticket_id, sessions_dir
@@ -208,7 +208,7 @@ def gate_create_design(ctx, payload):
 def _pr_recorded_for(repo, ticket_id):
     """True when a completed step of one of this ticket's runs recorded a PR."""
     for rdir in _run_dirs_for_ticket(repo, ticket_id):
-        for skill in ["create-pr"] + list(DELIVERY_TICKET_SKILLS):
+        for skill in ["create-pr"] + list(LEGACY_DELIVERY_TICKET_SKILLS):
             if not os.path.isfile(step_machine.state_path(rdir, skill)):
                 continue
             state = step_machine.load_state(rdir, skill)

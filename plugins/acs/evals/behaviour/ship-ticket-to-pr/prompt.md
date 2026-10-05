@@ -3,15 +3,15 @@ description: >-
   A seeded, well-specified task (EVAL-1: cap the customer page size at 100)
   shipped with one command. ship must drive workflows/ship.yaml from the run's
   cursor -- analyze-requirements through run-e2e-tests all completed, the cap
-  implemented on the ticket branch and reviewed -- and reach create-pr, which
-  fails at its critical gh base detection before any push. ship must stop
-  there, report the failed step and how to resume, and never merge.
+  implemented (left uncommitted -- only create-pr branches and commits,
+  ADR-0127) and reviewed -- and reach create-pr, which fails at its critical
+  gh base detection before any push. ship must stop there, report the failed
+  step and how to resume, and never merge.
 expected_outcome: >-
   run.json records the nine steps before create-pr completed and create-pr
   failed; create-pr's state carries a gh error and no pr object; review-code
-  derived verifier_passed true; src/shop/__init__.py enforces the 100 cap; the
-  ticket branch exists locally but never reached the local origin; no gh pr
-  merge was run.
+  derived verifier_passed true; src/shop/__init__.py enforces the 100 cap; no
+  branch reached the local origin; no gh pr merge was run.
 tags: [behaviour]
 max_turns: 200
 timeout_seconds: 3600

@@ -46,7 +46,7 @@ WRITER, RUNNER = "test-writer", "suite-runner"
 ROLES = (WRITER, RUNNER)
 
 #: The result-document keys the post-hook documents and the next step reads.
-STATES_KEYS = ("suites_written", "cases_covered")
+STATES_KEYS = ("suites_written", "cases_covered", "files")
 
 
 def read(path):
@@ -217,9 +217,15 @@ class TestNeverWritesProductCode(unittest.TestCase):
         self.assertRegex(agent(WRITER),
                          r"(?s)status=\"needs_input\".*?product change")
 
-    def test_the_commit_is_limited_to_the_declared_paths(self):
-        self.assertRegex(self.body, r"Commit ONLY the paths in the file map")
-        self.assertRegex(self.body, r"Do NOT\s+push")
+    def test_the_scope_check_is_limited_to_the_declared_paths_and_commits_nothing(self):
+        """ADR-0127: the suites stay uncommitted; the scope check compares
+        against a step-start snapshot, since /acs:code's change is also
+        uncommitted in the same working tree."""
+        self.assertIn("acs.py\" changes snapshot", self.body)
+        self.assertRegex(self.body, r"changes diff --since <start_tree> --name-only")
+        self.assertRegex(self.body, r"Every path it lists must be in the file map")
+        self.assertNotRegex(self.body, r"git (add|commit|checkout -b)\b")
+        self.assertIn("Never stage or commit", self.body)
 
     def test_every_role_carries_the_rule(self):
         for role in ROLES:
@@ -227,7 +233,9 @@ class TestNeverWritesProductCode(unittest.TestCase):
                 self.assertRegex(agent(role), r"(?i)never (write |plan a )?product[- ]code")
 
     def test_the_suite_runner_checks_the_changeset_for_source_edits(self):
-        self.assertIn("git status --porcelain", agent(RUNNER))
+        runner = agent(RUNNER)
+        self.assertIn("changes diff --since <start_tree> --name-only", runner)
+        self.assertNotIn("git status --porcelain", runner)
 
 
 class TestNeverWeakensATest(unittest.TestCase):

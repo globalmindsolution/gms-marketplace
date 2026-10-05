@@ -410,6 +410,10 @@ why the review could not be a separate skill until the loop moved here.
 | `acs result validate` | is this result document admissible? |
 | `acs workflow show \| validate` | which workflow file, and does it hold together? |
 | `acs notes merge --out <file> <slice files…>` | join what a parallel fan-out wrote into the one file every reader expects (see "Fan-out inside a skill") |
+| `acs changes snapshot` | a git tree id of the whole working tree, untracked files included (`{ok, tree}`) — what a review records as `reviewed_sha` (see "Commits: only /acs:create-pr") |
+| `acs changes diff [--since <tree-or-commit>] [--name-only\|--stat\|--patch] [--run R]` | what this run changed: `<since>` (default: the baseline's `base_sha`) against a fresh snapshot, minus the paths already dirty at the baseline that did not change again; `--name-only` prints `{files: [{path, status}]}` |
+| `acs pr plan-commits [--ticket ID] [--run R] [--out FILE]` | the commit groups `/acs:create-pr` previews: `{branch, base, groups: [{id, subject, layer, paths}], left_out, excluded}` |
+| `acs pr commit --plan FILE` | execute a (possibly edited) plan: switch to its branch when not on it, then one `git add -- <paths>` + `git commit` per group; never pushes |
 
 `acs run next` is **the cursor**: the first step in workflow order that is not
 `completed`. With no graph there is no ready-set to compute and nothing to
@@ -449,7 +453,8 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 (PreToolUse fired pre-<skill>.py — already passed or we wouldn't be running)
 1. acs step start  --step <skill> [--ticket|--args|--allocate ...]   # FIRST action
      -> context JSON: settings, partition, ticket, reconcile/handoff info,
-        per-tier models, design source, post_hook path
+        per-tier models, design source, post_hook path; the run's first
+        start also writes <run>/baseline.json (ADR-0127)
 2. if context.reconcile: reconcile recorded state against reality before continuing
    if context.handoff_summary: read it, light-verify, continue from where it points
 3. Reflection loop (max 3 iterations), over the skill's OWN roles, in the order
@@ -589,9 +594,10 @@ failed or returned nothing usable fails the iteration — never "pass with a
 missing slice". A resumed iteration re-runs only the slices whose report is
 missing.
 
-**Commits from parallel writers** on one ticket branch meet git's
-`index.lock`. The rule is wait briefly and retry; never delete the lock and
-never force anything.
+**Parallel writers commit nothing** (ADR-0127): each writes its own disjoint
+files into the working tree and lists them in its report, so there is no
+`index.lock` to meet. The join is the reports plus the file-map guard;
+`/acs:create-pr` commits the result.
 
 **Cost.** Wall time falls wherever work splits; token cost rises with sliced
 judges, which re-read shared inputs once per slice, and the per-message cap
@@ -759,7 +765,9 @@ that loop's `max_iterations`, the same on every delivery path.
 one-line label naming what the run covered — **Scope** for the
 configuration utilities (`setup`, `update`), **Run** for the
 two run-oriented ones (`test`, `release`), whose subject is an execution
-rather than a scope. `/acs:handoff` additionally puts the `continue_with` command in **Next**. No other label
+rather than a scope. The ticketless document skills — the audits,
+`create-prd` and `create-architecture` (ADR-0127) — put their scope or mode in
+the heading's place and keep the **Ticket** label, reading `none — …`. `/acs:handoff` additionally puts the `continue_with` command in **Next**. No other label
 substitution is sanctioned; per-skill Results/Next content is fixed in each
 SKILL.md's "Completion report" section.
 
@@ -822,23 +830,29 @@ every other key below is persisted verbatim from the result document:
 
 | Skill | Required `states` keys on success |
 |-------|-----------------------------------|
-| create-prd | `prd` `{path, files:[...]}`, `pr` `{number, url, branch}` |
-| create-architecture | `architecture` `{path, hld:[...]}`, `pr` `{...}` |
+| create-prd | `prd` `{path}`, `files: [...]` (the PRD and roadmap, left uncommitted for `/acs:create-pr`) |
+| create-architecture | `architecture` `{path, hld:[...]}`, `files: [...]` (every HLD path written, left uncommitted) |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | create-design | `design_path` (the published `design.md` — the docs folder, or the partition when there is no checkout), `decision` (one line) |
-| create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — left as local changes for the user to review and commit), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |
+| create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — left as uncommitted changes for `/acs:create-pr`), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |
 | create-flows | `feature: [...]`, `files: [...]` (as create-data-design's), `types: [...]`, `gaps` `{undocumented, unimplemented, drifted}`, `flows` (int), `state_machines` (int) |
 | analyze-requirements | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
 | create-impl-plan | `plan_path`, `plan_approved: true/false` (written by `plan-approval.py`), `file_map` (object) |
 | create-api-contract | `contract_path`, `items` (int), `traced_acs: [...]` |
 | create-test-docs | `cases` (int), `e2e_cases` (int), `untraced_acs: [...]` (empty on a completed run) |
-| code | `branch`, `delivery_path`, `plan_path`, `plan_approved`, `file_map`, `specs_implemented: [...]`, `commits: [...]` (plus `review.guard_denials`, derived, only when the file-map guard denied a write) |
-| review-code | `verifier_passed: true/false` (the /create-pr BRAKE, derived from `verdict.json`), `reviewed_sha`, `review` `{iterations, findings_open}`, `tests` `{passed, failed, coverage_percent, coverage_target}` |
+| code | `branch`, `delivery_path`, `plan_path`, `plan_approved`, `file_map`, `specs_implemented: [...]`, `files: [...]` (the uncommitted paths; `commits` is legacy and optional) (plus `review.guard_denials`, derived, only when the file-map guard denied a write) |
+| review-code | `verifier_passed: true/false` (the /create-pr BRAKE, derived from `verdict.json`), `reviewed_sha` (the working-tree snapshot tree the review judged), `review` `{iterations, findings_open}`, `tests` `{passed, failed, coverage_percent, coverage_target}` |
 | create-e2e-tests | `suites_written: [...]`, `cases_covered: [...]` |
-| create-pr | `pr` `{number, url, branch, base}` (the /merge-pr brake) |
+| create-pr | `pr` `{number, url, branch, base}` (the /merge-pr brake), `branch`, `commits: [...]` (the shas `acs pr commit` made) |
 | merge-pr | `merged: true/false`, `merge_strategy`, `readiness` `{ci, approvals, conflicts, protections}` |
 | audit-design | `audit` `{scope, report, unimplemented, planned, undocumented, drifted, unversioned, tickets:[...]}` — the counts per gap kind and the tickets minted from them; the post-hook re-counts the gap kinds from `report.md` |
 | audit-security | `audit` `{scope, report, critical, high, medium, low, advisory, refuted, scanners:[...], skipped:[...]}` — the confirmed findings per adjudicated severity, the `needs-context` ones (`advisory`) and the refuted ones, the scanners the dependency auditors ran and the slices not run; the post-hook re-counts every count from `report.md` (ADR-0123) |
+
+**`files`, wherever a skill writes repo files** (ADR-0127): every repo-relative
+path the step wrote and left uncommitted — `analyze-requirements`,
+`create-impl-plan`, `docs-sync` and the rest record it beside the keys above.
+It is what `acs pr plan-commits` groups; a changed path no step recorded is
+left out of every group and listed.
 
 On failure, keep whatever is true (e.g. a `/acs:review-code` coverage
 hard-fail records `verifier_passed: false`, achieved coverage, and the reason
@@ -861,7 +875,7 @@ runnable on its own:
 | `create-impl-plan` | `analysis.md` and `design.md` when present, else the ticket | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
 | `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts where the repo keeps them (else `docs/api/`) | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
 | `create-test-docs` | the ticket's ACs, `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
-| `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.tests.e2e` | e2e suites at the repo's configured location, on the ticket branch | `run-e2e-tests` executes them |
+| `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.tests.e2e` | e2e suites at the repo's configured location, left uncommitted | `run-e2e-tests` executes them |
 | `run-e2e-tests` | the ticket's suites (from `test-cases.md`, falling back to the plan's Test-plan section) | the run artifact + triage | `on_fail: {relay_to: code}` with the fix-loop cap |
 
 `/acs:code` keeps the implementers, the escalation triggers and the boundary;
@@ -996,8 +1010,8 @@ write. The coordinator performs ONE action at a time and reports it:
 | `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
 | `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 and runs `front_matter_check` and `structure_lint` on it — beside the review, not after it (ADR-0125) — listing their findings as the `review` action's `draft_checks` | `review` |
 | `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>`, and folds in the draft's check findings (slice `draft-checks`) | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
-| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `conventions.COMMIT_SUBJECT`; never pushes | (unchanged) |
-| `record-publication` | re-reads the published bytes and `git show HEAD:<path>` | `completed` |
+| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")` and records the ticket docs folder's files as the paths it wrote; never stages, commits or pushes (ADR-0127) | (unchanged) |
+| `record-publication` | re-reads the published bytes in the working tree | `completed` |
 
 Rules the code holds, each with a transition test in
 `tests/acs/test_analysis_loop.py`:
@@ -1028,15 +1042,60 @@ Durable state is split by AUDIENCE. The documents a human reads or reviews live
 in the consumer repo and are committed with the change; the run ledger — every
 fact a hook or a walk reads — stays in the gitignored workspace.
 
-Who commits the documents (ADR 0090): the skill that publishes a Build-phase
-document commits it on the ticket branch. `ticket.md` and `design.md` are
-published in the Design phase, BEFORE a ticket branch exists — acs never
-commits to the default branch — so their writers leave them in the working
-tree and `/acs:analyze-requirements`, the first Build step, commits the ticket's
-whole docs folder when it creates the branch. The low-level design documents
-`/acs:create-data-design` and `/acs:create-flows` write under
-`<architecture_dir>/lld/<feature>/` are not committed by any skill: they stay local
-changes, listed in the result's `states.files`, for the user to review and commit.
+Who commits the documents (ADR 0127, amending ADR 0090): **only
+`/acs:create-pr`**. Every skill that publishes a document — `ticket.md`,
+`design.md`, `analysis.md`, `plan.md`, the LLD under
+`<architecture_dir>/lld/<feature>/`, the PRD, the HLD — writes it into the working
+tree on whatever branch is checked out and lists it in its result's
+`states.files`; `/acs:create-pr` commits the ticket's docs folder as the first
+of its commits, and each other doc set as its own.
+
+### Commits: only `/acs:create-pr` (ADR-0127)
+
+No skill creates or switches a branch, stages, commits or pushes — except
+`/acs:create-pr`, plus `/acs:release`'s own `release/*` PR (ADR-0052) and
+`/acs:merge-pr`'s merge and post-merge cleanup. The changeset is the working
+tree, so reading it takes three pieces in `acs_lib/changes.py`:
+
+- **Baseline** — `runs/<run-id>/baseline.json`, written once by the run's first
+  `acs step start` and never overwritten (ticketless runs too): `{base_sha,
+  branch, dirty: [paths dirty or untracked at that moment, with their blob ids],
+  first_step, adopts_dirty, recorded_at}`. A file the user was already editing is
+  not the run's — unless the run's FIRST step reads existing work (`review-code`,
+  `docs-sync`, `create-pr`, `run-e2e-tests`: `adopts_dirty`), where the hand-written
+  changes already in the tree are exactly its subject and stay in the changeset.
+- **Snapshot** — `acs changes snapshot`: a tree id of the full working tree,
+  untracked non-ignored files included, built through a throwaway
+  `GIT_INDEX_FILE` so the real index and the tree are untouched. The verdict's
+  `reviewed_sha` holds one; `/acs:code` asks `acs changes diff --since
+  <reviewed_sha>` what changed after the review.
+- **Changeset** — `acs changes diff`: `<since>` → a fresh snapshot, the
+  baseline's dirty paths excluded unless they changed again. It replaces every
+  `git diff <default>...HEAD` / `git log <branch>` read; a scope check snapshots
+  at step start and diffs `--since` that tree.
+
+`/acs:create-pr` then runs `acs pr plan-commits` (`acs_lib/commit_plan.py`):
+deterministic groups from the run's recorded results (`states.files`, the
+analysis publication, the implementer reports' `files_changed` per slice or
+partition, the plan's file map, docs-sync's files, the e2e suites) intersected
+with the changeset — the ticket docs, the design docs, per slice its tests then
+its code, docs-sync's updates, the e2e suites. Tests and code split on the
+repo's test-path conventions (a `test`/`tests`/`__tests__`/`spec` segment, or
+`test_*`/`*_test.*`/`*.spec.*`/`*.test.*`); subjects follow
+`conventions.COMMIT_SUBJECT`. Changed but unrecorded paths are `left_out`,
+baseline-dirty ones `excluded`; both are listed in the preview the user
+confirms (and may edit) before `acs pr commit --plan <file>` commits each group
+by pathspec — never `git add -A`. `/acs:create-pr` takes a ticket id or a
+prompt; with no argument it continues this checkout's current run. A run whose
+steps recorded nothing — a prompt given with no current run — is planned in
+`uncommitted` mode: every uncommitted change against HEAD, grouped by layer
+(documents by doc set — the PRD, `hld/`, each `lld/<feature>/`, the ADRs, the
+ticket docs — then tests, then code), placing each file by the paths other runs
+recorded in `states.files`. The `verifier_passed` brake applies only when the
+run has a code step, and a commit subject names a ticket only when there is one.
+
+**Limitation.** Two tickets in flight in one checkout share one working tree and
+so one changeset; use a separate worktree per concurrent ticket.
 
 ```
 <checkout>/docs/tickets/<ticket-id>/    # fixed: artifacts.TICKETS_PATH
@@ -1056,6 +1115,7 @@ changes, listed in the result's `states.files`, for the user to review and commi
     requirements.md                     #   step 1's artifact, promoted
     clarifications.json
     lock.json  lock-events.jsonl  agents/<agent_id>.json  handoff-context.md
+    baseline.json                       #   the run's starting point: base_sha, branch, dirty paths (ADR-0127)
     steps/<skill>/
       state.json                        #   the step machine (§4.4)
       result.json                       #   the post-hook's input
@@ -1081,8 +1141,8 @@ changes, listed in the result's `states.files`, for the user to review and commi
 - **`status` is DERIVED, never stored.** `ticket.md` carries every ticket field
   EXCEPT `status`; `derive_status(tdir, ticket=None)` computes it from the
   ledger — `done` when the partition is archived, `merge-pr` completed, or (for
-  an epic) every child is done; `in_review` when `create-pr` completed, or a
-  delivery-ticket skill completed with a `pr` in its state file; `in_progress`
+  an epic) every child is done; `in_review` when `create-pr` completed (the
+  delivery-ticket skills that once opened their own PR are gone, ADR-0127); `in_progress`
   when any step other than `create-ticket` has a non-`skipped` status (or any
   child is not open); `open` otherwise. `load_ticket()` puts it back in the
   returned dict, so callers are unchanged. A committed document and the run
@@ -1323,8 +1383,8 @@ current through an induction invariant, not a periodic chore:
   the survey is **best-effort** on TRIVIAL/SMALL work, and its omission there
   is never a finding); widespread drift triggers a
   recommended
-  /create-architecture re-run (the full reconcile, shipped as its own
-  delivery ticket + docs PR).
+  /create-architecture re-run (the full reconcile, left as uncommitted
+  documents for `/acs:create-pr`).
 
 Net effect: after every merge the doc set matches the code — "update the
 architecture" is not a separate activity but a blocking dimension of every

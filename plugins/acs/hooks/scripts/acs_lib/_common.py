@@ -71,17 +71,33 @@ TICKET_TYPES = ["epic", "story", "task"]
 TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]
 PRIORITIES = ["critical", "high", "medium", "low"]
 
+#: The titles of the delivery tickets the product skills minted BEFORE
+#: ADR-0127. Nothing mints one now; only those older tickets carry them, and
+#: the tracker sync and record-external still recognise them by title.
 PRODUCT_TICKET_TITLES = {
     "create-prd": "Product definition (PRD)",
     "create-architecture": "Product architecture doc set",
 }
 
 # Delivery-ticket predicate: the skills that mint their own delivery ticket and
-# ship it as a docs-only PR. Today exactly PRODUCT_SKILLS; kept as its own name
-# because its callers ask "does this skill own a delivery ticket", not "is it a
-# product skill".
-DELIVERY_TICKET_SKILLS = list(PRODUCT_SKILLS)
-DELIVERY_TICKET_TITLES = dict(PRODUCT_TICKET_TITLES)
+# ship it as a docs-only PR. EMPTY since ADR-0127: only /acs:create-pr branches,
+# commits and opens a PR, so create-prd and create-architecture leave their
+# documents uncommitted and run ticketless (STANDALONE_RUN_SKILLS below);
+# /acs:create-pr commits them, given a prompt or a ticket id like every skill.
+# The name stays, empty, because its callers ask "does this skill own a
+# delivery ticket" and the answer is now "none does".
+DELIVERY_TICKET_SKILLS = []
+DELIVERY_TICKET_TITLES = {}
+# The skills whose delivery tickets, minted BEFORE ADR-0127, recorded their own
+# PR. Read-only: nothing records one any more, but a delivery ticket still in
+# review when acs was upgraded is still mergeable by its id (`gates`), and
+# still derives `in_review` (`artifacts`).
+LEGACY_DELIVERY_TICKET_SKILLS = list(PRODUCT_SKILLS)
+
+# The skills that run ticketless, in a run of their own (ADR-0122/0123/0127):
+# `step start` opens (or resumes) a run over the invocation, and the post-hook
+# concludes it. The Audit skills, and the product skills since ADR-0127.
+STANDALONE_RUN_SKILLS = AUDIT_SKILLS + PRODUCT_SKILLS
 
 """The six plan headings create-impl-plan/SKILL.md requires on every run."""
 """The five spec-authoring-fold sections, in the order structure_lint's

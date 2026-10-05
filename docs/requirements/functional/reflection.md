@@ -439,9 +439,10 @@ spawned in ONE message and awaited together before the next phase.
   iteration — never "pass with a missing slice".
 - **Resume.** A resumed iteration re-runs only the slices whose report is
   missing.
-- **Shared branch.** Parallel writers that commit on one branch MUST, on git
-  `index.lock` contention, wait briefly and retry — never delete the lock and
-  never force anything.
+- **Shared working tree.** Parallel writers commit nothing (ADR-0127): each
+  writes its own disjoint files into the one working tree and lists them in its
+  report; the join is the reports plus the write guard below, and
+  `/create-pr` commits the result.
 - **Write guard.** With several writers live — slices of one skill, or the
   writers of a parallel group's members — a write is judged against its own
   writer's file map when the hook payload names the agent, else against the

@@ -2,15 +2,15 @@
 # /acs:docs-sync on an ADR-worthy change: EVAL-1 (needs_design true) moves the
 # customer listing from a hard-coded empty list onto a SQLite store through
 # the stdlib sqlite3 module. Its approved design (docs/tickets/EVAL-1/design.md,
-# committed on the ticket branch the way the Build phase carries it) records
+# published uncommitted the way /acs:create-design leaves it) records
 # one accepted decision under `### Decision records`, and the repo keeps ADRs
 # in docs/adr/ (0001, 0002, NNNN-slug.md). /acs:code's step is recorded
 # completed through the plugin's own writers (`acs.py step start`, then
-# `post-code.py`), with no doc updated. The doc-updater charter: "when the
-# ticket has a binding design carrying accepted decision records, commit those
-# records as ADRs under <adr_dir>". What the run must produce: a NEW ADR,
-# docs/adr/0003-*.md, committed on the SAME ticket branch, the existing ADRs
-# untouched.
+# `post-code.py`), with no doc updated and the change left UNCOMMITTED on main
+# (ADR-0127). The doc-updater charter: "when the ticket has a binding design
+# carrying accepted decision records, write those records as ADRs under
+# <adr_dir>". What the run must produce: a NEW ADR, docs/adr/0003-*.md, left
+# uncommitted (no branch, no commit), the existing ADRs untouched.
 #
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -68,9 +68,8 @@ git commit -qm "ADRs 0001 and 0002"
 
 acs_ticket "Store customers in SQLite" task true \
   "Back list_customers with a SQLite store instead of a hard-coded empty list."
-acs_branch task/EVAL-1-store-customers-in-sqlite
 
-# The Build phase carries the approved design onto the ticket branch.
+# /acs:create-design's published design, uncommitted.
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/design.md <<'MD'
 # Design — EVAL-1: Store customers in SQLite
@@ -116,8 +115,6 @@ several.
 
 The table is created on first connect; there is no existing data to migrate.
 MD
-git add -A
-git commit -qm "EVAL-1 design"
 
 python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null 2>&1
 cat > src/shop/store.py <<'PY'
@@ -157,11 +154,9 @@ def test_list_customers_pages_the_store():
     db.executemany("INSERT INTO customers (name) VALUES (?)", [("ada",), ("bo",), ("cy",)])
     assert list_customers(1, 1, db=db)["items"] == [{"id": 2, "name": "bo"}]
 PY
-git add -A
-git commit -qm "EVAL-1 store customers in SQLite"
 python3 "$ACS_SCRIPTS/post-code.py" > /dev/null <<'JSON'
 {"status": "completed",
  "summary": "customers are stored in SQLite (src/shop/store.py); list_customers pages the store",
- "states": {"branch": "task/EVAL-1-store-customers-in-sqlite", "docs_updated": []},
+ "states": {"docs_updated": [], "files": ["src/shop/store.py", "src/shop/__init__.py", "tests/test_store.py"]},
  "findings": [], "errors": []}
 JSON

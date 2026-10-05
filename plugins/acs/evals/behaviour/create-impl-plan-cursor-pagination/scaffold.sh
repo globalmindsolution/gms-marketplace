@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # create-impl-plan: the shop repo, story EVAL-1 minted and given its
-# acceptance criteria through the plugin's own CLIs, and the ticket branch
-# carrying the PUBLISHED analysis /acs:analyze-requirements would have left:
-# docs/tickets/EVAL-1/analysis.md, committed as "EVAL-1 ...".
+# acceptance criteria through the plugin's own CLIs, and the working tree
+# (main, nothing committed -- ADR-0127) carrying the PUBLISHED analysis
+# /acs:analyze-requirements would have left there:
+# docs/tickets/EVAL-1/analysis.md, uncommitted.
 #
 # acs has no writer command for an analysis -- the analyze-requirements
 # coordinator copies its verified draft into the docs folder with cp and
-# commits it -- so the file below is written in exactly the format that
-# skill's SKILL.md specifies (front matter + seven headings; it passes
-# front_matter_check.py and structure_lint.py) and committed as an ordinary
-# repo file. No workspace step state is forged: the create-impl-plan gate
-# reads analysis.md when present and requires no predecessor step.
+# leaves it uncommitted -- so the file below is written in exactly the format
+# that skill's SKILL.md specifies (front matter + seven headings; it passes
+# front_matter_check.py and structure_lint.py). No workspace step state is
+# forged: the create-impl-plan gate reads analysis.md when present and
+# requires no predecessor step.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -27,7 +28,6 @@ printf '%s' '{"acceptance_criteria": [
   "A malformed cursor is rejected with HTTP 400 and error code invalid_cursor"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-cursor-pagination-for-get-customers
 mkdir -p docs/tickets/EVAL-1
 cat > docs/tickets/EVAL-1/analysis.md <<'MD'
 ---
@@ -77,5 +77,3 @@ The three criteria on the ticket are confirmed as written.
 
 Ready for planning; api_surface true; no design needed.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze cursor pagination"

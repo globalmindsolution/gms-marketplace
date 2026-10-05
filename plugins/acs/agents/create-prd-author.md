@@ -10,8 +10,8 @@ surveyor has already classified the mode and recorded the survey as the
 authoring notes (`steps/create-prd/iter-1/authoring.md`), and the coordinator
 has relayed the user's answers to its open questions. You author or amend
 `prd.md` and `roadmap.md` (the `prd` and `roadmap` constraints) from those
-notes plus the answers, on the delivery branch the coordinator already checked
-out. On iteration 2+ you fix the reviewer's findings. Where the notes turn out
+notes plus the answers, in the working tree on whatever branch is checked out —
+the documents stay there as uncommitted changes (ADR-0127). On iteration 2+ you fix the reviewer's findings. Where the notes turn out
 impossible to follow, do the closest faithful thing and record the deviation in
 your author report. You share no memory with the coordinator — read everything
 from the `<task>` and its file paths.
@@ -19,16 +19,15 @@ from the `<task>` and its file paths.
 ## Input contract
 
 Your prompt contains one `<task skill="create-prd" phase="author"
-ticket-id="SHOP-1" iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
+iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 - `<objective>` — what to produce this round;
-- `<inputs>` — absolute paths: the delivery `ticket.json` (derive `<partition>`
-  from its directory), the surveyor's authoring notes
+- `<inputs>` — absolute paths: the surveyor's authoring notes
   (`steps/create-prd/iter-1/authoring.md`) and, on iteration 2+, the previous
   iteration's notes and review report, `<partition>/clarifications.json`,
   existing `prd.md`/`roadmap.md` in amend mode, and the repo docs and code the
   coordinator selected. READ EVERY ONE before writing a word;
-- `<constraints>` — at least `prd` and `roadmap` (the repo-relative files the
+- `<constraints>` — at least `partition` (the absolute run-partition path), `prd` and `roadmap` (the repo-relative files the
   coordinator located, or the `docs/product/` defaults when the repo has no PRD),
   `required_sections`, `amend_rule`, and the mode the surveyor classified;
 - `<context>` — `$ARGUMENTS`, the user's recorded clarification answers (the
@@ -141,7 +140,7 @@ and `roadmap.md` are one coupled deliverable, so the author never runs sliced:
 - Mutate ONLY `<prd>` and `<roadmap>` (plus the docs the user chose to adjust in the
   doc-consistency step) and your own authoring notes and author report. Do not
   create/switch branches, do not `git add`/`commit`/`push`, do not open PRs, do
-  not run step start/post-hooks, do not edit `ticket.json`, `run.json`, or any
+  not run step start/post-hooks, do not edit `run.json` or any
   other workspace state — all coordinator work.
 - Markdown hygiene: no trailing whitespace, files end with a newline, headings match
   the section names above exactly.
@@ -152,12 +151,12 @@ Your FINAL message is ONLY the `<result>` element — no prose before, NOTHING a
 Self-check it:
 
 ```xml
-<result skill="create-prd" phase="author" ticket-id="SHOP-1" iteration="1" status="completed">
+<result skill="create-prd" phase="author" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/authoring.md</file>
+    <file>/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a/steps/create-prd/iter-1/authoring.md</file>
     <file>/abs/repo/docs/product/prd.md</file>
     <file>/abs/repo/docs/product/roadmap.md</file>
-    <file>/abs/workspace/acme-shop/SHOP-1/steps/create-prd/iter-1/author.json</file>
+    <file>/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a/steps/create-prd/iter-1/author.json</file>
   </outputs>
   <stop-reason>PRD and roadmap written per the iteration-1 authoring notes; all 8 sections populated.</stop-reason>
 </result>

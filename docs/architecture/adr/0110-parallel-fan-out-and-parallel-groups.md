@@ -1,6 +1,6 @@
 # 0110 — Parallelism by default: sliced fan-out inside a skill, parallel groups in the workflow
 
-**Status**: Accepted · **Date**: 2026-09-27
+**Status**: Accepted — amended by [0127](0127-only-create-pr-commits.md) (parallel writers no longer commit, so there is no `index.lock` to wait on) · **Date**: 2026-09-27
 
 **Amends**: [0096](0096-workflow-is-a-list-not-a-graph.md) (a step entry may
 now be a list of skill names, a parallel group; the list still carries no

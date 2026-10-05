@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # /acs:create-e2e-tests on a ticket whose code is done: the shop's WSGI front
-# gained GET /customers on the ticket branch, and the ticket's committed
-# test-cases.md types two of its three cases e2e. The repo already has an e2e
+# gained GET /customers -- uncommitted on main, as /acs:code leaves it
+# (ADR-0127) -- and the ticket's test-cases.md types two of its three cases e2e. The repo already has an e2e
 # harness (tests/e2e/, a stdlib unittest suite that drives the WSGI app in
 # process -- no socket, no pytest, so the suite runs on any host) and settings
 # configure it as the `e2e` suite. What the run must produce: a suite file
-# under tests/e2e/ covering TC-2 and TC-3 (never TC-1, which is unit), committed
-# on the SAME ticket branch, with no product code touched.
+# under tests/e2e/ covering TC-2 and TC-3 (never TC-1, which is unit), left
+# uncommitted (no branch, no commit), with no product code touched.
 #
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -95,9 +95,8 @@ acs_ticket "Serve the customer listing over HTTP" task false \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."
 slug="$(python3 "$ACS_SCRIPTS/acs.py" slug --text "Serve the customer listing over HTTP" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["slug"])')"
-acs_branch "task/EVAL-1-$slug"
 
-# The ticket branch: /acs:code's change (the route and its unit test) ...
+# /acs:code's change (the route and its unit test), uncommitted ...
 python3 - <<'PY'
 import re
 path = "src/shop/web.py"
@@ -126,8 +125,6 @@ class ListCustomers(unittest.TestCase):
         """TC-1"""
         self.assertEqual(list_customers(), {"items": [], "offset": 0, "limit": PAGE_SIZE})
 PY
-git add -A
-git commit -qm "EVAL-1 serve the customer listing over HTTP"
 
 # ... and the ticket's case document, where acs resolves it (docs/tickets/<ID>/).
 mkdir -p docs/tickets/EVAL-1
@@ -164,5 +161,3 @@ e2e_cases: 2
 
 - No customer store exists yet, so `items` is always empty.
 MD
-git add -A
-git commit -qm "EVAL-1 test cases"

@@ -355,33 +355,26 @@ an exempt `release/*` PR for a mandatory human merge.
   `draft` and `bump` to anchor the git-history fallback to this repo's own
   ticket ids.
 
-## Product-level delivery (tickets)
+## Product-level delivery (no ticket)
 
-**Every change is tracked as a ticket — including product-level work.**
-Tickets are the project-management record, so the two product-level
-skills, while not running the ticket pipeline, MUST each create their own
-**delivery ticket** per run:
+The two product-level skills run **without a ticket** and deliver **nothing
+themselves** ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)):
 
-- The skill creates the ticket first (type **task**, e.g.
-  `SHOP-1 — Product definition (PRD)`): a normal id from the per-repo
-  counter, a normal workspace partition, tracker sync when configured (so
-  PRD and architecture work is visible in GitHub Projects), and
-  the standard archive lifecycle. Re-running a product-level skill (e.g. a
-  PRD amendment) creates a **new ticket** for that change. Re-running
-  `/create-prd` for an amendment creates a new ticket with a specific title
-  (e.g. `SHOP-5 — Amend PRD: add org-level enforcement policy`) when a
-  usable request is provided; without a usable request the built-in
-  `"Product definition (PRD)"` title applies.
-- All formats apply with the real ticket id: the skill creates the branch
-  (`formats.branch_name`), commits (`formats.commit_message`), and opens
-  the PR (PR formats, `ACS` label) itself — `/create-design` and `/code`
-  are not involved.
-- The skill's state file (`create-prd-state.json`, …) lives in the delivery
-  ticket's partition like any other skill state, records the PR reference,
-  and `run.json` records the run's workflow. Locking,
-  resume and handoff work exactly as for any other ticket.
-- `/merge-pr` works as for any other ticket: readiness check, merge, mark
-  done (and sync), archive the partition.
+- `acs step start --step <skill> --args "<arguments>"` opens a ticketless
+  run over the invocation — or resumes this checkout's interrupted one —
+  the way the audits do; the post-hook concludes it. No ticket is minted,
+  nothing is synced to a tracker, and no branch is created.
+- The skill MUST NOT create or switch a branch, stage, commit, push or open a
+  PR. Its documents stay as **uncommitted changes** in the working tree, on
+  whatever branch is checked out, and every path it wrote is recorded,
+  repo-relative, in its result's `states.files`.
+- Its final message lists those files and points at `/acs:create-pr
+  "<what changed>"`: given a prompt and no current run, create-pr groups the
+  uncommitted changes by layer — each doc set its own commit — on a branch of
+  their own and opens the PR (labelled `acs-exempt`, since it names no
+  ticket); `/merge-pr --pr <n>` lands it after review.
+- The skill's state lives in its run's partition like any other skill
+  state; locking, resume and handoff work as for any other run.
 
 ## `/create-prd` (product-level)
 
@@ -437,11 +430,9 @@ else is verified against.
 - The surveyor's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
-- State lives in the delivery ticket's partition
-  (`create-prd-state.json`).
-- Delivery: docs-only PR via the
-  [product-level delivery rules](#product-level-delivery-tickets) — each
-  run creates its own delivery ticket.
+- State lives in the run's partition (`steps/create-prd/`).
+- Delivery: none of its own — the documents stay uncommitted for
+  `/create-pr "<prompt>"` ([product-level delivery rules](#product-level-delivery-no-ticket)).
 - Downstream: `/create-architecture` is verified against the PRD, and
   `/create-ticket` traces tickets to PRD features and flags divergence
   ([workflow.md](workflow.md#product-level-architecture)).
@@ -529,19 +520,17 @@ not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-
   the gap analysis and says so in the report.
 - **Design versions** ([ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)): every HLD file it writes MUST carry
   version front matter (`status`, `version`, `tickets`), set only through
-  `acs.py design` — `design init --ticket <delivery-ticket>` for a new file
-  (`--status implemented` when it documents the code as built, `proposed`
-  when it designs ahead of it), `design bump --ticket <delivery-ticket>` for
-  a changed one (re-opened as `proposed`); a file the run leaves unchanged
-  keeps its block. The reviewer runs `acs.py design check` on every in-scope
+  `acs.py design` — `design init` for a new file (`--status implemented`
+  when it documents the code as built, `proposed` when it designs ahead of
+  it), `design bump` for a changed one (re-opened as `proposed`); a file the
+  run leaves unchanged keeps its block. The run has no ticket, so no
+  `--ticket` is passed. The reviewer runs `acs.py design check` on every in-scope
   file.
-- State lives in the delivery ticket's partition
-  (`create-architecture-state.json`)
+- State lives in the run's partition (`steps/create-architecture/`)
   ([workspace-and-state.md](workspace-and-state.md)).
-- Delivery: docs-only PR via the
-  [product-level delivery rules](#product-level-delivery-tickets) — each
-  run creates its own delivery ticket; the TDD pipeline does not apply to a
-  docs-only change.
+- Delivery: none of its own — the documents stay uncommitted for
+  `/create-pr "<prompt>"` ([product-level delivery rules](#product-level-delivery-no-ticket));
+  the TDD pipeline does not apply to a docs-only change.
 - Maintenance afterwards belongs to the pipeline: `/create-design` designs
   against the doc set, and `/code` updates it whenever a change alters the
   architecture ([workflow.md](workflow.md#product-level-architecture)).
@@ -773,8 +762,8 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   children and never re-creates the already-synced root's remote issue as a
   duplicate; a split run's already-synced root has its remote issue
   **updated** instead. Product-flow delivery tickets ("Product definition
-  (PRD)", "Product architecture doc set") are excluded from this set and
-  always stay unsynced. A sync failure for any one ticket in the set is
+  (PRD)", "Product architecture doc set" — minted before ADR-0127, none since)
+  are excluded from this set and always stay unsynced. A sync failure for any one ticket in the set is
   surfaced (never silently swallowed) and does not abort the rest of the
   batch; that ticket's `external` stays `null` for a later retry. `external`
   is written into each synced ticket's own `ticket.json` by the
@@ -832,10 +821,11 @@ tickets where the change is architecturally significant.
 - The designer's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
-- The design's accepted decision records are committed into the consumer
+- The design's accepted decision records are written into the consumer
   repo's ADR folder (found in the repo, else `docs/architecture/adr/` —
   [configuration.md](configuration.md#document-and-workspace-locations)) by
-  `/code` as part of its documentation updates.
+  `/code` as part of its documentation updates, and committed with the other
+  design documents by `/create-pr`.
 
 ## /acs:create-data-design
 
@@ -880,7 +870,8 @@ Design-phase work, run by the SA or Tech Lead on a ticket.
 - MUST be **docs-only in delivery too**: it MUST NOT create a branch, commit,
   push or open a PR. The documents stay as local uncommitted changes, and the
   run finishes by listing every path it wrote, repo-relative, in its result's
-  `states.files` (and its completion report) for the user to review and commit.
+  `states.files` (and its completion report); `/create-pr` commits them with
+  the ticket's design documents ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)).
 - Subagents: `create-data-design-designer` (write), `create-data-design-gap-analyst`
   (survey), `create-data-design-reviewer` (judge).
 - States: `feature`, `files`, `types`, `gaps` `{undocumented, unimplemented,
@@ -922,8 +913,7 @@ detail — before implementation
   analysis over existing `flows/` and `components/` documents beside the survey,
   and ask once in a grouped ask — as `/create-data-design` does.
 - Delivery as `/create-data-design`: no branch, commit or PR — local
-  uncommitted changes, listed in `states.files` for the user to review and
-  commit.
+  uncommitted changes, listed in `states.files`, for `/create-pr` to commit.
 - Subagents: `create-flows-designer` (write), `create-flows-gap-analyst`
   (survey), `create-flows-reviewer` (judge — three slices: agreement,
   references, form).
@@ -985,8 +975,9 @@ with the user, and say plainly whether it is ready to plan.
   3. **Store — write, review and publish for reuse.** One un-sliced DRAFT pass
      (`pass` = `draft`) writes the analysis from the reconciled notes and the
      recorded answers; the impact reviewer judges it (analyse → impact
-     review, at most 3 rounds); the coordinator publishes it and commits the
-        ticket's docs folder on the ticket branch. A reviewer finding that is a
+     review, at most 3 rounds); the coordinator publishes it into the
+        ticket's docs folder and records the paths — it commits nothing
+        ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)). A reviewer finding that is a
      new question for the user goes back through Stage 2.
 - MUST write `analysis.md` to the ticket's docs folder with front matter
   `{ticket, ready_for_planning, api_surface, needs_design_recommendation}`
@@ -1074,8 +1065,8 @@ it.
   versioning notes, and examples — each traced to an acceptance criterion
   **and** to a plan item.
 - MUST update the repo's machine-readable contract files where the repo
-  keeps them (else create them under `docs/api/`), committed on the ticket
-  branch.
+  keeps them (else create them under `docs/api/`), left uncommitted and
+  listed in `states.files`.
 - Subagents: `create-api-contract-contract-author`, `create-api-contract-contract-reviewer` (author → review — ADR-0109).
 - State file: `create-api-contract-state.json`; states `contract_path`,
   `items`, `traced_acs`.
@@ -1107,7 +1098,7 @@ Purpose: implement the run's approved plan in the consumer repo using TDD.
 > **`/code` neither plans nor reviews.** The plan phase left for
 > `/create-impl-plan` (§2b) and the review left for `/review-code` (§3b).
 > What remains is the implementation itself: read the plan, write the tests
-> first, write the code, commit on the run's branch. `/code` implements the
+> first, write the code, leave it uncommitted in the working tree. `/code` implements the
 > approved `plan.md` and produces none (invoked on its own with no plan, it
 > derives an implicit plan from the subject); it writes no verdict and grades
 > nothing. The plan charter is the survey of `create-impl-plan-planner.md`,
@@ -1245,8 +1236,10 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   not covered by it and remain the responsibility of
   `/acs:create-design`'s full step (for `needs_design: true` tickets)
   and `/acs:docs-sync`'s diff-grounded re-derivation.
-- Commit messages MUST follow the commit message format configured in
-  `settings.json` ([configuration.md](configuration.md)).
+- `/code` MUST NOT branch, stage or commit: implementers leave their files
+  uncommitted and list them in their reports' `files_changed`; the run
+  records them in `states.files`, and `/create-pr` commits them per plan
+  slice ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)).
 - `/acs:code` MUST NOT review its own changeset. The review is
   **`/acs:review-code`** (§3b), a step of its own, and every delivery path
   gets the same one. An implementer that grades its own output gave
@@ -1285,10 +1278,10 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   implementers author the e2e tests their tasks declared (same changeset) and run
   the affected subset; the full e2e suite is `/acs:run-e2e-tests`' own step
   (setup → command → teardown, always).
-- `/code` works on a dedicated git branch (and optionally a worktree) per run;
-  the branch name follows `formats.branch_name` from `settings.json` and
-  embeds the `<ticket-id>` so later skills and hooks can resolve context from
-  it.
+- `/code` works in the working tree on whatever branch is checked out; the
+  ticket branch (`<type>/<ticket-id>-<slug>`, so later skills and hooks can
+  resolve context from it) is created by `/create-pr`. Concurrent tickets take
+  a worktree each: one checkout has one working tree, so one changeset.
 
 ### The delivery path is judged once (ADR-0095)
 
@@ -1410,9 +1403,10 @@ test cases, so the post-code e2e run has something ticket-specific to run.
   `tests.e2e` to `.acs/settings.json`, and `ship.yaml` skips the step for it entirely
   (`when: e2e_configured`).
 - MUST write the suites at the repo's configured e2e location, named after
-  the ticket, committed on the ticket branch.
+  the ticket, left uncommitted and listed in `states.files`.
 - Runs **in parallel with `/docs-sync`** in the default workflow — both need
-  only `code` — as two legs in two worktrees
+  only `code` — as two members of one parallel group, each writing its own
+  files into the same working tree, uncommitted
   ([workflow.md](workflow.md#parallel-work)).
 - Subagents: `create-e2e-tests-test-writer`, `create-e2e-tests-suite-runner` (write → run — ADR-0109).
 - State file: `create-e2e-tests-state.json`; states `suites_written`,
@@ -1421,16 +1415,16 @@ test cases, so the post-code e2e run has something ticket-specific to run.
 ## 4. `/docs-sync`
 
 Purpose: re-verify and complete the doc updates a ticket's changeset
-requires — independently re-derived from `git diff <default_branch>...HEAD`, `/code`'s
-`result.json`, and the final code-verify artifact, never from a hand-off
-summary alone.
+requires — independently re-derived from the run's changeset
+(`acs.py changes diff`), `/code`'s `result.json`, and the final code-verify
+artifact, never from a hand-off summary alone.
 
-- MUST confirm the current git branch matches the ticket's recorded branch
-  before doing any work; docs-sync NEVER creates a branch and NEVER opens a
-  PR — it always operates on the SAME ticket branch `/code` uses, adding
-  commits to the existing changeset (same PR/review).
+- docs-sync NEVER creates a branch, commits or opens a PR: it writes its doc
+  updates into the same working tree `/code` wrote, lists them in
+  `states.files`, and `/create-pr` commits them as their own commit in the
+  ticket's PR ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)).
 - MUST gather, and never substitute a bare hand-off summary for: the live
-  `git diff <default_branch>...HEAD`, the ticket JSON, `/code`'s
+  changeset (`acs.py changes diff`, untracked files included), the ticket JSON, `/code`'s
   `result.json` (`states.docs_updated`), `/code`'s implementer report(s)
   `problems` field, and the final code-verify artifact.
 - Subagents: `docs-sync-doc-updater`, `docs-sync-drift-reviewer` (update → drift review — ADR-0109).
@@ -1445,11 +1439,31 @@ summary alone.
 
 ## 5. `/create-pr`
 
-Purpose: ship the implementation as a pull request.
+Purpose: ship the implementation as a pull request — the one skill that
+branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)).
 
-- MUST create a PR containing the new changes for the implementation. The
-  ticket's branch already exists — created by `/code` per
-  `formats.branch_name` — so `/create-pr` pushes it and opens the PR.
+- MUST split the working tree's uncommitted changes into small reviewable
+  commits with `acs.py pr plan-commits`: the ticket's documents, the design
+  documents, per plan slice or file-map partition its tests then its code,
+  `/docs-sync`'s updates, the e2e suites — built from what the steps recorded,
+  intersected with the run's changeset.
+- MUST show that plan as a preview the user confirms (and may edit) before
+  anything is committed, listing the changed files no step recorded (left out
+  unless the user adds them) and the files already dirty when the run began
+  (never included unless a step recorded them).
+- MUST commit with `acs.py pr commit --plan <file>` — the run's branch
+  (`<type>/<ticket-id>-<slug>` for a ticket) created when not already checked out, every
+  group staged by pathspec, never `git add -A` — then push the branch and open
+  the PR.
+- MUST take a ticket id or a prompt, never require a ticket: with no
+  argument it continues this checkout's current run (ticket- or
+  prompt-subject); with a prompt and no current run it opens a prompt-subject
+  run whose changeset is every uncommitted change against HEAD, grouped by
+  layer — documents by doc set (the PRD, `hld/`, each `lld/<feature>/`, the
+  ADRs, the ticket docs), then tests, then code — placing each file by the
+  paths other runs recorded in `states.files`. The `verifier_passed` brake
+  applies only when the run has a code step; a commit subject names a ticket
+  only when there is one, and a PR with no ticket is labelled `acs-exempt`.
 - SHOULD compose the PR title/description from workspace state (ticket,
   specs, `code-state.json` summary incl. review findings) rather than
   conversation history.
@@ -1522,10 +1536,10 @@ Purpose: land the change.
   invokes `/merge-pr` itself. A failed readiness check is report-only.
 - MUST review PR readiness — **[ASSUMPTION]** at minimum: CI status, review
   approvals, merge conflicts, branch protection requirements.
-- Product-level delivery tickets (PRD, architecture, doc sets) merge like
-  any other ticket — the PR reference is read from the skill's state file in
-  the ticket partition
-  ([Product-level delivery](#product-level-delivery-tickets)).
+- A PR opened from a prompt (`/create-pr "<prompt>"` — e.g. the PRD, the
+  architecture, ADRs) names no ticket and carries `acs-exempt`, so it lands through
+  `/merge-pr --pr <n>` like any other exempt PR
+  ([Product-level delivery](#product-level-delivery-no-ticket)).
 - MUST merge the PR **if possible**; if not possible, it MUST record the stop
   reason in the workspace state and report what is blocking. A failed
   readiness check is **report-only**: `/merge-pr` never routes fixes back to

@@ -43,7 +43,7 @@ import acs_lib as lib  # noqa: E402
 
 ROLES = ("contract-author", "contract-reviewer")
 
-STATES_KEYS = ("contract_path", "items", "traced_acs")
+STATES_KEYS = ("contract_path", "items", "traced_acs", "files")
 
 SECTIONS = ["Scope & sources", "Surface", "Error model",
             "Compatibility & versioning", "Examples", "Traceability",
@@ -328,10 +328,14 @@ class TestContractsPathModes(unittest.TestCase):
             with self.subTest(role=role):
                 self.assertIn("contracts_mode", agent(role))
 
-    def test_contract_files_are_committed_on_the_ticket_branch_never_pushed(self):
-        self.assertRegex(self.body, r"Do NOT push")
-        self.assertRegex(self.body, r"never recreate or reset\s+it")
-        self.assertRegex(agent("contract-author"), r"NEVER push, NEVER create a branch")
+    def test_contract_files_are_left_uncommitted_never_branched_or_pushed(self):
+        """ADR-0127: only /acs:create-pr branches and commits."""
+        self.assertRegex(self.body, r"never\s+stages, commits or pushes \(ADR-0127\)")
+        self.assertNotIn("git checkout -b", self.body)
+        self.assertRegex(self.body, r"`states\.files`")
+        self.assertRegex(agent("contract-author"),
+                         r"NEVER stage, commit or push, NEVER create or switch a branch")
+        self.assertNotRegex(agent("contract-author"), r"git commit -m")
 
 
 class TestResultDocument(unittest.TestCase):
@@ -362,8 +366,12 @@ class TestResultDocument(unittest.TestCase):
     def test_items_in_the_result_is_the_front_matter_count(self):
         self.assertRegex(self.body, r"(?s)`items` \(int\).*?same number as the front matter")
 
-    def test_the_machine_readable_files_are_reported_not_stated(self):
-        self.assertRegex(self.body, r"not\s+recorded in `states`")
+    def test_the_machine_readable_files_are_recorded_in_files(self):
+        """They stay uncommitted beside the contract, so /acs:create-pr needs
+        their paths: `files` carries them (ADR-0127)."""
+        self.assertRegex(self.body, r"(?s)`files` \(list\): every repo-relative path this run wrote"
+                                    r".*?machine-readable contract")
+        self.assertRegex(self.body, r"stay uncommitted in the working tree,\s+listed in `files`")
 
     def test_a_failed_run_leaves_code_without_a_contract_and_says_so(self):
         self.assertRegex(self.body, r"(?s)no published\s+contract.*?stop_reason")
@@ -572,11 +580,16 @@ class TestParallelFanOut(unittest.TestCase):
         self.assertRegex(self.body, r"At most\s+`settings.parallel.max_agents` \(default 4\) slices per message")
         self.assertRegex(self.body, r"run in waves of that size")
 
-    def test_writers_commit_only_their_own_files_and_retry_on_lock(self):
+    def test_writers_write_only_their_own_files_and_never_touch_the_index(self):
+        """ADR-0127: no slice stages or commits, so there is no index.lock
+        race left to retry; the join is the reports plus the file-map guard."""
         for text in (self.body, self.author):
-            self.assertIn('git commit -m "<msg>" -- <', text)
-            self.assertIn("`index.lock` contention", text)
-            self.assertRegex(text, r"never force|Nothing is ever forced")
+            self.assertNotIn("git commit -m", text)
+            self.assertNotIn("index.lock", text)
+            self.assertRegex(text, r"`contract_files`")
+        self.assertIn("One working tree, no git writes.", self.body)
+        self.assertRegex(self.body, r"join is the reports plus the file-map guard")
+        self.assertRegex(self.author, r"never stage or commit anything")
 
     def test_the_notes_and_the_draft_are_joined_by_notes_merge(self):
         self.assertRegex(self.body, r"--out <partition>/steps/create-api-contract/iter-<n>/authoring\.md")

@@ -1,14 +1,17 @@
 ---
 name: create-prd
-description: Define or amend the product PRD — vision, problem, personas, goals with measurable success metrics, prioritized features, NFRs, constraints — plus a roadmap, shipped as a docs-only PR on its own delivery ticket. Use when starting a product, onboarding acs onto an existing codebase, or when scope changes require a PRD amendment. Use for any request to write down what a product is, its problem, users and success metrics, or to amend its scope, priorities or roadmap — including when leadership cuts or reprioritizes a feature the existing PRD still lists. Invoke it directly on such a request — it confirms scope and gathers what it needs from the user itself, so there is nothing to ask before running it.
-argument-hint: "[product notes | delivery-ticket-id to resume]"
+description: Define or amend the product PRD — vision, problem, personas, goals with measurable success metrics, prioritized features, NFRs, constraints — plus a roadmap, left as local changes for /acs:create-pr to commit and open as a PR. Use when starting a product, onboarding acs onto an existing codebase, or when scope changes require a PRD amendment. Use for any request to write down what a product is, its problem, users and success metrics, or to amend its scope, priorities or roadmap — including when leadership cuts or reprioritizes a feature the existing PRD still lists. Invoke it directly on such a request — it confirms scope and gathers what it needs from the user itself, so there is nothing to ask before running it.
+argument-hint: "[product notes | amendment request]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:create-prd. You produce or amend the PRD doc set
 (`prd.md` + `roadmap.md`) in the consumer repo — wherever the repo already keeps
-its PRD, else at `docs/product/` — under a fresh **delivery ticket**, and you ship
-it yourself as a docs-only PR — `/acs:code` and `/acs:create-pr` are NOT involved.
+its PRD, else at `docs/product/` — as a **ticketless run**, and you leave the
+documents as uncommitted changes in the working tree: no ticket, no branch, no
+commit, no PR (ADR-0127). `/acs:create-pr`, given a prompt (e.g.
+`/acs:create-pr "Amend the PRD: cut order tracking"`), commits them and opens the
+PR when the user is ready.
 You orchestrate three subagents — surveyor → author → review: a read-only
 surveyor establishes the mode, the outline and the open questions, you put the
 questions to the user, an author writes the documents from the notes and the
@@ -22,68 +25,33 @@ splits — `prd.md` and `roadmap.md` are one coupled deliverable (see Author).
 
 ## Start
 
-MANDATORY first action. Pick the form by inspecting `$ARGUMENTS`:
+MANDATORY first action. Locate the repo's PRD the way any session finds a
+document: CLAUDE.md and whatever docs index it or the repo points at (e.g.
+`docs/README.md`), then a Glob/Grep for `prd.md` or a PRD by content. Found →
+this is an **amend** run; that file is `<prd>` and its roadmap (located the same
+way, else `roadmap.md` beside it) is `<roadmap>`. Not found → `<prd>` =
+`docs/product/prd.md`, `<roadmap>` = `docs/product/roadmap.md`, the conventional
+default. This mirrors the surveyor's amend definition (see Survey below). Then
+run exactly:
 
-- `$ARGUMENTS` contains a ticket id matching the repo prefix (e.g. `SHOP-1` — you are
-  resuming an interrupted or handed-off delivery ticket):
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-prd --args "$ARGUMENTS"
+```
 
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-prd --ticket <ticket-id>
-  ```
-
-- Otherwise (fresh PRD or amendment — every run gets a NEW delivery ticket):
-
-  Before calling `acs step start --allocate`, detect whether this is an **amend** run
-  by locating the repo's PRD the way any session finds a document: CLAUDE.md and
-  whatever docs index it or the repo points at (e.g. `docs/README.md`), then a
-  Glob/Grep for `prd.md` or a PRD by content. Found → amend; that file is `<prd>` and
-  its roadmap (located the same way, else `roadmap.md` beside it) is `<roadmap>`. Not
-  found → `<prd>` = `docs/product/prd.md`, `<roadmap>` = `docs/product/roadmap.md`,
-  the conventional default. This mirrors the surveyor's amend definition (see
-  Survey below).
-
-  - **Amend mode with a usable `$ARGUMENTS` request**: pass a `--title` flag:
-
-    ```bash
-    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-prd --allocate \
-      --title "Amend PRD: <≤~10-word summary of what changed>"
-    ```
-
-    A usable `$ARGUMENTS` request (clarification C-2): after stripping any leading
-    delivery-ticket id (a token matching the repo prefix pattern, e.g. `MAR-51`),
-    `$ARGUMENTS` contains free text describing what the amendment changes from which a
-    short (about 10 words or fewer) summary can be formed. An `$ARGUMENTS` value that
-    is empty, whitespace-only, or consists only of a ticket id is NOT usable — pass no
-    `--title` and the built-in fallback applies. This is coordinator judgment, not
-    parsing machinery; keep the free text of `$ARGUMENTS` as surveyor and author
-    input (see below).
-
-    The `--title` value MUST be prefixed `"Amend PRD: "` and MUST name what the
-    amendment changes in at most ~10 words total (prefix included), derived from the
-    free text of `$ARGUMENTS`. Example:
-    `--title "Amend PRD: add org-level enforcement policy"`
-
-  - **All other cases** (greenfield/brownfield — no PRD found — or an
-    amendment where `$ARGUMENTS` carries no usable request): pass no `--title`:
-
-    ```bash
-    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-prd --allocate
-    ```
-
-  `--allocate` creates the delivery ticket (type `task`, built-in title
-  `"Product definition (PRD)"` unless overridden by `--title`), its workspace
-  partition, the `.lock`, the session pointer, and the `in_progress` run entry.
+A PRD run needs no ticket: `step start` opens a run over the invocation — or
+resumes this checkout's interrupted create-prd run, so re-running the skill
+after a handoff picks up where it stopped — and the post-hook concludes it.
+Nothing is minted: no delivery ticket, no tracker sync, no branch.
 
 If `acs step start` exits non-zero: STOP and surface its stderr verbatim.
 
-Parse the printed context JSON. Key fields: `partition`, `ticket_id`, `ticket`,
-`settings` (`ticket_prefix`), `agents` (agent name to spawn per role),
-`reconcile`, `handoff_summary`, `design`, `pipeline`, `post_hook`.
+Parse the printed context JSON. Key fields: `partition`, `run_id`,
+`settings` (`ticket_prefix`, `parallel.max_agents`), `agents` (agent name to
+spawn per role), `reconcile`, `handoff_summary`, `checkout_root`.
 
 Keep the free text of `$ARGUMENTS` (product notes, amendment request): it is
 surveyor and author input. `<prd>` and `<roadmap>` are the repo-relative paths
-every later section uses; on the resume form, locate them the same way right
-after `acs step start`.
+every later section uses.
 
 ## Resume & reconcile
 
@@ -98,18 +66,15 @@ continuing:
    `steps/create-prd/state.json` to see which phases completed.
 2. Re-read `<repo>/<prd>` and `<repo>/<roadmap>` — does their content
    match what the recorded author results claim?
-3. Check delivery progress: does the delivery branch exist
-   (`git branch --list "<branch>"` / `git ls-remote --heads origin "<branch>"`)? Was a
-   PR already opened (`gh pr list --head "<branch>" --json number,url`)?
-4. Continue from the first unfinished phase. If reviewed docs already pass and the PR
-   is open, skip straight to Finish with the recorded references.
-5. Pick up at the first missing role: no `iter-1/authoring.md` → survey; a
+3. Continue from the first unfinished phase. If the reviewed docs already pass,
+   skip straight to Delivery and Finish.
+4. Pick up at the first missing role: no `iter-1/authoring.md` → survey; a
    survey whose open questions the ledger does not yet answer → ask them (User
    interaction); an author result with no review → review it; a review with
    findings and no later author result → author with those findings as
    `<context>`. A resume never re-runs the surveyor once its notes exist; the
    authoring notes (`iter-<n>/authoring.md`) belong to their iteration.
-6. A sliced phase resumes slice by slice: read its `iter-<n>/<role>-slices.json`
+5. A sliced phase resumes slice by slice: read its `iter-<n>/<role>-slices.json`
    and re-run ONLY the slices whose own report is missing (a surveyor slice
    without `iter-1/authoring-<id>.md` and `iter-1/surveyor-<id>.json`, a
    reviewer slice without `iter-<n>/reviewer-<id>.md`), all of them in ONE
@@ -136,8 +101,7 @@ iteration is judged against.
 
 **What an iteration counts:** one author -> review round. The survey belongs
 to iteration 1 and is not a round of its own. `/acs:create-prd` has no
-path-driven review-depth selection: the cap is a fixed 3 in every lane, and
-this ticket introduces none.
+path-driven review-depth selection: the cap is a fixed 3 on every run.
 
 | Role | Kind | Agent | Spawn as |
 |------|------|-------|------------|
@@ -242,14 +206,14 @@ Example task (fill real values; `<context>` carries `$ARGUMENTS` and any
 clarification answers the ledger already records):
 
 ```xml
-<task skill="create-prd" phase="surveyor" ticket-id="SHOP-1" iteration="1">
+<task skill="create-prd" phase="surveyor" iteration="1">
   <objective>Classify mode (greenfield/brownfield/amend) with evidence; record the prd.md and roadmap.md outline, the elicitation or reverse-engineering survey, the open questions for the user, and the `## Code evidence` / `## Answer fidelity` / `## Roadmap milestones` corroboration sections the review's deterministic floor parses in the authoring notes; write no repo file.</objective>
   <inputs>
-    <file>/abs/workspace/acme-shop/SHOP-1/ticket.json</file>
     <file>/abs/repo/docs/product/prd.md</file>
     <file>/abs/repo/README.md</file>
   </inputs>
   <constraints>
+    <constraint name="partition">/abs/workspace/acme-shop/runs/acs-create-prd-write-the-prd-3f9a</constraint>
     <constraint name="prd">docs/product/prd.md</constraint>
     <constraint name="roadmap">docs/product/roadmap.md</constraint>
     <constraint name="required_sections">Vision; Problem statement; Target users &amp; personas; Goals &amp; success metrics; Features (prioritized); Non-functional requirements; Constraints &amp; assumptions; Out of scope</constraint>
@@ -328,19 +292,9 @@ run with the error recorded. The join never runs over a missing slice.
 
 ### Author — the write
 
-Prepare the delivery branch before the first author runs (deterministic plumbing —
-you do it, not the author):
-
-```bash
-DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
-git fetch origin "$DEFAULT_BRANCH" && git checkout -b "<branch>" "origin/$DEFAULT_BRANCH"
-```
-
-`<branch>` is `<type>/<ticket_id>-<slug>` with `ticket_id` = delivery ticket id, `type` = `task`,
-`slug` = slugified ticket title — e.g. `task/MAR-51-amend-prd-add-org-enforcement-policy`. On a
-fresh repo with no remote default branch yet, `git checkout -b "<branch>"` from the
-current HEAD instead. If checkout fails (conflicting local changes), surface the git
-error and ask the user. Iterations 2-3 stay on the branch.
+No branch is prepared: the author writes into the working tree on whatever
+branch is checked out, and the documents stay there as uncommitted changes
+(Delivery below).
 
 Spawn the author (`phase="author"`) with the surveyor's notes
 (`iter-1/authoring.md`) and `<partition>/clarifications.json` in `<inputs>`, the
@@ -386,8 +340,8 @@ the write.
 
 ### Review
 
-Spawn the reviewer (`phase="reviewer"`) with ONLY artifact references (the two files,
-the ticket, the git diff) — never the author's reasoning. Its `<inputs>` also carry
+Spawn the reviewer (`phase="reviewer"`) with ONLY artifact references (the two files
+and the git diff) — never the author's reasoning. Its `<inputs>` also carry
 the iteration's authoring notes and `<partition>/clarifications.json`, and its
 `<constraints>` also carry `prd`, `roadmap`, `required_sections`,
 `audience_style_profile` (all declared above in the survey task example — the
@@ -487,37 +441,23 @@ finding of every slice and the floor verbatim into the next iteration's author `
 `<context>`; the surveyor does not re-run — the author authors the remediation,
 and the run continues author -> review.
 After iteration 3 with findings remaining: STOP — final status `failed`,
-findings recorded; go to Finish (no PR is opened).
+findings recorded; go to Finish (the files stay in the working tree as they are).
 
-## Deliver the docs-only PR
+## Delivery
 
-Only after the reviewer passes:
-
-```bash
-git add "<prd>" "<roadmap>"
-git commit -m "<commit message>"      # repo's own style, naming the ticket id; default <ticket_id> <summary>, e.g. "SHOP-1 Add product requirements document and roadmap"
-git push -u origin "<branch>"
-```
-
-Then follow `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/delivery-pr.md` for the
-label, the PR title, the body template, the pre-open self-check and
-`gh pr create` — the mechanics every delivery-ticket skill shares. Three
-things are this run's own:
-
-- **Where the body lives.** Write the filled body to
-  `steps/create-prd/pr-body.md`, and pass that path as
-  `--body-file` to both the self-check and `gh pr create`.
-- **What goes in it**, beyond the template's placeholders: Changes = the PRD
-  files added or amended; Test plan = the review dimensions checked; mark
-  TDD/coverage checklist items `N/A (docs-only PR)`. The default title renders
-  e.g. `Amend PRD: add org-level enforcement policy`.
-- **Reading the number back**: `gh pr view "<branch>" --json number,url`.
-  Record the PR number, URL, and branch for the result document.
+Only after the reviewer passes. Documents only, and they stay local: no branch,
+no commit, no push, no PR — whichever branch is checked out (ADR-0127). Leave
+`<prd>` and `<roadmap>` as uncommitted changes and record every path you wrote,
+repo-relative, in result `states.files`. The final message lists those files and
+points the user at `/acs:create-pr "<what the PRD change is>"` (e.g.
+`/acs:create-pr "PRD for the wishlist feature"`) — given a prompt, it groups the
+uncommitted changes by layer (the PRD its own commit), commits them on a branch
+of their own and opens the PR when the user is ready.
 
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list`
 and reuse any recorded answer — re-asking an answered question is a defect.
 When ≥2 clarifications are open, present them to the user in ONE grouped
 interaction (e.g. a single AskUserQuestion containing all open questions as a
@@ -529,11 +469,11 @@ per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
 Record every Q&A — obtained interactively or relayed in a /ship brief — with
-`clarify.py add --skill create-prd --question "..." --answer "..." --ticket <ticket-id>`
+`clarify.py add --skill create-prd --question "..." --answer "..."`
 BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`. If the user is unavailable or says "you decide": record the
 decision with `--source assumption --rationale "..."` — assumptions surface
-in the completion report's Findings and the PR body until a user confirms.
+in the completion report's Findings until a user confirms.
 Before a needs_input handoff, record the outgoing questions as `open`
 (`clarify.py add` without `--answer`).
 
@@ -547,7 +487,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 - **Amend**: confirm exactly which sections change and why before the author writes.
 - Ask only when genuinely ambiguous; never invent product facts. If you
   genuinely cannot reach the user (e.g. a non-interactive run), return a
-  `<handoff skill="create-prd" ticket-id="<id>" status="needs_input">` with
+  `<handoff skill="create-prd" status="needs_input">` with
   `<questions>` instead of guessing.
 
 ## Context pressure
@@ -557,36 +497,38 @@ answers, decisions, partial findings, gotchas) to
 `steps/create-prd/handoff-context.md`, then run
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
 ```
 
-and tell the user the printed `continue_with` command. Never burn the last of the
-context on work that would be lost.
+and tell the user the printed `continue_with` command (re-running this skill
+resumes the run, see Start). Never burn the last of the context on work that
+would be lost.
 
 ## Finish
 
 MANDATORY final step — never skipped, also on failure.
 
 1. Write `steps/create-prd/result.json` per the result-document contract
-   (INTERNALS.md), with the canonical `states` keys for create-prd — `prd` and `pr`,
-   exact names:
+   (INTERNALS.md), with the canonical `states` keys for create-prd — `prd` and
+   `files`, exact names:
 
    ```json
    {
      "status": "completed",
-     "summary": "PRD created and docs-only PR opened",
+     "summary": "PRD created and reviewed; left as local changes",
      "states": {
-       "prd": {"path": "docs/product", "files": ["docs/product/prd.md", "docs/product/roadmap.md"]},
-       "pr": {"number": 12, "url": "https://github.com/acme/shop/pull/12", "branch": "task/MAR-51-amend-prd-add-org-enforcement-policy"}
+       "prd": {"path": "docs/product"},
+       "files": ["docs/product/prd.md", "docs/product/roadmap.md"]
      },
      "findings": [],
      "errors": []
    }
    ```
 
-   On failure keep whatever is true: status `failed`, remaining reviewer findings in
-   `findings`, `states.prd` if the files were written, NO `states.pr` if no PR was
-   opened, and the reason in `summary`.
+   `files` lists EVERY repo path written, repo-relative — `/acs:create-pr`
+   groups exactly these into the PRD's commit. On failure keep whatever is true:
+   status `failed`, remaining reviewer findings in `findings`, `states.prd` and,
+   in `states.files`, the files written so far, and the reason in `summary`.
 
 2. Run the post-hook:
 
@@ -594,14 +536,13 @@ MANDATORY final step — never skipped, also on failure.
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-prd.py" --result-file "<the result.json you just wrote>"
    ```
 
-   It finalizes the run entry, updates `run.json` / `tickets-index.json`,
-   flips the delivery ticket to `in_review` (PR recorded), and releases the
-   `.lock`.
+   It finalizes the step, concludes the run `step start` opened, and releases
+   the `.lock`.
 
-3. Report a compact summary to the user: delivery ticket id, mode
-   (greenfield/brownfield/amend), files written, PR URL — and tell them to review the
-   PR themselves, then run `/acs:merge-pr <delivery-ticket-id>` to land it.
-   `/acs:create-architecture` is unblocked once the PRD exists. Under /acs:ship,
+3. Report a compact summary to the user: mode (greenfield/brownfield/amend)
+   and the uncommitted files written — and tell them to review the files, then
+   run `/acs:create-pr "<what the PRD change is>"` to commit them and open the PR.
+   `/acs:create-architecture` can run on the local PRD straight away. Under /acs:ship,
    return ONLY the `<handoff>` XML as your final message: status, summary <=1KB,
    artifact refs, next-step.
 
@@ -613,13 +554,13 @@ interrupted, or handed off — ends your final message with the standard block
 succeeded. Same labels, same order, `none` where empty; under /acs:ship your final message is the `<handoff>` XML instead — this report is for direct invocations:
 
 ```markdown
-## /acs:create-prd · <ticket-id> · <status>
+## /acs:create-prd · <mode> · <status>
 
-- **Ticket**: <id> — <title> (<type>)
+- **Ticket**: none — a ticketless run; the documents are delivered by `/acs:create-pr`
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: PRD files written/amended (`<prd>`, `<roadmap>`); delivery ticket id; PR number/URL
+- **Results**: PRD files written/amended (`<prd>`, `<roadmap>`), left as uncommitted changes (`states.files`)
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <partition files, repo paths, branch, PR URL>
+- **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:merge-pr <ticket-id>` after reviewing the docs PR; then `/acs:create-architecture`
+- **Next**: review the listed files, then `/acs:create-pr "<what the PRD change is>"` (e.g. `/acs:create-pr "PRD for the wishlist feature"`) to commit them and open the PR; `/acs:create-architecture` next
 ```

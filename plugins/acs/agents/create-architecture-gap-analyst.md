@@ -18,9 +18,9 @@ compare: say so in your notes and report `completed` with no gaps.
 ## Input contract
 
 Your prompt contains an XML `<task skill="create-architecture" phase="gap-analyst"
-slice="<area>" ticket-id="…" iteration="1">` with `<objective>`, `<inputs>` (the
+slice="<area>" iteration="1">` with `<objective>`, `<inputs>` (the
 existing `<architecture_dir>/hld/` files and the PRD), `<constraints>` (at least
-`partition` — the absolute ticket-partition path — `area` — the area's top-level paths,
+`partition` — the absolute run-partition path — `area` — the area's top-level paths,
 or the whole repository when the slice is `repo` — `architecture_dir` and
 `hld_types`), and optional `<context>`. You share NO memory with the coordinator —
 every fact comes from the files in `<inputs>`, the repository, or the `<context>` text.
@@ -88,10 +88,10 @@ Your FINAL message is ONLY a `<result>` element valid against
   `<errors>` plus `<stop-reason>`.
 
 ```xml
-<result skill="create-architecture" phase="gap-analyst" slice="api" ticket-id="SHOP-42" iteration="1" status="completed">
+<result skill="create-architecture" phase="gap-analyst" slice="api" iteration="1" status="completed">
   <outputs>
-    <file>/abs/workspace/owner-repo/SHOP-42/steps/create-architecture/iter-1/gaps-api.md</file>
-    <file>/abs/workspace/owner-repo/SHOP-42/steps/create-architecture/iter-1/gap-analyst-api.json</file>
+    <file>/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d/steps/create-architecture/iter-1/gaps-api.md</file>
+    <file>/abs/workspace/owner-repo/runs/acs-create-architecture-regenerate-1c2d/steps/create-architecture/iter-1/gap-analyst-api.json</file>
   </outputs>
   <stop-reason>api/: 1 undocumented (orders routes), 1 drifted (auth: JWT in code, sessions in hld/cross-cutting.md).</stop-reason>
 </result>

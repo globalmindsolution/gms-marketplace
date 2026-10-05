@@ -28,7 +28,7 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   `<partition>/specs/*.md`, and the repo paths the file map names. READ EVERY
   ONE. Derive `<partition>` from the directory containing the run ledger named
   in `<inputs>`;
-- `<constraints>` — at least `coverage_target`, `branch`, plus
+- `<constraints>` — at least `coverage_target`, plus
   `architecture_dir`, `standards_dir`, `docs_only` and
   `audience_style_profile` when set (the coordinator located the two
   directories; when one is absent, locate it yourself from CLAUDE.md, the

@@ -4,8 +4,8 @@ IDEAL does what /acs:create-api-contract's coordinator does, through the
 plugin's own writers where they exist: `acs step start`, the
 contract-author's draft in the step directory (mode
 no-machine-readable-contracts, so no contract files), the Publish copy into
-docs/tickets/EVAL-1/ and its commit on the ticket branch the scaffold checked
-out, then result.json with outcome contract_written and the post-hook.
+docs/tickets/EVAL-1/ left uncommitted on main (ADR-0127: no branch, no
+commit), then result.json with outcome contract_written and the post-hook.
 """
 
 import json
@@ -70,6 +70,12 @@ Mode `no-machine-readable-contracts`: the repo keeps no OpenAPI, schema or
 """
 
 
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
 def _start(ws):
     ws.skill("create-api-contract")
     started = ws.acs("step", "start", "--step", "create-api-contract", "--ticket", "EVAL-1")
@@ -83,6 +89,7 @@ def _finish(ws, outcome, items, published):
               "findings": [], "errors": []}
     if published:
         result["states"]["contract_path"] = PUBLISHED
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-api-contract.py" --result-file "%s/result.json"'
           % (SCRIPTS, STEP))
@@ -90,8 +97,7 @@ def _finish(ws, outcome, items, published):
 
 def _publish(ws, text):
     ws.write(STEP + "/api-contract.md", text)
-    ws.sh('cp "%s/api-contract.md" "%s" && git add "%s" && git commit -qm "EVAL-1 Contract for cursor pagination"'
-          % (STEP, PUBLISHED, PUBLISHED))
+    ws.sh('cp "%s/api-contract.md" "%s"' % (STEP, PUBLISHED))
 
 
 def IDEAL(ws):
@@ -126,3 +132,13 @@ BAD = {
     "invented an OpenAPI document": _invented_openapi,
     "a prose note instead of the contract": _prose_contract,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """The pre-ADR-0127 publish: everything right, then a ticket branch and a
+    commit -- only /acs:create-pr branches and commits now."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b story/EVAL-1-x && git add -A && git commit -qm "EVAL-1 publish"')
+
+
+BAD["committed what it published on a new ticket branch"] = _committed_on_a_ticket_branch

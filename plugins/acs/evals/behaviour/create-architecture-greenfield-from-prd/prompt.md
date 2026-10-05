@@ -4,18 +4,18 @@ description: >-
   no code, with the containers, APIs and deployment decided up front. It
   should design the high-level design only -- the ten default hld/ files
   (three containers, an API landscape, cross-cutting conventions, all
-  Mermaid), nothing under lld/ -- to satisfy the PRD, write no code, push its
-  delivery branch to origin, and report the failed gh PR step as a finding.
+  Mermaid), nothing under lld/ -- to satisfy the PRD, write no code, and leave
+  the set as uncommitted local changes listed in states.files -- no ticket,
+  branch, commit, push or PR (ADR-0127).
 expected_outcome: >-
   The ten default hld/ files exist under docs/architecture/hld/ and no lld/
   file was written; c4-container.md names booking-api, reminder-worker and
   PostgreSQL; integration-map.md is a Mermaid flowchart from booking-api and
   reminder-worker out to the SMS gateway; cross-cutting.md carries its four
   required sections and the GDPR / EU constraint; hld/c4-container.md opens
-  with version front matter, status proposed, EVAL-1 in tickets (ADR-0122);
-  no source file created; a
-  task/EVAL-1-* branch pushed with upstream set; result.json records the gh
-  failure and no PR.
+  with version front matter, status proposed (ADR-0122); no source file
+  created; HEAD still the scaffold's commit on main and nothing pushed; the
+  step finished with the written files in states.files and no PR.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 3000
@@ -40,6 +40,3 @@ it as confirmed and do not ask me anything.
   host in an EU region (the PRD's GDPR constraint); postgres is backed up
   nightly to storage in the same region.
 - Anything else you would confirm: take what the PRD says.
-
-Pushing to origin works from this machine, but there is no GitHub access
-here: when a gh call fails, handle it the way the skill says to, and finish.

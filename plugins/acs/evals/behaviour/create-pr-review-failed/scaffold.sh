@@ -56,7 +56,8 @@ python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null
 cat > "$run/steps/code/result.json" <<JSON
 {"status": "completed", "outcome": "implemented",
  "summary": "list_customers refuses a limit above MAX_PAGE_SIZE", "iteration": 1,
- "states": {"branch": "$branch", "tasks_implemented": ["01-page-size-cap"],
+ "states": {"specs_implemented": ["01-page-size-cap"],
+            "files": ["src/shop/__init__.py", "tests/test_customers.py"],
             "tests": {"passed": 2, "failed": 0}, "docs_updated": []},
  "findings": [], "errors": []}
 JSON

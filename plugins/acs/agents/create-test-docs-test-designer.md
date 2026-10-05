@@ -231,7 +231,7 @@ Your FINAL message is ONLY an XML `<result>` valid against
 
 - Write ONLY inside `steps/create-test-docs/`: your authoring notes, the
   draft and your test-designer report. NEVER the consumer repo,
-  NEVER the published `test-cases.md` (the coordinator publishes and commits
+  NEVER the published `test-cases.md` (the coordinator publishes
   it), NEVER the ticket, the clarification ledger, `run.json`, another
   ticket's partition, or another phase's artifacts.
 - NEVER write test code, fixtures, or any file under the repo's test

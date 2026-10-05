@@ -138,9 +138,10 @@ skill"; what a SKILL.md must say is:
    missing slice".
 8. **Resume per slice.** The Resume & reconcile section re-runs only the
    slices whose report is missing.
-9. **Commits on a shared branch.** A writer whose commit meets git's
-   `index.lock` waits briefly and retries; it never deletes the lock and
-   never forces anything.
+9. **Writers write; nobody commits.** Parallel writers leave their files in
+   the working tree and list them in their reports (`files_changed`); the
+   join is the reports plus the file-map guard. There is no commit, so no
+   `index.lock` to wait on (ADR-0127).
 
 ## Subagent definitions (`agents/<skill>-<role>.md`)
 
@@ -266,6 +267,16 @@ them for ordering or safety guarantees.
   produced by a step that may legitimately have been skipped or not yet run);
   it re-litigates an upstream artifact only on contradiction with reality.
 
+- **Only `/acs:create-pr` touches git history (ADR-0127).** A skill never
+  creates or switches a branch, stages, commits or pushes — `/acs:release`'s
+  `release/*` PR and `/acs:merge-pr`'s merge and cleanup are the only other
+  exceptions. It leaves its output as uncommitted changes, records every
+  repo-relative path it wrote in result `states.files`, and its final message
+  lists those files and points at the next step (at the end, `/acs:create-pr`).
+  A changeset read uses `acs.py changes diff`, never `git diff
+  <default>...HEAD`; a scope check snapshots at step start (`acs.py changes
+  snapshot`) and diffs `--since` that tree. On a failure or context pressure,
+  leave the work in the working tree — never commit to save it.
 - **Namespaced invocations everywhere** users/models will type them:
   `/acs:ship`, not `/ship`.
 - **Schema changes are additive.** State files tolerate unknown keys; never
