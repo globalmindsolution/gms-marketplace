@@ -1,4 +1,4 @@
-# /acs:analyze-requirements — the previous analysis and the survey's inputs
+# /acs:analyze-requirements — the survey: mode, inputs and the previous analysis
 
 Open this before the `plan` action: how the run's mode and folders are
 derived, what the context fields and the keys `acs.py artifacts show` prints
