@@ -116,6 +116,11 @@ the default branch.
 - A ticket crosses machines with its work and its pipeline state, so a
   receiver continues at the step the sender stopped at instead of re-running
   analysis and planning, and nothing reaches a branch before `/acs:create-pr`.
+- A receive never resets, cleans, stashes or writes the real index: the 3-way
+  merge runs as `git apply --3way --cached` in a temporary index, only the paths
+  that differ are written to the tree, and a conflict changes nothing. That needs
+  git 2.34 or newer on the receiving machine; an older git fails with git's own
+  error and nothing is touched.
 - **Anyone with read access to the remote can fetch the ref.** Hidden is not
   private: `git fetch origin refs/acs/handoff/<ID>` works for every reader.
   The package carries the work, the requirements, the clarification answers and
