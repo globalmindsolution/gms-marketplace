@@ -587,8 +587,9 @@ always shared, so only its folder can be in question.) Read `needs`:
 
 - **empty** → the saved choice decides, silently: `share: true` publishes to
   the phase folder; `share: false` keeps the analysis LOCAL — in the run's
-  state folder (`path`: `steps/analyze-requirements/local/analysis.md`), where every later step still reads it through `acs.py
-  artifacts show`, never in the repo and never in `/acs:create-pr`'s commits.
+  state folder (`path`: `steps/analyze-requirements/local/analysis.md`), where
+  every later step still reads it through `acs.py artifacts show`, never in
+  the repo and never in `/acs:create-pr`'s commits.
 - **`share`** → two group-(d) questions in the SAME grouped ask, never a
   separate one: "share run documents in the repo, or keep them local?" and
   "save this for you (this machine: `.acs/settings.local.json`) or for the
@@ -597,7 +598,8 @@ always shared, so only its folder can be in question.) Read `needs`:
   (`location_source: default` — no `docs.*_dir` setting, no existing folder):
   one group-(d) question — use `proposed_path`, give another repo-relative
   folder, or keep documents local (the share answer, so its scope is asked
-  too; not offered for `living:prd`). acs never creates a new docs folder without that answer.
+  too; not offered for `living:prd`). acs never creates a new docs folder
+  without that answer.
 
 Record each answer in the ledger like any other, then save it with ONE call
 carrying only what was answered; it prints the new `where`:
@@ -606,8 +608,8 @@ carrying only what was answered; it prints the new `where`:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location development=docs/development --doc analysis.md
 ```
 
-When the user is not reachable (below) and `needs` is non-empty, keep the
-analysis LOCAL for this run only — `acs.py docs decide --share no --scope run`,
+When the user is not reachable (below) and `needs` is non-empty, a
+Development run keeps the analysis LOCAL for this run only — `acs.py docs decide --share no --scope run`,
 nothing saved — and say so in the report. A Discovery run whose folder is
 still open cannot publish without the answer: finish `interrupted`,
 `stop_reason: "needs_input"`, with the location question in `<questions>`.
@@ -672,7 +674,9 @@ then with `requirements refine` `{"feature": "<slug>"}`. A group-(a) question
 with a fallback is recorded as an assumption on that fallback; one where every
 default could build the wrong thing makes the work not plannable —
 `record-clarify --blocking-open`, and
-`references/not-ready-for-planning.md` carries what to do about it.
+`references/not-ready-for-planning.md` carries what to do about it. The
+document questions are never assumed into the settings: an open share choice
+keeps the analysis local for this run only (Where the analysis goes, above).
 
 This skill is where the requirements' ambiguities are SUPPOSED to surface, so the
 analysis's `## Questions` section and the ledger are the same set of facts in

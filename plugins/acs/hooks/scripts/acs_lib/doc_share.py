@@ -12,7 +12,9 @@ Two choices, each asked once and saved, never inferred:
            it, and /acs:create-pr never commits it. Saved for this machine in
            `.acs/settings.local.json` (scope `user`) or for the team in
            `.acs/settings.json` (scope `team`); the settings cascade gives the
-           machine's answer precedence.
+           machine's answer precedence. A run that cannot ask (headless)
+           records a choice for itself only, `<run>/docs-choice.json` (scope
+           `run`), which takes precedence over both and saves nothing.
   location a phase folder that resolves only to acs's built-in default (no
            `docs.<kind>_dir` and nothing discovered, `doc_layout.resolve_dir`)
            does not exist yet; acs never creates it without the user's answer,
@@ -27,7 +29,7 @@ refused, never guessed.
 
 import os
 
-from ._common import GateError, read_json
+from ._common import GateError, now_iso, read_json, write_json
 from . import doc_layout
 from .repo import checkout_root, main_repo_root
 from .run import step_dir
@@ -47,8 +49,10 @@ LOCAL_DIRNAME = "local"
 #: The living documents `where` answers for: always shared, by folder kind.
 LIVING_DOCS = {"living:prd": "prd", "living:architecture": "architecture"}
 DOC_CHOICES = tuple(LOCAL_STEPS) + tuple(LIVING_DOCS)
-#: The two scopes a share choice is saved in, and the file each writes.
-SCOPES = ("user", "team")
+#: The scopes a share choice is saved in: this machine, the team, or -- when
+#: the user cannot be asked -- this run only (nothing saved).
+SCOPES = ("user", "team", "run")
+RUN_CHOICE_FILENAME = "docs-choice.json"
 LOCAL_SETTINGS = os.path.join(".acs", "settings.local.json")
 TEAM_SETTINGS = os.path.join(".acs", "settings.json")
 DECIDE_HINT = "acs.py docs decide"
@@ -75,12 +79,18 @@ def scope_files(cwd):
             "team": os.path.join(top, TEAM_SETTINGS)}
 
 
-def _scope_of(path):
+def _scope_of(path, cwd):
+    """`user` for this machine's files (`.acs/settings.local.json`,
+    `~/.acs/settings.json`), `team` for a checkout's `.acs/settings.json`.
+    The checkout's own files are matched FIRST: when $HOME is the repo root,
+    `~/.acs/settings.json` IS the team file."""
     if path.endswith(LOCAL_SETTINGS):
         return "user"
-    if os.path.dirname(os.path.dirname(path)) == os.path.expanduser("~"):
-        return "user"
-    return "team"
+    roots = {r for r in (checkout_root(cwd), main_repo_root(cwd)) if r}
+    if any(os.path.realpath(path) == os.path.realpath(os.path.join(r, TEAM_SETTINGS))
+           for r in roots):
+        return "team"
+    return "user"
 
 
 def share_source(cwd):
@@ -92,8 +102,32 @@ def share_source(cwd):
         data = read_json(candidate)
         docs = data.get("docs") if isinstance(data, dict) else None
         if isinstance(docs, dict) and isinstance(docs.get("share_run_documents"), bool):
-            value, scope, path = docs["share_run_documents"], _scope_of(candidate), candidate
+            value, scope, path = (docs["share_run_documents"], _scope_of(candidate, cwd),
+                                  candidate)
     return value, scope, path
+
+
+def run_choice_path(rdir):
+    """`<run>/docs-choice.json`: a share choice for this run only (scope
+    `run`) -- what a skill records when the user cannot be asked (headless):
+    the documents stay local for this run and nothing is saved."""
+    return os.path.join(rdir, RUN_CHOICE_FILENAME) if rdir else None
+
+
+def run_choice(rdir):
+    """This run's own share choice (True/False), or None."""
+    data = read_json(run_choice_path(rdir)) if rdir else None
+    value = data.get("share_run_documents") if isinstance(data, dict) else None
+    return value if isinstance(value, bool) else None
+
+
+def record_run_choice(rdir, share):
+    """Record a share choice for this run only. Returns the file written."""
+    if not rdir:
+        raise GateError("--scope run needs a run: start one, or name it with --run")
+    path = run_choice_path(rdir)
+    write_json(path, {"share_run_documents": bool(share), "at": now_iso()})
+    return path
 
 
 def _rel(root, path):
@@ -144,8 +178,13 @@ def where(ctx, doc, rdir=None, layout=None):
     if living:
         share, scope, sfile = True, "living", None
     else:
-        share, scope, sfile = share_run_documents(settings), None, None
-        if share is not None and root:
+        has_run = bool(rdir and layout and layout.get("run_id"))
+        share, scope, sfile = run_choice(rdir if has_run else None), "run", None
+        if share is not None:
+            sfile = run_choice_path(rdir)
+        else:
+            share, scope = share_run_documents(settings), None
+        if share is not None and scope is None and root:
             found, found_scope, found_file = share_source(root)
             if found == share:
                 scope, sfile = found_scope, found_file
@@ -179,6 +218,21 @@ def where(ctx, doc, rdir=None, layout=None):
     }
 
 
+def overview(ctx, rdir=None):
+    """Every document's `where` plus the share choice and the three folders --
+    /acs:setup's view, and what `docs where` / `docs decide` print without
+    `--doc`: {share, share_scope, share_file, kinds: {kind: {path, source}},
+    documents: {doc: where}}."""
+    from .run_docs import run_layout
+    layout = run_layout(ctx, rdir)
+    documents = {doc: where(ctx, doc, rdir, layout=layout) for doc in DOC_CHOICES}
+    plan = documents["plan.md"]
+    return {"share": plan["share"], "share_scope": plan["share_scope"],
+            "share_file": plan["share_file"], "run_id": layout.get("run_id"),
+            "kinds": doc_layout.resolve_dirs(ctx.get("checkout_root"), ctx.get("settings")),
+            "documents": documents}
+
+
 def describe_choice(info):
     """The phrase a completion report names a document's destination with:
     `kept local (team default)`, `shared to docs/development/...`, ..."""
@@ -186,6 +240,8 @@ def describe_choice(info):
         return "undecided (needs %s)" % " and ".join(info["needs"])
     if info.get("share"):
         return "shared to %s" % (info.get("path") or info.get("location"))
+    if info.get("share_scope") == "run":
+        return "kept local (this run only)"
     return "kept local (%s default)" % (info.get("share_scope") or "saved")
 
 

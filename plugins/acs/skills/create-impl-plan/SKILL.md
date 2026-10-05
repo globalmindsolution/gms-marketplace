@@ -534,10 +534,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc plan.md
 
 - **`needs` empty** → follow it silently. `share: true` publishes to `path`,
   the phase folder; `share: false` keeps the document LOCAL — `path` is in the
-  run's state folder
-  (`steps/create-impl-plan/local/plan.md`), later steps still read it through `acs.py artifacts
-  show`, it never enters `states.files`, and `/acs:create-pr` never commits
-  it. Either way `<plan_path>` is its `abs_path`.
+  run's state folder (`steps/create-impl-plan/local/plan.md`), later steps
+  still read it through `acs.py artifacts show`, it never enters
+  `states.files`, and `/acs:create-pr` never commits it. Either way
+  `<plan_path>` is its `abs_path`.
 - **`needs` non-empty** → its questions join this skill's ONE grouped ask
   (User interaction), never a separate one; with no other question, ask them
   alone in one AskUserQuestion before Publish. `share`: "share run documents
@@ -545,14 +545,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc plan.md
   `.acs/settings.local.json`) or for the team (`.acs/settings.json`)?".
   `location` (`location_source: default` — no setting, no existing folder):
   "use `proposed_path`, give another repo-relative folder, or keep documents
-  local?" — keeping them local is the share answer, so ask its scope too. acs never creates a new docs folder without that answer. Record
-  the answers in the ledger, then save them in ONE call carrying only what
-  was answered — it prints the new `where`:
-  `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location development=docs/development --doc plan.md`.
+  local?" — keeping them local is the share answer, so ask its scope too. acs
+  never creates a new docs folder without that answer. Record the answers in
+  the ledger, then save them in ONE call carrying only what was answered — it
+  prints the new `where`: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location development=docs/development --doc plan.md`.
 - **The user cannot be reached** (headless, nothing relayed in a `/acs:ship`
-  brief) and `needs` is non-empty → keep the document LOCAL for this run
-  only — `acs.py docs decide --share no --scope run`, nothing saved — and say
-  so in the report.
+  brief) and `needs` is non-empty → keep the document LOCAL for this run only
+  — `acs.py docs decide --share no --scope run`, nothing saved — and say so in
+  the report.
 
 The completion report names where it went: "shared to <path>", "kept local
 (team default)", "kept local (your default)" or "kept local (this run only)".

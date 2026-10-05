@@ -1,8 +1,8 @@
 """acs_docs_commands — `acs.py docs <verb>`: where a document goes, and the
 user's saved answers that decide it (ADR-0132).
 
-    acs.py docs where --doc <name> [--run R]
-    acs.py docs decide [--share yes|no --scope user|team]
+    acs.py docs where [--doc <name>] [--run R]
+    acs.py docs decide [--share yes|no --scope user|team|run]
                        [--location KIND=PATH ...] [--doc <name>] [--run R]
 
 `<name>` is a per-run document (analysis.md, plan.md, test-cases.md,
@@ -10,11 +10,15 @@ design.md, api-contract.md) or a living one (living:prd, living:architecture).
 `where` is read-only: the destination, the saved share choice and its scope,
 how the folder was resolved (setting | discovered | default), and `needs` --
 the questions still open (`share`, `location`). Every writer runs it before
-its first write and asks what `needs` names in its one grouped ask.
+its first write and asks what `needs` names in its one grouped ask. Without
+`--doc` it prints every document's `where`, the share choice and the three
+folders' {path, source} -- /acs:setup's view.
 
 `decide` records the answers: `--share` into `.acs/settings.local.json`
 (scope `user`, this machine; made gitignored through `.git/info/exclude` when
 nothing ignores it yet) or `.acs/settings.json` (scope `team`), and
+`--scope run` records it for this run only (`<run>/docs-choice.json`, nothing
+saved -- the headless answer, which takes precedence for that run), and
 `--location KIND=PATH` (KIND: prd, architecture, development) as
 `docs.<kind>_dir` in `.acs/settings.json`. Each file is merged -- only the keys
 set here change; a missing file is created. It prints the new `where` (for
@@ -56,9 +60,19 @@ def _where(command, ctx, rdir, doc):
         die(command, str(exc))
 
 
+def _overview(command, ctx, rdir):
+    try:
+        return doc_share.overview(ctx, rdir)
+    except lib.GateError as exc:
+        die(command, str(exc))
+
+
 def cmd_docs_where(args):
     ctx, rdir = _run("docs where", args.run)
-    emit(dict(_where("docs where", ctx, rdir, args.doc), ok=True))
+    if args.doc:
+        emit(dict(_where("docs where", ctx, rdir, args.doc), ok=True))
+    else:
+        emit(dict(_overview("docs where", ctx, rdir), ok=True))
 
 
 def _parse_locations(values):
@@ -108,27 +122,33 @@ def _write(path, updates):
 def cmd_docs_decide(args):
     if (args.share is None) != (args.scope is None):
         die("docs decide", "--share and --scope go together: --share yes|no --scope "
-                           "user|team (user: this machine, .acs/settings.local.json; "
-                           "team: .acs/settings.json)")
+                           "user|team|run (user: this machine, .acs/settings.local.json; "
+                           "team: .acs/settings.json; run: this run only, nothing saved)")
     locations = _parse_locations(args.location)
     if args.share is None and not locations:
-        die("docs decide", "nothing to record: pass --share yes|no --scope user|team "
+        die("docs decide", "nothing to record: pass --share yes|no --scope user|team|run "
                            "and/or --location KIND=PATH")
     if args.doc and args.doc not in doc_share.DOC_CHOICES:
         die("docs decide", "unknown document %r (one of %s)"
             % (args.doc, ", ".join(doc_share.DOC_CHOICES)))
     ctx, rdir = _run("docs decide", args.run)
+    if args.scope == "run" and rdir is None:
+        die("docs decide", "--scope run records the choice in a run, and there is none: "
+                           "name it with --run, or start one first")
     try:
         files = doc_share.scope_files(ctx["checkout_root"])
     except lib.GateError as exc:
         die("docs decide", str(exc))
     plan = {}  # file -> (scope, {docs key: value})
-    if args.share is not None:
+    written = []
+    if args.scope == "run":
+        written.append({"scope": "run", "changed": True, "keys": ["share_run_documents"],
+                        "file": doc_share.record_run_choice(rdir, args.share == "yes")})
+    elif args.share is not None:
         plan.setdefault(files[args.scope], (args.scope, {}))[1][
             "share_run_documents"] = args.share == "yes"
     for kind, path in sorted(locations.items()):
         plan.setdefault(files["team"], ("team", {}))[1][doc_layout.KIND_SETTINGS[kind]] = path
-    written = []
     for path, (scope, docs) in plan.items():
         entry = {"scope": scope, "file": path, "changed": _write(path, {"docs": docs}),
                  "keys": sorted("docs.%s" % key for key in docs)}
@@ -137,7 +157,7 @@ def cmd_docs_decide(args):
         written.append(entry)
     ctx = context_or_die("docs decide")  # re-read the cascade the files now form
     warnings = []
-    if args.share is not None:
+    if args.share is not None and args.scope != "run":
         value, _scope, source = doc_share.share_source(ctx["checkout_root"])
         if value != (args.share == "yes"):
             warnings.append("the saved answer is overridden by %s, which sets "
@@ -147,8 +167,7 @@ def cmd_docs_decide(args):
     if args.doc:
         out.update(_where("docs decide", ctx, rdir, args.doc))
     else:
-        out["documents"] = {doc: _where("docs decide", ctx, rdir, doc)
-                            for doc in doc_share.DOC_CHOICES}
+        out.update(_overview("docs decide", ctx, rdir))
     emit(out)
 
 
@@ -160,7 +179,9 @@ def add_parser(group):
 
     where = sub.add_parser("where", help="read-only: a document's destination and "
                                          "the questions still open")
-    where.add_argument("--doc", required=True, choices=doc_share.DOC_CHOICES)
+    where.add_argument("--doc", choices=doc_share.DOC_CHOICES,
+                       help="one document; without it, every document plus the share "
+                            "choice and the three folders")
     where.add_argument("--run", help="a run other than this checkout's current one")
     where.set_defaults(func=cmd_docs_where)
 
@@ -169,7 +190,8 @@ def add_parser(group):
                         help="share run documents in the repo (yes) or keep them local (no)")
     decide.add_argument("--scope", choices=doc_share.SCOPES,
                         help="user: this machine (.acs/settings.local.json); "
-                             "team: .acs/settings.json")
+                             "team: .acs/settings.json; run: this run only, nothing "
+                             "saved (when the user cannot be asked)")
     decide.add_argument("--location", action="append", metavar="KIND=PATH",
                         help="a docs folder, KIND one of %s; saved as docs.<kind>_dir "
                              "in .acs/settings.json (repeatable)" % ", ".join(LOCATION_KINDS))
