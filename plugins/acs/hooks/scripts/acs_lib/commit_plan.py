@@ -84,6 +84,11 @@ def is_doc_path(path):
     return path.lower().endswith(_DOC_EXTENSIONS) or bool(_DOC_DIRS.intersection(parts[:-1]))
 
 
+#: The living LLD subfolders a feature keeps (edited in place, ADR-0126); any
+#: other folder under lld/<feature>/ is one change's design records.
+_LLD_LIVING = {"api", "data", "flows", "components"}
+
+
 def doc_set(path):
     """(key, label) of the doc set a document belongs to."""
     if path.startswith(TICKETS_PATH + "/") and path.count("/") >= 3:
@@ -94,7 +99,16 @@ def doc_set(path):
     if "lld" in dirs:
         rest = parts[dirs.index("lld") + 1:-1]
         feature = rest[0] if rest else None
+        if len(rest) >= 2 and rest[1] not in _LLD_LIVING:
+            # One change's design records (ADR-0128): lld/<feature>/<id>/.
+            raw = path.split("/")[:-1][dirs.index("lld") + 2]
+            return "lld/%s/%s" % (feature, raw), "%s design records" % raw
         return ("lld/%s" % feature, "LLD %s" % feature) if feature else ("lld", "LLD")
+    if "features" in dirs and name == "analysis.md":
+        feature = parts[dirs.index("features") + 1] if dirs.index("features") + 1 < len(dirs) \
+            else None
+        if feature and dirs.index("features") + 2 == len(dirs):
+            return "prd/features/%s" % feature, "feature %s analysis" % feature
     if "hld" in dirs:
         return "hld", "HLD"
     if "development" in dirs:

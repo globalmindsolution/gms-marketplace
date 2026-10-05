@@ -358,6 +358,16 @@ class TestRefine(RequirementsCase):
         index = lib.read_json(lib.index_path(self.ws, REPO_ID))["tickets"][tid]
         self.assertEqual(index["features"], ["wishlist"])
 
+    def test_a_later_refine_of_one_key_keeps_the_others(self):
+        rdir = self.new_run({"kind": "prompt", "text": "x"})
+        R.refine(rdir, self.ctx(), {"acceptance_criteria": ["a"], "needs_design": True,
+                                    "feature": "export"})
+        R.refine(rdir, self.ctx(), {"features": ["export", "billing"]})
+        refined = R.load_refined(rdir)
+        self.assertEqual((refined["acceptance_criteria"], refined["needs_design"],
+                          refined["feature"], refined["features"]),
+                         (["a"], True, "export", ["export", "billing"]))
+
     def test_bad_input_is_refused(self):
         rdir = self.new_run({"kind": "prompt", "text": "x"})
         for data in ({"ticket": "SHOP-1"}, {"acceptance_criteria": "one"},
@@ -797,8 +807,13 @@ class TestCommitPlanDocSets(unittest.TestCase):
                          ("development/export/SHOP-1", "SHOP-1 docs"))
         self.assertEqual(commit_plan.doc_set("docs/development/export/notes.md")[0],
                          "development/export")
-        self.assertEqual(commit_plan.doc_set("docs/architecture/lld/export/SHOP-1/design.md")[0],
-                         "lld/export")
+        self.assertEqual(commit_plan.doc_set("docs/architecture/lld/export/SHOP-1/design.md"),
+                         ("lld/export/SHOP-1", "SHOP-1 design records"))
+        self.assertEqual(commit_plan.doc_set("docs/architecture/lld/export/data/erd.md")[0],
+                         "lld/export", "the living LLD stays the feature's group")
+        self.assertEqual(commit_plan.doc_set("docs/product/features/export/analysis.md"),
+                         ("prd/features/export", "feature export analysis"))
+        self.assertEqual(commit_plan.doc_set("docs/product/prd.md")[0], "prd")
 
 
 if __name__ == "__main__":
