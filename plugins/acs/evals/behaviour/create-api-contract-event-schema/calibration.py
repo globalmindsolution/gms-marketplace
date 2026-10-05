@@ -47,7 +47,7 @@ def _finish(ws, files):
 
 def _publish(ws, text, extra=()):
     ws.write(STEP + "/api-contract.md", text)
-    ws.sh('cp "%s/api-contract.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p "%s" && cp "%s/api-contract.md" "%s"' % (os.path.dirname(PUBLISHED), STEP, PUBLISHED))
 
 
 def IDEAL(ws):

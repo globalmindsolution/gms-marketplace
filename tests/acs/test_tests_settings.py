@@ -124,7 +124,8 @@ class SchemaTest(unittest.TestCase):
     def test_top_level_properties(self):
         self.assertEqual(list(self.schema["properties"]),
                          ["ticket_prefix", "merge_strategy", "tests", "evals",
-                          "workflow", "models", "tracker", "design", "parallel", "release"])
+                          "workflow", "models", "tracker", "design", "docs", "parallel",
+                          "release"])
 
     def test_legacy_blocks_are_gone_from_the_schema(self):
         for key in ("test_coverage_percent", "suites", "e2e"):

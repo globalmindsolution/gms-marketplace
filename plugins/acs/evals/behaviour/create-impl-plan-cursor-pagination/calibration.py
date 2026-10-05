@@ -92,7 +92,7 @@ def _finish(ws, file_map):
 
 def _publish(ws, text):
     ws.write(STEP + "/plan.md", text)
-    ws.sh('cp "%s/plan.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p "%s" && cp "%s/plan.md" "%s"' % (os.path.dirname(PUBLISHED), STEP, PUBLISHED))
 
 
 def IDEAL(ws):

@@ -75,7 +75,7 @@ def _finish(ws, cases, untraced=()):
 
 def _publish(ws, text):
     ws.write(STEP + "/test-cases.md", text)
-    ws.sh('cp "%s/test-cases.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p "%s" && cp "%s/test-cases.md" "%s"' % (os.path.dirname(PUBLISHED), STEP, PUBLISHED))
 
 
 def IDEAL(ws):

@@ -31,7 +31,7 @@ def _start(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/test-cases.md", text)
-    ws.sh('cp "%s/test-cases.md" "%s"' % (STEP, PUBLISHED))
+    ws.sh('mkdir -p "%s" && cp "%s/test-cases.md" "%s"' % (os.path.dirname(PUBLISHED), STEP, PUBLISHED))
 
 
 def _finish(ws, cases, e2e, status="completed", untraced=(), stop_reason=None):
