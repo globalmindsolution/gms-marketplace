@@ -32,7 +32,7 @@ settings); nothing is created.
 import os
 import re
 
-from .settings import load_settings
+from .settings import docs_path_problem, load_settings
 
 DEFAULT_PRD_DIR = "docs/product"
 DEFAULT_ARCHITECTURE_DIR = "docs/architecture"
@@ -73,7 +73,9 @@ def _docs_setting(root, settings, key):
             settings = {}
     docs = (settings or {}).get("docs")
     value = docs.get(key) if isinstance(docs, dict) else None
-    return _posix(value) if isinstance(value, str) and value.strip() else None
+    # An invalid value is refused by validate_settings at every gate; a path
+    # lookup that meets one anyway discovers the folder instead of obeying it.
+    return _posix(value) if value is not None and docs_path_problem(value) is None else None
 
 
 def _walk(root):

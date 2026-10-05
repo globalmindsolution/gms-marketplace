@@ -165,7 +165,39 @@ def validate_settings(settings, cwd, require_workspace=True):
         raise GateError("merge_strategy must be one of squash|merge|rebase; got %r." % (strategy,))
     validate_models(settings.get("models", {}))
     validate_design(settings.get("design", {}))
+    validate_docs(settings.get("docs", {}))
     return workspace if require_workspace else None
+
+
+#: The optional `docs` folders (ADR-0128). Never defaulted in the settings: an
+#: absent key means acs_lib.doc_layout DISCOVERS the folder.
+DOCS_KEYS = ("prd_dir", "architecture_dir", "development_dir")
+
+
+def docs_path_problem(value):
+    """Why `value` is not a usable repo-relative folder, or None."""
+    if not isinstance(value, str) or not value.strip():
+        return "must be a non-empty repo-relative path string"
+    parts = value.replace("\\", "/").split("/")
+    if value.startswith("/") or os.path.isabs(value) or re.match(r"^[A-Za-z]:", value):
+        return "must be repo-relative, not absolute (%r)" % value
+    if ".." in parts:
+        return "must stay inside the repo -- no '..' (%r)" % value
+    return None
+
+
+def validate_docs(docs):
+    """`docs` is {prd_dir?, architecture_dir?, development_dir?}: each a
+    repo-relative folder with no `..`. Raises GateError."""
+    if not isinstance(docs, dict):
+        raise GateError("docs must be an object: {prd_dir?, architecture_dir?, "
+                        "development_dir?} (repo-relative folders).")
+    for key, value in docs.items():
+        if key not in DOCS_KEYS:
+            raise GateError("docs.%s is not a setting (allowed: %s)." % (key, ", ".join(DOCS_KEYS)))
+        problem = docs_path_problem(value)
+        if problem:
+            raise GateError("docs.%s %s." % (key, problem))
 
 
 def resolve_template(value, repo_root, plugin_root):

@@ -429,6 +429,69 @@ class TestDocLayout(RequirementsCase):
             join(self.repo, "docs", "tickets", "SHOP-1", "plan.md"))
 
 
+class TestDocsSettings(RequirementsCase):
+    """The optional `docs` folders are first-class settings: declared in the
+    schema with no default, validated at every gate, discovered when absent."""
+
+    def schema(self):
+        from acs_case import REPO_ROOT
+        with open(os.path.join(REPO_ROOT, "plugins", "acs", "schemas",
+                               "settings.schema.json"), encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_the_schema_declares_exactly_the_keys_the_code_reads_and_no_default(self):
+        from acs_lib import settings as settings_mod
+        docs = self.schema()["properties"]["docs"]
+        self.assertEqual(tuple(docs["properties"]), settings_mod.DOCS_KEYS)
+        self.assertIs(docs["additionalProperties"], False)
+        self.assertNotIn("default", docs)
+        for key, spec in docs["properties"].items():
+            with self.subTest(key=key):
+                self.assertEqual(spec["type"], "string")
+                self.assertNotIn("default", spec)
+        self.assertNotIn("docs", lib.DEFAULT_SETTINGS)
+
+    def test_the_schema_pattern_and_the_validator_agree(self):
+        import re
+        from acs_lib.settings import docs_path_problem
+        pattern = self.schema()["properties"]["docs"]["properties"]["prd_dir"]["pattern"]
+        for value in ("docs/product", "spec", "a/b/c/", "/abs/path", "../up", "a/../b",
+                      "a/..", "..", "a..b/c"):
+            with self.subTest(value=value):
+                self.assertEqual(bool(re.search(pattern, value)),
+                                 docs_path_problem(value) is None)
+
+    def test_a_bad_value_is_refused(self):
+        for docs in ({"prd_dir": "/etc"}, {"development_dir": "../elsewhere"},
+                     {"architecture_dir": 3}, {"architecture_dir": " "},
+                     {"plans_dir": "x"}, ["docs"]):
+            with self.subTest(docs=docs), self.assertRaises(lib.GateError):
+                lib.validate_settings({"ticket_prefix": "SHOP", "docs": docs}, self.repo)
+        lib.validate_settings({"ticket_prefix": "SHOP",
+                               "docs": {"development_dir": "engineering/changes"}}, self.repo)
+
+    def test_a_bad_value_stops_a_step_and_is_never_obeyed(self):
+        self.write_settings({"ticket_prefix": "SHOP", "docs": {"development_dir": "../out"}})
+        out = self.acs("step", "start", "--step", "analyze-requirements", "--args", "x",
+                       code=2)
+        self.assertIn("docs.development_dir", out.stderr)
+        self.assertEqual(doc_layout.development_dir(
+            self.repo, {"docs": {"development_dir": "../out"}}), "docs/development")
+
+    def test_a_configured_folder_is_used_and_absence_means_discovery(self):
+        self.write("handbook/prd.md", "# PRD\n")
+        self.write_settings({"ticket_prefix": "SHOP",
+                             "docs": {"development_dir": "engineering/changes"}})
+        self.acs("run", "new", "--prompt", "bulk export")
+        self.acs("requirements", "refine", "--from", "-",
+                 stdin=json.dumps({"feature": "export"}))
+        out = self.acs("artifacts", "show")
+        self.assertEqual((out["development_dir"], out["prd_dir"]),
+                         ("engineering/changes", "handbook"))
+        self.assertTrue(out["paths"]["plan.md"].startswith(
+            os.path.join(self.repo, "engineering", "changes", "export")))
+
+
 class TestRunDocs(RequirementsCase):
 
     def test_a_ticket_run_files_by_the_tickets_feature_and_reads_legacy_first(self):
