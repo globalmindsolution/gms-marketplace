@@ -2,7 +2,7 @@
 
 Read at Start, before anything is written.
 
-## Tech design artifact resolution
+### Tech design artifact resolution
 
 `tech-design.md` is the change's tech design — ONE file per ticket (or per
 ticketless run), one name, on every run. It is a human-facing document, the
@@ -62,7 +62,7 @@ its first block. Bump once per run: a draft that already exists (a resumed run)
 is never re-seeded or bumped again. The designer rewrites the body under the
 new section shape; the block stays the coordinator's.
 
-## Share or keep local — asked once, in the same grouped ask (ADR-0132)
+### Share or keep local — asked once, in the same grouped ask (ADR-0132)
 
 Whether `tech-design.md` enters the repo is a saved choice, not yours. Right
 after the artifact resolution, before anything is written, ask acs:

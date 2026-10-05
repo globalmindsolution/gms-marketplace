@@ -114,7 +114,8 @@ the artifacts alone.
    - The binding design — the published `tech-design.md` the task
      names: `<architecture_dir>/lld/<feature>/<id>/tech-design.md`
      in the checkout (or the parent epic's when the ticket inherits it; a
-     legacy `design.md` when that is where it was published),
+     legacy `design.md` there or in `docs/tickets/<id>/` when that is where
+     it was published),
      falling back to that ticket's workspace partition only when there
      was no checkout to publish into — when the ticket or its parent epic
      needs design; absent otherwise. `steps/create-tech-design/tech-design.md` under

@@ -40,7 +40,7 @@ SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skill
 PLANNERS = [
     "create-prd-surveyor.md",
     "create-architecture-architect.md",
-    "create-design-designer.md",
+    "create-tech-design-designer.md",
 ]
 
 CANONICAL_HEADING = "### Design-time doc-consistency step (ADR 0012)"
@@ -198,7 +198,7 @@ class Mar115SkillMdPointerCase(unittest.TestCase):
     SKILL_DIRS = [
         "create-prd",
         "create-architecture",
-        "create-design",
+        "create-tech-design",
     ]
 
     def test_each_skillmd_mentions_adr_0012_step(self):
@@ -262,7 +262,7 @@ class Mar115DocTailCase(unittest.TestCase):
         headings = [
             "## `/create-prd` (product-level)",
             "## `/create-architecture` (product-level)",
-            "## 2. `/create-design` *(conditional)*",
+            "## 2. `/create-tech-design` *(conditional)*",
         ]
         for heading in headings:
             with self.subTest(heading=heading):

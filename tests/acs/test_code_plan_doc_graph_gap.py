@@ -190,7 +190,7 @@ class PlanSkillPointerSentenceTest(unittest.TestCase):
         self.assertRegex(self.bullet_norm, r"(?i)touched-area")
 
     def test_pointer_distinguishes_from_full_step_without_restating_table(self):
-        # Scaled-down pattern mirroring create-design/SKILL.md:125-126 — must
+        # Scaled-down pattern mirroring create-tech-design/SKILL.md (create-design/SKILL.md:125-126 then) — must
         # not restate the E1-E4 table, only point at it, and must name that
         # this is narrower than the full shared design-time step.
         self.assertRegex(self.bullet_norm, r"(?i)not the full")

@@ -595,8 +595,8 @@ class TestCommitOwnership(unittest.TestCase):
     def test_create_design_publishes_and_commits_nothing_on_any_branch(self):
         """ADR-0127: not on the default branch, and not on a ticket branch
         that happens to be checked out for a re-design either."""
-        body = self.skill("create-design")
-        self.assertIn('cp "<partition>/steps/create-design/design.md" "<design_path>"', body)
+        body = self.skill("create-tech-design")
+        self.assertIn('cp "<partition>/steps/create-tech-design/tech-design.md" "<design_path>"', body)
         self.assertIn("never stages, commits or pushes (ADR-0127) — not on the default branch, and "
                       "not on a ticket branch", body)
         self.assertIn("`states.files`", body)

@@ -3465,7 +3465,7 @@ class TestCreateTicketAcDodGateDocs(unittest.TestCase):
         finalization absent explicit confirmation, and no new subagent."""
         body = self._skills_req()
         section_start = body.index("## 1. `/create-ticket`")
-        section_end = body.index("## 2. `/create-design`")
+        section_end = body.index("## 2. `/create-tech-design`")
         section = body[section_start:section_end]
         self.assertIsNotNone(
             re.search(r"(?is)(concrete|testable).{0,300}acceptance_criteria"

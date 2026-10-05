@@ -31,7 +31,7 @@ def norm(text):
 class VerifierGroundingPrecisionTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # Every JUDGE-kind agent (`<skill>-reviewer`, `-design-reviewer`, ...)
+        # Every JUDGE-kind agent (`<skill>-reviewer`, `-plan-reviewer`, ...)
         # plus any legacy `*-verifier.md`; review-code's lens/adjudicator
         # fan-out was never in this rule's scope.
         sys.path.insert(0, os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts"))

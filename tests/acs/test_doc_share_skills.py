@@ -35,7 +35,7 @@ RUN_DOCS = {
     "analyze-requirements": "analysis.md",
     "create-impl-plan": "plan.md",
     "create-test-docs": "test-cases.md",
-    "create-design": "design.md",
+    "create-tech-design": "tech-design.md",
     "create-api-contract": "api-contract.md",
 }
 #: skill -> the living document whose folder it may be the first to create.

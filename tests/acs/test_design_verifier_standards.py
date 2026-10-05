@@ -213,8 +213,11 @@ class SkillVerifyPhaseWiringTest(unittest.TestCase):
     def _window(self):
         # ADR-0135: the reviewer phase reads its slices from references/,
         # inlined at the pointer (skill_text.skill_contract).
+        # The inlined reference opens with its own `# ` title, so the window
+        # runs to the next coordinator heading, Publish.
         body = skill_text.skill_contract("create-tech-design")
-        return section(body, "### Phase: reviewer —")
+        start = body.index("### Phase: reviewer —")
+        return body[start:body.index("### Publish —", start)]
 
     def test_standards_dir_present(self):
         window = self._window()
