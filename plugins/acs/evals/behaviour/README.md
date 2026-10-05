@@ -2,7 +2,7 @@
 
 Cases asserting what each shipped skill **did** in a real session — the files
 it wrote, the state it recorded through acs's own writers, the reply it gave —
-never where a prompt routed (that is `../routing/`). Every skill has 2–8 cases
+never where a prompt routed (that is `../routing/`). Every skill has 2–9 cases
 here, one per documented mode, branch or refusal (a resume, a no-op, a gate
 that must refuse, an input that must stop for the user), and `setup`,
 `create-ticket` and `code` also have `../setup/` and `../artifacts/`. GitHub

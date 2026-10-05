@@ -728,10 +728,11 @@ the mode and the feature as
 `<constraint name="feature"><slug></constraint>`. It
 settles the whole-subject verdicts (API surface, design significance) once,
 from the reconciled notes plus the recorded answers — it does not re-survey —
-and writes the analysis folder the action prints
-(`steps/analyze-requirements/iter-<n>/analysis/`, one draft per run, revised in
-place across iterations, never renumbered) and its report
-`iter-<n>/analyst.json`. The folder holds two kinds of file.
+and writes the analysis folder the action prints as `draft`
+(`steps/analyze-requirements/iter-<n>/analysis/` — name it in the task's
+`<inputs>`, with the action's `shape`; one draft per run, revised in place
+across iterations, never renumbered) and its report `iter-<n>/analyst.json`.
+The folder holds two kinds of file.
 
 **The README** — `README.md`, readable on its own by someone who opens nothing
 else: EXACTLY this front matter and these six headings, in this order:
@@ -828,8 +829,8 @@ then one grouped ask) before the draft pass re-runs with the answers in
 ### Phase: impact reviewer — `acs:analyze-requirements-impact-reviewer`
 
 The `review` action. Spawn the three slices it prints (Judge slices above) in
-ONE message, each with `<inputs>` of the draft folder (its README and every
-context file), the authoring notes (the
+ONE message, each with `<inputs>` of the draft folder (the action's `draft`,
+and every file in its `draft_files`, README first), the authoring notes (the
 action's `notes`), the analyst report (`analyst_report`), `requirements.md`
 (its `## Refined` section as Stage 2 left it) and, on a ticket run, the ticket
 file, the clarification ledger, `design.md` when it binds, and the repo paths

@@ -91,6 +91,10 @@ concerned it.
 
 ## Consequences
 
+- An analysis loop that is mid-draft when this lands still holds a single-file
+  draft; it stops with a missing-artifact error rather than migrating. Re-run
+  `/acs:analyze-requirements` for that run: the published analysis it reads as
+  input is unchanged, and the next draft is a folder.
 - A reviewer opens the folder and lands on the README: what the change is,
   what is decided and what is still open, and a table saying where to read
   next. A context's owner reads one file.

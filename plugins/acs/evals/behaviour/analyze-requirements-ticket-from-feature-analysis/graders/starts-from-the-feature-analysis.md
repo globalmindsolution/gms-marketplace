@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/development/customer-listing/EVAL-1/analysis.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/analysis/README.md }
 pattern: '\b250\b'
 ---
 
