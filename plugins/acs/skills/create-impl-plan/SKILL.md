@@ -63,9 +63,10 @@ Parse the printed context JSON. Fields you will use:
   `artifacts["design.md"]` — the design record in
   `<architecture_dir>/lld/<feature>/<that id>/` (or a legacy
   `docs/tickets/<that id>/design.md`, read only), or `<design.dir>/design.md`
-  when an older design still lives in the partition. A ticketless run has no
-  `design` field: read `artifacts["design.md"]` from `acs.py artifacts show`
-  when it reports one. Call it `<design_doc>`; the plan is judged
+  when an older design still lives in the partition. On a ticketless run
+  `design` is absent, or `{required, dir: null, source: "requirements"}` once
+  analyze-requirements refined `needs_design`: read the run's own
+  `artifacts["design.md"]` from `acs.py artifacts show` when it reports one. Call it `<design_doc>`; the plan is judged
   against it.
 - `settings` — you need `tests.coverage` (the coverage target the plan
   states) and `tests.e2e` when set.

@@ -974,8 +974,9 @@ user, and say plainly whether they are ready to plan. It works in two phases
   (ADR-0122 version front matter plus `feature`). A run with no ticket MUST
   name or infer its feature: the one grouped ask proposes the PRD's feature
   slugs (`acs.py slug`), or a new slug when none fits.
-- **Development** — the first step of a `ship.yaml` run, on a ticket or a
-  prompt (or any run whose next step is `create-impl-plan`): the analysis is
+- **Development** — a run with a ticket, or one `/acs:ship` drives (its
+  first step), on a ticket or a prompt; `acs.py requirements refine` may set
+  the phase explicitly: the analysis is
   written to `<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`,
   and the survey MUST start from the feature's living analysis when one
   exists.

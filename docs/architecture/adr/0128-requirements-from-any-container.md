@@ -101,15 +101,20 @@ folder; and a run's documents live in one folder per phase.
    (`hld/tech-stack.md`), defaulting to `docs/architecture`; `<development_dir>`
    is an existing `docs/development/`, defaulting to it
    (`acs_lib.requirements.prd_dir`, `architecture_dir`, `development_dir`).
-   `/acs:analyze-requirements` run on its own (Discovery) writes the feature's
-   living analysis; run as a Development step — a `ship.yaml` run, or one whose
-   next step is `create-impl-plan` — it writes the Development folder's
+   A run's phase is Development when it has a ticket or `/acs:ship` drives it,
+   else Discovery (`requirements refine` may set it explicitly).
+   `/acs:analyze-requirements` on a Discovery run writes the feature's living
+   analysis; on a Development run it writes the Development folder's
    `analysis.md` and starts from the living analysis when there is one.
 7. **Read by run, legacy folders still read.** `artifacts.artifact_path`,
    `describe` and `acs.py artifacts show` resolve by run (`--run` or this
    checkout's pointer; `--ticket` keeps working). When a phase folder has no such
    file, an existing `docs/tickets/<ID>/<name>` is read instead, so tickets
-   started before this change keep their documents.
+   started before this change keep their documents. `acs.py artifacts migrate`
+   is retired: it reports and writes nothing. The file-map guard keeps the
+   legacy tree a control input and adds the run's Development and Design
+   folders: an executor never writes the plan or test cases it is checked
+   against.
 
 ## Consequences
 

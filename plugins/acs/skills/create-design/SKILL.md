@@ -409,8 +409,8 @@ All diagrams are Mermaid. The design references architecture docs by path; it
 never copies them wholesale. For an epic: design at epic level — children
 INHERIT this design via cross-partition read in their /acs:code; never
 duplicate or split it into child partitions. The design a child reads is the
-EPIC's `design.md`, resolved the same way (its docs folder, else its
-partition).
+EPIC's `design.md`, resolved the same way (its design record under
+`<architecture_dir>/lld/<feature>/<epic-id>/`, else its partition).
 
 Only the option-research pass above runs designers in parallel, and only
 because its slices own disjoint files (`iter-1/authoring-<id>.md`, one per
@@ -586,7 +586,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    ```
 
    `design_path` is the PUBLISHED path this run resolved (`<design_path>` —
-   repo-relative inside the docs tree, or `"design.md"` when it was published
+   repo-relative inside the design record folder, or `"design.md"` when it was published
    to the partition); `decision` is the one-line decision statement from "Decision &
    rationale"; `files` lists every repo-relative path this run wrote and left
    uncommitted (the published `design.md`; empty when it went to the

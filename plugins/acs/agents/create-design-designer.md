@@ -266,7 +266,7 @@ Your FINAL message is ONLY an XML `<result>` valid against
   notes (your slice's file when sliced; the draft pass's Synthesis file), the design
   draft (the draft pass only),
   and your designer report. NEVER
-  the consumer repo, NEVER the published `design.md` in the ticket's docs tree
+  the consumer repo, NEVER the published `design.md` in the design record folder
   (the coordinator publishes it, and the file-map guard denies you a write
   there), NEVER the requirements document (`requirements.md`), `run.json`, other tickets'
   partitions, or other phases' artifacts.

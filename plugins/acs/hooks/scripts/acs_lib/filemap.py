@@ -400,9 +400,9 @@ def _guard_control_input(target, tdir, ctx):
 
 def _run_docs_control_input(target, normalized, rdir, ctx):
     """The run's own phase folders (ADR-0128) -- its Development folder (the
-    plan and test cases an executor is checked against) and its Design folder
-    -- are what docs/tickets/<ID>/ was: written by the coordinator and the
-    document skills, never by an executor."""
+    plan and test cases an executor is checked against), its Design folder and
+    its feature's living analysis -- are what docs/tickets/<ID>/ was: written by
+    the coordinator and the document skills, never by an executor."""
     root = (ctx or {}).get("checkout_root")
     if not (root and rdir):
         return None
@@ -419,6 +419,13 @@ def _run_docs_control_input(target, normalized, rdir, ctx):
         if _under(target, folder) or normalized == rel or normalized.startswith(rel + "/"):
             return ("this run's documents (%s/), a control input only the coordinator "
                     "and the document skills write" % rel)
+    living = layout.get("feature_dir") and os.path.join(layout["feature_dir"], "analysis.md")
+    if living:
+        rel = normalize_repo_path(os.path.relpath(living, root))
+        if normalized == rel or (os.path.isabs(str(target))
+                                 and os.path.realpath(str(target)) == os.path.realpath(living)):
+            return ("the feature's living analysis (%s), a control input only "
+                    "/acs:analyze-requirements writes" % rel)
     return None
 
 

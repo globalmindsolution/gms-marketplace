@@ -1254,6 +1254,17 @@ ledger) and in the tracker. Nothing renders a `ticket.md`.
   last `## Clarifications`, the last `## Acceptance criteria` before it, the
   first `## Description` before that), so a description holding its own `## `
   headings survives.
+- **`acs.py artifacts migrate` is retired** (ADR-0128): tickets are no longer
+  stored in the docs tree, so it reports and writes nothing.
+- **The run's documents are a control input.** `acs_lib/filemap.py` denies a
+  writing agent's write under the legacy `<checkout_root>/docs/tickets/` ("the
+  ticket docs tree (`docs/tickets/`), a control input only the coordinator and
+  the ticket skills write") and under the run's own Development and Design
+  folders ("this run's documents (`<folder>/`), a control input only the
+  coordinator and the document skills write") with exit 2 — the same polarity
+  as the guard's own `active-agents/` and `iter-*-filemap.json` records: a
+  writer that can rewrite the plan it is checked against can rewrite its own
+  scope.
 
 ### Concurrency: two mechanisms, both fail closed
 

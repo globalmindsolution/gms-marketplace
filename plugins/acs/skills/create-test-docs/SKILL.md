@@ -72,7 +72,9 @@ Parse the printed context JSON. Fields you will use:
 - `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
   ticket whose design applies and its basename is that ticket's id. When
   `design.required`, resolve the design document with `acs.py artifacts show
-  --ticket <that id>` (`artifacts["design.md"]` — its docs folder, or
+  --ticket <that id>` (`artifacts["design.md"]` — its design record in
+  `<architecture_dir>/lld/<feature>/<that id>/`, a legacy
+  `docs/tickets/<that id>/design.md`, or
   `<design.dir>/design.md` when an older design still lives in the partition)
   and read it for the behaviour the design already settled. Call it
   `<design_doc>`.

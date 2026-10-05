@@ -247,7 +247,10 @@ matching section here, and merge to `main` — the Release workflow tags
   (`design.md`, `api-contract.md`); Development `docs/development/<feature>/<id>/`
   (a Development run's `analysis.md`, `plan.md`, `test-cases.md`), where `<id>` is
   the ticket id, else the run id. `acs.py artifacts show` resolves by run
-  (`--run`, or `--ticket` as before) and reports the phase folders.
+  (`--run`, or `--ticket` as before) and reports the phase folders;
+  `acs.py artifacts migrate` is retired (it reports and writes nothing). The
+  file-map guard now also denies an executor the run's Development and Design
+  folders, as it did `docs/tickets/`.
   **Migration:** nothing to run — existing `docs/tickets/<ID>/` folders stay
   readable: every reader falls back to them when a phase folder has no such file,
   so tickets in flight keep their documents. Look for new tickets' documents in

@@ -150,6 +150,17 @@ class TestParseSources(RequirementsCase):
         sources = self.parse("SHOP-1 a.md SHOP-1 a.md")
         self.assertEqual([s["kind"] for s in sources], ["ticket", "document"])
 
+    def test_a_skills_own_options_are_never_requirements(self):
+        self.write("plan.md", "# plan\n")
+        self.assertEqual(self.parse("--base origin/main SHOP-2 --plan plan.md --fan-out"),
+                         [{"kind": "ticket", "ticket_id": "SHOP-2"}])
+        self.assertEqual(self.parse("--suite smoke check the export"),
+                         [{"kind": "prompt", "text": "check the export"}])
+        self.assertEqual(self.parse("--draft=yes"), [])
+        self.assertEqual(R.subject_from_text("--base origin/main", self.ctx()),
+                         {"kind": "prompt", "text": "--base origin/main"},
+                         "an options-only invocation still opens a run")
+
     def test_another_prefix_is_not_a_ticket(self):
         self.assertEqual(self.parse("MAR-1"), [{"kind": "prompt", "text": "MAR-1"}])
 
@@ -710,6 +721,21 @@ class TestRunDocsAreAGuardControlInput(FileMapGuardCase):
                 self.assertEqual(out.returncode, 2, out.stderr)
                 self.assertIn("this run's documents", out.stderr)
         self.assertEqual(self.write_attempt("docs/development/other.md").returncode, 0)
+        living = self.write_attempt("docs/product/features/ship-it/analysis.md")
+        self.assertEqual(living.returncode, 2, living.stderr)
+        self.assertIn("living analysis", living.stderr)
+
+
+class TestCommitPlanDocSets(unittest.TestCase):
+
+    def test_a_changes_documents_group_by_feature_and_id(self):
+        from acs_lib import commit_plan
+        self.assertEqual(commit_plan.doc_set("docs/development/export/SHOP-1/plan.md"),
+                         ("development/export/SHOP-1", "SHOP-1 docs"))
+        self.assertEqual(commit_plan.doc_set("docs/development/export/notes.md")[0],
+                         "development/export")
+        self.assertEqual(commit_plan.doc_set("docs/architecture/lld/export/SHOP-1/design.md")[0],
+                         "lld/export")
 
 
 if __name__ == "__main__":

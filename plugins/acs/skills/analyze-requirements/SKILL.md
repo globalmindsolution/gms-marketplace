@@ -65,7 +65,8 @@ docs the repo already has, defaulting to `docs/product` and
 chosen by you (`context.requirements.phase`); only when the user explicitly
 asks for the feature's living analysis on a run that would be Development
 (e.g. "analyze the wishlist feature as a whole", naming a ticket for context)
-record `{"phase": "discovery"}` with `acs.py requirements refine` (Stage 2).
+record it — `acs.py analysis plan --mode discovery` when you declare the
+lanes, or `{"phase": "discovery"}` with `acs.py requirements refine`.
 Both modes need a **feature**: a ticket's first `features` slug, the feature
 the requirements name, or — when neither does — the one the user picks in
 Stage 2's grouped ask (Stage 2, "The feature").
@@ -287,7 +288,7 @@ reports it. Use the paths it prints; never derive them yourself. Then:
 
 | `action` | You do | Then report with |
 |---|---|---|
-| `plan` | Declare the code areas, once (Survey lanes below). | `acs.py analysis plan --areas <a>,<b>` (empty → one impact lane over the whole repository) |
+| `plan` | Declare the code areas, once (Survey lanes below). | `acs.py analysis plan --areas <a>,<b>` (empty → one impact lane over the whole repository; `--mode` only on the user's explicit ask, Two modes above) |
 | `survey` | Spawn every lane in `lanes` in ONE message (Stage 1). | `acs.py analysis record-survey` |
 | `synthesize` | Spawn the one synthesis analyst it names (Stage 1). | `acs.py analysis record-synthesis` |
 | `clarify` | Stage 2: ledger first, then one grouped ask. | `acs.py analysis record-clarify` — add `--blocking-open` when a question that blocks planning is still open |

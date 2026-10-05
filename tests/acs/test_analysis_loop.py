@@ -645,8 +645,9 @@ class TicketlessAnalysisCase(AnalysisLoopCase):
 
     def do_draft(self, n, text=None):
         if text is None:
-            text = DRAFT.format(tid=self.tid).replace("ticket: %s" % self.tid,
-                                                      "feature: %s" % FEATURE)
+            text = DRAFT.format(tid=self.tid).replace(
+                "ticket: %s" % self.tid,
+                "feature: %s\nstatus: proposed\nversion: 1\ntickets: []" % FEATURE)
         super().do_draft(n, text=text)
 
     def refine(self, data):
@@ -703,8 +704,10 @@ class TestTicketlessAnalysis(TicketlessAnalysisCase):
         self.to_draft()
         self.do_draft(1, text=DRAFT.format(tid=self.tid))
         checks = self.cli("record-draft")["next"]["draft_checks"]
-        self.assertEqual([c["dimension"] for c in checks], ["front-matter"])
-        self.assertIn("'feature'", checks[0]["text"])
+        self.assertEqual({c["dimension"] for c in checks}, {"front-matter"})
+        missing = " ".join(c["text"] for c in checks)
+        for key in ("'feature'", "'status'", "'version'", "'tickets'"):
+            self.assertIn(key, missing, "a Discovery analysis is versioned (ADR-0122)")
 
     def test_the_clarify_ledger_is_the_runs_own(self):
         mod_out = self.run_script("clarify.py", "add", "--skill", "analyze-requirements",

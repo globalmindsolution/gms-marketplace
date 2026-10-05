@@ -372,6 +372,10 @@ requirements — its sources, acceptance criteria, features and feature — and
 resolved: its phase folder, or an older ticket's `docs/tickets/<ID>/`, which
 is still read when a phase folder has no such file.
 
+Subagents may not write the run's Development or Design folder, or the legacy
+`docs/tickets/` tree — they are control inputs the file-map guard denies, like
+the guard's own records.
+
 Inspect progress anytime: `tickets-index.json` for status across tickets,
 `runs-index.json` for every run, `acs.py run show` for where a run stands,
 and `acs.py run next` for what runs next.

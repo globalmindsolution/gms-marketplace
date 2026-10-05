@@ -1,7 +1,7 @@
 """Plays for ship-raw-request (tests/evals/check_grader_calibration.py).
 
 IDEAL is ship on a free-text subject, as ship/SKILL.md Step 2 reads it: a new
-run from that prompt (`acs run new --prompt`), then every step of
+run from that prompt (`acs run next --args`), then every step of
 workflows/ship.yaml through its own writers (`acs step start`, the result
 document, the post-hook) on the current run, until create-pr fails at its
 critical gh base detection before any push.
@@ -43,11 +43,15 @@ def list_customers(offset=0, limit=PAGE_SIZE):
 class _Run(object):
     def __init__(self, ws):
         ws.skill("ship")
-        made = ws.acs("run", "new", "--prompt", REQUEST)
+        # ship/SKILL.md's loop: `run next --args "$ARGUMENTS"` resolves the
+        # free-text subject to a new run, marks it ship-driven (so its
+        # analysis is a Development run's) and records the prompt as its
+        # requirements.
+        made = ws.acs("run", "next", "--args", REQUEST)
         assert made.returncode == 0, made.stderr
         self.ws = ws
-        self.dir = os.path.relpath(json.loads(made.stdout)["path"], ws.path)
         self.run_id = json.loads(made.stdout)["run_id"]
+        self.dir = ".acs/state-machine/example-shop/runs/" + self.run_id
 
     def start(self, step):
         self.ws.skill(step)

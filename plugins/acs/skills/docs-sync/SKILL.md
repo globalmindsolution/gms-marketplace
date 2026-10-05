@@ -137,9 +137,9 @@ subject docs-sync falls back to):
    (where `/acs:create-design` publishes it), then a legacy
    `docs/tickets/<that-id>/design.md` (read only), then `design.md` in that
    ticket's workspace partition (`context.design.dir`, used only when there was
-   no checkout to publish into). A ticketless run has no `design` field: read
-   `artifacts["design.md"]` from the run's own `artifacts show` when it reports
-   one. `null` there means no design was published —
+   no checkout to publish into). On a ticketless run `design.dir` is null (or `design`
+   is absent): read `artifacts["design.md"]` from the run's own
+   `artifacts show` when it reports one. `null` there means no design was published —
    name it absent.
 
 `docs_updated`/`problems` may legitimately be near-empty for doc categories

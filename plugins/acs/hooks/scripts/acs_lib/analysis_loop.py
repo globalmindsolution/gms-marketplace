@@ -98,10 +98,27 @@ FEATURE_FRONT_MATTER_SPEC = ("feature: str; ready_for_planning: bool; api_surfac
                              "needs_design_recommendation: bool")
 
 
-def front_matter_spec(ticket_id):
+#: A Discovery analysis is the feature's LIVING document, versioned like the
+#: design set (ADR-0122): its draft carries the version keys too.
+DISCOVERY_VERSION_SPEC = ("status: proposed|approved|implemented|deprecated; version: int; "
+                          "tickets: list")
+
+
+def front_matter_spec(ticket_id, phase=None):
     """The draft's front-matter spec: `ticket` on a ticket's run, `feature`
-    on a run with no ticket."""
-    return FRONT_MATTER_SPEC if ticket_id else FEATURE_FRONT_MATTER_SPEC
+    on a run with no ticket -- plus the ADR-0122 version keys on a Discovery
+    run, whose analysis is the feature's living one."""
+    if ticket_id:
+        return FRONT_MATTER_SPEC
+    if phase == "discovery":
+        return FEATURE_FRONT_MATTER_SPEC + "; " + DISCOVERY_VERSION_SPEC
+    return FEATURE_FRONT_MATTER_SPEC
+
+
+def _phase(rdir):
+    from .requirements import run_phase
+    from .run import load_run
+    return run_phase(load_run(rdir), rdir=rdir)
 SECTIONS = ("Problem restated; Impact map; Questions; Assumptions; Risks; "
             "Refined acceptance criteria; Verdict")
 CHECKS_SLICE = "draft-checks"
@@ -541,12 +558,12 @@ def record_draft(rdir, loop):
     if not _require_files(loop, needed, [report]):
         return loop
     loop["draft"] = {"iteration": n, "sha256": sha256_file(draft_path(rdir)),
-                     "checks": run_checks(draft_path(rdir), loop["ticket_id"])}
+                     "checks": run_checks(draft_path(rdir), loop["ticket_id"], _phase(rdir))}
     _advance(loop, "review", "draft", "iteration %d draft %s" % (n, loop["draft"]["sha256"][:12]))
     return loop
 
 
-def run_checks(path, ticket_id):
+def run_checks(path, ticket_id, phase=None):
     """[finding] from front_matter_check and structure_lint, called in-process
     through the same functions their CLIs use. $0 and instant, so they run as
     the draft is recorded and their findings join that iteration's review."""
@@ -554,7 +571,8 @@ def run_checks(path, ticket_id):
     import structure_lint  # noqa: E402
     findings = []
     for f in front_matter_check.check_file(
-            path, front_matter_check.parse_spec(front_matter_spec(ticket_id)), ticket=ticket_id):
+            path, front_matter_check.parse_spec(front_matter_spec(ticket_id, phase)),
+            ticket=ticket_id):
         findings.append(_check_finding("front-matter", f))
     for f in structure_lint.lint_file(path, structure_lint._parse_sections(SECTIONS),
                                       ordered=True):
@@ -574,7 +592,7 @@ def _draft_checks(rdir, loop):
     draft = loop.get("draft") or {}
     if "checks" in draft and draft.get("iteration") == loop["iteration"]:
         return list(draft["checks"])
-    return run_checks(draft_path(rdir), loop["ticket_id"])
+    return run_checks(draft_path(rdir), loop["ticket_id"], _phase(rdir))
 
 
 def parse_findings(root, slice_id):

@@ -99,9 +99,11 @@ def doc_set(path):
         return "hld", "HLD"
     if "development" in dirs:
         # A run's Development folder (ADR-0128): <development_dir>/<feature>/<id>/.
-        rest = parts[dirs.index("development") + 1:-1]
-        feature = rest[0] if rest else None
-        return (("development/%s" % feature, "development %s docs" % feature) if feature
+        # One change's documents group together, as docs/tickets/<ID>/ did.
+        rest = [p for p in path.split("/")[:-1]][dirs.index("development") + 1:]
+        if len(rest) >= 2:
+            return "development/%s/%s" % (rest[0], rest[1]), "%s docs" % rest[1]
+        return (("development/%s" % rest[0], "development %s docs" % rest[0]) if rest
                 else ("development", "development docs"))
     if {"adr", "adrs", "decisions"}.intersection(dirs):
         return "adr", "ADRs"

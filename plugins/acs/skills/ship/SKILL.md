@@ -119,6 +119,7 @@ current, so the bare command is enough. It prints one JSON object:
 | Field | What you do with it |
 |---|---|
 | `run_id` | the run you are driving; quote it in your report |
+| `args` | the argument text to invoke the step with (see below) |
 | `next` | the cursor: the first step to run now, or `null` |
 | `due` | every step to run now — `[next]` for a plain step, each unfinished member for a parallel group |
 | `parallel` | `true` when `due` holds more than one step → "Running a parallel group" |
@@ -139,11 +140,12 @@ Branch strictly on what comes back:
 5. Otherwise invoke the step `next` names.
 
 Invoking a step is always the same: the Skill tool with skill `acs:<next>` and
-args = the run's ticket id when the run has a ticket, else nothing — EXCEPT
-the run's first step, which gets the arguments you were given (`$ARGUMENTS`,
-for every subject kind: a ticket id, documents, a prompt or a mix), so the
-step records every source as the run's requirements even on a host whose
-hooks never fired. Later steps read the requirements from the run.
+args = the `args` field `run next` printed — the arguments you were given
+(`$ARGUMENTS`) when you passed them, else the run's own subject (its ticket id,
+document path or prompt), for every subject kind. A step re-reads the run's
+requirements either way, and a source it already recorded is a no-op, so even
+on a host whose hooks never fired every source reaches the run's
+`requirements.md`.
 Never pass a partition — the step resolves it itself. Never pass a delivery
 path: it is judged once, by `/acs:create-impl-plan`, and recorded in the
 plan's `## Contract` block, and `/acs:code` dispatches to its leg from there.
@@ -163,7 +165,7 @@ yourself after that.
 
 Invoke the Skill tool directly and follow that step skill to completion as its
 coordinator, in your own context, holding the Agent tool the step needs to
-spawn its own subagents. Keep what you pass lean — the ticket id is enough.
+spawn its own subagents. Keep what you pass lean — the `args` `run next` printed is enough.
 
 You do not prompt a subagent; you run the step skill yourself. A few
 properties of every step skill you must understand as its coordinator:

@@ -83,7 +83,8 @@ document, so a ticket started before ADR-0128 keeps its documents
   run's document looks in its phase folder first and, when that has no such
   file, in `docs/tickets/<ID>/<name>`. Nothing moves or deletes those
   folders; moving one into the phase folders is the repo owner's choice, and
-  `git mv` is enough.
+  `git mv` is enough. `acs.py artifacts migrate` is retired: it reports and
+  writes nothing.
 - `acs.py artifacts show [--run R | --ticket ID]` reports, for one run, where
   each document resolves — its phase folder, the legacy ticket folder or the
   partition — the diagnostic for "where did my design.md go".
@@ -394,9 +395,11 @@ perform lightweight stdlib-only structural checks
   epic, its legacy `docs/tickets/<ID>/` folder or its partition); cross-partition **writes** are limited
   to the defined parent-epic status updates performed by child hooks
   ([workflow.md](workflow.md#epic-fan-out)).
-- The repo docs tree is a **control input**: the file-map guard refuses an
-  executor subagent a write anywhere under
-  `docs/tickets/`, with exit 2 and a message naming it
+- The run's Development and Design folders
+  (`<development_dir>/<feature>/<id>/`, `<architecture_dir>/lld/<feature>/<id>/`)
+  and the legacy `docs/tickets/` tree are **control inputs**: the file-map
+  guard refuses an executor subagent a write anywhere under them, with exit 2
+  and a message naming it
   as a control input only the coordinator and the ticket skills write. An
   executor cannot widen or disarm its own scope by editing the ticket.
 - Re-running a skill for the same ticket updates the **current state** in

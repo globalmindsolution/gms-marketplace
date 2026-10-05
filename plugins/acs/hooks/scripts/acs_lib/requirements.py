@@ -111,6 +111,30 @@ def _tokens(text):
         return text.split()
 
 
+#: A skill's own options that take a value (`--base <ref>` for review-code,
+#: `--suite <name>` for run-e2e-tests, `--plan <file>` for code, ...): the
+#: option and its value are never requirements. Any other `--flag` (or
+#: `--flag=value`) is dropped alone.
+OPTIONS_WITH_VALUE = frozenset({"--base", "--suite", "--plan", "--run", "--pr", "--ticket",
+                                "--title", "--type", "--threshold", "--mode", "--areas",
+                                "--since", "--iteration"})
+
+
+def _requirement_tokens(tokens):
+    """(tokens, stripped): the tokens left once a skill's options are removed."""
+    out, skip, stripped = [], False, False
+    for token in tokens:
+        if skip:
+            skip = False
+            continue
+        if token.startswith("--") and len(token) > 2:
+            stripped = True
+            skip = token in OPTIONS_WITH_VALUE
+            continue
+        out.append(token)
+    return out, stripped
+
+
 def parse_sources(text, ctx):
     """[{kind: ticket|document|prompt, ...}] for one invocation's argument text.
 
@@ -118,13 +142,15 @@ def parse_sources(text, ctx):
     an existing FILE (repo-relative, absolute or `~`-expanded), and otherwise
     part of the ONE prompt the rest is joined into, in order. A text with no
     ticket and no document is a prompt verbatim, quotes and all -- the exact
-    subject a pure prompt invocation always had."""
+    subject a pure prompt invocation always had. A skill's own `--options`
+    (OPTIONS_WITH_VALUE, with their values) are never requirements."""
     text = (text or "").strip()
     if not text:
         return []
     ticket_re = _ticket_re(ctx)
     sources, words, seen = [], [], set()
-    for token in _tokens(text):
+    tokens, stripped = _requirement_tokens(_tokens(text))
+    for token in tokens:
         if ticket_re.match(token):
             if ("ticket", token) not in seen:
                 seen.add(("ticket", token))
@@ -138,7 +164,7 @@ def parse_sources(text, ctx):
             continue
         words.append(token)
     if words:
-        prompt = text if not sources else " ".join(words)
+        prompt = text if not (sources or stripped) else " ".join(words)
         sources.append({"kind": "prompt", "text": prompt})
     return sources
 
@@ -165,7 +191,12 @@ def primary_subject(sources):
 def subject_from_text(text, ctx):
     """parse_sources + primary_subject: what `gates.subject_from_payload` and
     `acs_state_commands._subject_from_args` delegate to."""
-    return primary_subject(parse_sources(text, ctx))
+    subject = primary_subject(parse_sources(text, ctx))
+    if subject is None and (text or "").strip():
+        # Only a skill's own options (`/acs:review-code --base origin/main`):
+        # still a subject, as it always was, so the run opens.
+        subject = {"kind": "prompt", "text": text.strip()}
+    return subject
 
 
 def sources_of(subject):
