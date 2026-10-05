@@ -371,6 +371,15 @@ matching section here, and merge to `main` — the Release workflow tags
   published earlier is still read, and the next analysis of that feature or
   ticket starts from it and writes the folder beside it. A script that parsed
   the single file reads `analysis_files` instead.
+- **Shorter skills, same behaviour.** `/acs:analyze-requirements`,
+  `/acs:create-api-contract` and `/acs:create-impl-plan` keep the steps every run
+  takes in their `SKILL.md` and move the procedures a run reads only in some
+  arms — templates, parallelism and messaging rules, the unreachable-user arm,
+  the reviewer and publish details — into `references/*.md`, each behind a
+  one-line pointer saying when to read it. The analyst agent reads the analysis
+  templates from the skill instead of carrying a copy. A new test holds every
+  `SKILL.md` to 400 lines and every agent to 200, with the files still over
+  named at a ceiling they may not grow past. **Migration:** none.
 
 ### Removed
 

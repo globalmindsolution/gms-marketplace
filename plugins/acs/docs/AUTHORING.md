@@ -71,7 +71,11 @@ win — change them first, then the implementation.
    specify the `/ship` behavior too: return a `<handoff status="needs_input">`
    with `<questions>` instead of guessing.
 8. **Length budget 180–330 lines.** Shorter usually means missing failure
-   paths; longer usually means prose that belongs in INTERNALS.md or a script.
+   paths; longer usually means prose that belongs in INTERNALS.md or a script,
+   or procedure a run reads only in some arms, which belongs in
+   `references/<name>.md` behind a one-line "read it when …" pointer.
+   `tests/acs/test_skill_size_budget.py` fails a SKILL.md over 400 lines, and
+   names the files still over at a ceiling they may only shrink from.
 9. **Failure paths are first-class.** Iteration cap, coverage hard-fail,
    blocked gates, lock contention, dirty resume — each needs an explicit
    instruction (status, stop_reason, what to tell the user).
@@ -233,6 +237,8 @@ skill"; what a SKILL.md must say is:
    role that can run as the integration pass says what `slice="integration"`
    reconciles and that it never rewrites a slice's substance.
 9. **Length budget 60–140 lines** per agent (the grounding section counts).
+   The same test fails an agent over 200 lines; an agent may read its skill's
+   `references/` (for example a template) instead of carrying a copy.
 
 ## Tool-restriction policy (summary)
 
