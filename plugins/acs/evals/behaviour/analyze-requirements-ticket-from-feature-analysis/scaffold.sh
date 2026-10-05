@@ -25,7 +25,6 @@ version: 1
 tickets: []
 feature: customer-listing
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: false
 ---
 

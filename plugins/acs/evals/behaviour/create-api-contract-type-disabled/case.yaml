@@ -1,4 +1,4 @@
 schema_version: "1.1"
-name: create-api-contract-no-surface-owed
+name: create-api-contract-type-disabled
 context:
   scaffold_script: scaffold.sh

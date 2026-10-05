@@ -109,7 +109,6 @@ Run `python3 -m pytest -q --cov=src --cov-fail-under=90`; coverage target
 ## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases: true
   e2e: true
   reason: "README already documents GET /customers; this wires the existing function to the WSGI front, and two criteria are HTTP behaviour"

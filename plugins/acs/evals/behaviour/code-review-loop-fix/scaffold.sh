@@ -53,7 +53,6 @@ measured by the review's final gate.
 ## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "two helpers in one module; no HTTP surface change and no browser flow"

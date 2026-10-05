@@ -36,7 +36,6 @@ cat > docs/development/order-management/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: false
 ---
 
@@ -79,6 +78,6 @@ The ten criteria on the ticket are confirmed as written.
 
 ## Verdict
 
-Ready for planning; api_surface true; no design needed. The surface spans
+Ready for planning; no design needed. The surface spans
 five components and ten criteria.
 MD

@@ -1,14 +1,15 @@
 ---
 description: >-
   /acs:create-impl-plan on an analyzed story (cursor pagination for GET
-  /customers; the published analysis declares an API surface change). The
-  skill should publish plan.md to the ticket's docs folder ending in the
-  machine-read Contract block -- delivery path, owes flags with an API
-  contract owed, and the executor file map -- declare that file map through
-  `acs.py filemap set`, and close its step, without asking anything.
+  /customers) whose API contract was approved in the Design phase. The skill
+  should read that contract as a binding input, publish plan.md to the
+  ticket's docs folder naming the contract it implements and ending in the
+  machine-read Contract block -- delivery path, owes flags (test cases, e2e;
+  no API contract step) and the executor file map -- declare that file map
+  through `acs.py filemap set`, and close its step, without asking anything.
 expected_outcome: >-
   docs/development/customer-listing/EVAL-1/plan.md exists with a Contract block (delivery_path,
-  owes.api_contract true, an Executor tasks & file map naming
+  owes without api_contract, an Executor tasks & file map naming
   src/shop/__init__.py) and the 90% coverage target; the code step's
   iteration-1 filemap.json names src/shop/__init__.py; the step's state.json
   records the run completed.

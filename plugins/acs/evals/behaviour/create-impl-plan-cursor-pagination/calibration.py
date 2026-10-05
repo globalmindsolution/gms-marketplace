@@ -19,8 +19,8 @@ FILES = ["src/shop/__init__.py", "tests/test_customers.py", "README.md"]
 
 PLAN = """# Plan — EVAL-1: Cursor pagination for GET /customers
 
-Planned from docs/development/customer-listing/EVAL-1/analysis.md (api_surface true, ready for
-planning) and the ticket's three acceptance criteria.
+Planned from docs/development/customer-listing/EVAL-1/analysis.md (ready for planning), the ticket's three acceptance criteria and the approved API contract,
+docs/architecture/lld/customer-listing/api/customers.md (via EVAL-1/api-contract.md): its shapes and error codes are binding.
 
 ## Approach
 
@@ -59,7 +59,6 @@ GET /customers is a public API: `offset` clients must keep working.
 ## Contract
 delivery_path: small
 owes:
-  api_contract: true
   test_cases: true
   e2e: false
   reason: "GET /customers gains a query parameter, a response field and an error code; no browser flow"
@@ -115,10 +114,23 @@ def _template_plan_no_contract(ws):
     _publish(ws, PLAN.split("## Contract")[0])
 
 
-def _owes_no_contract(ws):
-    """Did everything, but judged no API contract owed despite the analysis."""
+def _owes_the_retired_contract_step(ws):
+    """Did everything, but owed the API contract as a step -- a key ADR-0134
+    retired: the contract is a Design input the plan reads."""
     _start(ws)
-    _publish(ws, PLAN.replace("api_contract: true", "api_contract: false"))
+    _publish(ws, PLAN.replace("owes:\n", "owes:\n  api_contract: true\n"))
+    declared = ws.acs("filemap", "set", "--skill", "code", "--iteration", "1", "--task", "1",
+                      *[arg for path in FILES for arg in ("--file", path)])
+    _finish(ws, json.loads(declared.stdout)["tasks"])
+
+
+def _ignored_the_contract(ws):
+    """Planned from the analysis alone, never naming the approved contract."""
+    _start(ws)
+    _publish(ws, PLAN.replace(
+        ", the ticket's three acceptance criteria and the approved API contract,\n"
+        "docs/architecture/lld/customer-listing/api/customers.md (via EVAL-1/api-contract.md): "
+        "its shapes and error codes are binding.", " and the ticket's three acceptance criteria."))
     declared = ws.acs("filemap", "set", "--skill", "code", "--iteration", "1", "--task", "1",
                       *[arg for path in FILES for arg in ("--file", path)])
     _finish(ws, json.loads(declared.stdout)["tasks"])
@@ -127,7 +139,8 @@ def _owes_no_contract(ws):
 BAD = {
     "fired the skill, started the step, wrote nothing": _started_only,
     "a plan without the Contract block, map undeclared": _template_plan_no_contract,
-    "owed no API contract": _owes_no_contract,
+    "owed the retired api_contract step": _owes_the_retired_contract_step,
+    "planned without reading the approved contract": _ignored_the_contract,
 }
 
 

@@ -19,7 +19,7 @@ STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 PUBLISHED = "docs/development/customer-listing/EVAL-1/analysis"
 LIVING = "docs/product/features/customer-listing/analysis"
 
-README = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Scope and summary\n\nOffset paging on GET /customers skips or repeats customers; the feature analysis (docs/product/features/customer-listing/analysis/) settled the cursor.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |\n\n## Refined acceptance criteria\n\nThe three criteria are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- Public API: GET /customers is documented in README.md.\n\n## Questions and assumptions\n\n- Carried from the feature analysis: cursor encoding, offset kept, maximum page size 250, malformed cursor → 400.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning; api_surface true; no design needed.\n'
+README = '---\nticket: EVAL-1\nready_for_planning: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Scope and summary\n\nOffset paging on GET /customers skips or repeats customers; the feature analysis (docs/product/features/customer-listing/analysis/) settled the cursor.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |\n\n## Refined acceptance criteria\n\nThe three criteria are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- Public API: GET /customers is documented in README.md.\n\n## Questions and assumptions\n\n- Carried from the feature analysis: cursor encoding, offset kept, maximum page size 250, malformed cursor → 400.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning; no design needed.\n'
 
 CONTEXT = '---\ncontext: customer-listing\n---\n\n# Customer listing\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | `list_customers` gains `cursor`, returns `next_cursor` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents `cursor` | README.md:7 |\n\n## Rules and edge cases\n\n_None._\n\n## Risks\n\n- Public API: GET /customers is documented in README.md.\n\n## Open questions\n\n_None._\n\n## API notes\n\n_None._\n'
 
@@ -48,7 +48,7 @@ def _start(ws):
 def _finish(ws, status="completed"):
     result = {"status": status, "summary": "calibration",
               "states": {"ready_for_planning": status == "completed",
-                         "api_surface": True, "questions_open": 0,
+                         "questions_open": 0,
                          "files": _written(ws)},
               "findings": [], "errors": []}
     ws.write(STEP + "/result.json", json.dumps(result))

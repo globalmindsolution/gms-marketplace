@@ -23,7 +23,6 @@ PUBLISHED = "docs/development/checkout-with-card-payments/EVAL-1/analysis"
 README = """---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: false
 needs_design_recommendation: false
 ---
 
@@ -64,7 +63,7 @@ Assumptions: none.
 
 ## Verdict
 
-Ready for planning; api_surface false; no design needed.
+Ready for planning; no design needed.
 """
 
 CANCELLATION = """---
@@ -166,8 +165,7 @@ def _publish(ws, files, target=PUBLISHED):
 
 def _finish(ws):
     result = {"status": "completed", "summary": "calibration",
-              "states": {"ready_for_planning": True, "api_surface": False,
-                         "questions_open": 0, "files": _written(ws)},
+              "states": {"ready_for_planning": True, "questions_open": 0, "files": _written(ws)},
               "findings": [], "errors": []}
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-analyze-requirements.py" --result-file "%s/result.json"'

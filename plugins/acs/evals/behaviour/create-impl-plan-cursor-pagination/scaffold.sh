@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # create-impl-plan: the shop repo, story EVAL-1 minted and given its
 # acceptance criteria through the plugin's own CLIs, and the working tree
-# (main, nothing committed -- ADR-0127) carrying the PUBLISHED analysis
-# /acs:analyze-requirements would have left there:
-# docs/development/customer-listing/EVAL-1/analysis.md, uncommitted.
+# (main, nothing committed -- ADR-0127) carrying what the earlier skills
+# would have left there, uncommitted: the PUBLISHED analysis
+# docs/development/customer-listing/EVAL-1/analysis.md, and the API contract
+# /acs:create-api-contract designed in the Design phase (ADR-0134) -- the
+# living interface document lld/customer-listing/api/customers.md, versioned
+# `approved` through `acs.py design init`, and the run record
+# lld/customer-listing/EVAL-1/api-contract.md linking it. The contract is an
+# input the plan implements, never a step it owes.
 #
-# acs has no writer command for an analysis -- the analyze-requirements
+# acs has no writer command for an analysis or a run record -- each
 # coordinator copies its verified draft into the docs folder with cp and
-# leaves it uncommitted -- so the file below is written in exactly the format
-# that skill's SKILL.md specifies (front matter + seven headings; it passes
-# front_matter_check.py and structure_lint.py). No workspace step state is
-# forged: the create-impl-plan gate reads analysis.md when present and
-# requires no predecessor step.
+# leaves it uncommitted -- so the files below are written in the formats their
+# SKILL.md files specify. No workspace step state is forged: the
+# create-impl-plan gate reads what is present and requires no predecessor
+# step.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -34,7 +38,6 @@ cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: true
 needs_design_recommendation: false
 ---
 
@@ -76,5 +79,7 @@ The three criteria on the ticket are confirmed as written.
 
 ## Verdict
 
-Ready for planning; api_surface true; no design needed.
+Ready for planning; no design needed.
 MD
+
+acs_api_contract_customers

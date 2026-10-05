@@ -14,7 +14,7 @@ SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-customer-export-for-finance"
-README = "---\nticket: EVAL-1\nready_for_planning: false\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Customer export for finance\n\n## Scope and summary\n\nFinance needs every customer in a file their accounting system imports.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer export | [customer-export.md](customer-export.md) | how finance gets every customer in a file |\n\n## Refined acceptance criteria\n\nAC-2 cannot be tested until C-1 names the target format.\n\n## Cross-cutting risks and decisions\n\n- A new public endpoint (README.md's API section).\n\n## Questions and assumptions\n\n- C-1 which accounting system and import format — OPEN: blocks; every\n  format we could pick (CSV, OFX, a vendor schema) may be the wrong one.\n\nAssumptions:\n\n- Export columns follow the fields `list_customers` returns.\n\n## Verdict\n\nNot ready for planning: C-1 is open and blocks the build.\n"
+README = "---\nticket: EVAL-1\nready_for_planning: false\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Customer export for finance\n\n## Scope and summary\n\nFinance needs every customer in a file their accounting system imports.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer export | [customer-export.md](customer-export.md) | how finance gets every customer in a file |\n\n## Refined acceptance criteria\n\nAC-2 cannot be tested until C-1 names the target format.\n\n## Cross-cutting risks and decisions\n\n- A new public endpoint (README.md's API section).\n\n## Questions and assumptions\n\n- C-1 which accounting system and import format — OPEN: blocks; every\n  format we could pick (CSV, OFX, a vendor schema) may be the wrong one.\n\nAssumptions:\n\n- Export columns follow the fields `list_customers` returns.\n\n## Verdict\n\nNot ready for planning: C-1 is open and blocks the build.\n"
 
 CONTEXT = "---\ncontext: customer-export\n---\n\n# Customer export\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | new export built on `list_customers` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents the export | README.md:5 |\n\n## Rules and edge cases\n\n_None._\n\n## Risks\n\n- A new public endpoint (README.md's API section).\n\n## Open questions\n\n_None._\n\n## API notes\n\n_None._\n"
 
@@ -27,11 +27,10 @@ def _written(ws):
     return [p for p in ws.created() if not p.startswith(".acs/")]
 
 
-def _finish(ws, status="completed", ready=True, api_surface=True, questions_open=0,
+def _finish(ws, status="completed", ready=True, questions_open=0,
             stop_reason=None):
     result = {"status": status, "summary": "calibration",
-              "states": {"ready_for_planning": ready, "api_surface": api_surface,
-                         "questions_open": questions_open},
+              "states": {"ready_for_planning": ready, "questions_open": questions_open},
               "findings": [], "errors": []}
     if stop_reason:
         result["stop_reason"] = stop_reason

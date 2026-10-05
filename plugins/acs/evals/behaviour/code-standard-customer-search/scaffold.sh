@@ -68,7 +68,6 @@ acceptable at that size and named here so the review can check it.
 ## Contract
 delivery_path: standard
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "a library function and its documentation; the HTTP layer is out of scope and there is no browser flow"

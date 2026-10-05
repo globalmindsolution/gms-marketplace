@@ -51,7 +51,6 @@ measured by the review's final gate.
 ## Contract
 delivery_path: trivial
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "a constant corrected; no public surface changes shape and there is no browser flow"

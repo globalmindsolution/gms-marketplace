@@ -59,7 +59,6 @@ unchanged, measured by the review's final gate.
 ## Contract
 delivery_path: standard
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "documentation of a public API across two entry points; no code, no browser flow"

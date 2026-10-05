@@ -1,14 +1,16 @@
 ---
 description: >-
-  /acs:create-impl-plan on an analyzed story whose published analysis declares
-  api_surface false (log a warning when a customer listing is slow -- operator
-  output, no change to GET /customers' parameters, response or errors). The
-  skill should publish plan.md ending in the Contract block with
-  owes.api_contract false and a reason, declare the executor file map through
-  `acs.py filemap set`, and close its step, without asking anything.
+  /acs:create-impl-plan on an analyzed story that changes no interface (log
+  a warning when a customer listing is slow -- operator output, no change to
+  GET /customers' parameters, response or errors). The skill should publish
+  plan.md ending in the Contract block with an explicit owes table (test
+  cases, e2e) and a reason, and no api_contract key, declare the executor
+  file map through `acs.py filemap set`, and close its step, without asking
+  anything.
 expected_outcome: >-
   docs/development/customer-listing/EVAL-1/plan.md exists with a Contract block whose
-  owes.api_contract is false and whose file map names src/shop/__init__.py;
+  owes table carries test_cases and a reason and no api_contract key, and whose
+  file map names src/shop/__init__.py;
   the code step's iteration-1 filemap.json names src/shop/__init__.py; the
   step's state.json records the run completed.
 tags: [behaviour]

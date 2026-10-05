@@ -72,7 +72,6 @@ None: no documented behaviour changes.
 ## Contract
 delivery_path: trivial
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "a message reworded in one function; nothing load-bearing"

@@ -31,7 +31,6 @@ proves nothing broke. coverage_target: "n/a — docs_only".
 ## Contract
 delivery_path: trivial
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "docs-only: CONTRIBUTING.md prose; no behaviour to test"

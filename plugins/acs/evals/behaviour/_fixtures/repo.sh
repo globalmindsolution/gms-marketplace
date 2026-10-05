@@ -159,6 +159,101 @@ acs_ticket() {
     --needs-design "$needs_design" --description "$description" "${extra[@]+"${extra[@]}"}" > /dev/null
 }
 
+# acs_api_contract_customers: the API contract /acs:create-api-contract
+# designs for the cursor-pagination story EVAL-1 in the Design phase
+# (ADR-0134), as its coordinator leaves it, uncommitted: the living interface
+# document docs/architecture/lld/customer-listing/api/customers.md, versioned
+# `approved` for EVAL-1 through `acs.py design init`, and the run record
+# docs/architecture/lld/customer-listing/EVAL-1/api-contract.md linking it.
+# Documents only: no machine-readable contract.
+acs_api_contract_customers() {
+  local a=docs/architecture/lld/customer-listing
+  mkdir -p "$a/api" "$a/EVAL-1"
+  cat > "$a/api/customers.md" <<'MD'
+# Customers API -- REST
+
+## Scope
+
+GET /customers, consumed by the admin UI and partner clients.
+
+## Surface
+
+### GET /customers
+
+- **Kind and status**: endpoint, CHANGED.
+- **Request**: `cursor` (optional opaque string, planned); `limit` (optional
+  integer 1-100, default 20); `offset` (optional, deprecated; ignored when
+  `cursor` is given).
+- **Response**: 200 `{"items": [...], "limit": 20, "next_cursor": "Y3VzdC0yMA"}`;
+  `next_cursor` is `null` on the last page.
+- **Errors**: 400 `{"error": "invalid_cursor"}` when `cursor` is not a cursor
+  this API issued.
+- **Traces**: AC-1, AC-2, AC-3.
+
+## Error model
+
+| Code | HTTP | When | New or existing |
+|---|---|---|---|
+| `invalid_cursor` | 400 | `cursor` is not a cursor this API issued | new |
+
+## Compatibility & versioning
+
+Backward compatible, in place: `offset` clients keep working, deprecated (C-2).
+
+## Examples
+
+`GET /customers?cursor=Y3VzdC0yMA&limit=20` -> 200 with the next page.
+`GET /customers?cursor=%%%` -> 400 `{"error": "invalid_cursor"}`.
+
+## Traceability
+
+| Item | Criterion |
+|---|---|
+| GET /customers `cursor` | AC-1 |
+| GET /customers `next_cursor` | AC-2 |
+| `invalid_cursor` | AC-3 |
+MD
+  python3 "$ACS_SCRIPTS/acs.py" design init --status approved --ticket EVAL-1 \
+    --feature customer-listing "$a/api/customers.md" > /dev/null
+  cat > "$a/EVAL-1/api-contract.md" <<'MD'
+---
+ticket: EVAL-1
+items: 1
+interfaces: ["docs/architecture/lld/customer-listing/api/customers.md"]
+---
+
+# API contract — EVAL-1: Cursor pagination for GET /customers
+
+## Scope & sources
+
+GET /customers gains a `cursor` query parameter, a `next_cursor` response
+field and an `invalid_cursor` error. Sources: the ticket, the analysis,
+src/shop/__init__.py, README.md's API section.
+
+## Interfaces
+
+| Document | Version | Status | Items |
+|---|---|---|---|
+| docs/architecture/lld/customer-listing/api/customers.md | 1 | approved | GET /customers CHANGED |
+
+## Compatibility & versioning
+
+Backward compatible, in place (C-2).
+
+## Traceability
+
+| Item | Criterion |
+|---|---|
+| GET /customers `cursor` | AC-1 |
+| GET /customers `next_cursor` | AC-2 |
+| `invalid_cursor` | AC-3 |
+
+## Gaps
+
+None.
+MD
+}
+
 # acs_branch NAME: a new branch off main, checked out. Commit onto it yourself.
 acs_branch() {
   git checkout -q -b "$1" main
