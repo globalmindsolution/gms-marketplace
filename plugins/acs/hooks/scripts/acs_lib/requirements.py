@@ -612,11 +612,12 @@ def summary(rdir, ctx, doc=None):
         needs = refined["needs_design"]
     feature = run_feature(ctx, rdir, doc, refined)
     root = ctx.get("checkout_root")
-    living = feature_analysis_path(root, feature, ctx.get("settings")) if feature else None
+    living = (doc_layout.existing_feature_analysis(root, feature, ctx.get("settings"))
+              if feature and root else None)
     return {"path": requirements_path(rdir), "sources": recorded,
             "acceptance_criteria": criteria, "features": features, "feature": feature,
             "needs_design": needs, "phase": run_phase(doc, refined),
-            "feature_analysis": living if living and os.path.isfile(living) else None,
+            "feature_analysis": living,
             "refined": bool(refined)}
 
 

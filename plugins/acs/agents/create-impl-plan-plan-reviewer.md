@@ -25,7 +25,8 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   `steps/create-impl-plan/plan.md`, the run's requirements document
   (`<partition>/requirements.md`; read it FRESH for the acceptance criteria —
   never the draft's restatement of them),
-  `analysis.md` and `design.md` when they exist, every
+  the analysis (its `README.md` and the context files named) and `design.md`
+  when they exist, every
   `<partition>/specs/*.md`, and the repo paths the file map names. READ EVERY
   ONE. Derive `<partition>` from the directory containing the run ledger named
   in `<inputs>`;

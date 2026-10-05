@@ -11,8 +11,8 @@ Development run (ADR-0128) -- no longer skipped for want of a ticket: the
 decided feature recorded through `acs.py requirements refine`, the assumption
 in the run's own ledger (`clarify.py add`, no `--ticket`), the analysis
 published where `acs.py artifacts show` resolves it for this run
-(`docs/development/customer-listing/<run-id>/analysis.md`) and recorded in
-`states.files`.
+(the folder `docs/development/customer-listing/<run-id>/analysis/`, ADR-0133)
+and recorded in `states.files`.
 """
 import json
 import os
@@ -74,7 +74,7 @@ class _Run(object):
 
 FEATURE = "customer-listing"
 
-ANALYSIS = """---
+README = """---
 ready_for_planning: true
 api_surface: false
 needs_design_recommendation: false
@@ -83,11 +83,44 @@ feature: customer-listing
 
 # Analysis — Cap the customer page size at 100
 
-## Problem restated
+## Scope and summary
 
 `list_customers` serves any `limit`; a caller can ask for an unbounded page.
 Cap it at 100: a larger limit raises ValueError naming the maximum, exactly
 100 is served, and the default page size stays 20.
+
+## Contexts
+
+| Context | File | Purpose |
+|---|---|---|
+| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |
+
+## Refined acceptance criteria
+
+The request's three criteria, as written.
+
+## Cross-cutting risks and decisions
+
+_None._
+
+## Questions and assumptions
+
+- C-1 feature — assumed: customer-listing (PRD F1 Customer listing).
+
+Assumptions:
+
+- The cap applies to `list_customers` only; no HTTP surface changes.
+
+## Verdict
+
+Ready for planning; api_surface false; no design needed.
+"""
+
+CONTEXT = """---
+context: customer-listing
+---
+
+# Customer listing
 
 ## Impact map
 
@@ -95,26 +128,25 @@ Cap it at 100: a larger limit raises ValueError naming the maximum, exactly
 |---|---|---|---|
 | src/shop/__init__.py | shop | `list_customers` refuses `limit > 100` | src/shop/__init__.py:8 |
 
-## Questions
+## Rules and edge cases
 
-- C-1 feature — assumed: customer-listing (PRD F1 Customer listing).
-
-## Assumptions
-
-- The cap applies to `list_customers` only; no HTTP surface changes.
+_None._
 
 ## Risks
 
 _None._
 
-## Refined acceptance criteria
+## Open questions
 
-The request's three criteria, as written.
+_None._
 
-## Verdict
+## API notes
 
-Ready for planning; api_surface false; no design needed.
+_None._
 """
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "customer-listing.md": CONTEXT}
 
 
 def _analyze(run):
@@ -131,13 +163,15 @@ def _analyze(run):
     shown = ws.acs("artifacts", "show")
     assert shown.returncode == 0, shown.stderr
     target = os.path.relpath(json.loads(shown.stdout)["paths"]["analysis.md"], ws.path)
-    expected = "docs/development/%s/%s/analysis.md" % (FEATURE, run.run_id)
-    assert target.replace(os.sep, "/") == expected, (target, expected)
+    folder = "docs/development/%s/%s/analysis" % (FEATURE, run.run_id)
+    assert target.replace(os.sep, "/") == folder + "/README.md", (target, folder)
     step = "%s/steps/analyze-requirements" % run.dir
-    ws.write(step + "/analysis.md", ANALYSIS)
-    ws.sh('mkdir -p "%s" && cp "%s/analysis.md" "%s"' % (os.path.dirname(target), step, target))
-    run.finish("analyze-requirements", states={"ready_for_planning": True, "api_surface": False,
-                                               "questions_open": 0, "files": [expected]})
+    for name, text in ANALYSIS.items():
+        ws.write(step + "/iter-1/analysis/" + name, text)
+    ws.sh('mkdir -p "%s" && cp "%s"/iter-1/analysis/*.md "%s"/' % (folder, step, folder))
+    run.finish("analyze-requirements", states={
+        "ready_for_planning": True, "api_surface": False, "questions_open": 0,
+        "files": [folder + "/" + name for name in ANALYSIS]})
 
 
 def _snapshot(ws):

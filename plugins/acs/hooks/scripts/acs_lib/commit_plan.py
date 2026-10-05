@@ -160,7 +160,10 @@ def _publication_paths(rdir):
         # A LOCAL analysis (ADR-0132) stays in the run's state folder: it is
         # not in the repo, so there is nothing of it to commit.
         return []
-    return [p for p in (pub.get("files") or []) if isinstance(p, str)] + \
+    # The analysis is a folder (ADR-0133): its files, and the context files a
+    # revision dropped (their deletion is the same documents commit's).
+    return [p for p in (pub.get("files") or []) + (pub.get("removed") or [])
+            if isinstance(p, str)] + \
         ([pub["path"]] if isinstance(pub.get("path"), str) else [])
 
 

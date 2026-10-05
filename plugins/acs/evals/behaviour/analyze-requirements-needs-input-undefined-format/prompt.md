@@ -8,7 +8,7 @@ description: >-
   is published with ready_for_planning false, and the step stops for input
   rather than completing.
 expected_outcome: >-
-  docs/development/customer-listing/EVAL-1/analysis.md exists with ready_for_planning false in its
+  docs/development/customer-listing/EVAL-1/analysis/README.md exists with ready_for_planning false in its
   front matter; clarifications.json holds an open entry; run.json records the
   analyze-requirements step interrupted with stop_reason needs_input and
   state.json ready_for_planning false; nothing under src/ or tests/ was

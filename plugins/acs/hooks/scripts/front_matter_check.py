@@ -3,7 +3,7 @@
 
 `structure_lint.py` is the deterministic backstop for a doc's SECTIONS; this
 is the one for its FRONT MATTER — the machine-read half of a ticket document.
-`analysis.md`'s `api_surface` decides whether `/acs:create-api-contract` runs
+the analysis's `api_surface` (its README.md, ADR-0133) decides whether `/acs:create-api-contract` runs
 at all (`workflows/ship.yaml`'s `api_surface_changed` predicate and the
 `create-api-contract` gate both read it), so a front matter that is missing,
 unparseable, or carries the wrong type is a pipeline failure discovered one

@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/product/features/order-tracking/analysis.md }
+target: { source: file, path: docs/product/features/order-tracking/analysis/README.md }
 pattern: '^-{3}\n(?=(?:[a-z_]+:[^\n]*\n)*status:[ \t]*proposed[ \t]*\n)(?=(?:[a-z_]+:[^\n]*\n)*version:[ \t]*1[ \t]*\n)'
 ---
 

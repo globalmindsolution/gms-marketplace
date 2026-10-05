@@ -5,11 +5,11 @@ description: >-
   the prompt (guest orders must be trackable too). The skill should take both
   containers as the run's requirements, file the analysis under the PRD's
   existing order-tracking feature, and publish the feature's LIVING analysis
-  at docs/product/features/order-tracking/analysis.md -- versioned, with
+  folder at docs/product/features/order-tracking/analysis/ -- versioned, with
   `feature` in place of `ticket` -- left uncommitted, without minting a ticket
   or writing a development or ticket folder.
 expected_outcome: >-
-  docs/product/features/order-tracking/analysis.md exists; its front matter
+  docs/product/features/order-tracking/analysis/README.md exists; its front matter
   names feature order-tracking, status proposed and version 1; it covers the
   spec's per-order opt-out and the prompt's guest orders; the run's own ledger
   and refined requirements exist under runs/<run-id>/; no ticket was minted,

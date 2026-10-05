@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # analyze-requirements on a ticket whose feature already has a living
 # analysis (ADR-0128, ADR-0129): the shop repo with its PRD and architecture
-# docs; the customer-listing feature's Discovery analysis, committed at
-# docs/product/features/customer-listing/analysis.md (version 1) -- the only
+# docs; the customer-listing feature's Discovery analysis, committed as the
+# folder docs/product/features/customer-listing/analysis/ (README.md plus one
+# context file, version 1; ADR-0133) -- the only
 # place that records the decided maximum page size, 250; then story EVAL-1
 # (cursor pagination) minted and given its feature and acceptance criteria
 # through the plugin's own CLIs. A run on a ticket is a Development run: it
 # starts from the living analysis, never edits it, and publishes its own
-# analysis to docs/development/customer-listing/EVAL-1/.
+# analysis folder to docs/development/customer-listing/EVAL-1/analysis/.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -16,8 +17,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
-mkdir -p docs/product/features/customer-listing
-cat > docs/product/features/customer-listing/analysis.md <<'MD'
+mkdir -p docs/product/features/customer-listing/analysis
+cat > docs/product/features/customer-listing/analysis/README.md <<'MD'
 ---
 status: proposed
 version: 1
@@ -30,10 +31,48 @@ needs_design_recommendation: false
 
 # Analysis — customer-listing: Customer listing that scales
 
-## Problem restated
+## Scope and summary
 
 GET /customers pages by offset (src/shop/__init__.py:8); offset paging skips
 or repeats customers when rows are inserted between requests.
+
+## Contexts
+
+| Context | File | Purpose |
+|---|---|---|
+| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |
+
+## Refined acceptance criteria
+
+_None proposed at the feature level._
+
+## Cross-cutting risks and decisions
+
+- Public API: GET /customers is documented in README.md and called by clients.
+
+## Questions and assumptions
+
+- C-1 cursor encoding — answered: URL-safe base64 of the last customer id, opaque to clients.
+- C-2 offset compatibility — answered: offset stays, deprecated; cursor wins when both are given.
+- C-3 maximum page size — answered: `limit` defaults to 20; the maximum page size is 250.
+- C-4 malformed cursor — answered: HTTP 400 with error code `invalid_cursor`.
+
+Assumptions: none.
+
+## Verdict
+
+Ready for planning as delivery tickets; no design needed.
+MD
+cat > docs/product/features/customer-listing/analysis/customer-listing.md <<'MD'
+---
+context: customer-listing
+feature: customer-listing
+status: proposed
+version: 1
+tickets: []
+---
+
+# Customer listing
 
 ## Impact map
 
@@ -42,14 +81,7 @@ or repeats customers when rows are inserted between requests.
 | src/shop/__init__.py | shop | listing gains a cursor | src/shop/__init__.py:8 |
 | README.md | docs | API section | README.md:7 |
 
-## Questions
-
-- C-1 cursor encoding — answered: URL-safe base64 of the last customer id, opaque to clients.
-- C-2 offset compatibility — answered: offset stays, deprecated; cursor wins when both are given.
-- C-3 maximum page size — answered: `limit` defaults to 20; the maximum page size is 250.
-- C-4 malformed cursor — answered: HTTP 400 with error code `invalid_cursor`.
-
-## Assumptions
+## Rules and edge cases
 
 _None._
 
@@ -57,13 +89,13 @@ _None._
 
 - Public API: GET /customers is documented in README.md and called by clients.
 
-## Refined acceptance criteria
+## Open questions
 
-_None proposed at the feature level._
+_None._
 
-## Verdict
+## API notes
 
-Ready for planning as delivery tickets; no design needed.
+_None._
 MD
 git add -A && git commit -qm "Customer listing discovery analysis"
 acs_ticket "Cursor pagination for GET /customers" story false \

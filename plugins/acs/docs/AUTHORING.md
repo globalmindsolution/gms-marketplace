@@ -44,7 +44,7 @@ win — change them first, then the implementation.
    that file. Which file depends on the audience: the run ledger
    (`<skill>-state.json`, `run.json`, phase artifacts) stays in the
    workspace partition; the documents a human reads or reviews (`design.md`,
-   `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`) live in the
+   the `analysis/` folder (ADR-0133), `api-contract.md`, `plan.md`, `test-cases.md`) live in the
    repo one folder per phase, keyed by the run's feature and its ticket or run
    id (ADR-0128): the feature's living analysis under
    `<prd_dir>/features/<feature>/`, design records under
@@ -275,7 +275,10 @@ them for ordering or safety guarantees.
   altitude and does not duplicate the next one down: the run's requirements
   (`requirements.md`, refined by analyze-requirements) own the WHY and the
   acceptance criteria; `design.md` owns options/decision/architecture;
-  `analysis.md` owns the impact map, assumptions and risks; `api-contract.md`
+  the analysis owns the impact map, assumptions and risks — a folder
+  (ADR-0133): `README.md` for the scope, refined criteria, cross-cutting risks
+  and verdict, one file per bounded context for its impact map, rules and
+  risks; a reader opens the README first and then only the contexts it needs; `api-contract.md`
   owns the external surface; `test-cases.md` owns the WHAT to prove — `TC-n`
   cases traced to ACs; `plan.md` owns the HOW — the authoritative file map,
   implementer decomposition, concrete failing tests, commands. A skill reads the

@@ -11,7 +11,7 @@ description: >-
 expected_outcome: >-
   The run's requirements-refined.json and the ticket's ticket.json both have
   needs_design true;
-  docs/development/order-tracking/EVAL-1/analysis.md has needs_design_recommendation true in its
+  docs/development/order-tracking/EVAL-1/analysis/README.md has needs_design_recommendation true in its
   front matter; the clarification ledger holds a design question from analyze-
   requirements; the step's state.json records the run completed.
 tags: [behaviour]

@@ -174,8 +174,8 @@ controls that must fire no skill (four off-domain, six session-pause phrasings
 that `/acs:handoff` no longer serves, ADR-0131), and `tests/evals/check_cases.py`
 (local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 29 of 29 skills but run for none**
 ([ADR-0113](../architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)): every
-skill has 2–8 behaviour cases, one per documented mode, branch and refusal
-(96 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
+skill has 2–9 behaviour cases, one per documented mode, branch and refusal
+(97 under `plugins/acs/evals/behaviour/`, plus the `setup/` and `artifacts/`
 cases), each shape-checked and calibrated for free and
 carrying its `baseline` criteria, but none has completed end to end or recorded
 its reference transcript — they need a host where Claude Code's Bash sandbox

@@ -5,10 +5,10 @@ description: >-
   Discovery. A ticket run is a Development run: the survey starts from the
   feature's analysis -- the only place the decided maximum page size (250) is
   recorded -- and the run publishes its OWN analysis to
-  docs/development/customer-listing/EVAL-1/analysis.md, leaving the living
+  the folder docs/development/customer-listing/EVAL-1/analysis/, leaving the living
   analysis untouched and writing nothing under docs/tickets/.
 expected_outcome: >-
-  docs/development/customer-listing/EVAL-1/analysis.md exists with ticket
+  docs/development/customer-listing/EVAL-1/analysis/README.md exists with ticket
   EVAL-1 in its front matter and the page-size maximum 250; the feature's
   living analysis is still version 1; nothing was created under docs/tickets/;
   the step's state.json records the run completed; main is still checked out

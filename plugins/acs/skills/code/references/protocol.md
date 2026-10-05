@@ -55,9 +55,11 @@ Parse the printed context JSON. Fields you will use:
   `plan.md` and `test-cases.md`, `<architecture_dir>/lld/<feature>/<id>/` for
   `api-contract.md` and `design.md`, a legacy `docs/tickets/<ID>/` file only
   when the new folder has none) — and the analyses it reports: the run's
-  `analysis.md` and the feature's living analysis (`feature_analysis`,
-  `<prd_dir>/features/<feature>/analysis.md`), for the impact map and risks the
-  change was planned against.
+  analysis and the feature's living analysis (`feature_analysis`,
+  `<prd_dir>/features/<feature>/analysis/`), for the impact map and risks the
+  change was planned against. Each is a folder (ADR-0133): its `README.md`
+  (`artifacts["analysis.md"]`) first, then only the context files the plan's
+  file map touches (`analysis_files`); a legacy single `analysis.md` whole.
   Step artifacts go in `steps/code/`.
 - `iteration` — the review loop's current iteration. The context carries
   **no** `verdict` key: on iteration `n` ≥ 2, read the verdict the previous

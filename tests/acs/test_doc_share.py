@@ -234,7 +234,13 @@ class TestWhereMatrix(DocShareCase):
                             ("api-contract.md", "create-api-contract")):
             with self.subTest(name=name):
                 info = doc_share.where(self.ctx(), name, rdir)
-                self.assertEqual(info["path"], "steps/%s/local/%s" % (skill, name))
+                # The analysis is a folder (ADR-0133): `path` names it, and
+                # `entry_path` its README.md.
+                folder = name[:-len(".md")] if name == "analysis.md" else name
+                self.assertEqual(info["path"], "steps/%s/local/%s" % (skill, folder))
+                if name == "analysis.md":
+                    self.assertEqual(info["entry_path"],
+                                     "steps/%s/local/analysis/README.md" % skill)
 
     def test_a_design_document_asks_for_the_architecture_folder(self):
         self.settings(share_run_documents=True)
@@ -292,7 +298,9 @@ class TestWhereMatrix(DocShareCase):
                          "a saved 'keep local' never applies to a living document")
         self.mkdir("docs/product")
         info = doc_share.where(self.ctx(), "analysis.md", rdir)
-        self.assertEqual(info["path"], "docs/product/features/export/analysis.md")
+        self.assertEqual(info["path"], "docs/product/features/export/analysis")
+        self.assertEqual(info["entry_path"], "docs/product/features/export/analysis/README.md")
+        self.assertEqual(info["shared_path"], "docs/product/features/export/analysis")
 
     def test_an_unknown_document_is_refused(self):
         with self.assertRaises(lib.GateError):
@@ -645,19 +653,27 @@ class TestPublishLocal(PublishCase):
     def test_a_local_publish_targets_the_run_folder_and_records_it(self):
         self.to_publish()
         pub = self.cli("publish")["publication"]
-        target = os.path.join(self.r, "steps", "analyze-requirements", "local", "analysis.md")
+        folder = os.path.join(self.r, "steps", "analyze-requirements", "local", "analysis")
+        target = os.path.join(folder, "README.md")
         self.assertEqual(pub["path"], target)
+        self.assertEqual(pub["dir"], folder)
         self.assertEqual((pub["local"], pub["files"], pub["docs_dir"], pub["share_scope"]),
                          (True, [], None, "team"))
         self.assertEqual(pub["destination"], "kept local (team default)")
-        with open(target, "rb") as a, open(os.path.join(self.r, "steps", "analyze-requirements",
-                                                        "analysis.md"), "rb") as b:
-            self.assertEqual(a.read(), b.read())
+        draft = os.path.join(self.r, "steps", "analyze-requirements", "iter-1", "analysis")
+        self.assertEqual(sorted(os.listdir(folder)), sorted(os.listdir(draft)))
+        for name in os.listdir(draft):
+            with open(os.path.join(folder, name), "rb") as a, \
+                    open(os.path.join(draft, name), "rb") as b:
+                self.assertEqual(a.read(), b.read())
         self.assertFalse(os.path.exists(os.path.join(self.repo, "docs")),
                          "no docs folder is created for a local document")
         self.assertEqual(self.cli("record-publication")["next"]["action"], "completed")
         layout = run_docs.run_layout(self.ctx(), self.r)
         self.assertEqual(layout["artifacts"]["analysis.md"], target)
+        self.assertEqual(layout["analysis_dir"], folder)
+        self.assertEqual(layout["analysis_files"],
+                         [target, os.path.join(folder, "bulk-import.md")])
 
     def ctx(self):
         with pushd(self.repo):
@@ -669,7 +685,7 @@ class TestPublishLocal(PublishCase):
         from acs_lib import commit_plan
         records = commit_plan.Records(self.repo, self.tid)
         records.read_run(self.r)
-        self.assertFalse([p for p in records.claims if "analysis.md" in p], records.claims)
+        self.assertFalse([p for p in records.claims if "analysis" in p], records.claims)
         # Even when nothing ignores acs's workspace, its files are never a commit's.
         exclude = os.path.join(self.repo, ".git", "info", "exclude")
         with open(exclude, encoding="utf-8") as fh:
@@ -718,7 +734,7 @@ class TestPublishLocalWithoutAFeature(TicketlessAnalysisCase):
         self.assertTrue(self.cli("record-review")["passed"])
         pub = self.cli("publish")["publication"]
         self.assertEqual(pub["path"], os.path.join(self.r, "steps", "analyze-requirements",
-                                                   "local", "analysis.md"))
+                                                   "local", "analysis", "README.md"))
         self.assertTrue(os.path.isfile(pub["path"]))
         self.assertTrue(pub["local"])
 

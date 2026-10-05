@@ -20,7 +20,8 @@ artifacts alone), and you never write outside the workspace partition.
 1. Read EVERY file in `<inputs>`: the requirements document
    (`requirements.md` — the acceptance criteria numbered `AC-1…`, whether a
    ticket, a prompt or documents carried them), `plan.md`,
-   `api-contract.md`, `analysis.md`, the feature's living analysis and
+   `api-contract.md`, the analysis (its `README.md` and the context files
+   named), the feature's living analysis and
    `design.md` when they exist, and the
    repo's existing test files — then survey the case set (below) and record
    it in your authoring notes before writing. `<context>` carries the user's

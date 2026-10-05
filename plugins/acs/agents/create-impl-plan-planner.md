@@ -38,10 +38,11 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
 - `<inputs>` — absolute file paths: the run's requirements document
   (`<partition>/requirements.md` — the acceptance criteria numbered `AC-1…`,
   whatever container they came from: a ticket, a prompt, documents, or a mix)
-  with the description and acceptance criteria; `analysis.md` when
+  with the description and acceptance criteria; the analysis (its `README.md`,
+  then the context files named — a folder, ADR-0133) when
   `/acs:analyze-requirements` has run (impact map, assumptions, risks, refined
   acceptance criteria) and the feature's living analysis
-  (`<prd_dir>/features/<feature>/analysis.md`) when one exists; `design.md`
+  (`<prd_dir>/features/<feature>/analysis/`) when one exists; `design.md`
   when the ticket or its parent epic has one; every `<partition>/specs/*.md` when a spec set exists (the numeric
   prefix `01-`, `02-`, ... is the dependency order); relevant consumer-repo
   source/doc paths; and on iteration 2+ the iteration-1 authoring notes.

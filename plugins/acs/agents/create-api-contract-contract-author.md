@@ -16,8 +16,8 @@ never design one it does not, and you do not judge your own work.
 
 ## Charter
 
-1. Read EVERY file in `<inputs>`: `plan.md` and `analysis.md` when they
-   exist, the requirements document (`requirements.md`), `design.md` when it binds, and the contract
+1. Read EVERY file in `<inputs>`: `plan.md` and the analysis (its `README.md`
+   and the context files named) when they exist, the requirements document (`requirements.md`), `design.md` when it binds, and the contract
    files and implementation code the plan names — then survey the surface
    (below) and record it in your authoring notes before writing. When there is
    no plan (the skill was run on its own), the requirements' acceptance criteria and

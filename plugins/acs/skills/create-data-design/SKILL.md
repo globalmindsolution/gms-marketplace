@@ -106,8 +106,11 @@ Reference by path in every task; never inline file bodies. The requirements
 (`requirements.path`, the run's `requirements.md`) — always there; its
 acceptance criteria are the data the design must hold. When they exist (`acs.py
 artifacts show` reports them): the feature's living analysis
-(`feature_analysis`, `<prd_dir>/features/<feature>/analysis.md`), the run's
-`analysis.md` and its `design.md` (`<architecture_dir>/lld/<feature>/<id>/`); the HLD
+(`feature_analysis`, `<prd_dir>/features/<feature>/analysis/`), the run's
+analysis and its `design.md` (`<architecture_dir>/lld/<feature>/<id>/`) — an
+analysis is a folder (ADR-0133): pass its `README.md`, then only the context
+files this design draws on (`analysis_files`; a legacy single `analysis.md`
+whole); the HLD
 (`hld/data-model.md` — the conceptual ERD whose entities this design details —
 `hld/cross-cutting.md` — the data conventions: naming, keys, audit columns,
 migration policy — `hld/tech-stack.md`, `hld/c4-container.md`); the feature's

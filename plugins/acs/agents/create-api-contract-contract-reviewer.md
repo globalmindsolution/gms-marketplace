@@ -128,7 +128,7 @@ Your prompt contains an XML `<task skill="create-api-contract" phase="contract-r
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the contract draft, the contract-author's authoring notes
 (`iter-<n>/authoring.md`), the contract-author report
-(`iter-<n>/contract-author.json`), `plan.md` and `analysis.md` when they exist,
+(`iter-<n>/contract-author.json`), `plan.md` and the analysis (`README.md` and its context files) when they exist,
 the requirements document (`requirements.md`), `design.md` when it binds, and every contract file the
 contract-author touched), `<constraints>` (at least `required_sections`,
 `audience_style_profile`, `contracts_mode`; `dimensions` when the task

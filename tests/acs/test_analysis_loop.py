@@ -22,6 +22,8 @@ TICKET_TITLE = "Bulk import"
 #: under it (ADR-0128), in <development_dir>/<feature>/<ticket-id>/.
 FEATURE = "bulk-import"
 
+#: The analysis is a folder (ADR-0133): README.md plus one file per bounded
+#: context. DRAFT is the README; CONTEXT the one context file it links.
 DRAFT = """---
 ticket: {tid}
 ready_for_planning: true
@@ -31,22 +33,50 @@ needs_design_recommendation: false
 
 # Analysis — {tid}: Bulk import
 
-## Problem restated
+## Scope and summary
 Imports are slow.
+
+## Contexts
+| Context | File | Purpose |
+| --- | --- | --- |
+| Bulk import | [bulk-import.md](bulk-import.md) | the import pipeline |
+
+## Refined acceptance criteria
+AC-1: an import of 10k rows finishes in a minute.
+
+## Cross-cutting risks and decisions
+None.
+
+## Questions and assumptions
+_None recorded._
+
+## Verdict
+ready_for_planning: true
+"""
+
+CONTEXT_NAME = "bulk-import.md"
+CONTEXT = """---
+context: bulk-import
+---
+
+# Bulk import
+
 ## Impact map
 | Path | Component | Change | Evidence |
 | --- | --- | --- | --- |
 | `src/a.py` | import | faster | `a.py:1` |
-## Questions
-_None recorded._
-## Assumptions
-None.
+
+## Rules and edge cases
+An empty file imports nothing.
+
 ## Risks
 None.
-## Refined acceptance criteria
-All testable.
-## Verdict
-ready_for_planning: true
+
+## Open questions
+_None._
+
+## API notes
+No API change.
 """
 
 
@@ -132,9 +162,15 @@ class AnalysisLoopCase(AcsWorkspaceCase):
         self.write(L.notes_path(self.r, "synthesis"), "## Synthesis\nNo contradictions.\n")
         self.write(L.iter_path(self.r, 1, "analyst-synthesis.json"), "{}")
 
-    def do_draft(self, n, text=None):
+    def do_draft(self, n, text=None, contexts=None):
+        """Iteration n's draft folder: README.md (`text`) and its context
+        files (`contexts`, {name: text}; the one bulk-import context by default)."""
         self.snapshot("analyst", n)
-        self.write(L.draft_path(self.r), text if text is not None else DRAFT.format(tid=self.tid))
+        self.write(L.draft_readme(self.r, n),
+                   text if text is not None else DRAFT.format(tid=self.tid))
+        for name, body in (contexts if contexts is not None
+                           else {CONTEXT_NAME: CONTEXT}).items():
+            self.write(os.path.join(L.draft_dir(self.r, n), name), body)
         self.write(L.iter_path(self.r, n, "analyst.json"), "{}")
         if n >= 2:
             self.write(L.iter_path(self.r, n, "authoring.md"), "## Findings addressed\n-\n")
@@ -473,11 +509,16 @@ class TestPublish(AnalysisLoopCase):
         head = self.git("rev-parse", "HEAD")
         out = self.cli("publish")
         pub = out["publication"]
-        self.assertEqual(pub["path"], os.path.join(docs, "analysis.md"))
-        with open(pub["path"], "rb") as a, open(L.draft_path(self.r), "rb") as b:
-            self.assertEqual(a.read(), b.read())
+        self.assertEqual(pub["path"], os.path.join(docs, "analysis", "README.md"))
+        self.assertEqual(pub["dir"], os.path.join(docs, "analysis"))
+        for name in ("README.md", CONTEXT_NAME):
+            with open(os.path.join(docs, "analysis", name), "rb") as a, \
+                    open(os.path.join(L.draft_dir(self.r, 1), name), "rb") as b:
+                self.assertEqual(a.read(), b.read())
         prefix = "docs/development/%s/%s/" % (FEATURE, self.tid)
-        self.assertEqual(pub["files"], [prefix + "analysis.md", prefix + "plan.md"])
+        self.assertEqual(pub["files"], [prefix + "analysis/README.md",
+                                        prefix + "analysis/" + CONTEXT_NAME,
+                                        prefix + "plan.md"])
         self.assertFalse(os.path.exists(os.path.join(self.repo, "docs", "tickets")),
                          "nothing writes the legacy docs/tickets tree (ADR-0128)")
         self.assertEqual(self.git("rev-parse", "HEAD"), head, "publish must not commit")
@@ -498,7 +539,7 @@ class TestPublish(AnalysisLoopCase):
         not after a passing review, and their findings fail THAT iteration even
         when every judge slice passed -- so nothing reaches publish unchecked."""
         self.to_draft()
-        self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Risks\n", ""))
+        self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Verdict\n", ""))
         review = self.cli("record-draft")["next"]
         self.assertEqual(review["action"], "review")
         self.assertEqual([f["dimension"] for f in review["draft_checks"]], ["structure"])
@@ -508,7 +549,7 @@ class TestPublish(AnalysisLoopCase):
         self.assertEqual(out["blocking"][0]["slice"], "draft-checks")
         self.cli("publish", code=2)
         self.assertFalse(os.path.exists(os.path.join(
-            self.repo, "docs", "development", FEATURE, self.tid, "analysis.md")))
+            self.repo, "docs", "development", FEATURE, self.tid, "analysis")))
         nxt = self.next()
         self.assertEqual((nxt["action"], nxt["iteration"]), ("draft", 2))
         self.assertEqual(nxt["findings"][0]["dimension"], "structure")
@@ -522,7 +563,7 @@ class TestPublish(AnalysisLoopCase):
         """A draft recorded by an older acs carries no `checks`; the review
         runs them over the same bytes rather than passing unchecked."""
         self.to_draft()
-        self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Risks\n", ""))
+        self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Verdict\n", ""))
         self.cli("record-draft")
         loop = self.loop()
         del loop["draft"]["checks"]
@@ -532,7 +573,7 @@ class TestPublish(AnalysisLoopCase):
 
     def test_publish_refuses_a_draft_changed_after_review(self):
         self.to_publish()
-        with open(L.draft_path(self.r), "a") as fh:
+        with open(L.draft_readme(self.r, 1), "a") as fh:
             fh.write("\nsneaky\n")
         self.cli("publish", code=2)
 
@@ -573,8 +614,9 @@ class TestPublish(AnalysisLoopCase):
         from acs_lib import commit_plan
         records = commit_plan.Records(self.repo, self.tid)
         records.read_run(self.r)
-        self.assertEqual(records.claims["docs/development/%s/%s/analysis.md"
-                                        % (FEATURE, self.tid)], ("ticket-docs", None))
+        for name in ("README.md", CONTEXT_NAME):
+            self.assertEqual(records.claims["docs/development/%s/%s/analysis/%s"
+                                            % (FEATURE, self.tid, name)], ("ticket-docs", None))
 
 
 class TestReadOnlyAndRestart(AnalysisLoopCase):
@@ -654,12 +696,16 @@ class TicketlessAnalysisCase(AnalysisLoopCase):
         return self.run_script("acs.py", "step", "start", "--step", "analyze-requirements",
                                "--args", self.PROMPT)
 
-    def do_draft(self, n, text=None):
+    VERSION_KEYS = "feature: %s\nstatus: proposed\nversion: 1\ntickets: []" % FEATURE
+
+    def do_draft(self, n, text=None, contexts=None):
         if text is None:
-            text = DRAFT.format(tid=self.tid).replace(
-                "ticket: %s" % self.tid,
-                "feature: %s\nstatus: proposed\nversion: 1\ntickets: []" % FEATURE)
-        super().do_draft(n, text=text)
+            text = DRAFT.format(tid=self.tid).replace("ticket: %s" % self.tid,
+                                                      self.VERSION_KEYS)
+        if contexts is None:
+            contexts = {CONTEXT_NAME: CONTEXT.replace(
+                "context: bulk-import", "context: bulk-import\n" + self.VERSION_KEYS)}
+        super().do_draft(n, text=text, contexts=contexts)
 
     def refine(self, data):
         out = self.run_script("acs.py", "requirements", "refine", "--run", self.tid,
@@ -688,10 +734,11 @@ class TestTicketlessAnalysis(TicketlessAnalysisCase):
         self.refine({"feature": FEATURE})
         pub = self.cli("publish")["publication"]
         living = os.path.join(self.repo, "docs", "product", "features", FEATURE,
-                              "analysis.md")
+                              "analysis", "README.md")
         self.assertEqual(pub["path"], living)
         self.assertEqual(pub["files"],
-                         ["docs/product/features/%s/analysis.md" % FEATURE])
+                         ["docs/product/features/%s/analysis/%s" % (FEATURE, name)
+                          for name in ("README.md", CONTEXT_NAME)])
         self.assertEqual(self.cli("record-publication")["next"]["action"], "completed")
         self.assertFalse(os.path.exists(os.path.join(self.repo, "docs", "tickets")))
 
@@ -709,7 +756,7 @@ class TestTicketlessAnalysis(TicketlessAnalysisCase):
         self.refine({"feature": FEATURE})
         pub = self.cli("publish")["publication"]
         self.assertEqual(pub["path"], os.path.join(
-            self.repo, "docs", "development", FEATURE, self.tid, "analysis.md"))
+            self.repo, "docs", "development", FEATURE, self.tid, "analysis", "README.md"))
 
     def test_the_draft_names_its_feature_not_a_ticket(self):
         self.to_draft()
@@ -751,7 +798,7 @@ class TestShippedPromptRun(TicketlessAnalysisCase):
         self.refine({"feature": FEATURE})
         pub = self.cli("publish")["publication"]
         self.assertEqual(pub["path"], os.path.join(
-            self.repo, "docs", "development", FEATURE, self.tid, "analysis.md"))
+            self.repo, "docs", "development", FEATURE, self.tid, "analysis", "README.md"))
 
 
 class TestLibraryUnits(unittest.TestCase):

@@ -106,7 +106,8 @@ from a prompt:
 ```text
 /acs:analyze-requirements bulk-export ~/Downloads/spec.pdf "also CSV"
                            # Discovery, no ticket: writes the feature's living
-                           #   analysis, docs/product/features/bulk-export/analysis.md
+                           #   analysis, docs/product/features/bulk-export/analysis/
+                           #   (README.md + one file per bounded context)
 /acs:ship "Export orders as CSV" ~/Downloads/spec.pdf
                            # a prompt + a document: the run's requirements.md
                            #   holds both; its plan and test cases land in
@@ -198,7 +199,7 @@ phase: it is one container of requirements, made with `/acs:create-ticket`
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
 | `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; `prd.md` and `roadmap.md` are versioned (`proposed` when new, the version bumped on each change — approve them with `/acs:set-doc-status`); runs without a ticket and leaves the documents uncommitted, listed in `states.files`, for `/acs:create-pr "<prompt>"`. |
-| `/acs:analyze-requirements` | Subject resolves (a ticket, documents, a prompt or a mix); not an epic ticket | Reads the run's requirements, the product docs and the codebase and writes `analysis.md`: problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria (recorded with `acs.py requirements refine`), and the `api_surface` verdict the pipeline branches on. Run on its own with no ticket — a PRD feature, a prompt, an attached spec — it writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis.md` (proposing the PRD's feature slugs when the feature is not named); as `/acs:ship`'s first step, or on a ticket, it writes `docs/development/<feature>/<id>/analysis.md`, starting from the feature's analysis ([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)). |
+| `/acs:analyze-requirements` | Subject resolves (a ticket, documents, a prompt or a mix); not an epic ticket | Reads the run's requirements, the product docs and the codebase and writes an `analysis/` folder ([ADR-0133](../../docs/architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)): a `README.md` with the scope, refined acceptance criteria (recorded with `acs.py requirements refine`), cross-cutting risks, questions and assumptions, the `api_surface` verdict the pipeline branches on and a table of contexts, plus one file per bounded context with its impact map, rules, risks, open questions and API notes. Run on its own with no ticket — a PRD feature, a prompt, an attached spec — it writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis/` (proposing the PRD's feature slugs when the feature is not named); as `/acs:ship`'s first step, or on a ticket, it writes `docs/development/<feature>/<id>/analysis/`, starting from the feature's analysis ([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)). |
 
 ### Design — how to build it
 
@@ -224,7 +225,7 @@ run's analysis) go to `docs/development/<feature>/<ticket-id or run-id>/`.
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
 | `/acs:ship` | — (each step keeps its own gate) | **Takes a ticket id, documents, a prompt or a mix** — the arguments go to the first step whatever the subject. Thin loop over `acs.py run next` — the run's derived cursor, the first step in `ship.yaml` order that is not completed. Invokes that step (every member at once when the cursor sits in a parallel group), then asks again, until the list is done. Never merges. |
-| `/acs:create-impl-plan` | Subject resolves; not an epic | The plan phase carved out of `/acs:code`: a planner surveys and drafts (the former planner charter), the spec fold, the executor file map, and plan approval, and a plan reviewer judges the draft, ending in an approved `plan.md` in `docs/development/<feature>/<id>/`. Reads `analysis.md` and `design.md` when present, else works from the run's requirements. |
+| `/acs:create-impl-plan` | Subject resolves; not an epic | The plan phase carved out of `/acs:code`: a planner surveys and drafts (the former planner charter), the spec fold, the executor file map, and plan approval, and a plan reviewer judges the draft, ending in an approved `plan.md` in `docs/development/<feature>/<id>/`. Reads the analysis (its `README.md` first, then the contexts it needs) and `design.md` when present, else works from the run's requirements. |
 | `/acs:create-test-docs` | Subject resolves | Writes `test-cases.md` to `docs/development/<feature>/<id>/` — `TC-n` cases typed unit/integration/e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every AC must be covered by at least one case. |
 | `/acs:code` | Subject resolves; not an epic | Dispatches to the delivery-path leg the plan recorded (ADR-0095). TDD implementation in the working tree, left uncommitted, writing tests from `test-cases.md` when present. **Targeted tests only** — it has no verifier and never runs the full suite. |
 | `/acs:review-code` | Subject resolves; a changeset exists | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. Writes `verdict.json`; on blocking findings `/acs:code` reads it and fixes them. |
@@ -331,9 +332,9 @@ ticket itself — stays in the gitignored workspace (and your tracker)
 ([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)).
 
 ```text
-<repo>/docs/product/features/<feature>/analysis.md        # Discovery: the feature's living analysis
+<repo>/docs/product/features/<feature>/analysis/         # Discovery: the feature's living analysis (a folder)
 <repo>/docs/architecture/lld/<feature>/<id>/              # Design: design.md  api-contract.md
-<repo>/docs/development/<feature>/<id>/                   # Development: analysis.md  plan.md  test-cases.md
+<repo>/docs/development/<feature>/<id>/                   # Development: analysis/  plan.md  test-cases.md
                                                           #   <id> = the ticket id, else the run id
 <repo>/docs/tickets/<ticket-id>/                          # LEGACY: still read, never written
 
@@ -360,8 +361,25 @@ The phase folders sit where your repo keeps its PRD and architecture set
 (`docs/product/` and `docs/architecture/` by default), and the Development
 folder in an existing `docs/development/`, else that default.
 
+**An analysis is a folder, split by bounded context** ([ADR-0133](../../docs/architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)).
+Open `analysis/` and the forge renders its `README.md`: the scope and summary,
+the refined acceptance criteria, the cross-cutting risks and decisions, the
+open questions, the verdict, and a table of the contexts the change touches.
+Each context — `order-checkout.md`, `payment-refunds.md`, named in plain
+words — has its own file: its impact map with `file:line` citations, its rules
+and edge cases, risks, open questions and API notes. Even a one-context change
+gets a folder. Later skills read the README first and then only the contexts
+they need; an `analysis.md` written before this change is still read.
+
+```text
+docs/development/checkout/SHOP-12/analysis/
+  README.md            # scope, AC-n, cross-cutting risks, questions, verdict, contexts table
+  order-checkout.md    # impact map, rules and edge cases, risks, open questions, API notes
+  payment-refunds.md
+```
+
 **Shared or kept local — your choice, asked once** ([ADR-0132](../../docs/architecture/adr/0132-share-or-keep-run-documents-local.md)). A run's own
-documents (a Development `analysis.md`, `plan.md`, `test-cases.md`,
+documents (a Development `analysis/` folder, `plan.md`, `test-cases.md`,
 `design.md`, `api-contract.md`) go to those folders only when you share them.
 Kept local, they stay in the run's `steps/<skill>/` folder: the later steps
 still read them, `/acs:handoff` carries them, and they never reach the repo or

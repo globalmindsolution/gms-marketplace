@@ -4,7 +4,8 @@ IDEAL does what /acs:analyze-requirements' coordinator does on a Development
 run whose feature has a living analysis, through the plugin's own writers:
 `acs step start` on the ticket, `acs.py artifacts show` naming both the run's
 target and the feature's living analysis, the draft (carrying the living
-analysis's decisions) in the step directory, the Publish copy to the run's
+analysis's decisions) as a folder in the step directory (ADR-0133), the
+Publish copy to the run's
 development folder left uncommitted (ADR-0127), then result.json with `files`
 and the post-hook. The living analysis is read, never written.
 """
@@ -15,10 +16,15 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
-PUBLISHED = "docs/development/customer-listing/EVAL-1/analysis.md"
-LIVING = "docs/product/features/customer-listing/analysis.md"
+PUBLISHED = "docs/development/customer-listing/EVAL-1/analysis"
+LIVING = "docs/product/features/customer-listing/analysis"
 
-ANALYSIS = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Problem restated\n\nOffset paging on GET /customers skips or repeats customers; the feature analysis (docs/product/features/customer-listing/analysis.md) settled the cursor.\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | `list_customers` gains `cursor`, returns `next_cursor` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents `cursor` | README.md:7 |\n\n## Questions\n\n- Carried from the feature analysis: cursor encoding, offset kept, maximum page size 250, malformed cursor → 400.\n\n## Assumptions\n\n_None._\n\n## Risks\n\n- Public API: GET /customers is documented in README.md.\n\n## Refined acceptance criteria\n\nThe three criteria are confirmed as written.\n\n## Verdict\n\nReady for planning; api_surface true; no design needed.\n'
+README = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Scope and summary\n\nOffset paging on GET /customers skips or repeats customers; the feature analysis (docs/product/features/customer-listing/analysis/) settled the cursor.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |\n\n## Refined acceptance criteria\n\nThe three criteria are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- Public API: GET /customers is documented in README.md.\n\n## Questions and assumptions\n\n- Carried from the feature analysis: cursor encoding, offset kept, maximum page size 250, malformed cursor → 400.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning; api_surface true; no design needed.\n'
+
+CONTEXT = '---\ncontext: customer-listing\n---\n\n# Customer listing\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | `list_customers` gains `cursor`, returns `next_cursor` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents `cursor` | README.md:7 |\n\n## Rules and edge cases\n\n_None._\n\n## Risks\n\n- Public API: GET /customers is documented in README.md.\n\n## Open questions\n\n_None._\n\n## API notes\n\n_None._\n'
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "customer-listing.md": CONTEXT}
 
 
 def _written(ws):
@@ -33,8 +39,10 @@ def _start(ws):
     assert shown.returncode == 0, shown.stderr
     layout = json.loads(shown.stdout)
     assert layout["phase"] == "development", layout["phase"]
-    assert layout["paths"]["analysis.md"].replace(os.sep, "/").endswith(PUBLISHED), layout
-    assert (layout["feature_analysis"] or "").replace(os.sep, "/").endswith(LIVING), layout
+    assert layout["paths"]["analysis.md"].replace(os.sep, "/").endswith(
+        PUBLISHED + "/README.md"), layout
+    assert (layout["feature_analysis"] or "").replace(os.sep, "/").endswith(
+        LIVING + "/README.md"), layout
 
 
 def _finish(ws, status="completed"):
@@ -48,9 +56,18 @@ def _finish(ws, status="completed"):
           % (SCRIPTS, STEP))
 
 
-def _publish(ws, text, target=PUBLISHED):
-    ws.write(STEP + "/analysis.md", text)
-    ws.sh('mkdir -p "%s" && cp "%s/analysis.md" "%s"' % (os.path.dirname(target), STEP, target))
+def _publish(ws, files, target=PUBLISHED):
+    """The draft folder, then the Publish copy of every file (ADR-0133)."""
+    for name, text in files.items():
+        ws.write(STEP + "/iter-1/analysis/" + name, text)
+    ws.sh('mkdir -p "%s" && cp "%s"/iter-1/analysis/*.md "%s"/' % (target, STEP, target))
+
+
+def _edit(files, old, new):
+    """Every file of the folder with `old` replaced by `new`."""
+    out = {n: t.replace(old, new) for n, t in files.items()}
+    assert out != files, old
+    return out
 
 
 def IDEAL(ws):
@@ -66,24 +83,25 @@ def _started_only(ws):
 def _ignored_the_feature_analysis(ws):
     """Surveyed from the ticket alone and assumed the conventional maximum."""
     _start(ws)
-    _publish(ws, ANALYSIS.replace("maximum page size 250", "maximum page size 100 (assumed)"))
+    _publish(ws, _edit(ANALYSIS, "maximum page size 250", "maximum page size 100 (assumed)"))
     _finish(ws)
 
 
 def _overwrote_the_living_analysis(ws):
     """Published the ticket's analysis over the feature's, re-versioned."""
     _start(ws)
-    ws.write(STEP + "/analysis.md", ANALYSIS)
+    for name, text in ANALYSIS.items():
+        ws.write(STEP + "/iter-1/analysis/" + name, text)
     living = ("---\nstatus: proposed\nversion: 2\ntickets: [\"EVAL-1\"]\n"
-              "feature: customer-listing\n" + ANALYSIS.split("---\n", 2)[1].split("\n", 1)[1]
-              + "---\n" + ANALYSIS.split("---\n", 2)[2])
-    ws.write(LIVING, living)
+              "feature: customer-listing\n" + README.split("---\n", 2)[1].split("\n", 1)[1]
+              + "---\n" + README.split("---\n", 2)[2])
+    ws.write(LIVING + "/README.md", living)
     _finish(ws)
 
 
 def _published_to_the_legacy_folder(ws):
     _start(ws)
-    _publish(ws, ANALYSIS, "docs/tickets/EVAL-1/analysis.md")
+    _publish(ws, ANALYSIS, "docs/tickets/EVAL-1/analysis")
     _finish(ws)
 
 

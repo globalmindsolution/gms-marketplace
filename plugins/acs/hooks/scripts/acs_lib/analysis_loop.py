@@ -21,18 +21,25 @@ SubagentStop hook writes, or the coordinator on a host that does not fire it)
 and derives the pass from the findings in it.
 
 State lives in `steps/analyze-requirements/loop.json`, written only here and
-held to `schemas/analysis-loop.schema.json` on every write. The two $0
-deterministic checks (front matter, ordered sections) run on each draft when
+held to `schemas/analysis-loop.schema.json` on every write.
+
+The draft is a FOLDER (ADR-0133): `iter-<n>/analysis/`, a README.md plus one
+file per bounded context. When an iteration fails, the next one's folder is
+seeded with a copy of it, so the next draft pass revises in place. The $0
+deterministic checks (`acs_lib.analysis_folder.check_folder`: names, front
+matter, ordered sections, the contexts table) run on each draft when
 `record-draft` records it -- beside the review, not after it (ADR-0125) -- and
 `record_review` folds their findings into that iteration's blocking set.
-Publication -- the byte-for-byte copy and the docs-folder-only commit -- is
+Publication -- the byte-for-byte copy of every reviewed file -- is
 `acs_lib.analysis_publish`.
 """
 
-import hashlib
 import os
 import xml.etree.ElementTree as ET
 
+from . import analysis_folder as folder_lib
+from .analysis_folder import (CHECKS_SLICE, DISCOVERY_VERSION_SPEC,  # noqa: F401 -- re-exported
+                              FEATURE_FRONT_MATTER_SPEC, FRONT_MATTER_SPEC, front_matter_spec)
 from ._common import GateError, now_iso, read_json, write_json, write_text
 from .lifecycle import _SLICE_RE, extract_message, open_clarifications, \
     phase_artifact_path, validate_message
@@ -48,7 +55,8 @@ SKILL = "analyze-requirements"
 CAP = 3
 LOOP_FILENAME = "loop.json"
 SCHEMA_FILENAME = "analysis-loop.schema.json"
-DRAFT_FILENAME = "analysis.md"
+#: The draft folder's name inside `iter-<n>/` (ADR-0133).
+DRAFT_DIRNAME = folder_lib.DIRNAME
 
 ANALYST = "analyst"
 IMPACT_ANALYST = "impact-analyst"
@@ -89,39 +97,18 @@ RESULT_STATUSES = ("completed", "failed", "needs_input")
 
 _CLI = 'python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis '
 
-#: The draft's deterministic checks: the same front-matter spec and section
-#: list the `form` judge slice runs.
-FRONT_MATTER_SPEC = ("ticket: str; ready_for_planning: bool; api_surface: bool; "
-                     "needs_design_recommendation: bool")
-#: A run with no ticket (ADR-0128) names its PRD feature instead of a ticket.
-FEATURE_FRONT_MATTER_SPEC = ("feature: str; ready_for_planning: bool; api_surface: bool; "
-                             "needs_design_recommendation: bool")
-
-
-#: A Discovery analysis is the feature's LIVING document, versioned like the
-#: design set (ADR-0122): its draft carries the version keys too.
-DISCOVERY_VERSION_SPEC = ("status: proposed|approved|implemented|deprecated; version: int; "
-                          "tickets: list")
-
-
-def front_matter_spec(ticket_id, phase=None):
-    """The draft's front-matter spec: `ticket` on a ticket's run, `feature`
-    on a run with no ticket -- plus the ADR-0122 version keys on a Discovery
-    run, whose analysis is the feature's living one."""
-    if ticket_id:
-        return FRONT_MATTER_SPEC
-    if phase == "discovery":
-        return FEATURE_FRONT_MATTER_SPEC + "; " + DISCOVERY_VERSION_SPEC
-    return FEATURE_FRONT_MATTER_SPEC
+#: The shape a draft folder is checked against (`acs_lib.analysis_folder`),
+#: handed to the draft pass with its action.
+SHAPE = {"entry": folder_lib.README,
+         "readme_sections": list(folder_lib.README_SECTIONS),
+         "context_sections": list(folder_lib.CONTEXT_SECTIONS),
+         "context_name": "plain words, kebab-case .md (e.g. order-checkout.md)"}
 
 
 def _phase(rdir):
     from .requirements import run_phase
     from .run import load_run
     return run_phase(load_run(rdir), rdir=rdir)
-SECTIONS = ("Problem restated; Impact map; Questions; Assumptions; Risks; "
-            "Refined acceptance criteria; Verdict")
-CHECKS_SLICE = "draft-checks"
 
 
 # ---------------------------------------------------------------------------
@@ -132,9 +119,20 @@ def loop_path(rdir):
     return os.path.join(step_dir(rdir, SKILL), LOOP_FILENAME)
 
 
-def draft_path(rdir):
-    """The working draft: one per run, revised in place, never renumbered."""
-    return os.path.join(step_dir(rdir, SKILL), DRAFT_FILENAME)
+def draft_dir(rdir, iteration):
+    """Iteration n's draft folder, `iter-<n>/analysis/` (ADR-0133)."""
+    return os.path.join(iteration_dir(rdir, SKILL, iteration), DRAFT_DIRNAME)
+
+
+def draft_readme(rdir, iteration):
+    """The draft folder's entry file."""
+    return os.path.join(draft_dir(rdir, iteration), folder_lib.README)
+
+
+def reviewed_iteration(loop):
+    """The iteration whose draft the last review judged (None before one)."""
+    history = loop.get("history") or []
+    return history[-1]["iteration"] if history else None
 
 
 def iter_path(rdir, iteration, name):
@@ -323,7 +321,9 @@ def _render(rdir, loop, phase, n):
         notes = [notes_path(rdir)]
         if n >= 2:
             notes.append(iter_path(rdir, n, "authoring.md"))
-        out.update(draft=draft_path(rdir), notes=notes,
+        out.update(draft=draft_dir(rdir, n), readme=draft_readme(rdir, n),
+                   previous_draft=draft_dir(rdir, n - 1) if n >= 2 else None,
+                   shape=SHAPE, notes=notes,
                    report=iter_path(rdir, n, "%s.json" % ANALYST),
                    snapshot=snapshot_path(rdir, n, ANALYST),
                    findings=_last_blocking(loop) if n >= 2 else [],
@@ -337,12 +337,16 @@ def _render(rdir, loop, phase, n):
                          for sid, dims in JUDGE_SLICES]
         # Ran when the draft was recorded; they join this iteration's findings.
         out["draft_checks"] = list((loop.get("draft") or {}).get("checks") or [])
-        out.update(joined_report=review_report_path(rdir, n), draft=draft_path(rdir),
+        recorded = sorted((loop.get("draft") or {}).get("files") or {},
+                          key=lambda name: (name != folder_lib.README, name))
+        out.update(joined_report=review_report_path(rdir, n), draft=draft_dir(rdir, n),
+                   draft_files=[os.path.join(draft_dir(rdir, n), name) for name in recorded],
                    analyst_report=iter_path(rdir, n, "%s.json" % ANALYST),
                    notes=[notes_path(rdir)] + ([iter_path(rdir, n, "authoring.md")]
                                                if n >= 2 else []))
     elif phase == "publish":
-        out.update(draft=draft_path(rdir), published=bool(loop.get("publication")),
+        out.update(draft=draft_dir(rdir, reviewed_iteration(loop) or n),
+                   published=bool(loop.get("publication")),
                    commands=[_CLI + "publish", _CLI + "record-publication"])
     return out
 
@@ -467,11 +471,6 @@ def _expect(loop, phase):
                         % (current_action(loop), phase))
 
 
-def sha256_file(path):
-    with open(path, "rb") as handle:
-        return hashlib.sha256(handle.read()).hexdigest()
-
-
 # ---------------------------------------------------------------------------
 # record-* verbs
 # ---------------------------------------------------------------------------
@@ -552,38 +551,27 @@ def record_draft(rdir, loop):
     if _status_block(loop, root, "the draft pass", needs_input_phase="clarify"):
         return loop
     report = iter_path(rdir, n, "%s.json" % ANALYST)
-    needed = [draft_path(rdir), report]
+    needed = [draft_readme(rdir, n), report]
     if n >= 2:
         needed.append(iter_path(rdir, n, "authoring.md"))
     if not _require_files(loop, needed, [report]):
         return loop
-    loop["draft"] = {"iteration": n, "sha256": sha256_file(draft_path(rdir)),
-                     "checks": run_checks(draft_path(rdir), loop["ticket_id"], _phase(rdir))}
-    _advance(loop, "review", "draft", "iteration %d draft %s" % (n, loop["draft"]["sha256"][:12]))
+    combined, shas, _total = folder_lib.digest(draft_dir(rdir, n))
+    loop["draft"] = {"iteration": n, "sha256": combined, "dir": draft_dir(rdir, n),
+                     "files": shas,
+                     "checks": run_checks(draft_dir(rdir, n), loop["ticket_id"], _phase(rdir))}
+    _advance(loop, "review", "draft", "iteration %d draft %s (%d file(s))"
+             % (n, combined[:12], len(shas)))
     return loop
 
 
-def run_checks(path, ticket_id, phase=None):
-    """[finding] from front_matter_check and structure_lint, called in-process
-    through the same functions their CLIs use. $0 and instant, so they run as
-    the draft is recorded and their findings join that iteration's review."""
-    import front_matter_check  # noqa: E402 -- hooks/scripts is on sys.path
-    import structure_lint  # noqa: E402
-    findings = []
-    for f in front_matter_check.check_file(
-            path, front_matter_check.parse_spec(front_matter_spec(ticket_id, phase)),
-            ticket=ticket_id):
-        findings.append(_check_finding("front-matter", f))
-    for f in structure_lint.lint_file(path, structure_lint._parse_sections(SECTIONS),
-                                      ordered=True):
-        findings.append(_check_finding("structure", f))
-    return findings
-
-
-def _check_finding(dimension, finding):
-    return {"slice": CHECKS_SLICE, "severity": "blocking", "dimension": dimension,
-            "file": DRAFT_FILENAME,
-            "text": "line %d: [%s] %s" % (finding.line, finding.rule, finding.message)}
+def run_checks(folder, ticket_id, phase=None):
+    """[finding] for the draft folder (`acs_lib.analysis_folder.check_folder`:
+    names, README and context front matter through front_matter_check, ordered
+    headings through structure_lint, the contexts table). $0 and instant, so
+    they run as the draft is recorded and their findings join that
+    iteration's review."""
+    return folder_lib.check_folder(folder, ticket_id, phase)
 
 
 def _draft_checks(rdir, loop):
@@ -592,7 +580,7 @@ def _draft_checks(rdir, loop):
     draft = loop.get("draft") or {}
     if "checks" in draft and draft.get("iteration") == loop["iteration"]:
         return list(draft["checks"])
-    return run_checks(draft_path(rdir), loop["ticket_id"], _phase(rdir))
+    return run_checks(draft_dir(rdir, loop["iteration"]), loop["ticket_id"], _phase(rdir))
 
 
 def parse_findings(root, slice_id):
@@ -662,15 +650,21 @@ def record_review(rdir, loop):
     merge_files([review_report_path(rdir, n, sid) for sid, _d in JUDGE_SLICES], joined)
     _append_dedupe_section(joined, dropped)
     passed = all(s["status"] == "completed" for s in slices) and not kept
+    folder = draft_dir(rdir, n)
     entry = {"iteration": n, "passed": passed, "blocking": kept,
              "dropped": len(dropped), "slices": slices,
-             "draft_sha256": sha256_file(draft_path(rdir)) if os.path.isfile(draft_path(rdir))
-             else None, "at": now_iso()}
+             "draft_sha256": folder_lib.digest(folder)[0] if os.path.isdir(folder) else None,
+             "at": now_iso()}
     loop["history"].append(entry)
     if passed:
         _advance(loop, "publish", "review", "iteration %d passed" % n)
         return loop
-    return _after_failed_iteration(loop, entry)
+    _after_failed_iteration(loop, entry)
+    if loop["phase"] == "draft":
+        # The next draft pass revises this draft in place: its folder starts
+        # as a copy of this one (it may delete a context the revision drops).
+        folder_lib.seed(folder, draft_dir(rdir, loop["iteration"]))
+    return loop
 
 
 def _after_failed_iteration(loop, entry):

@@ -5,11 +5,16 @@ A ticket is no longer stored in the docs tree: it lives in the workspace and
 the tracker, and a run's documents are filed by the PHASE that wrote them,
 under the PRD feature they belong to:
 
-  Discovery    <prd_dir>/features/<feature>/                analysis.md (the
-               feature's living analysis; a standalone, ticketless analysis)
+  Discovery    <prd_dir>/features/<feature>/analysis/       the feature's living
+               analysis (a standalone, ticketless analysis)
   Design       <architecture_dir>/lld/<feature>/<key>/      design.md, api-contract.md
   Development  <development_dir>/<feature>/<key>/           plan.md, test-cases.md, and
-               the analysis of a Development run as analysis.md
+               the analysis of a Development run as analysis/
+
+An analysis is a FOLDER (ADR-0133): `analysis/README.md` plus one file per
+bounded context. The document name `analysis.md` is kept as its key; its
+target is the folder's README.md. A single `analysis.md` beside where the
+folder would be (written before ADR-0133) is still read.
 
 `<key>` is the run's ticket id when it has one, else its run id. The three
 roots are found deterministically, never asked for:
@@ -45,6 +50,11 @@ DEFAULT_DEVELOPMENT_DIR = "docs/development"
 LEGACY_TICKETS_PATH = "docs/tickets"
 FEATURES_DIRNAME = "features"
 LLD_DIRNAME = "lld"
+#: The analysis folder and its entry file (ADR-0133); `analysis.md` is the
+#: single file it replaces, read as a fallback.
+ANALYSIS_DIRNAME = "analysis"
+ANALYSIS_ENTRY = "README.md"
+LEGACY_ANALYSIS_FILENAME = "analysis.md"
 
 #: The per-run documents and the phase folder each is filed under. analysis.md
 #: is the one whose side depends on the run: Discovery (the feature root) for
@@ -209,10 +219,32 @@ def feature_dir(root, feature, settings=None):
     return _join(root, prd_dir(root, settings), FEATURES_DIRNAME, feature)
 
 
-def feature_analysis_path(root, feature, settings=None):
-    """The feature's living analysis: `<prd_dir>/features/<f>/analysis.md`."""
+def feature_analysis_dir(root, feature, settings=None):
+    """The feature's living analysis folder: `<prd_dir>/features/<f>/analysis/`."""
     folder = feature_dir(root, feature, settings)
-    return os.path.join(folder, "analysis.md") if folder else None
+    return os.path.join(folder, ANALYSIS_DIRNAME) if folder else None
+
+
+def feature_analysis_path(root, feature, settings=None):
+    """The feature's living analysis entry: `<prd_dir>/features/<f>/analysis/README.md`."""
+    folder = feature_analysis_dir(root, feature, settings)
+    return os.path.join(folder, ANALYSIS_ENTRY) if folder else None
+
+
+def legacy_feature_analysis_path(root, feature, settings=None):
+    """The single `<prd_dir>/features/<f>/analysis.md` of before ADR-0133 (read only)."""
+    folder = feature_dir(root, feature, settings)
+    return os.path.join(folder, LEGACY_ANALYSIS_FILENAME) if folder else None
+
+
+def existing_feature_analysis(root, feature, settings=None):
+    """The feature's living analysis a reader opens: the folder's README.md,
+    else the legacy single file, else None."""
+    for path in (feature_analysis_path(root, feature, settings),
+                 legacy_feature_analysis_path(root, feature, settings)):
+        if path and os.path.isfile(path):
+            return path
+    return None
 
 
 def design_run_dir(root, feature, key, settings=None):
@@ -240,9 +272,10 @@ def document_target(root, name, feature, key, phase="development", settings=None
     """Where a NEW write of `name` goes for a run, or None when the run has no
     feature yet (the writer must name or confirm one first).
 
-    analysis.md goes to the feature root on a Discovery run and to the
-    Development folder otherwise; plan/test-cases to Development; design and
-    api-contract to the Design folder."""
+    analysis.md -- the entry README.md of the analysis FOLDER (ADR-0133) --
+    goes to the feature root on a Discovery run and to the Development folder
+    otherwise; plan/test-cases to Development; design and api-contract to the
+    Design folder."""
     if name not in DOCUMENT_SIDES or not feature:
         return None
     if name == "analysis.md" and phase == "discovery":
@@ -251,18 +284,23 @@ def document_target(root, name, feature, key, phase="development", settings=None
         folder = design_run_dir(root, feature, key, settings)
     else:
         folder = development_run_dir(root, feature, key, settings)
+    if folder and name == "analysis.md":
+        return os.path.join(folder, ANALYSIS_DIRNAME, ANALYSIS_ENTRY)
     return os.path.join(folder, name) if folder else None
 
 
 def document_candidates(root, name, feature, key, phase="development", ticket_id=None,
                         settings=None):
-    """Every place a READER looks for `name`, in order: the phase folder, then
-    (for a Development analysis) nothing else of the feature's, then the legacy
-    `docs/tickets/<ID>/` folder."""
+    """Every place a READER looks for `name`, in order: the phase folder (for
+    an analysis, its folder's README.md, then the legacy single file beside
+    it), then the legacy `docs/tickets/<ID>/` folder."""
     out = []
     target = document_target(root, name, feature, key, phase, settings)
     if target:
         out.append(target)
+        if name == "analysis.md":
+            # The single file the folder replaced (ADR-0133): beside the folder.
+            out.append(os.path.join(os.path.dirname(os.path.dirname(target)), name))
     legacy = legacy_ticket_dir(root, ticket_id)
     if legacy:
         out.append(os.path.join(legacy, name))

@@ -79,7 +79,7 @@ human drives after review.
 | — `/create-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
 | — `/create-data-design` | design | Write the ticket's data low-level design under `lld/<feature>/data/` — logical ERD and physical schema with a migration outline, for the enabled `design.lld_types` only; documents only. Runs before `/ship`, on any ticket that adds or changes persisted data ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
 | — `/create-flows` | design | Write the ticket's behaviour low-level design under `lld/<feature>/flows/` (and `components/` when enabled) — one file per flow and one per entity state machine; documents only. Runs before `/ship` ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
-| `analyze-requirements` | build | Read the subject, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict. A not-ready analysis returns `needs_input`. |
+| `analyze-requirements` | build | Read the subject, the product docs and the codebase; write the `analysis/` folder ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)) — a `README.md` with the scope, refined acceptance criteria, cross-cutting risks, questions and assumptions, the `api_surface` verdict and a contexts table, plus one file per bounded context with its impact map, rules, risks, open questions and API notes. A not-ready analysis returns `needs_input`. |
 | `create-impl-plan` | build | The plan phase carved out of `/code`: the planner's survey, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. **It also judges the delivery path**, once, from the plan's own scope, and writes it into the plan's `## Contract` block (ADR-0098). |
 | `create-api-contract` | build | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files where the repo keeps them (else `docs/api/`). Records an evidenced no-op when the Contract says `owes.api_contract: false`. |
 | `create-test-docs` | build | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. Records an evidenced no-op when the Contract says `owes.test_cases: false`. |
@@ -144,12 +144,13 @@ document belongs to exactly one of them:
 - **The repo's phase folders** hold the **human-facing documents**, one
   folder per phase keyed by the run's feature
   ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)):
-  Discovery `<prd_dir>/features/<feature>/analysis.md` (the feature's living
-  analysis); Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`
+  Discovery `<prd_dir>/features/<feature>/analysis/` (the feature's living
+  analysis — a folder, `README.md` plus one file per bounded context,
+  [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`
   (`design.md`, `api-contract.md`, beside the living LLD the Design skills edit
   in place, ADR-0126); Development
-  `<development_dir>/<feature>/<ticket-id or run-id>/` (`analysis.md`,
-  `plan.md`, `test-cases.md`). The skills that write them leave them
+  `<development_dir>/<feature>/<ticket-id or run-id>/` (the `analysis/`
+  folder, `plan.md`, `test-cases.md`). The skills that write them leave them
   uncommitted; `/create-pr` commits them in the PR's documents commits,
   where they are reviewed like any other doc
   ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)). A ticket
@@ -670,7 +671,7 @@ ticket:
 A PRD feature can be analysed before any ticket is cut:
 `/analyze-requirements` run on its own with the feature, a prompt or a
 specification (Discovery, [ADR-0129](../../architecture/adr/0129-discovery-design-development-regroup.md))
-writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis.md`,
+writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis/` (a `README.md` plus one file per bounded context, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)),
 and every later run on that feature starts from it.
 
 The product-level steps (2–3) run without a ticket and leave their documents

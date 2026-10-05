@@ -1,15 +1,18 @@
 ---
 name: analyze-requirements
-description: Analyze requirements before anything is planned — from a ticket, a prompt, a PRD feature or an attached spec or document (PDF, image, markdown), or any mix of them — survey the codebase to map the impact across components/files/tests, clarify the open questions, assumed defaults and refined acceptance criteria with the user through the clarification ledger, then write, review and publish analysis.md as the reusable record later skills and re-analyses start from — a PRD feature's living analysis, or the delivery run's own. Names the risks, the load-bearing surfaces it touches and whether a design is needed; its api_surface flag decides whether an API contract is written. Use as the first step on a ticket, before /acs:create-impl-plan; to analyze a PRD feature, a spec or a requirement written in the prompt, with or without a ticket; and whenever the user asks what a ticket or a feature really changes, touches or risks, or wants its open questions and acceptance criteria pinned down before it is planned. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, documents, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Analyze requirements before anything is planned — from a ticket, a prompt, a PRD feature or an attached spec or document (PDF, image, markdown), or any mix of them — survey the codebase to map the impact across components/files/tests, clarify the open questions, assumed defaults and refined acceptance criteria with the user through the clarification ledger, then write, review and publish the analysis — a folder: a README.md readable on its own plus one file per bounded context the requirements touch — as the reusable record later skills and re-analyses start from — a PRD feature's living analysis, or the delivery run's own. Names the risks, the load-bearing surfaces it touches and whether a design is needed; its api_surface flag decides whether an API contract is written. Use as the first step on a ticket, before /acs:create-impl-plan; to analyze a PRD feature, a spec or a requirement written in the prompt, with or without a ticket; and whenever the user asks what a ticket or a feature really changes, touches or risks, or wants its open questions and acceptance criteria pinned down before it is planned. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, documents, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of /acs:analyze-requirements. Your job: turn the
-REQUIREMENTS in front of you into `analysis.md` — the problem restated, the
-impact map across components, files and tests, the questions the requirements
-leave open and their answers, the assumptions and risks, refined acceptance
-criteria, and a verdict on whether the work is ready to be planned. The
+REQUIREMENTS in front of you into the analysis — a folder (ADR-0133) holding a
+`README.md` anyone can read on its own (the scope and summary, the refined
+acceptance criteria, the cross-cutting risks and decisions, the questions and
+their answers, the verdict on whether the work is ready to be planned, and a
+table of contexts) and one file per **bounded context** the requirements touch
+(its impact map across components, files and tests, its rules and edge cases,
+risks, open questions and API notes). The
 requirements come from the user; a ticket id, documents (in the repo, or
 attached from outside it — a PDF, an image, a markdown spec) and a prompt are
 only the containers they arrived in, and one invocation may mix them:
@@ -32,11 +35,11 @@ spent its cap, and it publishes. You never advance the loop on your own
 reading, and you never hand it a verdict.
 
 You analyze; you never implement and you never plan. No production code, no
-tests, no repo docs other than `analysis.md` (and the requirement refinements
+tests, no repo docs other than the analysis folder (and the requirement refinements
 the user confirms): `/acs:create-impl-plan` decides HOW the change is built,
 and this analysis is what it plans from.
 
-`analysis.md` is read by machines as well as people. Its front-matter
+The analysis is read by machines as well as people. Its README's front-matter
 `api_surface` is what `workflows/ship.yaml`'s `api_surface_changed` predicate
 and the `/acs:create-api-contract` gate read to decide whether an API contract
 is written for this change at all — so the front matter is part of the
@@ -50,8 +53,8 @@ Development is the delivery pipeline `workflows/ship.yaml` drives):
 
 | Mode | When | The analysis is of | Published to |
 |---|---|---|---|
-| **Discovery** | a standalone run with no ticket — a prompt, PRD feature docs, an attached spec | a PRD **feature**: everything the requirements say about it | `<prd_dir>/features/<feature>/analysis.md` — the feature's **living analysis**, revised in place and versioned (ADR-0122 front matter: `status`, `version`, `tickets`, plus `feature`) |
-| **Development** | the first step of a delivery run — a run on an implementation ticket, or a run `/acs:ship` drives on a prompt or documents | one change to that feature | `<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`, beside the run's later `plan.md` and `test-cases.md` |
+| **Discovery** | a standalone run with no ticket — a prompt, PRD feature docs, an attached spec | a PRD **feature**: everything the requirements say about it | `<prd_dir>/features/<feature>/analysis/` — the feature's **living analysis**, revised in place and versioned (ADR-0122 front matter: `status`, `version`, `tickets`, plus `feature`) |
+| **Development** | the first step of a delivery run — a run on an implementation ticket, or a run `/acs:ship` drives on a prompt or documents | one change to that feature | `<development_dir>/<feature>/<ticket-id or run-id>/analysis/`, beside the run's later `plan.md` and `test-cases.md` |
 
 A Development run **starts from the feature's living analysis** when one
 exists: it is a Stage 1 reuse input, exactly like a previous analysis of the
@@ -80,11 +83,11 @@ starts (the controller enforces the order):
 |---|---|---|---|
 | **1 — Impact: survey the codebase** | The `survey` action: the analyst's requirements lane and one impact lane per code area run in parallel and record what the requirements ask and what code they touch, ending in a `## Questions for the user` section; the `synthesize` action reconciles the lanes. | analyst (`pass` = `requirements`, then `synthesis`) · impact analysts | `iter-1/authoring.md` |
 | **2 — Clarify: make the requirements clear with the user** | The `clarify` action: you ask every remaining question — the feature too, when the run has none — in ONE grouped AskUserQuestion, record each answer in the ledger, and record the confirmed acceptance criteria / `needs_design` / feature with `acs.py requirements refine` (which amends the ticket when there is one). | you | answers in the ledger; the requirements refined |
-| **3 — Store: write, review and publish the analysis for reuse** | The `draft` action writes `analysis.md` from the notes and the answers; the `review` action judges it; the `publish` action copies it to the mode's path (Two modes, above) and leaves it uncommitted in the working tree. | analyst (`pass` = `draft`) → impact reviewer → the controller | the published analysis, an uncommitted change |
+| **3 — Store: write, review and publish the analysis for reuse** | The `draft` action writes the analysis folder — README plus one file per context — from the notes and the answers; the `review` action judges it; the `publish` action copies it to the mode's path (Two modes, above) and leaves it uncommitted in the working tree. | analyst (`pass` = `draft`) → impact reviewer → the controller | the published analysis, an uncommitted change |
 
 The survey never writes the draft and the draft pass never re-surveys: the
 questions have to reach the user BETWEEN the two, so the draft is written from
-answers rather than from guesses. The published file is the reusable record —
+answers rather than from guesses. The published folder is the reusable record —
 the next skills plan from it, and the next run of this skill starts from it.
 
 ## Start
@@ -164,9 +167,9 @@ best-effort pre-gate on some runtime), STOP and surface the same message the
 gate would have raised: design the epic with `/acs:create-design <id>`, fan it
 out with `/acs:create-ticket <id>`, then run `/acs:analyze-requirements` on a child.
 
-## Working tree — the analysis is a repo file
+## Working tree — the analysis is a repo folder
 
-`analysis.md` is a file in the consumer repo — at the mode's path (Two modes,
+The analysis is a folder in the consumer repo — at the mode's path (Two modes,
 above), never a setting you choose. This skill never
 creates, switches or names a branch, and never stages, commits or pushes
 (ADR-0127): whatever is checked out stays checked out, and the published
@@ -179,8 +182,9 @@ into reviewable commits, the documents first.
 
 ### Analysis artifact resolution
 
-`analysis.md` is ONE file per run's subject, one name, on every run. Resolve
-where it lives before anything else:
+The analysis is ONE folder per run's subject, named `analysis/`, on every run:
+a `README.md` and one kebab-case `<context>.md` per bounded context (never an
+`index.md`). Resolve where it lives before anything else:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
@@ -189,21 +193,23 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 (The run comes from this checkout's pointer; `--run <run-id>` or `--ticket
 <id>` names it explicitly.)
 
-- `artifacts["analysis.md"]` non-null → that existing file is the analysis:
-  the PREVIOUS analysis of this subject (on a Discovery run, the feature's
-  living analysis itself). Stage 1's survey starts from it (reuse — see Stage 1),
-  and this run REVISES it in place (a re-analysis after new information,
-  never a second file). Call it `<previous_analysis>`.
-- `paths["analysis.md"]` non-null → where this run publishes: the mode's path
-  (the feature root on a Discovery run, `docs_dir` — the Development folder
-  — otherwise). It is null until the run has a feature.
+- `artifacts["analysis.md"]` non-null → the existing analysis: the folder's
+  `README.md` (the key keeps its old name), with every file of the folder in
+  `analysis_files`, README first. It is the PREVIOUS analysis of this subject
+  (on a Discovery run, the feature's living analysis itself). Stage 1's survey
+  starts from it (reuse — see Stage 1), and this run REVISES it in place (a
+  re-analysis after new information, never a second folder). Call it
+  `<previous_analysis>`.
+- `paths["analysis.md"]` non-null → where this run publishes: the target
+  folder's `README.md` (the feature root on a Discovery run, `docs_dir` — the
+  Development folder — otherwise). It is null until the run has a feature.
 - no checkout to anchor the docs folder to → the analysis is published to the
-  run partition's `analysis.md` — the partition fallback, for the no-checkout
+  run partition's `analysis/` — the partition fallback, for the no-checkout
   case only.
 
 On a Development run, `feature_analysis` names the feature's living analysis
-(`<prd_dir>/features/<feature>/analysis.md`) when it exists: a second reuse
-input, read and never written. Call it `<feature_analysis>`.
+(`<prd_dir>/features/<feature>/analysis/README.md`) when it exists: a second
+reuse input, read and never written. Call it `<feature_analysis>`.
 
 A run with no feature yet cannot resolve a previous analysis. When the
 invocation itself names the feature — the prompt says which ("the order
@@ -212,19 +218,23 @@ the user's answer already: record it in the ledger and with `acs.py
 requirements refine` (`{"feature": "<slug>"}`, Stage 2's "The feature"), then
 resolve again, BEFORE the survey, so it starts from the feature's living
 analysis. Otherwise the requirements lane reads the living analysis of each
-candidate feature it proposes (`<prd_dir>/features/<slug>/analysis.md`, when
-present).
+candidate feature it proposes (`<prd_dir>/features/<slug>/analysis/README.md`,
+when present).
 
 A legacy `docs/tickets/<id>/analysis.md` from before ADR-0128 is still READ
-(it is the previous analysis when the new folder has none); nothing writes
-there any more — the revision is published to `paths["analysis.md"]`. This is exactly what `acs_lib.artifacts.artifact_path`
+(it is the previous analysis when the new folder has none), and so is a
+legacy single-file `analysis.md` in the phase folder from before ADR-0133;
+nothing writes either any more — the revision is published as a folder to
+`paths["analysis.md"]`. This is exactly what `acs_lib.artifacts.artifact_path`
 resolves, what `acs.py analysis publish` writes to, and what the
 `/acs:create-api-contract` gate looks for, so the path this run publishes is
 the path that opens the next gate. A run with no feature yet has no folder to
 publish to: `publish` refuses until Stage 2 records one.
 
-The working draft lives at `steps/analyze-requirements/analysis.md`;
-the published file is a copy of those exact bytes (see the `publish` action).
+The working draft is a folder, `steps/analyze-requirements/iter-<n>/analysis/`
+— the `draft` action prints it; when an iteration fails, the controller seeds
+the next iteration's folder with a copy, so the draft is revised in place. The
+published folder is a copy of those exact bytes (see the `publish` action).
 
 ## The two references, and when to open each
 
@@ -270,7 +280,8 @@ an error, and the requirements alone are enough to analyze from:
    run; a ticketless run's ledger is the run's own) — answers already
    recorded are inputs, not questions to ask again.
 7. `<previous_analysis>` when `artifacts["analysis.md"]` exists — the last
-   published analysis of this subject — and, on a Development run,
+   published analysis of this subject, its README and every file in
+   `analysis_files` — and, on a Development run,
    `<feature_analysis>`, the feature's living analysis. The survey starts from
    them rather than from nothing, and re-verifies them against the current
    code (Stage 1).
@@ -356,10 +367,14 @@ in the same message), wait for all of them, and only then call the `record`
 verb. At most `settings.parallel.max_agents` (default 4) instances run per
 message; beyond that, run the rest in waves of that size.
 
-**Writer — one analyst, never sliced.** `analysis.md` is a single document:
-there is no disjoint-file partition of the deliverable, so one analyst writes
-the draft on every iteration — and with one writer there is no integration
-pass to run. What fans out is the survey (Stage 1) and the judge (Stage 3).
+**Writer — one analyst, never sliced.** The analysis folder is one document
+in several files: the README's verdict, criteria and contexts table summarize
+every context file, and the context files cross-link rather than repeat each
+other, so splitting the writer would only move that integration work into a
+second pass. One analyst writes the whole folder on every iteration — and with
+one writer there is no integration pass to run. The per-area work is already
+done by the survey lanes. What fans out is the survey (Stage 1) and the judge
+(Stage 3).
 
 **Survey lanes.** Declare the code areas ONCE, with `acs.py analysis plan`,
 by this rule: when the requirements' candidate impact spans **two or more disjoint
@@ -392,7 +407,7 @@ exactly the `slices` the `review` action prints:
 | Slice | Dimensions | Owns the run of |
 |---|---|---|
 | `surface` | 2 `completeness`, 3 `api-surface` | the re-derivation of the impact surface from the repository, and the questions/ticket coverage check |
-| `form` | 4 `front-matter`, 5 `structure`, 6 `scope` | `front_matter_check.py` and `structure_lint.py` |
+| `form` | 4 `front-matter`, 5 `structure`, 6 `scope` | `front_matter_check.py` and `structure_lint.py` on every file, and the folder's names and links |
 | `evidence` | 1 `grounding`, 7 `authoring-conformance` | re-opening every citation in the notes and the draft |
 
 Grounding policing applies in every slice. Each writes
@@ -415,8 +430,8 @@ slice". A failed iteration's blocking findings are the next `draft` action's
   `<result>` with the same `phase` as its final content. A sliced instance's
   task and result also carry `slice="<id>"` (the action's `slice`); the draft
   pass omits it.
-- Every phase's `<constraints>` carry `required_sections` (the seven headings
-  below) and `<constraint name="audience_style_profile">implementers (evidence
+- Every phase's `<constraints>` carry `required_sections` (the README's six
+  headings and a context file's five, below) and `<constraint name="audience_style_profile">implementers (evidence
   + impact narrative)</constraint>`; every analyst task also carries
   `<constraint name="pass">`.
 - The SubagentStop hook checks each returned `<result>`'s `skill=`, `phase=`
@@ -454,11 +469,13 @@ cites), the design when one binds, the product docs and the ledger, what the
 requirements ASK: the problem against the code, which acceptance criteria are
 ambiguous or untestable as written (or missing, when a prompt or a document
 states behaviour as prose and no criterion yet), the design significance, the
-PRD feature the work belongs to, the risks in the requirements, and the
-questions for the user. Each impact lane (`phase="impact-analyst"`
-`slice="<area>"`) records what code the requirements TOUCH in its area: the candidate impact surface (components, files, tests,
-configuration) with a `path:line` citation for each entry, the API-surface
-evidence, the code risks and the seams into other areas. The notes are what
+PRD feature the work belongs to, the risks in the requirements, the
+candidate **contexts** the PRD features suggest, and the questions for the
+user. Each impact lane (`phase="impact-analyst"` `slice="<area>"`) records what
+code the requirements TOUCH in its area: the candidate impact surface
+(components, files, tests, configuration) with a `path:line` citation for each
+entry and the bounded context it belongs to, named in plain words, the
+API-surface evidence, the code risks and the seams into other areas. The notes are what
 the impact reviewer checks the draft against; a draft with no notes is a
 blocking finding. No lane writes the draft.
 
@@ -511,13 +528,26 @@ seams, a criterion the requirements lane calls testable that an impact lane
 shows the code contradicts), records the resolution with the evidence under a
 `## Synthesis` section of the notes — or, when no source settles it, turns it
 into a group-(a) question; it never silently picks one. It also de-duplicates
-the lanes' `## Questions for the user` into ONE list, in the four groups. It
+the lanes' `## Questions for the user` into ONE list, in the four groups, and
+settles the analysis's contexts under `## Contexts` (Contexts, below). It
 writes ONLY `iter-1/authoring-synthesis.md` and `iter-1/analyst-synthesis.json`,
 and `record-synthesis` joins it last. In the joined `## Questions for the
 user`, the `<!-- slice: synthesis -->` block is the de-duplicated list Stage 2
 asks; the per-lane blocks above it stay as provenance. The impact reviewer
 judges the synthesis (dimension 7), and the draft pass consumes these
 reconciled notes — it does not reconcile slices itself.
+
+### Contexts — how the analysis is split
+
+A **context** is a bounded context the requirements touch: a part of the
+product with its own rules and words — `order-checkout`, `payment-refunds` —
+not a directory and not a layer. Contexts come from the impact lanes' code
+areas and the PRD features together: the synthesis groups every impact row
+under one context, names each in plain words with a kebab-case file name
+(`acs.py slug --text "<name>"`) and a one-line purpose, and merges two
+candidates that share their rules. Even a one-context analysis is a folder: a
+README plus that one file. Each row, rule and risk lives in exactly ONE
+context file; another file that needs it links to it instead of repeating it.
 
 ## Stage 2 — Clarify: make the requirements clear with the user
 
@@ -587,7 +617,7 @@ always shared, so only its folder can be in question.) Read `needs`:
 
 - **empty** → the saved choice decides, silently: `share: true` publishes to
   the phase folder; `share: false` keeps the analysis LOCAL — in the run's
-  state folder (`path`: `steps/analyze-requirements/local/analysis.md`), where
+  state folder (`path`: `steps/analyze-requirements/local/analysis/`), where
   every later step still reads it through `acs.py artifacts show`, never in
   the repo and never in `/acs:create-pr`'s commits.
 - **`share`** → two group-(d) questions in the SAME grouped ask, never a
@@ -639,7 +669,7 @@ confirmed criteria list — the requirements' criteria (`AC-1…`) with each
 confirmed rewrite applied and each confirmed missing criterion added. A
 rejected proposal is recorded (its answer says so) and NOT applied. With no
 user answer, leave the requirements and the ticket as they are: the refined
-criteria stay a proposal in `analysis.md` and an open ledger entry, and
+criteria stay a proposal in the analysis and an open ledger entry, and
 `/acs:create-impl-plan` plans against the ticket as written (the requirements
 as written, on a ticketless run).
 
@@ -657,8 +687,9 @@ means stdout; a credential check is exact and case-sensitive unless the
 requirements say otherwise; argument counts the requirements never mention
 are out of scope; an unspecified error path follows the codebase's existing pattern —
 record the default as an assumption (`--source assumption --rationale
-"..."`), state it in `## Assumptions`, propose the matching criterion rewrite
-in `## Refined acceptance criteria`, and keep `ready_for_planning: true`. The
+"..."`), state it in the README's `## Questions and assumptions`, propose the
+matching criterion rewrite in `## Refined acceptance criteria`, and keep
+`ready_for_planning: true`. The
 2026-09-15 release gate lost a two-line login ticket to exactly three such
 defaults asked as blockers, on a run with nobody to answer them. When the user
 IS reachable, the same defaults are asked — as confirmations, in the one
@@ -679,10 +710,11 @@ document questions are never assumed into the settings: an open share choice
 keeps the analysis local for this run only (Where the analysis goes, above).
 
 This skill is where the requirements' ambiguities are SUPPOSED to surface, so the
-analysis's `## Questions` section and the ledger are the same set of facts in
-two places: every question is a ledger entry, and `## Questions` in the
-published analysis names each entry by its `C-n` id and its status, so the
-next skill can see what is still open.
+README's `## Questions and assumptions` and the ledger are the same set of
+facts in two places: every question is a ledger entry, and that section names
+each entry by its `C-n` id and its status, so the next skill can see what is
+still open. A question that concerns one context only is also listed in that
+context file's `## Open questions`, by the same `C-n`.
 
 ## Stage 3 — Store: write, review and publish the analysis for reuse
 
@@ -696,10 +728,14 @@ the mode and the feature as
 `<constraint name="feature"><slug></constraint>`. It
 settles the whole-subject verdicts (API surface, design significance) once,
 from the reconciled notes plus the recorded answers — it does not re-survey —
-and writes the analysis draft to `steps/analyze-requirements/analysis.md` — one
-draft per run, revised in place across iterations, never renumbered — and its
-report `iter-<n>/analyst.json`, with EXACTLY this front matter and these seven
-headings, in this order:
+and writes the analysis folder the action prints as `draft`
+(`steps/analyze-requirements/iter-<n>/analysis/` — name it in the task's
+`<inputs>`, with the action's `shape`; one draft per run, revised in place
+across iterations, never renumbered) and its report `iter-<n>/analyst.json`.
+The folder holds two kinds of file.
+
+**The README** — `README.md`, readable on its own by someone who opens nothing
+else: EXACTLY this front matter and these six headings, in this order:
 
 ```markdown
 ---
@@ -711,21 +747,50 @@ needs_design_recommendation: false
 
 # Analysis — SHOP-123: <ticket title>
 
-## Problem restated
-## Impact map
-## Questions
-## Assumptions
-## Risks
+## Scope and summary
+## Contexts
 ## Refined acceptance criteria
+## Cross-cutting risks and decisions
+## Questions and assumptions
 ## Verdict
 ```
 
-On a run with no ticket the first key is `feature: <slug>` in place of
-`ticket:`, and the title reads `# Analysis — <feature>: <subject>`. A
-Discovery run's draft — the feature's living analysis — also opens with the
-version keys of ADR-0122 before the four above: `status: proposed`, `version`
-(the living analysis's `version` + 1, or `1` for the feature's first
-analysis), `tickets` (carried over from the living analysis) and `feature`:
+`## Contexts` is a table, one row per context file, each linked by its bare
+file name — the controller refuses a link that does not resolve and a context
+file the table does not list:
+
+```markdown
+| Context | File | Purpose |
+| --- | --- | --- |
+| Order checkout | [order-checkout.md](order-checkout.md) | how a cart becomes a paid order |
+```
+
+**One file per context** — `<context>.md`, a kebab-case name made of plain
+words (Contexts, above; never `index.md`, no subfolder): EXACTLY this front
+matter and these five headings, in this order:
+
+```markdown
+---
+context: order-checkout
+---
+
+# Order checkout
+
+## Impact map
+## Rules and edge cases
+## Risks
+## Open questions
+## API notes
+```
+
+`context` is the file name without `.md`. On a run with no ticket the
+README's first key is `feature: <slug>` in place of `ticket:`, and its title
+reads `# Analysis — <feature>: <subject>`. A Discovery run's draft — the
+feature's living analysis — opens the README with the version keys of
+ADR-0122 before the four above: `status: proposed`, `version` (the living
+analysis's `version` + 1, or `1` for the feature's first analysis), `tickets`
+(carried over from the living analysis) and `feature`; each context file then
+carries `feature` and the same three version keys after `context`:
 
 ```yaml
 ---
@@ -740,17 +805,21 @@ needs_design_recommendation: false
 ```
 
 What each section carries is defined in `analyze-requirements-analyst.md`; the
-contract that matters here is that `## Impact map` is a table whose first
-column is a repo-relative path (that column is what the load-bearing-surface
-step below reads), that the front-matter values agree with the sections
-beneath them, and that the answers show: `## Questions` lists every `C-n`
-with its answer or status, `## Refined acceptance criteria` states which
-criteria were confirmed into the requirements (and so the ticket, when there
-is one), and `## Assumptions` holds only what the user did not answer.
+contract that matters here is that every context file's `## Impact map` is a
+table whose first column is a repo-relative path (that column is what the
+load-bearing-surface step below reads), that the README's front-matter values
+agree with the sections beneath them, and that the answers show: the README's
+`## Questions and assumptions` lists every `C-n` with its answer or status and
+holds as assumptions only what the user did not answer, and
+`## Refined acceptance criteria` states which criteria were confirmed into the
+requirements (and so the ticket, when there is one). Keep every section short;
+an empty one says `_None._`. The README summarizes and links — it never
+copies a context file's rows.
 
 On iteration ≥ 2 the action's `findings` are the previous iteration's
 blocking findings, verbatim: put them ALL in the draft pass's `<context>`; it
-fixes every one and nothing else, recording them in `iter-<n>/authoring.md`.
+fixes every one and nothing else in the seeded folder (deleting a context file
+the analysis no longer has), recording them in `iter-<n>/authoring.md`.
 A reviewer finding that is really a new question for the user — or a draft
 pass that returns `needs_input` — goes through Stage 2 again (ledger first,
 then one grouped ask) before the draft pass re-runs with the answers in
@@ -760,13 +829,15 @@ then one grouped ask) before the draft pass re-runs with the answers in
 ### Phase: impact reviewer — `acs:analyze-requirements-impact-reviewer`
 
 The `review` action. Spawn the three slices it prints (Judge slices above) in
-ONE message, each with `<inputs>` of the draft, the authoring notes (the
+ONE message, each with `<inputs>` of the draft folder (the action's `draft`,
+and every file in its `draft_files`, README first), the authoring notes (the
 action's `notes`), the analyst report (`analyst_report`), `requirements.md`
 (its `## Refined` section as Stage 2 left it) and, on a ticket run, the ticket
 file, the clarification ledger, `design.md` when it binds, and the repo paths
-the impact map names. Each judges fresh — never forward the
-analyst's reasoning — the `surface` slice re-derives the impact map from the
-codebase itself and checks that every `## Questions for the user` item was
+the impact maps name. Each judges fresh — never forward the
+analyst's reasoning — and judges EVERY file plus the README's contexts table:
+the `surface` slice re-derives the impact map from the codebase itself (and
+whether the contexts split it honestly) and checks that every `## Questions for the user` item was
 answered in the ledger or carried as an open/assumed entry, and that the
 confirmed criteria match the refined requirements (and the ticket). Each writes
 `steps/analyze-requirements/iter-<n>/impact-reviewer-<slice>.md`. Then
@@ -776,31 +847,41 @@ confirmed criteria match the refined requirements (and the ticket). Each writes
 conclude a pass yourself.
 
 **The deterministic checks run beside the review.** `record-draft` runs the
-two $0 checks on the draft as it records it — the same front-matter spec and
-section list the `form` slice runs — so they are done before the review
-spawns, not after it passes; the `review` action lists their findings as
-`draft_checks`:
+$0 folder checks on the draft as it records it (`acs_lib.analysis_folder`) —
+the same front-matter specs and section lists the `form` slice re-runs — so
+they are done before the review spawns, not after it passes; the `review`
+action lists their findings as `draft_checks`. Per file, they are:
 
 ```bash
+# README.md
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
   --require "ticket: str; ready_for_planning: bool; api_surface: bool; needs_design_recommendation: bool" \
-  --ticket <id> "steps/analyze-requirements/analysis.md"
-
+  --ticket <id> "<draft>/README.md"
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
-  --sections "Problem restated; Impact map; Questions; Assumptions; Risks; Refined acceptance criteria; Verdict" \
-  --ordered "steps/analyze-requirements/analysis.md"
+  --sections "Scope and summary; Contexts; Refined acceptance criteria; Cross-cutting risks and decisions; Questions and assumptions; Verdict" \
+  --ordered "<draft>/README.md"
+
+# every context file
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
+  --require "context: str" "<draft>/order-checkout.md"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
+  --sections "Impact map; Rules and edge cases; Risks; Open questions; API notes" \
+  --ordered "<draft>/order-checkout.md"
 ```
 
-(On a run with no ticket the spec names `feature: str` in place of
-`ticket: str` and takes no `--ticket`; `record-draft` picks the spec from the
-run — you never choose it. A Discovery draft's version keys are part of the
-reviewed bytes, and the `form` slice checks them.)
+and, across the folder: every file name is `README.md` or kebab-case `.md`
+(no `index.md`, no subfolder), every `## Contexts` link resolves to a file in
+the folder, every context file is linked, and `context` equals its file name.
+(On a run with no ticket the README spec names `feature: str` in place of
+`ticket: str` and takes no `--ticket`; a Discovery draft adds the version keys
+to both specs, and `feature` to the context spec; `record-draft` picks the
+specs from the run — you never choose them.)
 
 `record-review` folds them into that iteration's blocking findings: a check
 finding fails the iteration like a judge's blocking finding (it goes to the
 next draft pass, or ends the run at the cap), never patched by you.
 
-### Phase: publish — the controller is the only writer of `analysis.md`
+### Phase: publish — the controller is the only writer of the analysis
 
 The `publish` action:
 
@@ -813,18 +894,20 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis record-publication
 exact bytes that review judged — bytes whose deterministic checks ran clean
 beside that review (above), and unless the run has a feature (Stage 2, "The
 feature"), and while `docs where` still reports `needs` it exits 2 naming
-`acs.py docs decide` (Stage 2, "Where the analysis goes"). Then it copies the
-draft byte-for-byte to the resolved analysis path — the feature's living
-analysis on a Discovery run,
-`<development_dir>/<feature>/<ticket-id or run-id>/analysis.md` on a shared
+`acs.py docs decide` (Stage 2, "Where the analysis goes"). Then it copies
+every file of the draft folder byte-for-byte to the resolved analysis folder —
+the feature's living analysis on a Discovery run,
+`<development_dir>/<feature>/<ticket-id or run-id>/analysis/` on a shared
 Development run, the run's state folder on a LOCAL one (recorded in
-`publication`, never in `publication.files`) — reads it back, and records the
-repo paths it wrote as `publication.files` in the loop, repo-relative. It never
+`publication`, never in `publication.files`) — removes a context file the new
+analysis no longer has (only inside that folder), reads every file back, and
+records the repo paths it wrote as `publication.files` in the loop,
+repo-relative, with each file's sha. It never
 stages, commits or pushes and refuses no branch (ADR-0127): the files are left
 as uncommitted changes in the working tree, and `/acs:create-pr` reads those
 recorded paths to make the documents commit, the first of the PR.
-`record-publication` re-derives it from the working tree — the published bytes
-are still the reviewed bytes — and completes the loop. Copy
+`record-publication` re-derives it from the working tree — every published
+file is still the reviewed bytes — and completes the loop. Copy
 `publication.files` into your result's `states.files`.
 
 You never copy or commit the analysis yourself, and no subagent does: the
@@ -838,15 +921,17 @@ The front-matter check uses the same parser the gate and the
 downstream for its front matter.
 
 **The published file is the reusable record.** The run's
-`analysis.md` is what `/acs:create-impl-plan`, `/acs:create-api-contract` and
+analysis folder is what `/acs:create-impl-plan`, `/acs:create-api-contract` and
 `/acs:create-test-docs` read, and what the next run of this skill starts from
 (Stage 1's reuse); the feature's living analysis is what the Design skills
 (`/acs:create-architecture`, `/acs:create-data-design`, `/acs:create-flows`,
 `/acs:create-design`) read and what every later Development run on the feature
-starts from. The partition copy exists only for the no-checkout case,
-where there is no docs folder to publish to.
+starts from. Every reader opens the README first (`artifacts["analysis.md"]`)
+and then only the context files it needs (`analysis_files`). The partition
+copy exists only for the no-checkout case, where there is no docs folder to
+publish to.
 
-### Load-bearing surfaces — name them in `## Risks`
+### Load-bearing surfaces — name them in the context's `## Risks`
 
 The impact map is the first place anyone can see WHAT this change touches, and
 that is the single strongest input to the delivery-path judgement /acs:ship
@@ -857,7 +942,9 @@ analysis is where the evidence for that judgement is recorded.
 So when the impact map reaches a surface the repo treats as load-bearing —
 authentication or authorization, payments, a migration or any stored shape, a
 public API other systems call, concurrency or ordering, anything the repo's own
-architecture docs flag — say so explicitly in `## Risks`, naming the paths. A
+architecture docs flag — say so explicitly in that context file's `## Risks`, naming the paths, and
+list it again, linked, under the README's `## Cross-cutting risks and
+decisions`. A
 risk entry that names a boundary is read by `/acs:create-impl-plan` (which
 carries it into the plan's own Risks section) and then by whoever judges the
 path, and it is what turns a one-file change into a `standard` or `complex`
@@ -894,7 +981,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
        "ready_for_planning": true,
        "api_surface": true,
        "questions_open": 0,
-       "files": ["docs/development/wishlist/SHOP-123/analysis.md"]
+       "files": ["docs/development/wishlist/SHOP-123/analysis/README.md",
+                 "docs/development/wishlist/SHOP-123/analysis/wishlist-sharing.md"]
      },
      "findings": [],
      "errors": []
@@ -906,7 +994,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - `ready_for_planning` (bool): the verdict. `false` is the `needs_input`
      arm, and `/acs:create-impl-plan` is what consumes it.
    - `api_surface` (bool): whether the change adds or alters an API surface.
-     It MUST equal the published front matter's `api_surface` — that front
+     It MUST equal the published front matter's `api_surface` (the README's) — that front
      matter is what `ship.yaml`'s `api_surface_changed` predicate and the
      `/acs:create-api-contract` gate actually read, and a result document that
      disagrees with it is a defect, not a second opinion.
@@ -914,9 +1002,10 @@ MANDATORY final step — never skipped, also on failure or handoff:
      the count `clarify.py list --open` (`--ticket <id>` on a ticket run)
      prints after this run.
    - `files` (array): every repo-relative path this run wrote and left
-     uncommitted — the publish action's `publication.files` (the published
-     analysis: the feature's living analysis on a Discovery run, e.g.
-     `docs/product/features/wishlist/analysis.md`). `/acs:create-pr` commits
+     uncommitted — the publish action's `publication.files` (every file of
+     the published analysis folder, README first: the feature's living
+     analysis on a Discovery run, e.g.
+     `docs/product/features/wishlist/analysis/README.md`). `/acs:create-pr` commits
      them; empty when nothing was published or the analysis was kept local.
 
    The needs_design recommendation is applied through its own CLI
@@ -936,8 +1025,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
    until it succeeds.
 
 3. Report:
-   - Direct invocation: a compact summary — the verdict, the impact map's
-     component/file/test counts, what changed since the previous analysis
+   - Direct invocation: a compact summary — the verdict, the contexts it
+     split the analysis into, the impact maps' component/file/test counts, what changed since the previous analysis
      when there was one, whether an API surface changes, the questions asked
      and answered (or "Stage 2 skipped"), the feature it is filed under, the
      criteria and needs_design confirmed into the requirements (and the
@@ -952,7 +1041,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
      `/acs:create-ticket` to turn it into delivery work.
    - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
-     published analysis, `<questions>` when `needs_input`, and
+     published analysis's README, `<questions>` when `needs_input`, and
      `<next-step>/acs:create-impl-plan <id></next-step>`.
 
 ## Completion report (normative)
@@ -968,9 +1057,9 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Requirements**: <ticket id — title (type)>, <documents>, <prompt>; feature <slug> (<Discovery|Development>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted or failed>
-- **Results**: verdict (ready_for_planning); impact map counts; api_surface; load-bearing surfaces named in Risks; questions asked/answered (or Stage 2 skipped); criteria / needs_design confirmed into the requirements (and the ticket); proposals still open; where the analysis went (shared to <path> / kept local (<your|team> default, or this run only))
+- **Results**: verdict (ready_for_planning); contexts (one file each); impact map counts; api_surface; load-bearing surfaces named in Risks; questions asked/answered (or Stage 2 skipped); criteria / needs_design confirmed into the requirements (and the ticket); proposals still open; where the analysis went (shared to <path> / kept local (<your|team> default, or this run only))
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <uncommitted files written (the analysis path, repo-relative), partition phase artifacts>
+- **Artifacts**: <uncommitted files written (the analysis folder's README and context files, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
 - **Next**: `/acs:create-impl-plan <ticket-id>` on a Development run (the files stay uncommitted until `/acs:create-pr <ticket-id>`); the Design skills or `/acs:create-ticket` on a Discovery run
 ```

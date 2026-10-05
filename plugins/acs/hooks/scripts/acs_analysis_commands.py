@@ -8,6 +8,11 @@ controller's front door (ADR-0114).
     acs.py analysis record-clarify [--blocking-open] [--run R]
     acs.py analysis publish [--summary S] [--run R]
 
+The analysis is a FOLDER (ADR-0133): each iteration's draft is
+`steps/analyze-requirements/iter-<n>/analysis/` (README.md plus one file per
+bounded context), checked as `record-draft` records it, and `publish` copies
+every reviewed file into the run's `analysis/` folder.
+
 Every verb but `next` writes `steps/analyze-requirements/loop.json` and prints
 `{"ok": true, ..., "next": <the action next would print>}`. A record verb
 whose evidence is missing or malformed exits 0 with the loop `blocked` and the
@@ -156,13 +161,15 @@ def add_parser(group):
                    "the user was asked (or nothing was open)")
     clarify.add_argument("--blocking-open", dest="blocking_open", action="store_true",
                          help="a question that blocks planning is still open")
-    verb("record-draft", cmd_analysis_record_draft, "read the draft pass's snapshot and draft")
+    verb("record-draft", cmd_analysis_record_draft,
+         "read the draft pass's snapshot and draft folder; run the folder checks")
     verb("record-review", cmd_analysis_record_review,
          "derive the iteration's verdict from the judge slices' snapshots")
     publish = verb("publish", cmd_analysis_publish,
-                   "checks, byte-for-byte copy into the run's phase folder; never commits "
+                   "byte-for-byte copy of every reviewed file into the run's analysis/ "
+                   "folder (stale context files removed, inside it only); never commits "
                    "(ADR-0127) -- prints the written paths")
     publish.add_argument("--summary", help="ignored since ADR-0127: publish commits nothing")
     verb("record-publication", cmd_analysis_record_publication,
-         "verify the published bytes in the working tree")
+         "verify every published file's bytes in the working tree")
     return analysis

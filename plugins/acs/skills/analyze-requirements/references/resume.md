@@ -40,7 +40,7 @@ written from the artifacts, not from a session's memory (ADR-0114).
      not finish the step: go straight to Finish with what `next` reports.
 
 2. Re-resolve the analysis artifact (SKILL.md, "Analysis artifact
-   resolution") and read it if it exists. Trust nothing you cannot see in a
+   resolution") and read it if it exists — its `README.md` first. Trust nothing you cannot see in a
    file: an analysis recorded published that is not on disk is not published,
    and `record-publication` refuses it. A published analysis from an EARLIER
    run is Stage 1's reuse input, not this run's output.

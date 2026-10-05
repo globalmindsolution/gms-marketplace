@@ -419,13 +419,22 @@ def _run_docs_control_input(target, normalized, rdir, ctx):
         if _under(target, folder) or normalized == rel or normalized.startswith(rel + "/"):
             return ("this run's documents (%s/), a control input only the coordinator "
                     "and the document skills write" % rel)
-    living = layout.get("feature_dir") and os.path.join(layout["feature_dir"], "analysis.md")
-    if living:
-        rel = normalize_repo_path(os.path.relpath(living, root))
-        if normalized == rel or (os.path.isabs(str(target))
-                                 and os.path.realpath(str(target)) == os.path.realpath(living)):
-            return ("the feature's living analysis (%s), a control input only "
-                    "/acs:analyze-requirements writes" % rel)
+    feature_dir = layout.get("feature_dir")
+    if not feature_dir:
+        return None
+    # The living analysis is a folder (ADR-0133); the single file it replaced
+    # is guarded too.
+    folder = os.path.join(feature_dir, "analysis")
+    rel = normalize_repo_path(os.path.relpath(folder, root))
+    if _under(target, folder) or normalized == rel or normalized.startswith(rel + "/"):
+        return ("the feature's living analysis (%s/), a control input only "
+                "/acs:analyze-requirements writes" % rel)
+    living = os.path.join(feature_dir, "analysis.md")
+    rel = normalize_repo_path(os.path.relpath(living, root))
+    if normalized == rel or (os.path.isabs(str(target))
+                             and os.path.realpath(str(target)) == os.path.realpath(living)):
+        return ("the feature's living analysis (%s), a control input only "
+                "/acs:analyze-requirements writes" % rel)
     return None
 
 

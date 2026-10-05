@@ -9,7 +9,7 @@ below belongs to exactly one of them
 | | Repo phase folders | Workspace |
 |---|----------------|---------------------|
 | **Where** | one folder per phase, keyed by the run's feature: Discovery `<prd_dir>/features/<feature>/`, Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, Development `<development_dir>/<feature>/<ticket-id or run-id>/` | `<workspace>/<repo>/` — the ticket partition `<ticket-id>/` and the run partition `runs/<run-id>/` |
-| **Holds** | the human-facing documents: the feature's living `analysis.md` (Discovery); `design.md`, `api-contract.md` (Design); a Development run's `analysis.md`, `plan.md`, `test-cases.md` (Development) | the ticket (`ticket.json`) and its clarification ledger; the run ledger: `run.json`, `requirements.md`, `subject/` (`sources.json` and the copied documents), `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, a ticketless run's `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
+| **Holds** | the human-facing documents: the feature's living analysis, an `analysis/` folder (Discovery, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); `design.md`, `api-contract.md` (Design); a Development run's `analysis/` folder, `plan.md`, `test-cases.md` (Development) | the ticket (`ticket.json`) and its clarification ledger; the run ledger: `run.json`, `requirements.md`, `subject/` (`sources.json` and the copied documents), `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, a ticketless run's `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
 | **Versioned** | yes — written uncommitted by the skills, committed by `/create-pr` (ADR-0127), reviewed in the PR | no — gitignored |
 | **Written by** | the coordinators of the skills that own each document | hooks, the `acs.py` CLIs and the skills' own subagents |
 
@@ -23,7 +23,7 @@ confirms; a ticketless run names one in that skill's grouped ask.
 **A run's own documents can stay in the workspace instead**
 ([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)). A repo that keeps run documents local (`docs.share_run_documents:
 false`, asked once and saved for one machine or the team) gets a Development
-`analysis.md`, `plan.md`, `test-cases.md`, `design.md` and `api-contract.md`
+`analysis/` folder, `plan.md`, `test-cases.md`, `design.md` and `api-contract.md`
 in `runs/<run-id>/steps/<skill>/local/` rather than in a phase folder: they
 are read by the run's later steps, never versioned, and never committed. The
 living documents (PRD, roadmap, HLD, LLD, a feature's living analysis) always
@@ -137,7 +137,9 @@ and, inside it, one per ticket or run):
 │   ├── prd.md
 │   └── features/
 │       └── bulk-export/                # a PRD feature's slug (acs.py slug)
-│           └── analysis.md             # Discovery: the feature's living analysis (status/version/tickets/feature)
+│           └── analysis/               # Discovery: the feature's living analysis (ADR-0133; status/version/tickets/feature on every file)
+│               ├── README.md           #   scope, AC-n, cross-cutting risks, questions, verdict, contexts table
+│               └── order-export.md     #   one file per bounded context: impact map, rules, risks, open questions, API notes
 ├── docs/architecture/                  # <architecture_dir>
 │   ├── hld/ ...
 │   └── lld/
@@ -150,7 +152,7 @@ and, inside it, one per ticket or run):
 ├── docs/development/                   # <development_dir>
 │   └── bulk-export/
 │       ├── SHOP-123/                   # Development documents of a ticket
-│       │   ├── analysis.md             # /analyze-requirements as a ship step
+│       │   ├── analysis/               # /analyze-requirements as a ship step: README.md + <context>.md
 │       │   ├── plan.md                 # /create-impl-plan
 │       │   └── test-cases.md           # /create-test-docs
 │       └── export-as-csv-3f2a/         # ... and of a ticketless run, under its run id

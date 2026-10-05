@@ -21,7 +21,7 @@ evidence does not support.
 Your prompt contains an XML `<task skill="create-flows" phase="designer" slice="…"
 ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths: the requirements
 (`requirements.md`), the feature's living analysis when it exists,
-`analysis.md`/`design.md` when they exist, the HLD files, the feature's `api/`, `data/`,
+the analysis (its `README.md` and the context files named) and `design.md` when they exist, the HLD files, the feature's `api/`, `data/`,
 `flows/` and `components/` documents, and for a write slice the joined
 `iter-1/authoring.md` and `iter-1/gaps.md`), `<constraints>` (at minimum `partition` —
 the absolute ticket-partition path — `architecture_dir`, `feature`, `lld_types` — the

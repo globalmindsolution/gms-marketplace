@@ -102,6 +102,9 @@
           "properties": {
             "iteration": {"type": "integer", "minimum": 1},
             "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "dir": {"type": "string", "description": "The draft folder, iter-<n>/analysis/ (ADR-0133)."},
+            "files": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                      "description": "{file name: sha256} of every file in the draft folder; `sha256` is their combined digest (ADR-0133)."},
             "checks": {"type": "array", "items": {"type": "object"},
                        "description": "The draft's deterministic check findings, run when record-draft records it and folded into that iteration's review (ADR-0125)."}
           }
@@ -116,8 +119,17 @@
           "required": ["path", "sha256", "bytes", "at"],
           "properties": {
             "path": {"type": "string", "minLength": 1},
+            "dir": {"type": "string", "description": "The published analysis folder; `path` is its README.md (ADR-0133)."},
             "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
             "bytes": {"type": "integer", "minimum": 0},
+            "iteration": {"type": "integer", "minimum": 1,
+                          "description": "The iteration whose reviewed draft folder was published."},
+            "file_shas": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                          "description": "{file name: sha256} of every published file; record-publication verifies each (ADR-0133)."},
+            "removed": {"type": "array", "items": {"type": "string"},
+                        "description": "Context files the new analysis no longer has, removed from the analysis folder only (repo-relative when shared)."},
+            "superseded": {"type": ["string", "null"],
+                           "description": "A single analysis.md of before ADR-0133 beside the folder, left in place; the folder's README.md wins for every reader."},
             "docs_dir": {"type": ["string", "null"]},
             "files": {"type": "array", "items": {"type": "string"},
                       "description": "Repo-relative paths of the ticket docs folder publish wrote, left uncommitted for /acs:create-pr (ADR-0127)."},

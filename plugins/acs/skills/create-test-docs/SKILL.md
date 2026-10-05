@@ -139,10 +139,12 @@ that opens the next gate. Call it `<cases_path>` below.
 (`--run <run-id>` names another): Development documents in
 `<development_dir>/<feature>/<id>/`, design records in
 `<architecture_dir>/lld/<feature>/<id>/`, the feature's living analysis in
-`<prd_dir>/features/<feature>/analysis.md` (`feature_analysis`), and a legacy
+`<prd_dir>/features/<feature>/analysis/` (`feature_analysis`, its
+`README.md`), and a legacy
 `docs/tickets/<ID>/` file only when the new folder has none.
 The same call reports `artifacts["plan.md"]`, `artifacts["api-contract.md"]`,
-`artifacts["analysis.md"]`, `artifacts["design.md"]` and `feature_analysis` — the exact paths the
+`artifacts["analysis.md"]` (the analysis folder's `README.md`; `analysis_files`
+lists every file in it), `artifacts["design.md"]` and `feature_analysis` — the exact paths the
 other steps published. Pass THOSE paths to every subagent `<inputs>`; do
 not re-derive them. A `null` entry means the artifact does not exist: work from
 what does, and say so in `## Gaps and assumptions`.
@@ -200,11 +202,12 @@ Read these yourself and name them by path in the test-designer's `<inputs>`
 3. `api-contract.md` when it exists — every contract item (endpoint, command,
    message, error code, compatibility note) needs at least one case, including
    its error and edge shapes. The contract is the surface a consumer relies on.
-4. `analysis.md` when it exists — its impact map names the tests that already
-   cover the area, and its refined-criteria section flags criteria that are
-   ambiguous or untestable as written — and the feature's living analysis
-   (`feature_analysis`) when one exists, for the feature-level behaviour the
-   cases must not contradict.
+4. The analysis when it exists — a folder (ADR-0133): read its `README.md`
+   first (the refined criteria flag those ambiguous or untestable as written),
+   then only the context files whose impact map names the tests that already
+   cover the area you trace; a legacy single `analysis.md` is read whole — and
+   the feature's living analysis (`feature_analysis`) when one exists, for the
+   feature-level behaviour the cases must not contradict.
 5. `<design_doc>` when `design.required`.
 6. The repo's test strategy and coverage policy under
    `<checkout_root>/<quality_dir>/` when the repo has one — it decides what

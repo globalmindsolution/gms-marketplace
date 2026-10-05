@@ -13,8 +13,9 @@ The groups below are a reader's aid, not a structure the code knows about
 - **Discovery** — `/acs:create-prd`, `/acs:analyze-requirements` (run on
   its own with no ticket, it analyses a PRD feature, a prompt or an attached
   specification into the feature's living analysis,
-  `<prd_dir>/features/<feature>/analysis.md` —
-  [ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)).
+  `<prd_dir>/features/<feature>/analysis/` —
+  [ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md),
+  a folder per [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)).
 - **Design** — `/acs:create-architecture`, `/acs:create-api-contract`,
   `/acs:create-data-design`, `/acs:create-flows` (the last two write the
   living low-level design,
@@ -155,7 +156,8 @@ table; none of its runtime obligations changed. The same holds for `/create-data
 
 ### Run documents: shared or kept local
 
-The five **per-run documents** — a Development run's `analysis.md`,
+The five **per-run documents** — a Development run's analysis (the
+`analysis/` folder, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md); `docs where --doc analysis.md` resolves it),
 `plan.md`, `test-cases.md`, `design.md` and `api-contract.md` — are either
 **shared** (published to the run's phase folder, committed by `/create-pr`)
 or **kept local** (left in the run's step folder, `<run>/steps/<skill>/`, in
@@ -194,6 +196,24 @@ are always shared, so there is no share question.
 A local document is read by the later steps of the same run through `acs.py
 artifacts show`, travels with the run in a `/handoff`, and never reaches the
 working tree, so `/create-pr`'s commit plan never lists it.
+
+### Reading an analysis: README first
+
+An analysis is a folder — `analysis/README.md` plus one file per bounded
+context ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)). Every skill that reads one — a feature's
+living analysis or a run's own (`/create-impl-plan`, `/create-test-docs`,
+`/create-design`, `/create-api-contract`, `/create-data-design`,
+`/create-flows`, `/create-architecture`, `/code`, `/create-ticket`, and the
+next `/analyze-requirements` survey) — MUST:
+
+- read `README.md` first (`acs.py artifacts show` returns it as
+  `artifacts["analysis.md"]` and lists every file of the folder, README
+  first, in `analysis_files`);
+- then read only the context files its own work needs, chosen from the
+  README's contexts table — never load the whole folder by default;
+- fall back to a single `analysis.md` where no `analysis/` folder exists (an
+  analysis published before ADR-0133, or a legacy
+  `docs/tickets/<ID>/analysis.md`), reading it whole as before.
 
 ---
 
@@ -1027,7 +1047,7 @@ Design-phase work, run by the SA or Tech Lead on a ticket.
   implementation, on a ticket, a feature slug, a prompt or documents — the
   feature comes from the argument, the requirements' features or the ticket,
   and no ticket is needed (ADR-0128). Input: the run's requirements, the
-  feature's living analysis, the change's `analysis.md` and `design.md`, the
+  feature's living analysis, the change's analysis (README first) and `design.md`, the
   HLD (`hld/data-model.md`, `hld/cross-cutting.md`, `hld/tech-stack.md`,
   `hld/c4-container.md`), the feature's `api/` documents and its existing
   `data/` documents, each read when present; else the ticket and the code's
@@ -1081,7 +1101,7 @@ detail — before implementation
   no run position, runnable on its own on a ticket, a feature slug, a prompt
   or documents (the feature from the argument, the requirements or the
   ticket; ADR-0128). Input: the run's requirements, the feature's living
-  analysis, the change's `analysis.md` and `design.md`, the HLD, and the feature's `api/` and `data/`
+  analysis, the change's analysis (README first) and `design.md`, the HLD, and the feature's `api/` and `data/`
   documents — participants, operations and entities are named as those name
   them — each read when present.
 - MUST write **documents only** — never source or machine-readable contracts.
@@ -1133,8 +1153,8 @@ user, and say plainly whether they are ready to plan. It works in two phases
 
 - **Discovery** — run on its own, with no ticket: a PRD feature, a prompt,
   PRD documents or an attached specification are analysed into the
-  feature's **living analysis**, `<prd_dir>/features/<feature>/analysis.md`
-  (ADR-0122 version front matter plus `feature`) — always shared; a PRD
+  feature's **living analysis**, `<prd_dir>/features/<feature>/analysis/`
+  (ADR-0122 version front matter plus `feature` on every file of it) — always shared; a PRD
   folder that does not exist yet is confirmed first (`docs where --doc
   living:prd`, [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)). A run with no ticket MUST
   name or infer its feature: the one grouped ask proposes the PRD's feature
@@ -1142,7 +1162,7 @@ user, and say plainly whether they are ready to plan. It works in two phases
 - **Development** — a run with a ticket, or one `/acs:ship` drives (its
   first step), on a ticket or a prompt; `acs.py requirements refine` may set
   the phase explicitly: the analysis is
-  written to `<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`
+  written to `<development_dir>/<feature>/<ticket-id or run-id>/analysis/`
   — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)),
   and the survey MUST start from the feature's living analysis when one
   exists.
@@ -1197,21 +1217,45 @@ user, and say plainly whether they are ready to plan. It works in two phases
         phase folder above and records the paths — it commits nothing
         ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)). A reviewer finding that is a
      new question for the user goes back through Stage 2.
-- MUST write `analysis.md` to its phase folder with front matter
-  `{ticket | feature, ready_for_planning, api_surface, needs_design_recommendation}`
-  and the sections: Problem restated; Impact
-  map (components/files/tests likely touched); Questions; Assumptions;
-  Risks; Refined acceptance criteria; Verdict. `## Questions` lists every
-  `C-n` with its answer or status, `## Refined acceptance criteria` states
-  which criteria were confirmed into the ticket, and `## Assumptions` holds
-  only what the user did not answer.
+- MUST write the analysis as a **folder**, `analysis/`, in its phase folder —
+  never one long file, even when the change touches a single context
+  ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)):
+  - `README.md`, the entry (never `index.md`), with front matter
+    `{ticket | feature, ready_for_planning, api_surface, needs_design_recommendation}`
+    (plus ADR-0122's `status`, `version`, `tickets` on a Discovery analysis)
+    and the headings, in order: `## Scope and summary`, `## Contexts`,
+    `## Refined acceptance criteria`, `## Cross-cutting risks and decisions`,
+    `## Questions and assumptions`, `## Verdict`. `## Contexts` is a table
+    linking every context file of the folder, each with a one-line purpose;
+    `## Questions and assumptions` lists every `C-n` with its answer or
+    status and holds as assumptions only what the user did not answer;
+    `## Refined acceptance criteria` (`AC-n`) states which criteria were
+    confirmed into the requirements;
+  - one file per **bounded context** the requirements touch, named in plain
+    words in kebab-case (`order-checkout.md`), with front matter `context:
+    <its file stem>` (plus `feature` and the version keys on Discovery) and
+    the headings, in order: `## Impact map` (components, files and tests,
+    each a repo-relative path cited `file:line`), `## Rules and edge cases`,
+    `## Risks`, `## Open questions`, `## API notes`. A context file links to
+    another rather than restating it. Contexts come from the impact
+    analysts' code areas and the PRD features the requirements name.
+- The impact reviewer MUST judge every file of the folder and the README's
+  contexts table; `acs.py analysis record-draft` refuses a folder with no
+  `README.md`, an `index.md`, a name that is not kebab-case `.md`, a
+  missing or out-of-order heading, a table link that does not resolve or a
+  context file the table does not list.
+- MUST publish every reviewed file of the folder byte-for-byte and remove a
+  context file the new analysis no longer has — only inside that
+  `analysis/` folder.
 - The published analysis is the reusable record: the feature's living
   analysis is read by `/create-architecture`, `/create-data-design`,
   `/create-flows`, `/create-design` and by every later run on the feature;
   a Development run's is read by `/create-impl-plan`, `/create-api-contract`,
   `/create-test-docs` and `/code`, and the next run of this skill starts from
-  it. A legacy `docs/tickets/<ID>/analysis.md` is still read when the phase
-  folder has none; the workspace partition answers only when there is no
+  it, each reading `README.md` first ("Reading an analysis: README first"
+  above). A single `analysis.md` published before ADR-0133, and a legacy
+  `docs/tickets/<ID>/analysis.md`, are still read when the phase folder has
+  no `analysis/` folder; the workspace partition answers only when there is no
   checkout.
 - The impact reviewer MUST check that every `## Questions for the user` item
   was answered in the ledger or carried as an open/assumed entry, and that
@@ -1221,7 +1265,9 @@ user, and say plainly whether they are ready to plan. It works in two phases
   run over the impact paths went with the axis (ADR-0095); what replaces it is
   EVIDENCE, not a setting. When the impact map reaches a surface the repo
   treats as load-bearing — auth, payments, a migration or any stored shape, a
-  public API, concurrency or ordering — the analysis MUST say so in `## Risks`,
+  public API, concurrency or ordering — the analysis MUST say so in that
+  context file's `## Risks` (in README's `## Cross-cutting risks and
+  decisions` when it spans contexts),
   naming the paths, because that is what `/create-impl-plan` carries into the
   plan and what the delivery-path judgement is then made from.
 - A not-ready analysis MUST return `needs_input` rather than a completed run.
@@ -1240,7 +1286,7 @@ user, and say plainly whether they are ready to plan. It works in two phases
 Purpose: `/code`'s plan phase, carved out whole into its own skill, ending in
 an approved `plan.md`.
 
-- Input: the run's requirements, `analysis.md` and `design.md` when present
+- Input: the run's requirements, the analysis (its `README.md` first, then the context files the plan needs) and `design.md` when present
   (the API contract comes *after* the plan — the plan is what names the API
   surface to build); with neither, the requirements alone. Pre-hook check:
   the subject resolves. Brake: an epic is refused.
@@ -1258,7 +1304,7 @@ an approved `plan.md`.
   the remediation (ceiling 3
   review rounds — ADR-0074's 2026-09-14 amendment), so a fixable draft does
   not fail the run on its first verdict.
-- MUST plan against the ticket as written when `analysis.md` says
+- MUST plan against the ticket as written when the analysis's `README.md` says
   `ready_for_planning: true`: the ledger entries `/analyze-requirements` left open
   alongside that verdict (refined-criteria and missing-criterion proposals)
   are carried in the plan's Risks as `C-<n> open — planned as written`, never
@@ -1278,7 +1324,7 @@ Purpose: pin the API surface a ticket changes before it is implemented, so
 `/code` builds against a contract and `/create-test-docs` derives cases from
 it.
 
-- Input: `plan.md`, `analysis.md`, the run's requirements, the architecture
+- Input: `plan.md`, the analysis (README first), the run's requirements, the architecture
   doc set, and the repo's existing contract files, wherever the repo keeps
   them (else `docs/api/`), each read when present; with no plan, the
   requirements' acceptance criteria bound the contract. Pre-hook check: the

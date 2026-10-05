@@ -33,7 +33,7 @@ brakes: the run resolves to a live, unlocked partition and, when its subject
 is a ticket, that ticket is not an epic — an epic is designed and fanned out,
 never planned as one ticket. No ticket is required: a prompt, documents, or a
 mix of them with a ticket id are all requirements. Nothing
-upstream is required: `analysis.md` and `design.md` are read WHEN PRESENT, and
+upstream is required: the analysis and `design.md` are read WHEN PRESENT, and
 no predecessor-completed check exists — the pipeline order lives in
 `workflows/ship.yaml`, not in this gate. With no analysis the plan is made
 from the requirements' acceptance criteria and the codebase, whether `/acs:ship`
@@ -126,9 +126,9 @@ It resolves by the run the checkout points at (`--run <run-id>` names
 another; `--ticket <id>` still works). Development documents live in
 `<development_dir>/<feature>/<id>/`, design records in
 `<architecture_dir>/lld/<feature>/<id>/`, the feature's living analysis in
-`<prd_dir>/features/<feature>/analysis.md` (`feature_analysis`); a legacy
-`docs/tickets/<ID>/` file is reported only when the new folder has none, and
-nothing writes there.
+`<prd_dir>/features/<feature>/analysis/` (`feature_analysis`, its
+`README.md`); a legacy `docs/tickets/<ID>/` file is reported only when the
+new folder has none, and nothing writes there.
 
 - `artifacts["plan.md"]` non-null → that existing file is the plan; this run
   REVISES it (see `references/not-a-first-run.md`). A legacy
@@ -171,12 +171,16 @@ inline a file body):
 1. The requirements — `requirements.path` from the context JSON (the run's
    `requirements.md`; the ticket, prompt and documents it was built from are
    only its containers).
-2. `analysis.md` when `acs.py artifacts show` reports it — `/acs:analyze-requirements`'s
+2. The analysis when `acs.py artifacts show` reports it — `/acs:analyze-requirements`'s
    impact map, assumptions, risks and refined acceptance criteria — and the
    feature's living analysis (`feature_analysis`, the Discovery analysis of the
-   feature in `<prd_dir>/features/<feature>/analysis.md`) when it exists. Absent is
-   not an error: plan from the requirements and the codebase instead, and say so in
-   the plan.
+   feature in `<prd_dir>/features/<feature>/analysis/`) when it exists. An
+   analysis is a folder (ADR-0133): `artifacts["analysis.md"]` is its
+   `README.md` — scope, refined criteria, cross-cutting risks and a table of
+   its bounded contexts — and `analysis_files` lists every file. Read the
+   README first, then only the context files the plan touches; a legacy single
+   `analysis.md` is read whole. Absent is not an error: plan from the
+   requirements and the codebase instead, and say so in the plan.
 3. `<design_doc>` when `design.required` — the decided architecture
    the plan must realize.
 4. `<partition>/specs/*.md` when present (sorted `01-`, `02-`, ... — that is
@@ -344,8 +348,9 @@ with no suite command starts no job, and you tell the `tests` slice so in its
 ### Planner (per iteration) — survey, then author the plan
 
 Iteration 1's planner surveys and decides before it writes the deliverable.
-Task it with `<inputs>` of `requirements.md`, `analysis.md`, the feature's
-living analysis and `design.md` when they exist, and the consumer-repo
+Task it with `<inputs>` of `requirements.md`, the analysis (its `README.md`
+and the context files the change touches), the feature's living analysis and
+`design.md` when they exist, and the consumer-repo
 source/docs the subject touches. Its authoring notes are
 `steps/create-impl-plan/iter-<n>/authoring.md`, and they cover, in the order
 `create-impl-plan-planner.md`'s survey defines:
@@ -484,8 +489,8 @@ its own remediation iterations. Record the returned `tasks` object as
 
 Spawn the three `acs:create-impl-plan-plan-reviewer` slices (Judge slices
 above) in ONE message AFTER the draft is written, each with
-`<inputs>` of the draft, `requirements.md`, `analysis.md` and `design.md` when
-they exist, every `<partition>/specs/*.md`, and the repo paths the file map
+`<inputs>` of the draft, `requirements.md`, the analysis (`README.md` and its
+context files) and `design.md` when they exist, every `<partition>/specs/*.md`, and the repo paths the file map
 names; the `tests` slice's `<constraints>` also name the `suite` job (The
 suite job, above) whose result it reads. The plan reviewer judges fresh — never forward the planner's reasoning —
 and each slice writes `steps/create-impl-plan/iter-<n>/plan-reviewer-<slice>.md`,
@@ -602,7 +607,7 @@ BEFORE acting on it, and pass the relevant `C-n` entries to subagents in
 `<context>`.
 
 **Entries the analysis left open are proposals, not blockers.**
-`analysis.md`'s front matter `ready_for_planning: true` is
+The analysis README's front matter `ready_for_planning: true` is
 `/acs:analyze-requirements`'s verdict that the ticket can be planned as written;
 the ledger entries it recorded and left `open` alongside that verdict —
 refined-criteria rewrites, missing-criterion suggestions, a design

@@ -14,7 +14,12 @@ SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-cursor-pagination-for-get-customers"
-ANALYSIS = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Problem restated\n\nOffset paging on GET /customers skips or repeats customers when rows are\ninserted between page requests. Clients need an opaque cursor.\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | `list_customers` gains `cursor`, returns `next_cursor` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents `cursor` and `next_cursor` | README.md:7 |\n\n## Questions\n\n- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.\n- C-2 offset compatibility — answered: kept, deprecated; cursor wins.\n- C-3 maximum page size — answered: `limit` defaults to 20, maximum 250.\n- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.\n\n## Assumptions\n\n_None._\n\n## Risks\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Verdict\n\nReady for planning; api_surface true; no design needed.\n'
+README = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Scope and summary\n\nOffset paging on GET /customers skips or repeats customers when rows are\ninserted between page requests. Clients need an opaque cursor.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Questions and assumptions\n\n- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.\n- C-2 offset compatibility — answered: kept, deprecated; cursor wins.\n- C-3 maximum page size — answered: `limit` defaults to 20, maximum 250.\n- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning; api_surface true; no design needed.\n'
+
+CONTEXT = '---\ncontext: customer-listing\n---\n\n# Customer listing\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | `list_customers` gains `cursor`, returns `next_cursor` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents `cursor` and `next_cursor` | README.md:7 |\n\n## Rules and edge cases\n\n_None._\n\n## Risks\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Open questions\n\n_None._\n\n## API notes\n\n_None._\n'
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "customer-listing.md": CONTEXT}
 
 def _written(ws):
     """What the run records in `states.files`: the repo paths it wrote and
@@ -36,10 +41,19 @@ def _finish(ws, status="completed", ready=True, api_surface=True, questions_open
           % (SCRIPTS, STEP))
 
 
-def _publish(ws, text):
-    """The Publish copy, left uncommitted on the checked-out branch (ADR-0127)."""
-    ws.write(STEP + "/analysis.md", text)
-    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/analysis.md" docs/development/customer-listing/EVAL-1/analysis.md' % STEP)
+def _publish(ws, files):
+    """The draft folder, then the Publish copy of every file, left uncommitted
+    on the checked-out branch (ADR-0127, ADR-0133)."""
+    for name, text in files.items():
+        ws.write(STEP + "/iter-1/analysis/" + name, text)
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1/analysis && cp "%s"/iter-1/analysis/*.md docs/development/customer-listing/EVAL-1/analysis/' % STEP)
+
+
+def _edit(files, old, new):
+    """Every file of the folder with `old` replaced by `new`."""
+    out = {n: t.replace(old, new) for n, t in files.items()}
+    assert out != files, old
+    return out
 
 
 def _clarify(ws, question, answer=None, source=None, rationale=None):
@@ -70,7 +84,7 @@ def _ignored_the_ledger(ws):
     """Started over: asked the limit question again, assumed 100."""
     _start(ws)
     _clarify(ws, "What is the maximum page size?", "100", "assumption", "conventional default")
-    _publish(ws, ANALYSIS.replace("maximum 250", "maximum 100"))
+    _publish(ws, _edit(ANALYSIS, "maximum 250", "maximum 100"))
     _finish(ws)
 
 
@@ -81,7 +95,8 @@ def _started_only(ws):
 def _draft_never_published(ws):
     """Wrote the draft and closed the step, but never published it."""
     _start(ws)
-    ws.write(STEP + "/analysis.md", ANALYSIS)
+    for name, text in ANALYSIS.items():
+        ws.write(STEP + "/iter-1/analysis/" + name, text)
     _finish(ws)
 
 

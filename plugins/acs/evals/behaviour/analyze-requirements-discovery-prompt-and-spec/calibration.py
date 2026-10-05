@@ -5,7 +5,7 @@ run, through the plugin's own writers: `acs step start --args` over the
 invocation (the attached spec and the prompt -- no ticket), `clarify.py add`
 for each relayed answer into the run's own ledger, `acs.py requirements
 refine` for the feature and the confirmed needs_design, the versioned draft
-in the step directory, the Publish copy to the feature's living analysis
+folder in the step directory (a README plus one context file -- ADR-0133), the Publish copy to the feature's living analysis
 left uncommitted (ADR-0127), then result.json with `files` and the post-hook.
 The analyst's and impact reviewer's phase files are workspace detail no
 grader reads, so only the draft is played.
@@ -18,9 +18,9 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 ARGS = ('attachments/order-tracking-spec.md "also: guest orders (placed without an '
         'account) are trackable through the link in their order confirmation email"')
-LIVING = "docs/product/features/order-tracking/analysis.md"
+LIVING = "docs/product/features/order-tracking/analysis"
 
-ANALYSIS = """---
+README = """---
 status: proposed
 version: 1
 tickets: []
@@ -32,12 +32,49 @@ needs_design_recommendation: true
 
 # Analysis — order-tracking: Order tracking from carrier updates
 
-## Problem restated
+## Scope and summary
 
 Carriers push shipment status changes; the shop stores every change per
 order, serves the latest on GET /orders/{id}, emails the shopper on each
 change, lets a shopper opt out per order, and lets guest orders track
 through the confirmation-email link.
+
+## Contexts
+
+| Context | File | Purpose |
+|---|---|---|
+| Carrier updates | [carrier-updates.md](carrier-updates.md) | how a carrier's status change reaches the order and the shopper |
+
+## Refined acceptance criteria
+
+The spec's four criteria stand as written; guest-order tracking is proposed
+as a fifth — open.
+
+## Cross-cutting risks and decisions
+
+- New inbound surface from third parties (authentication); a new stored shape.
+
+## Questions and assumptions
+
+- C-1 how carriers deliver updates — answered: signed webhooks.
+- C-2 design needed — answered: yes; recorded, not started.
+
+Assumptions: none.
+
+## Verdict
+
+Ready for planning once designed; api_surface true; needs a design.
+"""
+
+CONTEXT = """---
+context: carrier-updates
+feature: order-tracking
+status: proposed
+version: 1
+tickets: []
+---
+
+# Carrier updates
 
 ## Impact map
 
@@ -46,12 +83,7 @@ through the confirmation-email link.
 | src/shop/__init__.py | shop | new webhook intake, status store, order status | src/shop/__init__.py:1 |
 | docs/architecture/lld/flows.md | docs | new inbound carrier flow | docs/architecture/lld/flows.md:3 |
 
-## Questions
-
-- C-1 how carriers deliver updates — answered: signed webhooks.
-- C-2 design needed — answered: yes; recorded, not started.
-
-## Assumptions
+## Rules and edge cases
 
 _None._
 
@@ -59,15 +91,17 @@ _None._
 
 - New inbound surface from third parties (authentication); a new stored shape.
 
-## Refined acceptance criteria
+## Open questions
 
-The spec's four criteria stand as written; guest-order tracking is proposed
-as a fifth — open.
+_None._
 
-## Verdict
+## API notes
 
-Ready for planning once designed; api_surface true; needs a design.
+_None._
 """
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "carrier-updates.md": CONTEXT}
 
 ANSWERS = [
     ("How do carriers deliver status updates?", "Signed webhooks, one secret per carrier"),
@@ -115,10 +149,18 @@ def _finish(ws, step, status="completed"):
           % (SCRIPTS, step))
 
 
-def _publish(ws, step, text, target=LIVING):
-    ws.write(step + "/analysis.md", text)
-    ws.sh('mkdir -p "%s" && cp "%s/analysis.md" "%s"'
-          % (os.path.dirname(target), step, target))
+def _publish(ws, step, files, target=LIVING):
+    """The draft folder, then the Publish copy of every file."""
+    for name, text in files.items():
+        ws.write(step + "/iter-1/analysis/" + name, text)
+    ws.sh('mkdir -p "%s" && cp "%s"/iter-1/analysis/*.md "%s"/' % (target, step, target))
+
+
+def _edit(files, old, new):
+    """Every file of the folder with `old` replaced by `new`."""
+    out = {n: t.replace(old, new) for n, t in files.items()}
+    assert out != files, old
+    return out
 
 
 def IDEAL(ws):
@@ -130,7 +172,8 @@ def IDEAL(ws):
     assert shown.returncode == 0, shown.stderr
     layout = json.loads(shown.stdout)
     assert layout["phase"] == "discovery", layout["phase"]
-    assert layout["paths"]["analysis.md"].replace(os.sep, "/").endswith(LIVING), layout["paths"]
+    assert layout["paths"]["analysis.md"].replace(os.sep, "/").endswith(
+        LIVING + "/README.md"), layout["paths"]
     _publish(ws, step, ANALYSIS)
     _finish(ws, step)
 
@@ -151,7 +194,7 @@ def _published_as_a_development_run(ws):
     step = _start(ws)
     _clarify(ws)
     _refine(ws, {"feature": "order-tracking", "needs_design": True})
-    _publish(ws, step, ANALYSIS, "docs/development/order-tracking/run/analysis.md")
+    _publish(ws, step, ANALYSIS, "docs/development/order-tracking/run/analysis")
     _finish(ws, step)
 
 
@@ -160,8 +203,8 @@ def _unversioned_ticket_front_matter(ws):
     step = _start(ws)
     _clarify(ws)
     _refine(ws, {"feature": "order-tracking", "needs_design": True})
-    text = ANALYSIS.replace("status: proposed\nversion: 1\ntickets: []\nfeature: order-tracking\n",
-                            "ticket: order-tracking\n")
+    text = _edit(ANALYSIS, "status: proposed\nversion: 1\ntickets: []\nfeature: order-tracking\n",
+                 "ticket: order-tracking\n")
     _publish(ws, step, text)
     _finish(ws, step)
 
@@ -171,9 +214,9 @@ def _spec_only(ws):
     step = _start(ws)
     _clarify(ws)
     _refine(ws, {"feature": "order-tracking", "needs_design": True})
-    text = (ANALYSIS.replace(", and lets guest orders track\nthrough the confirmation-email link", "")
-            .replace("; guest-order tracking is proposed\nas a fifth — open", ""))
-    assert "guest" not in text.lower()
+    text = _edit(_edit(ANALYSIS, ", and lets guest orders track\nthrough the confirmation-email link",
+                       ""), "; guest-order tracking is proposed\nas a fifth — open", "")
+    assert not any("guest" in t.lower() for t in text.values())
     _publish(ws, step, text)
     _finish(ws, step)
 
