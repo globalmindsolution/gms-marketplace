@@ -173,7 +173,7 @@ class LoopTest(unittest.TestCase):
         self.wf = ship()
         self.rid, self.rdir, _doc = R.create_run(
             self.repo, {"kind": "ticket", "ticket_id": "MAR-1"}, self.wf, SHIP)
-        for step in ("analyze-requirements", "create-impl-plan", "create-api-contract",
+        for step in ("analyze-requirements", "create-impl-plan",
                      "create-test-docs", "code"):
             R.start_step(self.rdir, step, self.wf)
             S.write_noop_result(self.rdir, step, self.rid, None, "x")

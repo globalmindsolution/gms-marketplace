@@ -91,11 +91,11 @@ _PROJECT_RESPONSES = {
 # Build/Test coordinators (analyze-requirements, create-impl-plan,
 # create-api-contract, create-test-docs, create-e2e-tests); ADR-0126 added the
 # two low-level Design skills (create-data-design, create-flows) beside
-# create-design.
+# create-design; ADR-0134 moved create-api-contract among them.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-ticket",
-                 "create-design", "create-data-design", "create-flows",
-                 "analyze-requirements", "create-impl-plan",
-                 "create-api-contract", "create-test-docs", "code",
+                 "create-design", "create-api-contract", "create-data-design",
+                 "create-flows", "analyze-requirements", "create-impl-plan",
+                 "create-test-docs", "code",
                  "review-code", "run-e2e-tests",
                  "docs-sync", "create-e2e-tests", "create-pr",
                  "merge-pr", "audit-design", "audit-security"]
@@ -129,7 +129,9 @@ EXPECTED_AGENTS = {
     "create-data-design": ["designer", "gap-analyst", "reviewer"],
     "create-flows": ["designer", "gap-analyst", "reviewer"],
     "create-impl-plan": ["planner", "plan-reviewer"],
-    "create-api-contract": ["contract-author", "contract-reviewer"],
+    # ADR-0134: a Design skill, so it surveys the code against the living
+    # api docs like data-design and flows do.
+    "create-api-contract": ["contract-author", "contract-reviewer", "gap-analyst"],
     "create-test-docs": ["test-designer", "trace-reviewer"],
     "code": ["implementer"],
     "review-code": ["lens", "adjudicator"],

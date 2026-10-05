@@ -158,12 +158,29 @@ class TestFolderChecks(FolderCase):
         self.assertIn(("analysis/README.md", "missing-section"), self.rules())
 
     def test_readme_front_matter_is_the_full_spec(self):
-        self.put("README.md", readme().replace("api_surface: false\n", ""))
+        self.put("README.md", readme().replace("needs_design_recommendation: false\n", ""))
         self.assertEqual(self.rules(), [("analysis/README.md", "missing-key")])
         self.put("README.md", readme(tid="SHOP-9"))
         self.assertEqual(self.rules(), [("analysis/README.md", "ticket-mismatch")])
         rules = self.rules(ticket=None, phase="discovery")
         self.assertIn(("analysis/README.md", "missing-key"), rules)
+
+    def test_api_surface_is_no_longer_part_of_the_spec(self):
+        """ADR-0134: whether an interface changes no longer decides a step,
+        so the analysis states no `api_surface`."""
+        for spec in (F.FRONT_MATTER_SPEC, F.FEATURE_FRONT_MATTER_SPEC):
+            self.assertNotIn("api_surface", spec)
+        self.assertNotIn("api_surface", readme())
+        self.assertEqual(F.check_folder(self.folder, TID), [])
+
+    def test_an_analysis_published_with_api_surface_still_validates(self):
+        """An analysis published before ADR-0134 carries `api_surface:` --
+        an unknown front-matter key, ignored, so it keeps validating."""
+        legacy = readme().replace("ready_for_planning: true\n",
+                                  "ready_for_planning: true\napi_surface: true\n")
+        self.assertIn("api_surface: true", legacy)
+        self.put("README.md", legacy)
+        self.assertEqual(F.check_folder(self.folder, TID), [])
 
     def test_context_headings_are_required_in_order(self):
         self.put(CONTEXT_NAME, CONTEXT.replace("## Risks\nNone.\n\n", ""))

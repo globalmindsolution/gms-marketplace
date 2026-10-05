@@ -75,6 +75,28 @@ class FinishExampleMatchesFragmentTest(unittest.TestCase):
         plan = fragment("create-impl-plan")["properties"]["states"]["properties"]
         self.assertEqual(plan["file_map"]["type"], "object")
 
+    def test_api_surface_is_kept_only_so_old_state_still_validates(self):
+        """ADR-0134 dropped `api_surface`: nothing writes it, but the fragment
+        is closed (additionalProperties false), so it stays declared --
+        deprecated and ignored -- for the state files that already carry it."""
+        states = fragment("analyze-requirements")["properties"]["states"]
+        node = states["properties"]["api_surface"]
+        self.assertIn("ADR-0134", node.get("description", ""))
+        self.assertIn("ignored", node.get("description", "").lower())
+        self.assertNotIn("api_surface", states.get("required", []))
+        old = {"ready_for_planning": True, "api_surface": True, "questions_open": 0,
+               "files": []}
+        new = {"ready_for_planning": True, "questions_open": 0, "files": []}
+        for doc in (old, new):
+            self.assertEqual(list(schemasubset.schema_errors(states, doc)), [])
+
+    def test_the_api_contract_completes_written_or_type_disabled(self):
+        """ADR-0134: a Design skill, so no plan settles it as `no_surface_owed`;
+        it writes the contract, or records that its LLD type is disabled."""
+        outcome = fragment("create-api-contract")["properties"]["outcome"]
+        self.assertEqual(outcome["enum"], ["contract_written", "type_disabled"])
+        self.assertNotIn("no_surface_owed", outcome["description"])
+
 
 
 class NoRetiredStatePathsTest(unittest.TestCase):

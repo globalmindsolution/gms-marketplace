@@ -284,8 +284,10 @@ them for ordering or safety guarantees.
   the analysis owns the impact map, assumptions and risks — a folder
   (ADR-0133): `README.md` for the scope, refined criteria, cross-cutting risks
   and verdict, one file per bounded context for its impact map, rules and
-  risks; a reader opens the README first and then only the contexts it needs; `api-contract.md`
-  owns the external surface; `test-cases.md` owns the WHAT to prove — `TC-n`
+  risks; a reader opens the README first and then only the contexts it needs; the API
+  contract owns the external surface — the living `lld/<feature>/api/<interface>.md`
+  files and the run's `api-contract.md` record linking them, Design documents only
+  (ADR-0134), from which the plan's items make any machine-readable contract files; `test-cases.md` owns the WHAT to prove — `TC-n`
   cases traced to ACs; `plan.md` owns the HOW — the authoritative file map,
   implementer decomposition, concrete failing tests, commands. A skill reads the
   upstream artifacts that EXIST and works without the ones that do not (each is

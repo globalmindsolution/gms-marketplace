@@ -11,6 +11,11 @@ ADR-0126 adds the two ticket-scoped low-level Design skills,
 `create-data-design` and `create-flows`, to `PLANNING_SKILLS` beside
 `create-design`: they run on a ticket before implementation and take no
 run position, exactly as create-design does.
+
+ADR-0134 moves `create-api-contract` there too: an API contract is a Design
+document (`lld/<f>/api/<interface>.md`), written before or without a plan, so
+it leaves `WORKFLOW_SKILLS` and `ship.yaml` and joins the Design skills in the
+order the Design phase runs them.
 """
 
 import json
@@ -67,12 +72,21 @@ def _section(body, heading):
 class RegistryShapeCase(unittest.TestCase):
     """AC-1: the three-list shape and unchanged total membership."""
 
-    def test_planning_skills_is_exactly_the_three_design_skills(self):
+    def test_planning_skills_is_exactly_the_four_design_skills(self):
         # create-design alone through ADR-0125; ADR-0126 adds the low-level
-        # data and flows designs beside it. Pinned in order, so a fourth
-        # planning skill (or a reorder) is a deliberate edit here.
+        # data and flows designs beside it; ADR-0134 the API contract. Pinned
+        # in order, so a fifth planning skill (or a reorder) is a deliberate
+        # edit here.
         self.assertEqual(acs_lib.PLANNING_SKILLS,
-                         ["create-design", "create-data-design", "create-flows"])
+                         ["create-design", "create-api-contract",
+                          "create-data-design", "create-flows"])
+
+    def test_create_api_contract_is_a_design_skill_not_a_workflow_skill(self):
+        """ADR-0134: it writes a Design document and is no step of ship."""
+        self.assertIn("create-api-contract", acs_lib.PLANNING_SKILLS)
+        self.assertNotIn("create-api-contract", acs_lib.WORKFLOW_SKILLS)
+        wf = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
+        self.assertFalse(acs_lib.has_step(wf, "create-api-contract"))
 
     def test_create_design_not_in_workflow_skills(self):
         self.assertNotIn("create-design", acs_lib.WORKFLOW_SKILLS)
@@ -96,7 +110,8 @@ class RegistryShapeCase(unittest.TestCase):
         # v0.5.0 adds review-code and run-e2e-tests as steps of their own;
         # ADR-0122 adds the read-only audit-design; ADR-0123 the read-only
         # audit-security; ADR-0126 the Design skills create-data-design and
-        # create-flows.
+        # create-flows. ADR-0134 MOVES create-api-contract between lists, so
+        # the count does not change.
         self.assertEqual(len(acs_lib.HOOKED_SKILLS), HOOKED_SKILL_COUNT)
 
     def test_sorted_hooked_skills_membership_pinned(self):

@@ -13,7 +13,7 @@ component follows.
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 29 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 33 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 34 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
@@ -337,7 +337,6 @@ version: 3
 steps:
   - analyze-requirements
   - create-impl-plan
-  - create-api-contract
   - create-test-docs
   - code
   - review-code
@@ -844,9 +843,9 @@ every other key below is persisted verbatim from the result document:
 | create-design | `design_path` (the published `design.md` — the run's Design folder `lld/<feature>/<id>/`, or the partition when there is no checkout), `decision` (one line) |
 | create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — left as uncommitted changes for `/acs:create-pr`), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |
 | create-flows | `feature: [...]`, `files: [...]` (as create-data-design's), `types: [...]`, `gaps` `{undocumented, unimplemented, drifted}`, `flows` (int), `state_machines` (int) |
-| analyze-requirements | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
+| create-api-contract | `contract_path` (where the per-run record `api-contract.md` went — `lld/<feature>/<id>/` when shared, the partition when kept local), `feature: [...]`, `files: [...]` (every path written, repo-relative: the living api documents, any `lld` README rows and the shared record), `types: [...]` (`["api-contract"]`, or `[]` when the type is disabled — `outcome: type_disabled`), `interfaces: [...]` (the living `lld/<feature>/api/<interface>.md` files written or bumped), `items` (int), `traced_acs: [...]`, `gaps` `{undocumented, unimplemented, drifted}` — documents only, no machine-readable contract files (ADR-0134) |
+| analyze-requirements | `ready_for_planning: true/false`, `questions_open` (int) — no `api_surface` since ADR-0134 (an older state file that carries it still validates; nothing reads it) |
 | create-impl-plan | `plan_path`, `plan_approved: true/false` (written by `plan-approval.py`), `file_map` (object) |
-| create-api-contract | `contract_path`, `items` (int), `traced_acs: [...]` |
 | create-test-docs | `cases` (int), `e2e_cases` (int), `untraced_acs: [...]` (empty on a completed run) |
 | code | `branch`, `delivery_path`, `plan_path`, `plan_approved`, `file_map`, `specs_implemented: [...]`, `files: [...]` (the uncommitted paths; `commits` is legacy and optional) (plus `review.guard_denials`, derived, only when the file-map guard denied a write) |
 | review-code | `verifier_passed: true/false` (the /create-pr BRAKE, derived from `verdict.json`), `reviewed_sha` (the working-tree snapshot tree the review judged), `review` `{iterations, findings_open}`, `tests` `{passed, failed, coverage_percent, coverage_target}` |
@@ -873,16 +872,16 @@ or archive, and there is nothing repo-level to record (ADR 0104).
 
 ### The Development skills at a glance
 
-Six skills were carved out of what `/acs:code` and `/acs:test` used to do
-alone, so each produces ONE artifact another step can read, and each is
+Five skills were carved out of what `/acs:code` and `/acs:test` used to do
+alone (a sixth, `create-api-contract`, was one of them until ADR-0134 made it a
+Design skill), so each produces ONE artifact another step can read, and each is
 runnable on its own:
 
 | Skill | Reads | Writes | Downstream use |
 |---|---|---|---|
-| `analyze-requirements` | the run's requirements (a ticket, documents, a prompt), PRD/requirements/architecture, the codebase, the ledger, the feature's living analysis and its own previously published analysis — the folder, or a single `analysis.md` from before ADR-0133 (the survey starts from them) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria, `needs_design`, features and the feature recorded via `acs.py requirements refine`, which also patches a ticket), store — ending in an `analysis/` folder (ADR-0133: `README.md` with front matter `ticket` or `feature`, `ready_for_planning`, `api_surface`, `needs_design_recommendation`, plus one file per bounded context) published to the feature's living analysis `<prd_dir>/features/<f>/analysis/` when run on its own (Discovery), or to `<development_dir>/<f>/<id>/analysis/` as a Development step | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s planner plans from the impact map, and `create-api-contract` / `create-test-docs` read it; the Design skills read the feature's living analysis; the next analysis starts from it; a not-ready analysis returns `needs_input` |
-| `create-impl-plan` | the analysis (`analysis/README.md` first, then the context files it needs — ADR-0133) and `design.md` when present, else the run's requirements | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
-| `create-api-contract` | `plan.md`, the analysis (README first), the architecture set, existing contracts where the repo keeps them (else `docs/api/`) | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
-| `create-test-docs` | the requirements' ACs (`AC-n`, refined when analysed), `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
+| `analyze-requirements` | the run's requirements (a ticket, documents, a prompt), PRD/requirements/architecture, the codebase, the ledger, the feature's living analysis and its own previously published analysis — the folder, or a single `analysis.md` from before ADR-0133 (the survey starts from them) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria, `needs_design`, features and the feature recorded via `acs.py requirements refine`, which also patches a ticket), store — ending in an `analysis/` folder (ADR-0133: `README.md` with front matter `ticket` or `feature`, `ready_for_planning`, `needs_design_recommendation`, plus one file per bounded context; an interface change is named in its Next as work for `/acs:create-api-contract`, ADR-0134) published to the feature's living analysis `<prd_dir>/features/<f>/analysis/` when run on its own (Discovery), or to `<development_dir>/<f>/<id>/analysis/` as a Development step | `/acs:create-impl-plan`'s planner plans from the impact map, and `create-test-docs` reads it; the Design skills — `create-api-contract` among them — read the feature's living analysis; the next analysis starts from it; a not-ready analysis returns `needs_input` |
+| `create-impl-plan` | the analysis (`analysis/README.md` first, then the context files it needs — ADR-0133), `design.md` and the approved API contract (`api-contract.md` and the feature's `lld/<feature>/api/` files, ADR-0134) when present, else the run's requirements | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX; when the repo keeps machine-readable contract files (OpenAPI, JSON Schema, proto, AsyncAPI), the plan items that create or update them from the contract | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
+| `create-test-docs` | the requirements' ACs (`AC-n`, refined when analysed), `plan.md`, and the API contract (`api-contract.md` through `artifacts show`, plus the living `lld/<feature>/api/`) when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
 | `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.tests.e2e` | e2e suites at the repo's configured location, left uncommitted | `run-e2e-tests` executes them |
 | `run-e2e-tests` | the ticket's suites (from `test-cases.md`, falling back to the plan's Test-plan section) | the run artifact + triage | `on_fail: {relay_to: code}` with the fix-loop cap |
 
@@ -927,7 +926,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-33 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 33 reachable —
+34 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 34 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -953,8 +952,8 @@ setting.
 | `create-design` | `designer` (write) · `design-reviewer` (judge) |
 | `create-data-design` | `designer` (write — a survey pass, then ONE write pass over both documents, which must agree) · `gap-analyst` (survey — one per survey area, spawned beside the survey only when the feature's `data/` already holds documents; ADR-0126) · `reviewer` (judge — three slices) |
 | `create-flows` | `designer` (write — a survey pass, then parallel write slices, one per flow group plus `write-states` and `write-components`, and an `integration` pass only when a slice reports a seam) · `gap-analyst` (survey — as create-data-design's, over `flows/` and `components/`) · `reviewer` (judge — three slices; ADR-0126) |
+| `create-api-contract` | `contract-author` (write — sliced per interface, with an `integration` pass only when a slice reports a seam) · `gap-analyst` (survey — spawned in the same message as the survey, over the feature's `api/` documents against the code; ADR-0134) · `contract-reviewer` (judge) |
 | `create-impl-plan` | `planner` (write) · `plan-reviewer` (judge) |
-| `create-api-contract` | `contract-author` (write) · `contract-reviewer` (judge) |
 | `create-test-docs` | `test-designer` (write) · `trace-reviewer` (judge) |
 | `code` (and its four legs) | `implementer` (write), one per file-map partition |
 | `review-code` | `lens` · `adjudicator` (judge) |
@@ -1066,8 +1065,9 @@ a finding fails the iteration like a judge's blocking finding (ADR-0125).
 
 **`README.md`** — the entry, rendered when the folder is opened on the forge.
 Front matter is the old `analysis.md` spec: `ticket` (must match the run's) or
-`feature`, `ready_for_planning`, `api_surface`, `needs_design_recommendation`
-(booleans), plus `status`, `version`, `tickets` (ADR-0122) on a Discovery
+`feature`, `ready_for_planning`, `needs_design_recommendation`
+(booleans; an `api_surface` key left by an analysis published before ADR-0134
+is ignored, never refused), plus `status`, `version`, `tickets` (ADR-0122) on a Discovery
 analysis. Title `# Analysis — <ticket-id or feature>: <subject>` (not
 checked). Required `##` headings, in this order, each non-empty:
 
@@ -1129,7 +1129,7 @@ keyed by the run's feature (ADR-0128):
 | Phase | Folder | Documents |
 |---|---|---|
 | Discovery | `<prd_dir>/features/<feature>/` | the feature's living analysis, the `analysis/` folder (ADR-0133; ADR-0122 front matter + `feature` on every file) |
-| Design | `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/` | `design.md`, `api-contract.md`; the living `lld/<feature>/{api,data,flows,components}/` stays edited in place (ADR-0126) |
+| Design | `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/` | `design.md`, `api-contract.md` (the per-run record linking the interface files it wrote, ADR-0134); the living `lld/<feature>/{api,data,flows,components}/` stays edited in place (ADR-0126, ADR-0134) |
 | Development | `<development_dir>/<feature>/<ticket-id or run-id>/` | a Development run's `analysis/` folder (ADR-0133), `plan.md`, `test-cases.md` |
 
 `acs_lib.requirements` resolves the three roots deterministically:
@@ -1207,7 +1207,8 @@ so one changeset; use a separate worktree per concurrent ticket.
 
 ```
 <checkout>/<prd_dir>/features/<feature>/analysis/             # Discovery: the living analysis (README.md + <context>.md, ADR-0133)
-<checkout>/<architecture_dir>/lld/<feature>/<id>/              # Design: design.md  api-contract.md
+<checkout>/<architecture_dir>/lld/<feature>/<id>/              # Design: design.md  api-contract.md (per-run records)
+<checkout>/<architecture_dir>/lld/<feature>/{api,data,flows,components}/  # Design: the living LLD (api/<interface>.md, ADR-0134)
 <checkout>/<development_dir>/<feature>/<id>/                   # Development: analysis/  plan.md  test-cases.md
 <checkout>/docs/tickets/<ticket-id>/                           # LEGACY, read-only fallback (doc_layout.LEGACY_TICKETS_PATH)
 
@@ -1552,8 +1553,8 @@ A step that owes nothing is settled by its own **pre-hook**, from the plan's
 Milliseconds, zero tokens.
 
 ```
-steps.create-api-contract = {status: "completed", outcome: "no_surface_owed",
-                             summary: "CLI-only change; no HTTP surface, no browser flow"}
+steps.create-e2e-tests = {status: "completed", outcome: "no_e2e_owed",
+                          summary: "CLI-only change; no browser flow to drive"}
 ```
 
 This is strictly more than the `skipped` status it replaces. `skipped`
@@ -1565,14 +1566,18 @@ does, which is nothing.
 artifact leaves the step to do its work. The alternative — treating absence as
 `false` — would let an old plan silently disable a step.
 
-The four steps that can owe nothing, and what each consults:
+The three steps that can owe nothing, and what each consults:
 
 | Step | Reads | Outcomes |
 |---|---|---|
-| `create-api-contract` | `owes.api_contract` | `contract_written` · `no_surface_owed` |
 | `create-test-docs` | `owes.test_cases` | `cases_written` · `no_cases_owed` |
 | `create-e2e-tests` | `owes.e2e` | `tests_written` · `no_e2e_owed` |
 | `run-e2e-tests` | the repo's harness | `passed` · `no_harness` · `nothing_to_run` |
+
+A plan written before ADR-0134 may still carry `owes.api_contract`: it is
+accepted and ignored (`plan_contract.OWES_KEYS` is `test_cases` and `e2e`).
+`/acs:create-api-contract` is a Design skill now — run before the plan, not a
+step of the run — so nothing settles it from the plan.
 
 A failure is **not** an outcome. A step that could not do its work records
 `status: failed` with an error — the distinction is what keeps "nothing was
@@ -1946,8 +1951,8 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   read), the workspace at
   `<main-checkout>/.acs/state-machine`, and a skill finds every other repo
   document through `CLAUDE.md` and the repo itself, creating a missing one at
-  its `docs/` convention — `/acs:create-api-contract`'s machine-readable
-  contract files go where the repo keeps them, else `docs/api/`. The
+  its `docs/` convention — the machine-readable API contract files `/acs:code`
+  makes from an approved contract (ADR-0134) go where the repo keeps them. The
   delivery pipeline itself is NOT a settings key: it is the resolved
   `workflows/ship.yaml`, overridden wholesale at `<repo>/.acs/workflows/ship.yaml`
   when a repo ships one.

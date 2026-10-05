@@ -252,6 +252,23 @@ class PlanTicketTest(CommitPlanCase):
         self.assertEqual([(g["id"], g["paths"]) for g in plan["groups"]], [
             ("ticket-docs", [self.docs + "/plan.md"]), ("other", ["out/report.html"])])
 
+    def test_the_api_contract_is_committed_with_the_design_docs(self):
+        """ADR-0134: the API contract is a Design document -- the living
+        `lld/<f>/api/<interface>.md` and the run record land in the `design`
+        layer beside the data design, not with the ticket docs."""
+        self.assertEqual(lib.commit_plan.SKILL_LAYER["create-api-contract"], "design")
+        self.baseline()
+        api = "docs/architecture/lld/import/api/imports.md"
+        record = "docs/architecture/lld/import/%s/api-contract.md" % self.ticket
+        erd = "docs/architecture/lld/import/data/logical-erd.md"
+        for path in (api, record, erd):
+            write(self.repo, path)
+        self.states("create-api-contract", {"files": [api], "contract_path": record})
+        self.states("create-data-design", {"files": [erd]})
+        plan = self.plan("--ticket", self.ticket)
+        self.assertEqual([(g["id"], g["paths"]) for g in plan["groups"]],
+                         [("design", sorted([api, record, erd]))])
+
     def test_the_analysis_publication_is_read(self):
         self.baseline()
         write(self.repo, "docs/elsewhere/analysis.md")

@@ -69,8 +69,8 @@ inside a parallel group (a loop that re-entered half a group would leave the
 other half's work neither kept nor redone) — and never what a skill needs. An
 out-of-order override validates, and its steps run on their fallbacks.
 
-`/create-ticket`, `/create-design`, `/create-data-design` and `/create-flows`
-are **design** work that runs before `/ship`; `/merge-pr` is **ship** work a
+`/create-ticket`, `/create-design`, `/create-api-contract`, `/create-data-design`
+and `/create-flows` are **design** work that runs before `/ship`; `/merge-pr` is **ship** work a
 human drives after review.
 
 | Step (`ship.yaml`) | Phase | Purpose (summary) |
@@ -78,10 +78,10 @@ human drives after review.
 | — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. Runs before `/ship`. |
 | — `/create-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
 | — `/create-data-design` | design | Write the ticket's data low-level design under `lld/<feature>/data/` — logical ERD and physical schema with a migration outline, for the enabled `design.lld_types` only; documents only. Runs before `/ship`, on any ticket that adds or changes persisted data ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
+| — `/create-api-contract` | design | Design the interfaces a feature or a change adds or changes under `lld/<feature>/api/` — one living, versioned file per interface (a REST resource, a CLI command group, an event topic, a gRPC service), each endpoint, command or message traced to an acceptance criterion — plus the run's `api-contract.md` record linking them; documents only, never the repo's OpenAPI, JSON Schema, proto or AsyncAPI files, which `/code` makes from plan items. Runs before `/ship`, before the plan, on any ticket (an epic included), feature or prompt ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)). |
 | — `/create-flows` | design | Write the ticket's behaviour low-level design under `lld/<feature>/flows/` (and `components/` when enabled) — one file per flow and one per entity state machine; documents only. Runs before `/ship` ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
-| `analyze-requirements` | build | Read the subject, the product docs and the codebase; write the `analysis/` folder ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)) — a `README.md` with the scope, refined acceptance criteria, cross-cutting risks, questions and assumptions, the `api_surface` verdict and a contexts table, plus one file per bounded context with its impact map, rules, risks, open questions and API notes. A not-ready analysis returns `needs_input`. |
+| `analyze-requirements` | build | Read the subject, the product docs and the codebase; write the `analysis/` folder ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)) — a `README.md` with the scope, refined acceptance criteria, cross-cutting risks, questions and assumptions and a contexts table (an interface change is named in the report's Next as work for `/create-api-contract`), plus one file per bounded context with its impact map, rules, risks, open questions and API notes. A not-ready analysis returns `needs_input`. |
 | `create-impl-plan` | build | The plan phase carved out of `/code`: the planner's survey, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. **It also judges the delivery path**, once, from the plan's own scope, and writes it into the plan's `## Contract` block (ADR-0098). |
-| `create-api-contract` | build | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files where the repo keeps them (else `docs/api/`). Records an evidenced no-op when the Contract says `owes.api_contract: false`. |
 | `create-test-docs` | build | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. Records an evidenced no-op when the Contract says `owes.test_cases: false`. |
 | `code` | build | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. It dispatches to the delivery-path leg the plan recorded. **It has no verifier, does not judge the changeset, and never runs the full suite** — targeted tests only. |
 | `review-code` | build | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding, then a final gate running build, lint, the full unit suite and coverage. **The only place the full suite runs.** Blocking findings re-enter at `code` through the workflow's single loop — see [Review feedback loop](#review-feedback-loop). |
@@ -96,9 +96,11 @@ closed predicate list (`design_approved`, `api_surface_changed`,
 `e2e_configured`, `post_code_test_active`) and the `status: skipped` they
 produced are all removed. What each of them decided is now decided by the
 skill that owns the question, and recorded by it: an unapproved design is a
-brake in `/acs:create-impl-plan`'s own gate, an absent API surface is
-`owes.api_contract: false` on the plan, and an unconfigured e2e suite is an
-evidenced no-op that `/acs:create-e2e-tests` records for itself.
+brake in `/acs:create-impl-plan`'s own gate, an API surface is designed
+before the plan by `/acs:create-api-contract`, which is not a step at all
+([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)),
+and an unconfigured e2e suite is an evidenced no-op that
+`/acs:create-e2e-tests` records for itself.
 
 ```mermaid
 flowchart LR
@@ -108,9 +110,10 @@ flowchart LR
     FO -->|per child| A
     D -->|child inherits the design| A
     T -->|otherwise| A[/analyze-requirements/]
+    T -.->|an interface changes| AC[/create-api-contract/]
+    AC -.->|the plan reads the contract| PL
     A --> PL[/create-impl-plan/]
-    PL --> AC[/create-api-contract/]
-    AC --> TD[/create-test-docs/]
+    PL --> TD[/create-test-docs/]
     TD --> C[/code/]
     C --> RV[/review-code/]
     RV -->|blocking findings, max 3 rounds| C
@@ -129,8 +132,9 @@ they are one parallel group, and `run-e2e-tests` waits for both.
 set for **epics only**; stories/tasks are always `false`. Child tickets of
 an epic do **not** repeat design: they inherit the parent epic's `design.md`.
 
-`/create-data-design` and `/create-flows` carry no such flag: the SA or Tech
-Lead runs them on a ticket whose persisted data or behaviour they want designed
+`/create-api-contract`, `/create-data-design` and `/create-flows` carry no
+such flag: the SA or Tech Lead runs them on a ticket (or a feature, or a
+prompt) whose interfaces, persisted data or behaviour they want designed
 before implementation. Neither takes a run position, and neither branches,
 commits or opens a PR: each leaves its `lld/` documents as local uncommitted
 changes and lists every path it wrote in its result's `states.files`, for
@@ -148,7 +152,8 @@ document belongs to exactly one of them:
   analysis — a folder, `README.md` plus one file per bounded context,
   [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`
   (`design.md`, `api-contract.md`, beside the living LLD the Design skills edit
-  in place, ADR-0126); Development
+  in place — `lld/<feature>/{api,data,flows,components}/`, ADR-0126,
+  ADR-0134); Development
   `<development_dir>/<feature>/<ticket-id or run-id>/` (the `analysis/`
   folder, `plan.md`, `test-cases.md`). The skills that write them leave them
   uncommitted; `/create-pr` commits them in the PR's documents commits,
@@ -191,7 +196,7 @@ to the run's subject.
   confirms goals, NFRs and constraints through the clarification ledger.
 - **A pre-hook may also COMPLETE its step, from evidence, without running
   it.** When the plan's `## Contract` block says the step owes nothing —
-  `owes.api_contract: false`, say — the pre-hook records an evidenced no-op
+  `owes.e2e: false`, say — the pre-hook records an evidenced no-op
   carrying the Contract's own reason, and the skill does not run. This is not
   a skip: the step is `completed`, with a recorded sentence, by the hook that
   owns it. A step with no Contract entry to stand on MUST run.

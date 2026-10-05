@@ -12,10 +12,9 @@ section of fixed shape, and everything above it is free-form:
     ## Contract
     delivery_path: standard
     owes:
-      api_contract: true
       test_cases:   true
       e2e:          false
-      reason: "CLI-only change; no HTTP surface, no browser flow"
+      reason: "CLI-only change; no browser flow"
 
     ### Executor tasks & file map
     - task 1: plugins/acs/hooks/scripts/acs_lib/run.py, tests/acs/test_run.py
@@ -30,9 +29,12 @@ Three readers, three reasons:
     Judged ONCE, here, from the plan's own scope; this is the only place it is
     judged, and recording it on the plan rather than in `ship.yaml` is what
     let the `delivery:` block leave the workflow.
-  * the **owes** flags -- the four always-run steps read them and record an
+  * the **owes** flags -- the always-run steps read them and record an
     evidenced no-op when nothing is owed (§2.2), which is what replaced the
-    `when:` predicates the workflow used to carry.
+    `when:` predicates the workflow used to carry. `api_contract` was a third
+    until ADR-0134 made the API contract a Design document no plan owes: a
+    plan written before then still carries it, and it is accepted and
+    ignored (LEGACY_OWES_KEYS), never an error.
   * the **file map** -- the executor partition, and the contract the file-map
     guard enforces on every Write.
 
@@ -49,8 +51,11 @@ from .yamlsubset import YamlSubsetError
 CONTRACT_HEADING = "## Contract"
 FILE_MAP_HEADING = "### Executor tasks & file map"
 
-#: The three predicates the plan states and the always-run steps read.
-OWES_KEYS = ("api_contract", "test_cases", "e2e")
+#: The predicates the plan states and the always-run steps read.
+OWES_KEYS = ("test_cases", "e2e")
+#: Keys a plan written before a change still carries, read as nothing.
+#: `api_contract`: ADR-0134 moved the API contract to Design, so no step reads it.
+LEGACY_OWES_KEYS = ("api_contract",)
 
 #: The delivery paths, cheapest first. `/acs:code` dispatches to `code-<path>`.
 DELIVERY_PATHS = ("trivial", "small", "standard", "complex")
@@ -140,7 +145,7 @@ def errors(contract):
         out.append("owes: expected a mapping of %s" % ", ".join(OWES_KEYS))
     elif isinstance(table, dict):
         for key, value in table.items():
-            if key == "reason":
+            if key == "reason" or key in LEGACY_OWES_KEYS:
                 continue
             if key not in OWES_KEYS:
                 out.append("owes.%s: not one of %s" % (key, ", ".join(OWES_KEYS)))

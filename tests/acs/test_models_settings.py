@@ -245,6 +245,20 @@ class CommittedFilesTest(unittest.TestCase):
                 self.assertTrue(entry["model"].startswith("claude-"),
                                 "%s.%s pins a model id, not an alias" % (skill, role))
 
+    def test_the_api_contract_gap_analyst_is_scaffolded_and_pinned(self):
+        """ADR-0134 gives create-api-contract a read-only gap analyst, the
+        way create-data-design has one; the committed files name it."""
+        with open(SCHEMA, encoding="utf-8") as fh:
+            schema = json.load(fh)
+        with open(SETTINGS, encoding="utf-8") as fh:
+            block = json.load(fh)["models"]
+        roles = schema["properties"]["models"]["properties"]["create-api-contract"]
+        self.assertEqual(sorted(roles["properties"]),
+                         ["contract-author", "contract-reviewer", "gap-analyst"])
+        self.assertEqual(block["create-api-contract"]["gap-analyst"],
+                         models.recommended("gap-analyst"))
+        self.assertEqual(lib.ROLE_KINDS["gap-analyst"], "survey")
+
     def test_hooks_match_both_agent_spellings(self):
         with open(os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "hooks.json"),
                   encoding="utf-8") as fh:

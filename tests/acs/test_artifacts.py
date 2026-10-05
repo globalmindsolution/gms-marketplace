@@ -289,7 +289,7 @@ class TestDeriveStatus(ArtifactsCase):
         cases = [
             ("no ledger", [], "open"),
             ("create-ticket alone", [("create-ticket", "completed")], "open"),
-            ("a skip alone", [("create-ticket", "completed"), ("create-api-contract", "skipped")], "open"),
+            ("a skip alone", [("create-ticket", "completed"), ("create-test-docs", "skipped")], "open"),
             ("design started", [("create-design", "in_progress")], "in_progress"),
             ("code in progress", [("create-ticket", "completed"), ("code", "in_progress")], "in_progress"),
             ("code completed", [("code", "completed")], "in_progress"),

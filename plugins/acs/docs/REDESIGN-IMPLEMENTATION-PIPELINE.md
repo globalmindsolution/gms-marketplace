@@ -10,6 +10,12 @@
 > upstream artifact is absent. ADR-0109 also replaced the generic
 > executor/verifier subagents this document assumes with roles named for each
 > skill's own work. Current behaviour is in `INTERNALS.md`.
+>
+> **Note (2026-10-05).** ADR-0134 took `/acs:create-api-contract` out of the
+> pipeline this document specifies: it is a Design skill that writes documents
+> only, `ship.yaml` has no `create-api-contract` step, the plan owes no
+> `api_contract`, and the analysis records no `api_surface`. Every mention of
+> those below describes the v0.5.0 design, not the current one.
 
 This document specifies a from-scratch redesign of acs's **implementation**
 half — the skills `/acs:ship` orchestrates between a settled requirement and an

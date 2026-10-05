@@ -3,16 +3,19 @@
 
 `structure_lint.py` is the deterministic backstop for a doc's SECTIONS; this
 is the one for its FRONT MATTER — the machine-read half of a ticket document.
-the analysis's `api_surface` (its README.md, ADR-0133) decides whether `/acs:create-api-contract` runs
-at all (`workflows/ship.yaml`'s `api_surface_changed` predicate and the
-`create-api-contract` gate both read it), so a front matter that is missing,
-unparseable, or carries the wrong type is a pipeline failure discovered one
-skill too late. Run this before publishing, and the failure surfaces where it
-can still be fixed.
+Code reads it -- the analysis README's `ready_for_planning` and
+`needs_design_recommendation` (ADR-0133), a design document's version keys
+(ADR-0122) -- so a front matter that is missing, unparseable, or carries the
+wrong type is a pipeline failure discovered one skill too late. Run this
+before publishing, and the failure surfaces where it can still be fixed.
 
-The parse is `acs_lib.yamlsubset`, the SAME parser the gate and the predicate
-use, so "it parses here" means "it parses there": a block this checker accepts
-cannot be rejected downstream.
+Only the DECLARED keys are checked: a key the spec does not name is ignored,
+which is what keeps a document written under an older spec valid (an
+analysis published before ADR-0134 still carries `api_surface`).
+
+The parse is `acs_lib.yamlsubset`, the SAME parser the hooks use, so "it
+parses here" means "it parses there": a block this checker accepts cannot be
+rejected downstream.
 
 Rules:
   - front-matter-missing      : the doc has no leading `---` block.
@@ -30,7 +33,7 @@ not one), `list`, `any` (present and non-null), or a `|`-separated value set
 (`normal|high`) for a string that must be one of those literals.
 
 Usage:
-  python3 front_matter_check.py --require "ticket: str; api_surface: bool" \\
+  python3 front_matter_check.py --require "ticket: str; ready_for_planning: bool" \\
       [--ticket SHOP-123] DOC.md
 Importable:
   from front_matter_check import check_file, check_front_matter, parse_spec
