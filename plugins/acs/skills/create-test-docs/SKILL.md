@@ -103,7 +103,8 @@ the user to fan the epic out with `/acs:create-ticket <id>` and run
 ## Working tree — the test cases are a repo file
 
 `test-cases.md` is a file in the consumer repo — the change's Development
-folder, `<development_dir>/<feature>/<id>/` (ADR-0128). This skill never creates, switches or names a branch,
+folder, `<development_dir>/<feature>/<id>/` (ADR-0128) — unless run documents
+are kept local (Share or keep local, below). This skill never creates, switches or names a branch,
 and never stages, commits or pushes (ADR-0127): the published document is
 left as an uncommitted change in the working tree, on whatever is checked out,
 and its path is recorded in the result's `states.files`. `/acs:create-pr` is
@@ -449,6 +450,40 @@ Leave `<cases_path>` as an uncommitted change when it is inside the repo (the
 Development folder) and record it in `states.files`; the partition draft is
 workspace state and never enters the repo.
 
+### Share or keep local — asked once, in the same grouped ask (ADR-0132)
+
+Whether `test-cases.md` enters the repo is a saved choice, not yours. Right after the
+artifact resolution, before anything is written, ask acs:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc test-cases.md
+```
+
+- **`needs` empty** → follow it silently. `share: true` publishes to `path`,
+  the phase folder; `share: false` keeps the document LOCAL — `path` is in the
+  run's state folder
+  (`steps/create-test-docs/local/test-cases.md`), later steps still read it through `acs.py artifacts
+  show`, it never enters `states.files`, and `/acs:create-pr` never commits
+  it. Either way `<cases_path>` is its `abs_path`.
+- **`needs` non-empty** → its questions join this skill's ONE grouped ask
+  (User interaction), never a separate one; with no other question, ask them
+  alone in one AskUserQuestion before Publish. `share`: "share run documents
+  in the repo, or keep them local?" and "save this for you (this machine:
+  `.acs/settings.local.json`) or for the team (`.acs/settings.json`)?".
+  `location` (`location_source: default` — no setting, no existing folder):
+  "use `proposed_path`, give another repo-relative folder, or keep documents
+  local?" — keeping them local is the share answer, so ask its scope too. acs never creates a new docs folder without that answer. Record
+  the answers in the ledger, then save them in ONE call carrying only what
+  was answered — it prints the new `where`:
+  `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location development=docs/development --doc test-cases.md`.
+- **The user cannot be reached** (headless, nothing relayed in a `/acs:ship`
+  brief) and `needs` is non-empty → keep the document LOCAL for this run
+  only — `acs.py docs decide --share no --scope run`, nothing saved — and say
+  so in the report.
+
+The completion report names where it went: "shared to <path>", "kept local
+(team default)", "kept local (your default)" or "kept local (this run only)".
+
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
@@ -547,7 +582,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
      completed run; populated on the `interrupted` / `needs_input` arm above.
    - `files` (list): every repo-relative path this run wrote and left
      uncommitted (the published `test-cases.md`; empty when it went to the
-     partition). `/acs:create-pr` commits them.
+     partition or was kept local). `/acs:create-pr` commits them.
 
    `outcome` is required on every `completed` result document — the post-hook
    refuses one without it, because this step completes in two ways: `cases_written` when
@@ -593,7 +628,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: <n> cases (<u> unit / <i> integration / <e> e2e); <k>/<k> acceptance criteria traced; suites targeted
+- **Results**: where test-cases.md went (shared / kept local, whose default); <n> cases (<u> unit / <i> integration / <e> e2e); <k>/<k> acceptance criteria traced; suites targeted
 - **Findings**: <untraced criteria / open clarifications, or "none">
 - **Artifacts**: <uncommitted files written (the test-cases.md path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>

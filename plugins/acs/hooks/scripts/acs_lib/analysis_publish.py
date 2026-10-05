@@ -21,6 +21,12 @@ a ticket: a Development run's analysis goes to
 run's to the feature's living `<prd_dir>/features/<feature>/analysis.md`. A run
 with no feature yet is refused, naming how to record one.
 
+Whether it goes to the repo at all is the user's saved choice (ADR-0132,
+`acs_lib.doc_share`): kept LOCAL, the reviewed bytes are published to the
+run's `steps/analyze-requirements/local/analysis.md` and the publication is
+recorded `local: true` with no files; undecided, publish is refused naming
+`acs.py docs decide`.
+
 `record_publication` then re-derives it from the working tree before the loop
 is `completed`.
 """
@@ -30,7 +36,7 @@ import os
 
 from ._common import GateError, now_iso
 from .analysis_loop import _advance, _block, _expect, draft_path
-from . import run_docs
+from . import doc_share, run_docs
 
 
 def _sha(data):
@@ -45,11 +51,18 @@ def _inside(path, folder):
 
 
 def resolve_target(ctx, rdir):
-    """(analysis_path, docs_dir) for the run's analysis. `docs_dir` is the
-    run's own Development folder, whose files the step records; a Discovery
-    analysis is the feature root's living document and records only itself.
-    Refused (GateError) when the run has no feature to file it under."""
+    """(analysis_path, docs_dir, where) for the run's analysis. `docs_dir` is
+    the run's own Development folder, whose files the step records; a
+    Discovery analysis is the feature root's living document and records only
+    itself; a LOCAL analysis (ADR-0132) is kept in the run's state folder and
+    records nothing for /acs:create-pr. Refused (GateError) while the share
+    choice or a not-yet-existing folder is undecided, naming `acs.py docs
+    decide`, and -- shared -- when the run has no feature to file it under."""
     layout = run_docs.run_layout(ctx, rdir)
+    info = doc_share.require_decided(
+        doc_share.where(ctx, "analysis.md", rdir, layout=layout), verb="publish")
+    if info["share"] is False:
+        return info["abs_path"], None, info
     target = layout["paths"].get("analysis.md")
     if not target:
         raise GateError(
@@ -59,7 +72,7 @@ def resolve_target(ctx, rdir):
             "requirements refine` ({\"feature\": \"<slug>\"}), then publish again."
             % (layout.get("run_id") or os.path.basename(rdir)))
     docs_dir = layout["docs_dir"] if layout["phase"] == "development" else None
-    return target, docs_dir
+    return target, docs_dir, info
 
 
 def _reviewed_sha(loop):
@@ -81,8 +94,9 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
     if _sha(data) != reviewed:
         raise GateError("refusing to publish: the draft is not the bytes the review passed "
                         "(reviewed %s, now %s)" % ((reviewed or "-")[:12], _sha(data)[:12]))
-    path, docs_dir = resolve_target(ctx, rdir)
+    path, docs_dir, info = resolve_target(ctx, rdir)
     root = ctx.get("checkout_root")
+    local = info["share"] is False
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".acs-tmp"
     with open(tmp, "wb") as handle:
@@ -91,7 +105,9 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
     with open(path, "rb") as handle:
         if handle.read() != data:  # pragma: no cover -- a filesystem that lies
             raise GateError("published bytes at %s differ from the draft" % path)
-    if root and docs_dir and _inside(path, docs_dir):
+    if local:
+        files = []  # kept in the run's state folder: nothing for create-pr to commit
+    elif root and docs_dir and _inside(path, docs_dir):
         files = _docs_files(root, docs_dir)
     elif root and _inside(path, root):
         files = [os.path.relpath(os.path.realpath(path),
@@ -100,6 +116,8 @@ def publish(rdir, loop, ctx, tdir, ticket, summary=None):
         files = []
     loop["publication"] = {"path": path, "sha256": _sha(data), "bytes": len(data),
                            "docs_dir": docs_dir, "files": files,
+                           "local": local, "share_scope": info.get("share_scope"),
+                           "destination": doc_share.describe_choice(info),
                            "verified": False, "at": now_iso()}
     loop["events"].append({"at": now_iso(), "event": "publish", "detail": path})
     return loop, {"published": True, "publication": loop["publication"]}

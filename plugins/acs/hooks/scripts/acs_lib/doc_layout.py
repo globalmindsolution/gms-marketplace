@@ -19,11 +19,15 @@ roots are found deterministically, never asked for:
                     `docs/product`
   architecture_dir  settings `docs.architecture_dir` -> the folder holding
                     `hld/tech-stack.md` -> `docs/architecture`
-  development_dir   settings `docs.development_dir` -> an existing
-                    `docs/development/` -> `docs/development`
+  development_dir   settings `docs.development_dir` -> `docs/development`
+                    (an existing one is `discovered`)
 
 Existing `docs/tickets/<ID>/` folders (ADR-0090) stay READABLE: a reader falls
 back to them when the phase folder has no such file. Nothing writes there.
+
+`resolve_dir` also reports HOW each root was found -- `setting`, `discovered`
+or `default` (ADR-0132): a root that is only the built-in default does not
+exist yet, and a writer asks the user before creating it (`acs_lib.doc_share`).
 
 Every function here is a pure path computation over the checkout (plus the
 settings); nothing is created.
@@ -100,11 +104,29 @@ def _shallowest(root, predicate):
     return hits[0] if hits else None
 
 
-def prd_dir(root, settings=None):
-    """The repo-relative PRD directory (see the module docstring)."""
-    configured = _docs_setting(root, settings, "prd_dir")
-    if configured or not root:
-        return configured or DEFAULT_PRD_DIR
+#: How a phase folder was resolved (ADR-0132): a `docs.<kind>_dir` setting
+#: (the user's answer), a folder found in the checkout, or only acs's built-in
+#: default -- a folder that does not exist yet, which no writer creates
+#: without asking first.
+SOURCES = ("setting", "discovered", "default")
+#: The three phase-folder kinds and their `docs.*` setting.
+KINDS = ("prd", "architecture", "development")
+KIND_SETTINGS = {"prd": "prd_dir", "architecture": "architecture_dir",
+                 "development": "development_dir"}
+DEFAULT_DIRS = {"prd": DEFAULT_PRD_DIR, "architecture": DEFAULT_ARCHITECTURE_DIR,
+                "development": DEFAULT_DEVELOPMENT_DIR}
+
+
+def _existing_default(root, kind):
+    """(default, source): `discovered` when the default folder already exists
+    in the checkout, else `default`."""
+    default = DEFAULT_DIRS[kind]
+    if root and os.path.isdir(os.path.join(root, *default.split("/"))):
+        return default, "discovered"
+    return default, "default"
+
+
+def _discover_prd(root):
     for index in ("CLAUDE.md", "docs/README.md", "README.md"):
         try:
             with open(os.path.join(root, index), encoding="utf-8") as fh:
@@ -115,28 +137,64 @@ def prd_dir(root, settings=None):
             rel = _posix(mention[2:] if mention.startswith("./") else mention)
             if os.path.isfile(os.path.join(root, rel)):
                 return os.path.dirname(rel) or "."
-    found = _shallowest(root, lambda rel, name: name == "prd.md")
-    return found if found is not None else DEFAULT_PRD_DIR
+    return _shallowest(root, lambda rel, name: name == "prd.md")
+
+
+def _discover_architecture(root):
+    found = _shallowest(root, lambda rel, name: name == "tech-stack.md"
+                        and rel.split("/")[-1] == "hld")
+    return (os.path.dirname(found) or ".") if found is not None else None
+
+
+def resolve_dir(root, kind, settings=None):
+    """{"path": repo-relative folder, "source": setting|discovered|default} for
+    one phase-folder kind (`prd`, `architecture`, `development`)."""
+    if kind not in KIND_SETTINGS:
+        raise ValueError("unknown docs folder kind %r (one of %s)" % (kind, ", ".join(KINDS)))
+    configured = _docs_setting(root, settings, KIND_SETTINGS[kind])
+    if configured:
+        return {"path": configured, "source": "setting"}
+    if not root:
+        return {"path": DEFAULT_DIRS[kind], "source": "default"}
+    found = (_discover_prd(root) if kind == "prd"
+             else _discover_architecture(root) if kind == "architecture" else None)
+    if found is not None:
+        return {"path": found, "source": "discovered"}
+    path, source = _existing_default(root, kind)
+    return {"path": path, "source": source}
+
+
+def resolve_dirs(root, settings=None):
+    """{kind: {path, source}} for the three phase folders."""
+    return {kind: resolve_dir(root, kind, settings) for kind in KINDS}
+
+
+def prd_dir(root, settings=None):
+    """The repo-relative PRD directory (see the module docstring)."""
+    return resolve_dir(root, "prd", settings)["path"]
 
 
 def architecture_dir(root, settings=None):
     """The repo-relative architecture directory: the folder holding
     `hld/tech-stack.md`, else `docs/architecture`."""
-    configured = _docs_setting(root, settings, "architecture_dir")
-    if configured or not root:
-        return configured or DEFAULT_ARCHITECTURE_DIR
-    found = _shallowest(root, lambda rel, name: name == "tech-stack.md"
-                        and rel.split("/")[-1] == "hld")
-    if found is not None:
-        parent = os.path.dirname(found)
-        return parent or "."
-    return DEFAULT_ARCHITECTURE_DIR
+    return resolve_dir(root, "architecture", settings)["path"]
 
 
 def development_dir(root, settings=None):
     """The repo-relative Development directory: `docs.development_dir`, else
-    an existing `docs/development/`, else that default."""
-    return _docs_setting(root, settings, "development_dir") or DEFAULT_DEVELOPMENT_DIR
+    `docs/development` (reported `discovered` when it already exists)."""
+    return resolve_dir(root, "development", settings)["path"]
+
+
+def document_kind(name, phase="development"):
+    """Which phase folder `name` is filed under: `prd` for a Discovery
+    analysis (the feature's living analysis), `architecture` for the design
+    records, `development` otherwise. None for an unknown document."""
+    if name not in DOCUMENT_SIDES:
+        return None
+    if name == "analysis.md" and phase == "discovery":
+        return "prd"
+    return "architecture" if DOCUMENT_SIDES[name] == "design" else "development"
 
 
 def _join(root, *parts):

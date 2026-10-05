@@ -15,6 +15,8 @@ anything is staged (`recorded` mode):
   5. e2e suites      -- what create-e2e-tests recorded
   6. other           -- a path some other step recorded
 
+A run document the user chose to keep LOCAL (ADR-0132) lives in the run's
+state folder, not the repo: it is never claimed, grouped or left out.
 A changed path no step recorded is LEFT OUT and listed; a path that was
 already dirty at the run's baseline and has not changed since is EXCLUDED
 unless a step recorded it. A run that recorded nothing (a fresh prompt run, or
@@ -64,6 +66,9 @@ READ_ONLY_STEPS = ("review-code", "run-e2e-tests", "audit-design", "audit-securi
 _TEST_SEGMENTS = {"test", "tests", "__tests__", "spec"}
 _TEST_NAME = re.compile(r"(^test_.+\.[^.]+$)|(.+_test\.[^.]+$)|(.+\.(spec|test)\.[^.]+$)")
 _DOC_EXTENSIONS = (".md", ".mmd")
+#: acs's workspace inside the main checkout (ADR-0086): gitignored state, and
+#: where a LOCAL run document is kept (ADR-0132). Never claimed for a commit.
+_STATE_ROOT = ".acs/state-machine"
 _DOC_DIRS = {"docs", "doc"}
 _SLICE_REPORT = re.compile(r"^(?:implementer|execute)(?:-([A-Za-z0-9_][A-Za-z0-9_-]{0,39}))?\.json$")
 
@@ -84,6 +89,11 @@ def is_doc_path(path):
     """A document: `*.md`, `*.mmd`, or any file under a `docs`/`doc` directory."""
     parts = path.split("/")
     return path.lower().endswith(_DOC_EXTENSIONS) or bool(_DOC_DIRS.intersection(parts[:-1]))
+
+
+def _in_state_root(rel):
+    """Is this repo-relative path acs's own workspace (never committed)?"""
+    return rel == _STATE_ROOT or rel.startswith(_STATE_ROOT + "/")
 
 
 def _rel(root, path):
@@ -146,7 +156,9 @@ def _report_paths(rdir, skill):
 def _publication_paths(rdir):
     loop = read_json(os.path.join(step_dir(rdir, "analyze-requirements"), "loop.json"))
     pub = (loop or {}).get("publication") if isinstance(loop, dict) else None
-    if not isinstance(pub, dict):
+    if not isinstance(pub, dict) or pub.get("local"):
+        # A LOCAL analysis (ADR-0132) stays in the run's state folder: it is
+        # not in the repo, so there is nothing of it to commit.
         return []
     return [p for p in (pub.get("files") or []) if isinstance(p, str)] + \
         ([pub["path"]] if isinstance(pub.get("path"), str) else [])
@@ -177,7 +189,9 @@ class Records:
 
     def claim(self, path, layer, slice_key=None):
         rel = _rel(self.root, path)
-        if rel is None:
+        if rel is None or _in_state_root(rel):
+            # Outside the checkout, or in acs's own gitignored workspace -- where
+            # a document kept LOCAL lives (ADR-0132): never a commit's.
             return
         if self.ticket_id and rel.startswith("%s/%s/" % (TICKETS_PATH, self.ticket_id)):
             layer, slice_key = "ticket-docs", None
@@ -344,8 +358,8 @@ def plan(root, rdirs, subject, baseline=None, other_rdirs=()):
 def _plan_recorded(root, records, subject, baseline):
     ticket_id = subject.get("ticket_id")
     cs = changes.changeset(root, baseline=baseline)
-    changed = [e["path"] for e in cs["files"]]
-    excluded_paths = [e["path"] for e in cs["excluded"]]
+    changed = [e["path"] for e in cs["files"] if not _in_state_root(e["path"])]
+    excluded_paths = [e["path"] for e in cs["excluded"] if not _in_state_root(e["path"])]
     records.claim_declared(changed)
     # The ticket's own docs folder is the ticket's by construction -- even
     # `ticket.md`, which `--allocate` wrote before the baseline was taken.
@@ -375,7 +389,7 @@ def _plan_uncommitted(root, others, subject):
     ticket_id = subject.get("ticket_id")
     base = changes.head_sha(root)
     cs = changes.changeset(root, baseline={"base_sha": base, "dirty": []})
-    changed = [e["path"] for e in cs["files"]]
+    changed = [e["path"] for e in cs["files"] if not _in_state_root(e["path"])]
     docs = [p for p in changed if is_doc_path(p)]
     rest = [p for p in changed if not is_doc_path(p)]
     sets = {}

@@ -1,6 +1,6 @@
 # 0102 — Documents are found, not configured: no path settings
 
-**Status**: Accepted · amended by [0128](0128-requirements-from-any-container.md) (optional `docs.*_dir` settings name the phase folders) · **Date**: 2026-09-23
+**Status**: Accepted · amended by [0128](0128-requirements-from-any-container.md) (optional `docs.*_dir` settings name the phase folders) and [0132](0132-share-or-keep-run-documents-local.md) (settings record the user's answers: `docs.share_run_documents`, and a `docs.*_dir` saved when the user confirms a folder discovery could not find) · **Date**: 2026-09-23
 
 **Amends**: [0086](0086-in-repo-anchored-state-machine.md) (the in-repo
 workspace stands; its `workspace_path` override is removed),

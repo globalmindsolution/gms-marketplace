@@ -360,6 +360,23 @@ The phase folders sit where your repo keeps its PRD and architecture set
 (`docs/product/` and `docs/architecture/` by default), and the Development
 folder in an existing `docs/development/`, else that default.
 
+**Shared or kept local — your choice, asked once** ([ADR-0132](../../docs/architecture/adr/0132-share-or-keep-run-documents-local.md)). A run's own
+documents (a Development `analysis.md`, `plan.md`, `test-cases.md`,
+`design.md`, `api-contract.md`) go to those folders only when you share them.
+Kept local, they stay in the run's `steps/<skill>/` folder: the later steps
+still read them, `/acs:handoff` carries them, and they never reach the repo or
+`/acs:create-pr`'s commits. The first skill that writes one asks — share or
+keep local, saved for you (`.acs/settings.local.json`) or for the team
+(`.acs/settings.json`) as `docs.share_run_documents` — and later runs follow
+the answer silently, naming it in their report. The PRD, roadmap, HLD, LLD
+and a feature's living analysis are always shared. And acs never creates a
+docs folder you have not agreed to: when a folder resolves only to its
+built-in default (no `docs.*_dir` setting, nothing found), the first skill
+that would write there asks — the proposed folder, another path (saved as
+`docs.<kind>_dir`), or keep documents local. `acs.py docs where --doc <name>`
+shows where a document goes and what is still to be asked; `acs.py docs
+decide` records the answers.
+
 Two machines, not one. `run.json` records the run — its workflow, its subject,
 its position in the loop; `steps/<skill>/state.json` records that step's own
 invocations. Keeping them apart is what lets a skill the workflow never names
@@ -370,8 +387,9 @@ A ticket's status is DERIVED from the ledger (`open` → `in_progress` →
 `in_review` → `done`), never stored. `acs.py requirements show` prints a run's
 requirements — its sources, acceptance criteria, features and feature — and
 `acs.py artifacts show [--run R | --ticket ID]` where each of its documents
-resolved: its phase folder, or an older ticket's `docs/tickets/<ID>/`, which
-is still read when a phase folder has no such file.
+resolved: its phase folder, the run's step folder when run documents are
+kept local, or an older ticket's `docs/tickets/<ID>/`, which is still read
+when a phase folder has no such file.
 
 Subagents may not write the run's Development or Design folder, or the legacy
 `docs/tickets/` tree — they are control inputs the file-map guard denies, like
@@ -396,12 +414,15 @@ over the built-in defaults. The most-used keys:
 | `merge_strategy` | `"squash"` | `/acs:merge-pr`: `squash` \| `merge` \| `rebase` |
 | `models` | inherit | Model + reasoning effort per subagent, `models.<skill>.<role> = {model, effort}` (a model alias or id, an effort `low`…`max`, or `inherit`). Written in full by `acs.py settings scaffold --write`; `acs step start` turns each entry that sets a value into a `.claude/agents/acs-<skill>-<role>.md` copy and spawns that. An absent skill, role or field inherits the parent session |
 | `tracker` | `{ "provider": "local" }` | Ticket backend: `local` or `github` (Projects v2); `gh` is the only transport |
+| `docs` | unset | Answers, not configuration ([ADR-0132](../../docs/architecture/adr/0132-share-or-keep-run-documents-local.md)): `share_run_documents` (`true` shared, `false` kept local; asked once, saved for you or for the team) and `prd_dir`, `architecture_dir`, `development_dir` (a repo-relative folder, saved when you confirm one discovery could not find) |
 
-No key locates a document: acs finds the repo's documents through `CLAUDE.md`
-and the repo itself, creates a missing one at the `docs/` conventions
-(`docs/product/`, `docs/architecture/`, `docs/architecture/adr/`, …), and files a
-run's documents one folder per phase (ADR-0128). No key locates the
-workspace either: it is always `.acs/state-machine` in the main checkout.
+No key has to locate a document: acs finds the repo's documents through
+`CLAUDE.md` and the repo itself, creates a missing one at the `docs/`
+conventions (`docs/product/`, `docs/architecture/`, `docs/architecture/adr/`,
+…), and files a run's documents one folder per phase (ADR-0128) — asking you
+first before it creates a phase folder, and recording your answer under
+`docs` (ADR-0132). No key locates the workspace: it is always
+`.acs/state-machine` in the main checkout.
 
 Full reference: [docs/requirements/functional/configuration.md](../../docs/requirements/functional/configuration.md)
 (all keys, placeholder vocabulary, description templates, tracker mapping)

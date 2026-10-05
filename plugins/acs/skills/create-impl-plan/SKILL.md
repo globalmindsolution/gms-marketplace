@@ -101,7 +101,8 @@ child.
 ## Working tree — the plan is a repo file
 
 `plan.md` is a file in the consumer repo — the change's Development folder,
-`<development_dir>/<feature>/<id>/` (ADR-0128). This skill never creates, switches or names a branch,
+`<development_dir>/<feature>/<id>/` (ADR-0128) — unless run documents are kept
+local (Share or keep local, below). This skill never creates, switches or names a branch,
 and never stages, commits or pushes (ADR-0127): the published plan is left as
 an uncommitted change in the working tree, on whatever is checked out, and its
 path is recorded in the result's `states.files`. `/acs:create-pr` is the only
@@ -522,6 +523,40 @@ Leave `<plan_path>` as an uncommitted change when it is inside the repo (the
 Development folder) and record it in `states.files`; the run's own copy is
 workspace state and never enters the repo.
 
+### Share or keep local — asked once, in the same grouped ask (ADR-0132)
+
+Whether `plan.md` enters the repo is a saved choice, not yours. Right after the
+artifact resolution, before anything is written, ask acs:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc plan.md
+```
+
+- **`needs` empty** → follow it silently. `share: true` publishes to `path`,
+  the phase folder; `share: false` keeps the document LOCAL — `path` is in the
+  run's state folder
+  (`steps/create-impl-plan/local/plan.md`), later steps still read it through `acs.py artifacts
+  show`, it never enters `states.files`, and `/acs:create-pr` never commits
+  it. Either way `<plan_path>` is its `abs_path`.
+- **`needs` non-empty** → its questions join this skill's ONE grouped ask
+  (User interaction), never a separate one; with no other question, ask them
+  alone in one AskUserQuestion before Publish. `share`: "share run documents
+  in the repo, or keep them local?" and "save this for you (this machine:
+  `.acs/settings.local.json`) or for the team (`.acs/settings.json`)?".
+  `location` (`location_source: default` — no setting, no existing folder):
+  "use `proposed_path`, give another repo-relative folder, or keep documents
+  local?" — keeping them local is the share answer, so ask its scope too. acs never creates a new docs folder without that answer. Record
+  the answers in the ledger, then save them in ONE call carrying only what
+  was answered — it prints the new `where`:
+  `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location development=docs/development --doc plan.md`.
+- **The user cannot be reached** (headless, nothing relayed in a `/acs:ship`
+  brief) and `needs` is non-empty → keep the document LOCAL for this run
+  only — `acs.py docs decide --share no --scope run`, nothing saved — and say
+  so in the report.
+
+The completion report names where it went: "shared to <path>", "kept local
+(team default)", "kept local (your default)" or "kept local (this run only)".
+
 ### Plan approval happens later, not here
 
 Approval binds on the `standard` and `complex` delivery paths only — and this
@@ -666,7 +701,8 @@ MANDATORY final step — never skipped, also on failure:
      returned it (task id → repo paths), so a later run can see what scope the
      plan claimed.
    - `files`: every repo-relative path this run wrote and left uncommitted
-     (the published `plan.md`; empty when the plan went to the partition).
+     (the published `plan.md`; empty when the plan went to the partition or
+     was kept local).
      `/acs:create-pr` commits them.
 
    On failure keep whatever is true: the `plan_path` only when a plan was
@@ -707,7 +743,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: plan path; executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code implementers will run
+- **Results**: plan path and where it went (shared / kept local, whose default); executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code implementers will run
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (the plan path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>

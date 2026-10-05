@@ -1019,7 +1019,7 @@ subject (ADR-0128). The coordinator performs ONE action at a time and reports it
 | `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
 | `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 and runs `front_matter_check` and `structure_lint` on it — beside the review, not after it (ADR-0125) — listing their findings as the `review` action's `draft_checks` | `review` |
 | `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>`, and folds in the draft's check findings (slice `draft-checks`) | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
-| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `analysis_publish.resolve_target` — the feature's living analysis `<prd_dir>/features/<feature>/analysis.md` for a standalone (Discovery) run, `<development_dir>/<feature>/<id>/analysis.md` for a Development run (ADR-0128) — refusing, with a message naming `acs.py requirements refine` and the feature ask, a run with no recorded feature; records the path it wrote; never stages, commits or pushes (ADR-0127) | (unchanged) |
+| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `analysis_publish.resolve_target` — the feature's living analysis `<prd_dir>/features/<feature>/analysis.md` for a standalone (Discovery) run, `<development_dir>/<feature>/<id>/analysis.md` for a Development run (ADR-0128) — refusing, with a message naming `acs.py requirements refine` and the feature ask, a run with no recorded feature; exits 2 naming `acs.py docs decide` while `docs where` reports an answer owed (the share choice for a Development run, the folder for either phase), and with run documents kept local publishes to `steps/analyze-requirements/local/analysis.md` instead — `publication` records the path, `local`, `share_scope` and the report phrase `destination`, and lists no `files` for `/acs:create-pr` (ADR-0132); records the path it wrote; never stages, commits or pushes (ADR-0127) | (unchanged) |
 | `record-publication` | re-reads the published bytes in the working tree | `completed` |
 
 Rules the code holds, each with a transition test in
@@ -1048,7 +1048,9 @@ Rules the code holds, each with a transition test in
 ## Workspace layout (normative example)
 
 Durable state is split by AUDIENCE. The documents a human reads or reviews live
-in the consumer repo and are committed with the change; the run ledger — every
+in the consumer repo and are committed with the change — a run's own documents
+only when the repo shares them (ADR-0132, see "Shared or kept local" below);
+the run ledger — every
 fact a hook or a walk reads — and the ticket itself stay in the gitignored
 workspace (and the tracker). A run's documents live **one folder per phase**,
 keyed by the run's feature (ADR-0128):
@@ -1116,7 +1118,9 @@ repo's test-path conventions (a `test`/`tests`/`__tests__`/`spec` segment, or
 `conventions.COMMIT_SUBJECT`. Changed but unrecorded paths are `left_out`,
 baseline-dirty ones `excluded`; both are listed in the preview the user
 confirms (and may edit) before `acs pr commit --plan <file>` commits each group
-by pathspec — never `git add -A`. `/acs:create-pr` takes a ticket id or a
+by pathspec — never `git add -A`. A run document kept local (ADR-0132) lives in
+the workspace, never in the working tree, so it is in no group and never
+`left_out` — no special case, and a test holds it. `/acs:create-pr` takes a ticket id or a
 prompt; with no argument it continues this checkout's current run. A run whose
 steps recorded nothing — a prompt given with no current run — is planned in
 `uncommitted` mode: every uncommitted change against HEAD, grouped by layer
@@ -1316,6 +1320,49 @@ analyze-requirements' grouped ask names one). `acs artifacts show [--run R |
 --ticket ID]` prints that view — the feature, phase, key, the three roots,
 each document's existing file and write target, the legacy folder when there
 is one, and a ticket's derived status.
+
+### Shared or kept local; asked before a folder is created (`acs_lib/doc_share.py`, ADR-0132)
+
+Two answers decide where a run's documents land, each asked once and saved,
+never inferred:
+
+- **Share** — `docs.share_run_documents` (`true` | `false`; absent = not
+  decided) covers the five per-run documents: a Development `analysis.md`,
+  `plan.md`, `test-cases.md`, `design.md`, `api-contract.md`. Shared, each is
+  published to its phase folder (the table above). Local, it is kept at
+  `<run>/steps/<skill>/local/<name>` (`doc_share.LOCAL_STEPS` names the step;
+  `local/` keeps it apart from the step's working draft) and nothing of it
+  reaches the repo. The living documents — PRD and roadmap, HLD, LLD, a
+  feature's Discovery analysis — are always shared (`living:prd`,
+  `living:architecture`).
+- **Location** — `doc_layout.resolve_dir(root, kind)` returns `{path,
+  source}` for each kind (`prd`, `architecture`, `development`): `setting`
+  (a `docs.<kind>_dir`), `discovered` (a PRD or `hld/tech-stack.md` found, or
+  the default folder already present) or `default` (acs's built-in fallback,
+  a folder that does not exist yet). No writer creates a `default` folder
+  without the user's answer.
+
+Two CLI verbs carry the questions and the answers; the skills ask and record,
+the code decides nothing on its own:
+
+| Verb | Prints / does |
+|---|---|
+| `acs.py docs where --doc <name> [--run R]` | `<name>` is a per-run document or `living:prd` / `living:architecture`. Read-only: `{ok, doc, kind, path, share, share_scope, location_source, needs, proposed_path, …}` — `path` repo-relative when shared, run-relative when local, `null` while `needs` is non-empty; `share` is `true`, `false` or `null` (a living document is always `true`); `needs` holds `share` while undecided and `location` while the folder's source is `default` and the document would be shared |
+| `acs.py docs decide [--share yes\|no --scope user\|team] [--location KIND=PATH]… [--doc NAME] [--run R]` (`acs_docs_commands.py`) | merges the answer into the scope's file — `user`: the main checkout's `.acs/settings.local.json`, added to `.git/info/exclude` when nothing ignores it yet (`ignored_via`); `team`: the checkout's `.acs/settings.json`, where every repeatable `--location` (KIND `prd`, `architecture`, `development`) lands as `docs.<kind>_dir` — creating the file when absent and touching no other key (`setup_wizard.merge_json_file`; an unreadable file is refused, nothing written); prints `{ok, written: [{file, scope, keys, changed}], warnings}` plus the new `where` of `--doc`, else `documents` — every document's `where`; `warnings` names a more specific settings file that still overrides a share answer |
+
+**An undecided write is refused, not guessed.** Every code path that writes
+a run document into the repo (`analysis publish` first among them) calls
+`doc_share.require_decided` and exits 2 naming `acs.py docs decide` and each
+question owed. A local decision redirects the write into the run folder and
+the step's `publication` records that target. `run_docs` / `acs artifacts
+show` report `paths[name]` by the decision — the local path, the phase
+folder, or `null` plus `needs` — while `artifacts[name]` reads the existing
+file wherever it is: phase folder, run folder, legacy `docs/tickets/<ID>/`.
+`doc_share.describe_choice` gives the phrase a completion report names a
+destination with ("kept local (team default)", "shared to …"). A headless
+skill run with no saved answer writes locally for that run and saves
+nothing. The file-map guard is unchanged: shared paths are guarded as before,
+and run-folder writes were already allowed.
 
 ### Tickets (`acs_lib/artifacts.py`)
 
@@ -1769,6 +1816,11 @@ someone edits `.acs/settings.json` by hand.
   its built-in default is never written, and is removed when an earlier run
   wrote it (`defaulted` in the result), so the file carries only choices.
 
+Where documents go is not a wizard answer: `/acs:setup` shows `acs.py docs
+where` for the run documents and the living folders (the share choice and the
+scope that holds it, each folder with its resolution `source`) and records a
+change through `acs.py docs decide` (ADR-0132).
+
 **Idempotence is the contract.** `/acs:setup` is re-run whenever a gate is added, and a repo initialised by an older acs is expected to be *repaired* by
 a re-run. So every settings write is a read-update-write merge (unknown keys
 preserved for forward compatibility, nested objects merged rather than
@@ -1796,8 +1848,11 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
 - One key configures the pipeline itself, with a working default so an
   existing repo needs no settings change: `workflow.advisories` (default
-  `true`, the one-line out-of-order notice the pre-hook prints). No key
-  locates the workspace (ADR-0102): a run's documents live one folder per phase
+  `true`, the one-line out-of-order notice the pre-hook prints). The
+  `docs` block holds **answers**, not up-front configuration (ADR-0132):
+  `docs.share_run_documents` and the `docs.*_dir` folders are written by
+  `acs.py docs decide` when a user answers, and absent means "not asked yet".
+  No key locates the workspace (ADR-0102): a run's documents live one folder per phase
   (ADR-0128 — see "Workspace layout"; a legacy `docs/tickets/<ID>/` is only
   read), the workspace at
   `<main-checkout>/.acs/state-machine`, and a skill finds every other repo

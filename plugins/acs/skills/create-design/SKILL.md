@@ -71,7 +71,8 @@ and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a ticket, else
 ticketless run), one name, on every run. It is a human-facing document: it
 lives in the Design phase's folder in the consumer repo,
 `<architecture_dir>/lld/<feature>/<id>/`, beside `api-contract.md` and next to
-the feature's living LLD (ADR-0128, superseding ADR-0090's ticket docs tree).
+the feature's living LLD (ADR-0128, superseding ADR-0090's ticket docs tree) —
+unless run documents are kept local (Share or keep local, below).
 Resolve where it lives before anything else:
 
 ```bash
@@ -508,6 +509,40 @@ tree and record its repo-relative path in the result's `states.files`;
 the change's docs — this design included — into the PR. A design published to
 the workspace partition (no folder, above) never enters the repo.
 
+### Share or keep local — asked once, in the same grouped ask (ADR-0132)
+
+Whether `design.md` enters the repo is a saved choice, not yours. Right after the
+artifact resolution, before anything is written, ask acs:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc design.md
+```
+
+- **`needs` empty** → follow it silently. `share: true` publishes to `path`,
+  the phase folder; `share: false` keeps the document LOCAL — `path` is in the
+  run's state folder
+  (`steps/create-design/local/design.md`), later steps still read it through `acs.py artifacts
+  show`, it never enters `states.files`, and `/acs:create-pr` never commits
+  it. Either way `<design_path>` is its `abs_path`.
+- **`needs` non-empty** → its questions join this skill's ONE grouped ask
+  (User interaction), never a separate one; with no other question, ask them
+  alone in one AskUserQuestion before Publish. `share`: "share run documents
+  in the repo, or keep them local?" and "save this for you (this machine:
+  `.acs/settings.local.json`) or for the team (`.acs/settings.json`)?".
+  `location` (`location_source: default` — no setting, no existing folder):
+  "use `proposed_path`, give another repo-relative folder, or keep documents
+  local?" — keeping them local is the share answer, so ask its scope too. acs never creates a new docs folder without that answer. Record
+  the answers in the ledger, then save them in ONE call carrying only what
+  was answered — it prints the new `where`:
+  `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location architecture=docs/architecture --doc design.md`.
+- **The user cannot be reached** (headless, nothing relayed in a `/acs:ship`
+  brief) and `needs` is non-empty → keep the document LOCAL for this run
+  only — `acs.py docs decide --share no --scope run`, nothing saved — and say
+  so in the report.
+
+The completion report names where it went: "shared to <path>", "kept local
+(team default)", "kept local (your default)" or "kept local (this run only)".
+
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
@@ -590,7 +625,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
    to the partition); `decision` is the one-line decision statement from "Decision &
    rationale"; `files` lists every repo-relative path this run wrote and left
    uncommitted (the published `design.md`; empty when it went to the
-   partition) — `/acs:create-pr` commits them. On `failed`: keep whatever is true (e.g. `design_path` when a
+   partition or was kept local) — `/acs:create-pr` commits them. On `failed`: keep whatever is true (e.g. `design_path` when a
    draft exists but was never published, naming the draft), put the design reviewer's
    blocking findings in `findings`, and the reason in `summary`.
 
@@ -629,7 +664,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: `design.md` (the published `<design_path>`); the decision in one line; architecture changes required (or "conforms")
+- **Results**: `design.md` (the published `<design_path>`, or kept local — whose default); the decision in one line; architecture changes required (or "conforms")
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (repo-relative), partition files>
 - **Metrics**: iterations <n>/<cap> · <wall time>

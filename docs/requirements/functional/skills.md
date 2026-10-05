@@ -112,7 +112,10 @@ Every **workflow** skill MUST:
   Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`,
   Development `<development_dir>/<feature>/<ticket-id or run-id>/` — never
   `docs/tickets/` (ADR-0128; the consumer repo is otherwise touched only
-  where the skill's job requires it, e.g. `/code` edits source files);
+  where the skill's job requires it, e.g. `/code` edits source files) — and
+  a per-run document there only when the repo shares run documents; kept
+  local, it stays in the run's step folder ("Run documents: shared or kept
+  local" below, [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md));
 - read configuration from the `.acs` `settings.json`
   ([configuration.md](configuration.md)), and spawn each subagent on the
   model and effort of its role's tier configured there — `planner` for survey
@@ -150,6 +153,48 @@ sits in `acs_lib.HOOKED_SKILLS`'s internal grouping and in the pipeline order
 table; none of its runtime obligations changed. The same holds for `/create-data-design` and
 `/create-flows`, which ADR-0126 added to `acs_lib.PLANNING_SKILLS` beside it.
 
+### Run documents: shared or kept local
+
+The five **per-run documents** — a Development run's `analysis.md`,
+`plan.md`, `test-cases.md`, `design.md` and `api-contract.md` — are either
+**shared** (published to the run's phase folder, committed by `/create-pr`)
+or **kept local** (left in the run's step folder, `<run>/steps/<skill>/`, in
+the gitignored workspace) by a saved choice, `docs.share_run_documents`
+([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)). The **living documents** — the PRD and roadmap, the HLD, the
+LLD, a feature's living analysis — are always shared.
+
+Every skill that writes a per-run document (`/analyze-requirements`,
+`/create-impl-plan`, `/create-test-docs`, `/create-design`,
+`/create-api-contract`) MUST:
+
+- run `acs.py docs where --doc <name>` before its first write of that
+  document, and write nowhere else than the `path` it reports;
+- when `needs` is non-empty, add those questions to its ONE grouped ask —
+  `share`: share run documents in the repo or keep them local, and save that
+  for me (`.acs/settings.local.json`) or for the team (`.acs/settings.json`);
+  `location`: use the proposed folder, give another repo-relative path, or
+  keep documents local — record the answers with `acs.py docs decide`, then
+  write;
+- when no default is saved and the user cannot be reached (a headless run),
+  keep the document local **for this run only**, save nothing, and say so;
+- follow a saved choice silently — never re-ask it — and name where each
+  document went in its completion report ("kept local (team default)",
+  "shared to `docs/development/<feature>/<id>/`");
+- never create a docs folder in the repo while `docs where` reports a
+  `location` question owed: a publish into the repo while an answer is owed
+  exits 2 naming `acs.py docs decide`.
+
+Every skill that writes a living document into a folder that may not exist
+yet (`/create-prd`, `/analyze-requirements` run on its own (Discovery),
+`/create-architecture`, `/create-data-design`, `/create-flows`) MUST run
+`acs.py docs where --doc living:prd` or `living:architecture` first and, when
+`needs` has `location`, ask the location question alone — living documents
+are always shared, so there is no share question.
+
+A local document is read by the later steps of the same run through `acs.py
+artifacts show`, travels with the run in a `/handoff`, and never reaches the
+working tree, so `/create-pr`'s commit plan never lists it.
+
 ---
 
 ## `/setup` (optional)
@@ -162,10 +207,19 @@ working default, so no skill needs `/setup` to have run first
 suites, advisories) keeps its default and is edited by hand in `.acs/settings.json`,
 validated against `settings.schema.json`.
 
-- MUST write only the project settings file (`<repo>/.acs/settings.json`,
-  committed — conventions are the team's); there is no scope question. MUST
-  NOT write a value equal to its built-in default, and MUST remove one an
-  earlier run wrote, so the file carries only choices.
+- MUST write its conventions only to the project settings file
+  (`<repo>/.acs/settings.json`, committed — conventions are the team's);
+  they carry no scope question. MUST NOT write a value equal to its built-in
+  default, and MUST remove one an earlier run wrote, so the file carries only
+  choices.
+- MUST show where run documents go and let the user change it
+  ([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)): the saved `docs.share_run_documents` (shared, kept local, or
+  not decided yet) and the scope that holds it, and each phase folder with
+  its resolution source (`setting`, `discovered`, `default`). A change is
+  recorded through `acs.py docs decide` — the share choice in the scope the
+  user picks (for me: `.acs/settings.local.json`; for the team:
+  `.acs/settings.json`), a folder as `docs.<kind>_dir` in
+  `.acs/settings.json`.
 - The workspace derives silently to `<main-checkout>/.acs/state-machine` —
   no prompt, no required input, and no override (ADR-0086,
   [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
@@ -502,7 +556,9 @@ else is verified against.
 - Produces the PRD doc set in the consumer repo wherever the repo already
   keeps its PRD — found through `CLAUDE.md` and the repo, not a setting
   ([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)) — else at `docs/product/`
-  ([configuration.md](configuration.md#document-and-workspace-locations)):
+  ([configuration.md](configuration.md#document-and-workspace-locations)),
+  a new folder only once the user has confirmed it (`acs.py docs where --doc
+  living:prd` reports a `location` question owed, [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)):
   - `prd.md` — vision, problem statement, target users & personas, goals
     with **measurable success metrics**, prioritized features (e.g.
     MoSCoW), product-level NFRs, constraints & assumptions, out-of-scope;
@@ -585,7 +641,9 @@ not here ([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-
   designs the system to satisfy the PRD.
 - Produces the doc set in the **consumer repo** wherever the repo already
   keeps it, else at `docs/architecture/`
-  ([configuration.md](configuration.md#document-and-workspace-locations)),
+  ([configuration.md](configuration.md#document-and-workspace-locations)) —
+  a new folder only once the user has confirmed it (`acs.py docs where --doc
+  living:architecture`, [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)) —
   writing only its `hld/` part: the three always-on documents plus one file
   per HLD type the repo enabled at `/acs:setup` (`design.hld_types`,
   [ADR-0120](../../architecture/adr/0120-design-document-catalog-and-ticket-features.md)):
@@ -926,7 +984,7 @@ tickets where the change is architecturally significant.
   requires — which `/code` then applies to the doc set as part of the
   change.
 - Produces **`design.md`** in the run's Design folder
-  (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128) — the designer drafts it
+  (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128) — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)) — the designer drafts it
   under `steps/create-design/` and the coordinator publishes the reviewed
   bytes — with required sections:
   **context & constraints (incl. NFRs such as security and performance),
@@ -984,6 +1042,8 @@ Design-phase work, run by the SA or Tech Lead on a ticket.
   never written; neither enabled → the run completes with nothing written.
 - MUST write only inside the ticket's feature folders,
   `<architecture_dir>/lld/<feature>/data/` for each of the ticket's `features`
+  (always shared; an architecture folder that does not exist yet is
+  confirmed first, `docs where --doc living:architecture`, [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md))
   (proposed through `acs.py slug` and confirmed in the grouped ask when the
   ticket has none), plus the feature's `README.md` and its row in
   `lld/README.md` when absent — never `api/`, `flows/` or `hld/`.
@@ -1032,7 +1092,9 @@ detail — before implementation
   `component-detail` and `class` (`components/<component>.md`). All Mermaid.
 - MUST write only inside the ticket's feature folders,
   `<architecture_dir>/lld/<feature>/flows/` and `components/` (plus the feature
-  README and its `lld/README.md` row when absent) — never `api/`, `data/` or
+  README and its `lld/README.md` row when absent; always shared, an
+  architecture folder that does not exist yet confirmed first through `docs
+  where --doc living:architecture`, [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)) — never `api/`, `data/` or
   `hld/`.
 - MUST write in **parallel slices**, every file in exactly one: one writer per
   flow group, `write-states` for the state machines, `write-components` for the
@@ -1072,13 +1134,16 @@ user, and say plainly whether they are ready to plan. It works in two phases
 - **Discovery** — run on its own, with no ticket: a PRD feature, a prompt,
   PRD documents or an attached specification are analysed into the
   feature's **living analysis**, `<prd_dir>/features/<feature>/analysis.md`
-  (ADR-0122 version front matter plus `feature`). A run with no ticket MUST
+  (ADR-0122 version front matter plus `feature`) — always shared; a PRD
+  folder that does not exist yet is confirmed first (`docs where --doc
+  living:prd`, [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)). A run with no ticket MUST
   name or infer its feature: the one grouped ask proposes the PRD's feature
   slugs (`acs.py slug`), or a new slug when none fits.
 - **Development** — a run with a ticket, or one `/acs:ship` drives (its
   first step), on a ticket or a prompt; `acs.py requirements refine` may set
   the phase explicitly: the analysis is
-  written to `<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`,
+  written to `<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`
+  — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)),
   and the survey MUST start from the feature's living analysis when one
   exists.
 
@@ -1185,7 +1250,7 @@ an approved `plan.md`.
   (`standard`/`complex` only, run by those legs) and the plan-revocation path
   (`plan-superseded-<k>.md` in the workspace).
 - MUST write `plan.md` to the run's Development folder
-  (`<development_dir>/<feature>/<ticket-id or run-id>/`, ADR-0128).
+  (`<development_dir>/<feature>/<ticket-id or run-id>/`, ADR-0128) — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)).
   It is always authored by the planner:
   the ADR-0074 fast path, on which the coordinator authored the plan itself
   with no subagent spawn, went with the lanes it forked on (ADR-0095). The
@@ -1220,7 +1285,7 @@ it.
   subject resolves. A plan whose contract declares no API surface makes the step an
   evidenced no-op (`no_surface_owed`).
 - MUST write `api-contract.md` to the run's Design folder
-  (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128): every endpoint/command/message the plan adds
+  (`<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, ADR-0128) — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)): every endpoint/command/message the plan adds
   or changes, request/response shapes, error codes, compatibility and
   versioning notes, and examples — each traced to an acceptance criterion
   **and** to a plan item.
@@ -1240,7 +1305,7 @@ before any test is written.
 - Input: the requirements' acceptance criteria (`AC-n`, refined when
   `/analyze-requirements` refined them); `plan.md` when present;
   `api-contract.md` when present. Pre-hook check: the subject resolves.
-- MUST write `test-cases.md` to the run's Development folder with front
+- MUST write `test-cases.md` to the run's Development folder — or keeps it in the run's step folder when the repo keeps run documents local ("Run documents: shared or kept local", [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)), with front
   matter `{ticket, cases}` (`ticket` only when there is one) and a
   table/list of cases: id `TC-n`, traced acceptance criterion, type
   `unit | integration | e2e`, preconditions, steps, expected result, target
@@ -1613,7 +1678,9 @@ branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create
   commits with `acs.py pr plan-commits`: the ticket's documents, the design
   documents, per plan slice or file-map partition its tests then its code,
   `/docs-sync`'s updates, the e2e suites — built from what the steps recorded,
-  intersected with the run's changeset.
+  intersected with the run's changeset. A run document kept local
+  ([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md))
+  is never in the working tree, so it is in no group and never left out.
 - MUST show that plan as a preview the user confirms (and may edit) before
   anything is committed, listing the changed files no step recorded (left out
   unless the user adds them) and the files already dirty when the run began

@@ -11,10 +11,12 @@
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 bash "$here/../create-data-design-orders/scaffold.sh"
+. "$here/../_fixtures/repo.sh"  # ACS_DOCS_ANSWERED, for the rewrite below
 
-cat > .acs/settings.json <<'JSON'
+cat > .acs/settings.json <<JSON
 {
   "ticket_prefix": "EVAL",
+  $ACS_DOCS_ANSWERED,
   "design": {
     "lld_types": ["api-contract", "logical-erd", "sequence", "activity", "state"]
   }

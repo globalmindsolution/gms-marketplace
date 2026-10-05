@@ -67,6 +67,8 @@ Usage:
   acs.py workflow validate [--file PATH]
   acs.py artifacts migrate [--dry-run]
   acs.py artifacts show [--run R | --ticket MAR-1]
+  acs.py docs where --doc plan.md [--run R]
+  acs.py docs decide [--share yes|no --scope user|team] [--location development=docs/dev] [--doc plan.md]
   acs.py requirements show [--run R]
   acs.py requirements add --args "MAR-1 ~/spec.pdf also bulk export"
   acs.py requirements refine --from refined.json
@@ -118,6 +120,7 @@ import acs_job_commands  # noqa: E402
 import acs_changes_commands  # noqa: E402
 import acs_requirements_commands  # noqa: E402
 import acs_handoff_commands  # noqa: E402
+import acs_docs_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -405,6 +408,7 @@ def build_parser():
     acs_changes_commands.add_parser(group)
     acs_requirements_commands.add_parser(group)
     acs_handoff_commands.add_parser(group)
+    acs_docs_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

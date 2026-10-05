@@ -123,7 +123,8 @@ simply has none; this skill does not create it.
 `api-contract.md` (a design record, in `<architecture_dir>/lld/<feature>/<id>/`
 — ADR-0128) and
 every machine-readable contract file are repo files that travel with the rest
-of the change. This skill never creates, switches or names a branch, and
+of the change — the contract unless run documents are kept local (Share or
+keep local, below). This skill never creates, switches or names a branch, and
 never stages, commits or pushes (ADR-0127): it leaves every file it wrote as
 an uncommitted change in the working tree, on whatever is checked out, and
 records each repo-relative path in the result's `states.files`.
@@ -613,6 +614,40 @@ one of those paths in `states.files` — `/acs:create-pr` commits them together
 as the change's docs. The partition draft is workspace state and never enters
 the repo.
 
+### Share or keep local — asked once, in the same grouped ask (ADR-0132)
+
+Whether `api-contract.md` enters the repo is a saved choice, not yours. Right after the
+artifact resolution, before anything is written, ask acs:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc api-contract.md
+```
+
+- **`needs` empty** → follow it silently. `share: true` publishes to `path`,
+  the phase folder; `share: false` keeps the document LOCAL — `path` is in the
+  run's state folder
+  (`steps/create-api-contract/local/api-contract.md`), later steps still read it through `acs.py artifacts
+  show`, it never enters `states.files`, and `/acs:create-pr` never commits
+  it. Either way `<contract_path>` is its `abs_path`.
+- **`needs` non-empty** → its questions join this skill's ONE grouped ask
+  (User interaction), never a separate one; with no other question, ask them
+  alone in one AskUserQuestion before Publish. `share`: "share run documents
+  in the repo, or keep them local?" and "save this for you (this machine:
+  `.acs/settings.local.json`) or for the team (`.acs/settings.json`)?".
+  `location` (`location_source: default` — no setting, no existing folder):
+  "use `proposed_path`, give another repo-relative folder, or keep documents
+  local?" — keeping them local is the share answer, so ask its scope too. acs never creates a new docs folder without that answer. Record
+  the answers in the ledger, then save them in ONE call carrying only what
+  was answered — it prints the new `where`:
+  `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location architecture=docs/architecture --doc api-contract.md`.
+- **The user cannot be reached** (headless, nothing relayed in a `/acs:ship`
+  brief) and `needs` is non-empty → keep the document LOCAL for this run
+  only — `acs.py docs decide --share no --scope run`, nothing saved — and say
+  so in the report.
+
+The completion report names where it went: "shared to <path>", "kept local
+(team default)", "kept local (your default)" or "kept local (this run only)".
+
 ## User interaction
 
 **Clarification ledger first.** Before asking the user anything, run
@@ -693,8 +728,8 @@ MANDATORY final step — never skipped, also on failure or handoff:
      appearing at least once in `## Traceability` (the union of the slices'
      reports when the contract-authors ran sliced).
    - `files` (list): every repo-relative path this run wrote and left
-     uncommitted — the published contract plus each machine-readable contract
-     file the slices' reports list. `/acs:create-pr` commits them.
+     uncommitted — the published contract (not when kept local) plus each
+     machine-readable contract file the slices' reports list. `/acs:create-pr` commits them.
 
    `outcome` is required on every `completed` result document — the post-hook
    refuses one without it, because this step completes in two ways: `contract_written`
@@ -743,7 +778,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: contract path; items specified; acceptance criteria traced; compatibility verdict; machine-readable contract files changed
+- **Results**: contract path and where it went (shared / kept local, whose default); items specified; acceptance criteria traced; compatibility verdict; machine-readable contract files changed
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (contract path, contract files), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>

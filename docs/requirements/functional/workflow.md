@@ -155,7 +155,10 @@ document belongs to exactly one of them:
   ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)). A ticket
   is not among them: it lives in the workspace and the tracker, and nothing
   writes `docs/tickets/<ID>/` — an existing folder there is still read when a
-  phase folder has no such document.
+  phase folder has no such document. A repo that keeps run documents
+  local ([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md))
+  keeps a run's own documents in its step folders instead; only the living
+  documents then reach the phase folders.
 - **The workspace run** — `<workspace>/<repo>/runs/<run-id>/` holds the **run
   ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
   machine), each step's `result.json` and its `iter-<n>/` audit trail,

@@ -19,10 +19,19 @@ ACS_SCRIPTS="$ACS_PLUGIN/hooks/scripts"
 # The partition acs derives from the fixed remote below.
 ACS_PARTITION=".acs/state-machine/example-shop"
 
+# The team's saved answers to acs's two document questions (ADR-0132): run
+# documents are SHARED in the repo, and the three phase folders are named, so
+# no case's skill has to ask where a document goes before it writes. A case
+# about those questions sets ACS_DOCS_UNDECIDED=1 before acs_repo (no `docs`
+# block at all), or writes its own. A scaffold that rewrites .acs/settings.json
+# splices "$ACS_DOCS_ANSWERED" back in.
+ACS_DOCS_ANSWERED='"docs": {"share_run_documents": true, "prd_dir": "docs/product", "architecture_dir": "docs/architecture", "development_dir": "docs/development"}'
+
 # acs_repo: a small Python product on `main` whose checkout IS the run
 # directory, remote fixed to example/shop (so acs's repo identity and
 # partition path are deterministic), ticket prefix EVAL, id counter reconciled
-# (the MAR-402 fixture seam: a fresh partition otherwise refuses to mint).
+# (the MAR-402 fixture seam: a fresh partition otherwise refuses to mint), and
+# the document questions answered (ACS_DOCS_ANSWERED, above).
 acs_repo() {
   git init -q -b main
   git remote add origin https://github.com/example/shop.git
@@ -61,7 +70,11 @@ A small storefront service.
 - `GET /customers?offset=&limit=` lists customers, 20 per page by default.
 MD
   printf '# Changelog\n\n## [2.4.0] - 2026-08-30\n\n- Customer listing.\n' > CHANGELOG.md
-  printf '{\n  "ticket_prefix": "EVAL"\n}\n' > .acs/settings.json
+  if [ "${ACS_DOCS_UNDECIDED:-0}" = 1 ]; then
+    printf '{\n  "ticket_prefix": "EVAL"\n}\n' > .acs/settings.json
+  else
+    printf '{\n  "ticket_prefix": "EVAL",\n  %s\n}\n' "$ACS_DOCS_ANSWERED" > .acs/settings.json
+  fi
   printf '.acs/state-machine/\n.acs/settings.local.json\n.eval-origin.git/\n' > .gitignore
   mkdir -p "$ACS_PARTITION"
   printf '{"next": 1, "reconciled": true, "seed_source": "explicit-user", "seeded_at": "%s"}\n' \

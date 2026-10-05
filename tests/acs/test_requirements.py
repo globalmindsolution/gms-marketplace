@@ -452,12 +452,14 @@ class TestDocsSettings(RequirementsCase):
     def test_the_schema_declares_exactly_the_keys_the_code_reads_and_no_default(self):
         from acs_lib import settings as settings_mod
         docs = self.schema()["properties"]["docs"]
-        self.assertEqual(tuple(docs["properties"]), settings_mod.DOCS_KEYS)
+        self.assertEqual(tuple(docs["properties"]),
+                         settings_mod.DOCS_KEYS + settings_mod.DOCS_FLAG_KEYS)
         self.assertIs(docs["additionalProperties"], False)
         self.assertNotIn("default", docs)
         for key, spec in docs["properties"].items():
             with self.subTest(key=key):
-                self.assertEqual(spec["type"], "string")
+                self.assertEqual(spec["type"], "boolean" if key in settings_mod.DOCS_FLAG_KEYS
+                                 else "string")
                 self.assertNotIn("default", spec)
         self.assertNotIn("docs", lib.DEFAULT_SETTINGS)
 
@@ -491,7 +493,8 @@ class TestDocsSettings(RequirementsCase):
     def test_a_configured_folder_is_used_and_absence_means_discovery(self):
         self.write("handbook/prd.md", "# PRD\n")
         self.write_settings({"ticket_prefix": "SHOP",
-                             "docs": {"development_dir": "engineering/changes"}})
+                             "docs": {"development_dir": "engineering/changes",
+                                      "share_run_documents": True}})
         self.acs("run", "new", "--prompt", "bulk export")
         self.acs("requirements", "refine", "--from", "-",
                  stdin=json.dumps({"feature": "export"}))
@@ -502,7 +505,22 @@ class TestDocsSettings(RequirementsCase):
             os.path.join(self.repo, "engineering", "changes", "export")))
 
 
+#: The answers ADR-0132 has a writer ask once and save: documents are shared,
+#: in the built-in folders. Classes that pin the shared layout start from them.
+SHARED_DOCS = {"share_run_documents": True, "prd_dir": "docs/product",
+               "architecture_dir": "docs/architecture", "development_dir": "docs/development"}
+
+
+def decide_shared(case):
+    case.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90},
+                         "docs": dict(SHARED_DOCS)})
+
+
 class TestRunDocs(RequirementsCase):
+
+    def setUp(self):
+        super().setUp()
+        decide_shared(self)
 
     def test_a_ticket_run_files_by_the_tickets_feature_and_reads_legacy_first(self):
         tid = self.ticket()
@@ -560,6 +578,10 @@ class TestRunDocs(RequirementsCase):
 # ---------------------------------------------------------------------------
 
 class TestPlumbing(RequirementsCase):
+
+    def setUp(self):
+        super().setUp()
+        decide_shared(self)
 
     def test_the_pre_hook_records_the_mixed_invocations_requirements(self):
         tid = self.ticket(criteria=["works"])

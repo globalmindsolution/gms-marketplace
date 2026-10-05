@@ -29,10 +29,17 @@ MANDATORY first action. Locate the repo's PRD the way any session finds a
 document: CLAUDE.md and whatever docs index it or the repo points at (e.g.
 `docs/README.md`), then a Glob/Grep for `prd.md` or a PRD by content. Found →
 this is an **amend** run; that file is `<prd>` and its roadmap (located the same
-way, else `roadmap.md` beside it) is `<roadmap>`. Not found → `<prd>` =
-`docs/product/prd.md`, `<roadmap>` = `docs/product/roadmap.md`, the conventional
-default. This mirrors the surveyor's amend definition (see Survey below). Then
-run exactly:
+way, else `roadmap.md` beside it) is `<roadmap>`. Not found → ask acs where the
+PRD folder is — `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where
+--doc living:prd` — and `<prd>` = `<path>/prd.md`, `<roadmap>` =
+`<path>/roadmap.md`. The PRD is a living document, always shared, but acs never
+creates a new docs folder without asking (ADR-0132): when `needs` names
+`location` (`location_source: default` — no `docs.prd_dir` setting, no existing
+folder), the folder is a question in the ONE grouped ask (User interaction) —
+use `proposed_path` (e.g. `docs/product`) or give another repo-relative folder,
+no keep-local option — saved for the team with `acs.py docs decide --location
+prd=<folder>`; until then the author writes nothing there. This mirrors the
+surveyor's amend definition (see Survey below). Then run exactly:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-prd --args "$ARGUMENTS"
@@ -521,7 +528,8 @@ interaction (e.g. a single AskUserQuestion containing all open questions as a
 numbered list), not serial round-trips — one interaction per question wastes
 user time. The open questions of ALL surveyor slices are one batch: wait for
 every slice, then ask them in that ONE grouped interaction (a question two
-slices raise word for word is asked once). Record each answer as its own `clarify.py add` entry (one `C-<n>`
+slices raise word for word is asked once), with the PRD folder when Start's
+`docs where` named `location`. Record each answer as its own `clarify.py add` entry (one `C-<n>`
 per question, `--source` preserved). Never skip a question, merge two questions
 into one entry, or auto-answer a question outside the existing
 `--source assumption --rationale "..."` rule.
@@ -617,7 +625,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: none — a ticketless run; the documents are delivered by `/acs:create-pr`
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: PRD files written/amended (`<prd>`, `<roadmap>`) with each one's status and version (`proposed v<n>`), left as uncommitted changes (`states.files`)
+- **Results**: PRD files written/amended (`<prd>`, `<roadmap>`) with each one's status and version (`proposed v<n>`), and the folder when it was chosen in this run, left as uncommitted changes (`states.files`)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>

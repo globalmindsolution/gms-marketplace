@@ -51,9 +51,16 @@ Then, in order:
    type is never written. Neither enabled → write result.json `completed` with
    summary "no data types enabled in design.lld_types", `states` holding empty
    lists and zero counts, run Finish, and stop.
-2. **Architecture set.** Read CLAUDE.md and the docs index it points at, then Glob
-   for `hld/tech-stack.md`: its directory is `<architecture_dir>`; none →
-   `docs/architecture`.
+2. **Architecture set.** Ask acs where it is — `python3
+   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc
+   living:architecture` (a `docs.architecture_dir` setting, else the folder
+   holding `hld/tech-stack.md`, else an existing `docs/architecture/`): its
+   `path` is `<architecture_dir>`. The LLD is a living document, always shared,
+   but acs never creates a new docs folder without asking (ADR-0132): when
+   `needs` names `location` (`location_source: default`), the folder is a
+   question in the ONE grouped ask below — use `proposed_path` or give another
+   repo-relative folder, no keep-local option — saved with `acs.py docs decide
+   --location architecture=<folder>`; nothing is written there before it.
 3. **Features** — the PRD feature slugs (ADR-0120) this run designs, taken from
    the first of these that names any:
    1. **the argument** — a token of `$ARGUMENTS` that is a feature slug (lowercase
@@ -204,7 +211,8 @@ the grouped ask, both readings cited.
 ### 2. The grouped ask
 
 Collect every survey slice's questions, every drifted gap, the feature slugs when
-no argument, requirement or ticket named one, and the open design decisions (a key strategy, a
+no argument, requirement or ticket named one, the architecture folder when
+`docs where` named `location` (Start, step 2), and the open design decisions (a key strategy, a
 normalisation trade-off, a store the conventions do not settle); de-duplicate them
 and ask in ONE grouped interaction (User interaction). The recorded `C-<n>`
 answers go to the write designer in `<context>`.
@@ -368,7 +376,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: logical ERD and physical schema written under `lld/<feature>/data/`; types; entities; gaps by kind; left as local uncommitted changes (`states.files`)
+- **Results**: logical ERD and physical schema written under `<architecture_dir>/lld/<feature>/data/` (the folder chosen now, when it was asked); types; entities; gaps by kind; left as local uncommitted changes (`states.files`)
 - **Findings**: <open findings / clarifications / assumptions, or "none">
 - **Artifacts**: <partition files, repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>

@@ -171,7 +171,9 @@ above), never a setting you choose. This skill never
 creates, switches or names a branch, and never stages, commits or pushes
 (ADR-0127): whatever is checked out stays checked out, and the published
 analysis is left as an uncommitted change in the working tree, every path
-written recorded in the result's `states.files`. `/acs:create-pr` is the only
+written recorded in the result's `states.files` — unless the run keeps it
+LOCAL (Stage 2, "Where the analysis goes"), when it stays in the run's state
+folder and enters neither the repo nor a commit. `/acs:create-pr` is the only
 skill that branches and commits — it splits the run's working-tree changes
 into reviewable commits, the documents first.
 
@@ -529,7 +531,8 @@ Drop from the notes' `## Questions for the user` every question the ledger (or
 the previous analysis, re-recorded as above) already answers.
 
 **If nothing remains** — the survey produced no questions in any group, or the
-ledger already answers all of them — Stage 2 is skipped; say so in the report
+ledger already answers all of them, and `docs where` (Where the analysis goes,
+below) reports no `needs` — Stage 2 is skipped; say so in the report
 ("Stage 2 skipped: no open questions") and run `record-clarify`.
 
 **Otherwise ask EVERY remaining question, from all four groups, in ONE
@@ -570,6 +573,44 @@ name>"`), and a new slug derived the same way when none fits. Record the
 answer in the ledger and then with `acs.py requirements refine` as
 `{"feature": "<slug>"}` (below) — `acs.py analysis publish` refuses a run that
 has no feature recorded, naming this step.
+
+### Where the analysis goes — share or keep local, in the same ask (ADR-0132)
+
+Before Stage 2 asks anything, ask acs where the analysis will go:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs where --doc analysis.md
+```
+
+(`--doc living:prd` on a Discovery run: the feature's living analysis is
+always shared, so only its folder can be in question.) Read `needs`:
+
+- **empty** → the saved choice decides, silently: `share: true` publishes to
+  the phase folder; `share: false` keeps the analysis LOCAL — in the run's
+  state folder (`path`: `steps/analyze-requirements/local/analysis.md`), where every later step still reads it through `acs.py
+  artifacts show`, never in the repo and never in `/acs:create-pr`'s commits.
+- **`share`** → two group-(d) questions in the SAME grouped ask, never a
+  separate one: "share run documents in the repo, or keep them local?" and
+  "save this for you (this machine: `.acs/settings.local.json`) or for the
+  team (`.acs/settings.json`)?"
+- **`location`** → the folder resolves only to acs's built-in default
+  (`location_source: default` — no `docs.*_dir` setting, no existing folder):
+  one group-(d) question — use `proposed_path`, give another repo-relative
+  folder, or keep documents local (the share answer, so its scope is asked
+  too; not offered for `living:prd`). acs never creates a new docs folder without that answer.
+
+Record each answer in the ledger like any other, then save it with ONE call
+carrying only what was answered; it prints the new `where`:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes --scope team --location development=docs/development --doc analysis.md
+```
+
+When the user is not reachable (below) and `needs` is non-empty, keep the
+analysis LOCAL for this run only — `acs.py docs decide --share no --scope run`,
+nothing saved — and say so in the report. A Discovery run whose folder is
+still open cannot publish without the answer: finish `interrupted`,
+`stop_reason: "needs_input"`, with the location question in `<questions>`.
 
 ### Confirmed requirements are refined — and go into the ticket when there is one
 
@@ -767,11 +808,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" analysis record-publication
 `publish` refuses unless the last review passed and the draft is still the
 exact bytes that review judged — bytes whose deterministic checks ran clean
 beside that review (above), and unless the run has a feature (Stage 2, "The
-feature"). Then it copies the draft byte-for-byte to the resolved analysis
-path — the feature's living analysis on a Discovery run,
-`<development_dir>/<feature>/<ticket-id or run-id>/analysis.md` on a
-Development run — reads it back, and records the paths it wrote as
-`publication.files` in the loop, repo-relative. It never
+feature"), and while `docs where` still reports `needs` it exits 2 naming
+`acs.py docs decide` (Stage 2, "Where the analysis goes"). Then it copies the
+draft byte-for-byte to the resolved analysis path — the feature's living
+analysis on a Discovery run,
+`<development_dir>/<feature>/<ticket-id or run-id>/analysis.md` on a shared
+Development run, the run's state folder on a LOCAL one (recorded in
+`publication`, never in `publication.files`) — reads it back, and records the
+repo paths it wrote as `publication.files` in the loop, repo-relative. It never
 stages, commits or pushes and refuses no branch (ADR-0127): the files are left
 as uncommitted changes in the working tree, and `/acs:create-pr` reads those
 recorded paths to make the documents commit, the first of the PR.
@@ -869,7 +913,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
      uncommitted — the publish action's `publication.files` (the published
      analysis: the feature's living analysis on a Discovery run, e.g.
      `docs/product/features/wishlist/analysis.md`). `/acs:create-pr` commits
-     them; empty when nothing was published.
+     them; empty when nothing was published or the analysis was kept local.
 
    The needs_design recommendation is applied through its own CLI
    (`acs.py requirements refine`), so it belongs in
@@ -893,8 +937,10 @@ MANDATORY final step — never skipped, also on failure or handoff:
      when there was one, whether an API surface changes, the questions asked
      and answered (or "Stage 2 skipped"), the feature it is filed under, the
      criteria and needs_design confirmed into the requirements (and the
-     ticket), any proposal still awaiting the user, open questions, the
-     uncommitted files it left in the working tree, and the next step — on a
+     ticket), any proposal still awaiting the user, open questions, where the
+     analysis went ("shared to docs/development/…", "kept local (team
+     default)", "kept local (this run only)"), the uncommitted files it left in
+     the working tree, and the next step — on a
      Development run `/acs:create-impl-plan <id>` (`/acs:create-pr <id>` later
      commits everything the Development steps wrote); on a Discovery run the
      Design skills that read the feature's analysis (`/acs:create-design`,
@@ -918,7 +964,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Requirements**: <ticket id — title (type)>, <documents>, <prompt>; feature <slug> (<Discovery|Development>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted or failed>
-- **Results**: verdict (ready_for_planning); impact map counts; api_surface; load-bearing surfaces named in Risks; questions asked/answered (or Stage 2 skipped); criteria / needs_design confirmed into the requirements (and the ticket); proposals still open
+- **Results**: verdict (ready_for_planning); impact map counts; api_surface; load-bearing surfaces named in Risks; questions asked/answered (or Stage 2 skipped); criteria / needs_design confirmed into the requirements (and the ticket); proposals still open; where the analysis went (shared to <path> / kept local (<your|team> default, or this run only))
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (the analysis path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
