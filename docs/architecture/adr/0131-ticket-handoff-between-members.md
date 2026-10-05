@@ -116,6 +116,10 @@ the default branch.
 - A ticket crosses machines with its work and its pipeline state, so a
   receiver continues at the step the sender stopped at instead of re-running
   analysis and planning, and nothing reaches a branch before `/acs:create-pr`.
+- Only the ticket's own work travels: files that were already dirty when the
+  run's baseline was taken are someone's own work in progress (ADR-0127) and
+  stay behind — reported as `left_behind` — unless the run adopted them because
+  its first step read existing work.
 - A receive never resets, cleans, stashes or writes the real index: the 3-way
   merge runs as `git apply --3way --cached` in a temporary index, only the paths
   that differ are written to the tree, and a conflict changes nothing. That needs

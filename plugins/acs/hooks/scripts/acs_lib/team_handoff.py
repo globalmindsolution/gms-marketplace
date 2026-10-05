@@ -322,6 +322,35 @@ def _counters_next(ctx):
     return nxt if isinstance(nxt, int) else None
 
 
+def _run_work_tree(root, base, work, baseline):
+    """(tree, left_behind): the working-tree snapshot with the paths that were
+    already dirty before the run -- someone else's work in progress, ADR-0127 --
+    put back to their `base` version (or dropped when `base` lacks them). A run
+    that adopted those paths (its first step read existing work) sends them."""
+    if not baseline or baseline.get("adopts_dirty") or not base:
+        return work, []
+    left = [e["path"] for e in changes.changeset(root, since=base, baseline=baseline,
+                                                 tree=work)["excluded"]]
+    if not left:
+        return work, []
+    tmpdir = tempfile.mkdtemp(prefix="acs-handoff-work-")
+    try:
+        env = {"GIT_INDEX_FILE": os.path.join(tmpdir, "index")}
+        _run_git(root, ["read-tree", work], env=env)
+        at_base = changes.blobs(root, base, left)
+        for path in left:
+            if at_base.get(path):
+                mode = _run_git(root, ["ls-tree", base, "--", path]).stdout.decode().split()[0]
+                _run_git(root, ["update-index", "--add", "--cacheinfo",
+                                "%s,%s,%s" % (mode, at_base[path], path)], env=env)
+            else:
+                _run_git(root, ["update-index", "--force-remove", "--", path], env=env)
+        tree = _run_git(root, ["write-tree"], env=env).stdout.decode().strip()
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    return tree, sorted(left)
+
+
 def plan_send(ctx, ticket_id, attach=()):
     """Everything a send would package, computed without writing anything."""
     root = ctx["checkout_root"]
@@ -332,7 +361,7 @@ def plan_send(ctx, ticket_id, attach=()):
     chosen = select_attachments(candidates, attach)
     baseline = changes.load_baseline(rdir) if rdir else None
     base = (baseline or {}).get("base_sha") or head_sha(root)
-    work = changes.snapshot(root)
+    work, left_behind = _run_work_tree(root, base, changes.snapshot(root), baseline)
     docs = [read_json(full) for pkg, full in files if pkg.endswith(".json")]
     ids = _cited(docs)
     types = object_types(root, ids)
@@ -341,6 +370,7 @@ def plan_send(ctx, ticket_id, attach=()):
         "files": files, "excluded": excluded, "candidates": candidates, "chosen": chosen,
         "base_sha": base, "branch": current_branch(root), "work_tree": work,
         "work_changes": changes.name_status(root, base or empty_tree(root), work),
+        "left_behind": left_behind,
         "trees": [i for i in ids if types.get(i) in ("tree", "blob")],
         "unresolved_ids": [i for i in ids if types.get(i) not in ("tree", "blob")],
         "object_types": types,
@@ -496,7 +526,8 @@ def send(ctx, ticket_id, note="", attach=(), replace=False, dry_run=False, remot
         "attachments_available": [{"ref": c["ref"], "name": c["name"],
                                    "present": c["present"]} for c in plan["candidates"]],
         "trees": plan["trees"], "unresolved_ids": plan["unresolved_ids"],
-        "excluded": plan["excluded"], "dry_run": bool(dry_run),
+        "excluded": plan["excluded"], "left_behind": plan["left_behind"],
+        "dry_run": bool(dry_run),
     }
     if dry_run:
         report.update(commit=None, replaced=False, pushed=False)

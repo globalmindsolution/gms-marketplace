@@ -359,6 +359,29 @@ class RoundTripTest(TwoClonesCase):
         self.assertEqual(sent["attachments"], [self.spec])
 
 
+class LeftBehindTest(TwoClonesCase):
+
+    def test_work_in_progress_from_before_the_run_is_not_sent(self):
+        # Alice was already editing app.py and a scratch file before the run
+        # began: that is her own work in progress, not the ticket's (ADR-0127),
+        # and the package carries only what changed since the run's baseline.
+        write(self.alice, "app.py", "line1\nline2 unrelated wip\nline3\n")
+        write(self.alice, "scratch.txt", "my notes\n")
+        self.seed_counters(self.alice, 5)
+        ticket = self.new_ticket(self.alice)
+        self.walk(self.alice, ticket)
+        write(self.alice, "pkg/new.py", "print('ticket work')\n")
+        sent = self.ok(self.alice, "handoff", "send", "--ticket", ticket, "--note", "n")
+        self.assertEqual(sent["left_behind"], ["app.py", "scratch.txt"])
+        self.assertEqual([c["path"] for c in sent["work_changes"]], ["pkg/new.py"])
+        got = self.ok(self.bob, "handoff", "receive", ticket)
+        self.assertTrue(got["work_applied"])
+        with open(os.path.join(self.bob, "app.py"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), "line1\nline2\nline3\n")
+        self.assertFalse(os.path.exists(os.path.join(self.bob, "scratch.txt")))
+        self.assertTrue(os.path.exists(os.path.join(self.bob, "pkg", "new.py")))
+
+
 class RefusalTest(TwoClonesCase):
 
     def test_an_existing_ref_is_refused_without_replace(self):

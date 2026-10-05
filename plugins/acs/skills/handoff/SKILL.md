@@ -76,7 +76,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" handoff list
 
 The dry run prints what the package would hold — `package` (every path in
 it: `work/…`, `acs/…`), `work_changes`, the `branch` and `base_sha`,
-`excluded` (what stays behind), and `attachments_available`: each
+`excluded` (what stays behind), `left_behind` (files you were already
+editing before the ticket's run began — your own work in progress, never sent;
+name them in the preview so the sender knows), and `attachments_available`: each
 outside-repo document the run copied, by its `ref` and `name`. The list says
 whether a handoff of `<ID>` is already waiting on the remote. On a non-zero
 exit, surface stderr verbatim and finish `failed` (known cases below).
