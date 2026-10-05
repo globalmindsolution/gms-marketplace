@@ -477,38 +477,73 @@ Resume works at three levels, all from workspace state alone:
 The `.lock` file is **re-entrant for the same checkout**: resuming from the
 same worktree reclaims its own lock; only other sessions are blocked.
 
-## Session handoff
+## Ticket handoff
 
-A long session can deliberately hand a ticket off to a fresh session — a
-handoff is a *planned* resume, so it can do better than crash recovery:
+A ticket can pass from one team member to another — across machines — in
+mid-flight, with its uncommitted work and its pipeline state
+([ADR-0131](../../architecture/adr/0131-ticket-handoff-between-members.md)).
+The workspace itself stays machine-local in the main checkout's
+`.acs/state-machine/` (ADR-0086); what crosses is a package of one ticket.
 
-1. **Flush** — the coordinator persists all in-flight work to the ticket
-   partition, including soft context that phase boundaries have not captured
-   yet: user clarifications and decisions, partial findings of the current
-   phase, discovered gotchas.
-2. **Mark** — the in-flight step is finalized **`interrupted`** with a
-   `stop_reason` from the closed set (`context_pressure` for a handoff,
-   `session_end` for the safety net, `needs_input` when a decision is owed)
-   plus a **handoff summary**: what is done, what is in flight, next actions,
-   and any decisions not yet reflected in other files. `handed_off` is not a
-   status — it was a reason wearing a state's clothes (ADR-0097).
-3. **Release** — the run's lock is released, so any session (not only the
-   same checkout) can take over.
-4. **Take over** — in the new session the user re-runs the same skill (or
-   `/ship`); the ticket resolves via argument, pointer file, or branch name.
-   The coordinator sees the step's last invocation `interrupted`, reads the
-   handoff summary, runs a light reconcile (recorded state is trusted but cheaply
-   verified, e.g. by running the tests), and continues.
+1. **Send** — `/acs:handoff <ID>` asks ONE grouped question: the handoff note
+   (what is done, what is in flight, what is next, decisions not yet in a
+   file), each outside-repo attachment of the run (include or skip, one by
+   one), and confirmation of the push. `acs.py handoff send` then builds one
+   commit on the run's `baseline.base_sha` through a temporary index — the
+   sender's HEAD, index, branches and working tree are untouched — and pushes
+   it to the hidden ref `refs/acs/handoff/<ID>` on `origin`. An existing ref is
+   refused unless `--replace`. An archived ticket is refused.
+2. **The package is the resume set** — what a resume reads, nothing else: the
+   uncommitted work (`acs changes snapshot`, ignored files excluded); the
+   ticket and its clarification ledger; the run's `run.json`,
+   `requirements.md`, `requirements-refined.json`, `subject/sources.json`,
+   `baseline.json` and `handoff-context.md`; per step the files at its root
+   (`state.json`, `result.json`, current artifacts) and its verdicts; the
+   trees the state cites (the baseline's, a verdict's `reviewed_sha`); the
+   note; and a manifest. Absolute paths travel as tokens and are rewritten to
+   the receiver's. The rest of the `iter-*/` audit trails, `jobs/`,
+   `agents/`, the lock and its events, session pointers and logs stay behind,
+   and so does every outside-repo attachment the sender did not confirm.
+3. **The sender keeps everything** — work, run and lock stay as they were. A
+   handoff is a copy; the sender decides when to discard.
+4. **Receive** — `/acs:handoff receive <ID>` on a **clean working tree**
+   fetches the ref, checks the work applies with `git apply --3way` in a
+   temporary index first (a receiver whose HEAD has moved on still applies; a
+   conflict stops with the paths and the checkout untouched), applies it
+   unstaged, restores the resume set with local paths, indexes the ticket and
+   the run, raises `counters.next` to at least the sender's, points the
+   checkout at the run and deletes the remote ref (`--keep-ref` keeps it; the
+   receiver keeps a local `refs/acs/received/<ID>`). A local run or ticket
+   with the same id is refused unless `--replace`, which backs it up first. It
+   shows the note and prints `continue_with` — the step to resume, else
+   `/acs:ship <ID>`.
+5. **List** — `/acs:handoff list` names the tickets waiting under
+   `refs/acs/handoff/`.
 
-Triggers: the user invokes the **`/handoff`** utility skill explicitly, and
+The ref is hidden from a default fetch, not private: anyone with read access
+to the remote can fetch it. A **phase handoff** — Design done, Development
+takes over — needs no skill: approve the documents with
+`/acs:set-doc-status`, open the docs PR with `/acs:create-pr`, and tell the
+next team, which starts from the merged documents.
+
+### Session pause
+
+The context-pressure mechanism that used to be the session-handoff skill is
+internal and unchanged. It flushes the in-flight soft context to the run
+(user clarifications and decisions, partial findings, gotchas), and
 every workflow skill's coordinator SHOULD perform the same flush proactively
 when it detects its context window running low — never burn the last of the
-context on work that would be lost with the session.
-
-Scope: handoff targets a new session on the **same machine/checkout** — the
-state machine lives in the repo's main checkout at `.acs/state-machine/`,
-with no override (ADR-0086). Cross-machine handoff
-would require a shared or synced workspace — out of scope for now.
+context on work that would be lost with the session. It then calls
+`handoff.py`, which finalizes the in-flight step **`interrupted`** with
+`stop_reason: context_pressure` plus a summary (what is done, in flight,
+next), releases the run's lock and prints `continue_with`; the `PreCompact`
+hook writes `handoff-context.md` before the window shrinks. `handed_off` is
+not a status — it was a reason wearing a state's clothes (ADR-0097). In the
+new session the user re-runs the same skill (or `/ship`); the coordinator
+sees the step's last invocation `interrupted`, reads the summary, runs a
+light reconcile (recorded state is trusted but cheaply verified) and
+continues. A pause stays on the same checkout; crossing to another member is
+a [ticket handoff](#ticket-handoff).
 
 ## Parallel work
 

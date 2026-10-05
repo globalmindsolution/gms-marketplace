@@ -418,6 +418,9 @@ why the review could not be a separate skill until the loop moved here.
 | `acs requirements show [--run R]` | the run's requirements (ADR-0128): `{path, sources, acceptance_criteria, features, needs_design, feature}` — `path` is `<run>/requirements.md` (see "Requirements of a run") |
 | `acs requirements add --args "…"` | parse more sources (ticket ids, documents, a prompt) into the run: deduplicated, appended to `subject/sources.json`, `requirements.md` regenerated; a source is never replaced |
 | `acs requirements refine --from FILE\|-` | record `/acs:analyze-requirements`' refined acceptance criteria, `needs_design`, features and feature into `<run>/requirements-refined.json` and `requirements.md`'s `## Refined`; also patches the ticket, as `ticket save` does, when the run has one |
+| `acs handoff send --ticket ID [--note TEXT\|--note-file F] [--attach PATH]… [--replace] [--dry-run] [--remote NAME]` | package the ticket's resume set as one commit and push it to `refs/acs/handoff/<ID>`; the sender's state is untouched; `--dry-run` reports the package and the attachments without building or pushing (see "Ticket handoff") |
+| `acs handoff receive ID\|--ticket ID [--replace] [--keep-ref] [--remote NAME]` | fetch, `git apply --3way` the work onto a clean tree, restore the run with local paths, raise the counters, delete the remote ref; prints `continue_with` |
+| `acs handoff list [--details] [--remote NAME]` | the handoffs waiting under `refs/acs/handoff/` (`git ls-remote`); `--details` adds each one's sender, time and note |
 | `acs artifacts show [--run R \| --ticket ID]` | where one run's documents resolve — its phase folders, a legacy `docs/tickets/<ID>/`, or the partition — and, for a ticket, its derived status |
 
 `acs run next` is **the cursor**: the first step in workflow order that is not
@@ -436,8 +439,8 @@ cursor:
   else may. `run.start_step` enforces it at the transition — it refuses a step
   while a step of ANOTHER stage is `in_progress` — and `check` reports a
   violation as an error. `run.in_progress_steps` lists the open steps;
-  `run.in_progress_step` is the first of them, the one a handoff or a Stop
-  reminder names.
+  `run.in_progress_step` is the first of them, the one a session pause or a
+  Stop reminder names.
 - **I2 — the cursor is derived.** The stored `cursor` must equal the first
   step not `completed` (an error otherwise), and a step `in_progress` that is
   not in `due` is a WARNING, not an error: a skill run on its own is out of
@@ -758,8 +761,8 @@ property, not a list: it covers the inline apply-work skills (`create-ticket`,
 analysts survey and nothing is written for a judge to judge, and
 `audit-security`, whose adjudicators rule once on each auditor's candidate
 findings with no writer between them — the unhooked utilities
-(`setup`, `update`, `test`, `release`, `set-doc-status`), and the orchestrators that drive other skills'
-loops without running one of their own (`ship`, `handoff`). The
+(`setup`, `update`, `test`, `release`, `set-doc-status`, `handoff`), and the orchestrator that drives other skills'
+loops without running one of its own (`ship`). The
 eleven skills that run a write → judge loop over their own subagents
 report it, with a constant `<cap>` of **3**. `/acs:code` reports the
 iteration of ship.yaml's review-code → code loop it is on, whose ceiling is
@@ -772,7 +775,7 @@ configuration utilities (`setup`, `update`) and for `set-doc-status`, **Run** fo
 two run-oriented ones (`test`, `release`), whose subject is an execution
 rather than a scope. The ticketless document skills — the audits,
 `create-prd` and `create-architecture` (ADR-0127) — put their scope or mode in
-the heading's place and keep the **Ticket** label, reading `none — …`. `/acs:handoff` additionally puts the `continue_with` command in **Next**. No other label
+the heading's place and keep the **Ticket** label, reading `none — …`. `/acs:handoff receive` additionally puts the `continue_with` command in **Next**. No other label
 substitution is sanctioned; per-skill Results/Next content is fixed in each
 SKILL.md's "Completion report" section.
 
@@ -1080,7 +1083,9 @@ other doc set as its own.
 
 No skill creates or switches a branch, stages, commits or pushes — except
 `/acs:create-pr`, plus `/acs:release`'s own `release/*` PR (ADR-0052) and
-`/acs:merge-pr`'s merge and post-merge cleanup. The changeset is the working
+`/acs:merge-pr`'s merge and post-merge cleanup — and `/acs:handoff`'s snapshot
+commit, pushed to the hidden ref `refs/acs/handoff/<ID>`, never to a branch
+(ADR-0131, see "Ticket handoff"). The changeset is the working
 tree, so reading it takes three pieces in `acs_lib/changes.py`:
 
 - **Baseline** — `runs/<run-id>/baseline.json`, written once by the run's first
@@ -1157,6 +1162,87 @@ so one changeset; use a separate worktree per concurrent ticket.
         authoring-<id>.md  <role>-<id>.json|.md  <role>-<id>-message.xml   # sliced
         verdict.json  lens-<A..E>.md ...
 ```
+
+### Ticket handoff: the resume set over a hidden ref (ADR-0131)
+
+`/acs:handoff` moves one ticket in mid-flight from one member to another, on
+another machine. The workspace never crosses; a **package** does.
+`acs_lib/team_handoff.py` (send, list) and `acs_lib/team_handoff_receive.py`
+behind `acs.py handoff send|receive|list` (`acs_handoff_commands.py`) do the
+work, reusing `acs_lib.changes`' `snapshot`, `_run_git`, `head_sha` and
+`current_branch`; the skill asks one grouped question and reports.
+
+**The ref.** One commit at `refs/acs/handoff/<ID>` on `origin`. A ref outside
+`refs/heads/` and `refs/tags/` is not fetched by a default refspec, shows no
+branch and cannot back a pull request — but anyone with read access can fetch
+it by name. The commit's parent is the run's `baseline.base_sha` (HEAD when
+there is none); it is built
+through a temporary `GIT_INDEX_FILE` (`hash-object -w`, `update-index
+--cacheinfo`, `write-tree`, `commit-tree`), so the sender's HEAD, index,
+branches and working tree are never touched. It is the one commit an acs skill
+makes outside `/acs:create-pr` (and `/acs:release`, `/acs:merge-pr`): never on
+a branch, never merged (amending ADR-0127). Transport is `git push` /
+`git fetch`, as `/acs:create-pr` pushes; `gh` is not involved.
+
+**The package tree** is the **resume set** — what a resume reads, nothing a
+resume does not:
+
+```
+work/                     # changes.snapshot: tracked edits, deletions, untracked non-ignored files
+acs/ticket/               # ticket.json  clarifications.json
+acs/run/                  # run.json  requirements.md  requirements-refined.json  baseline.json
+                          # handoff-context.md  subject/sources.json
+  steps/<skill>/          #   the files at the step's root: state.json  result.json  <current artifacts>
+    iter-<n>/verdict.json #   the verdicts only, never the rest of the audit trail
+attachments/              # outside-repo subject copies, ONLY those passed with --attach
+note.md                   # done / in flight / next / decisions
+manifest.json             # format, ticket, sender, time, base, branch, withheld attachments, counters_next
+trees/<id>                # every tree id the state cites (baseline.tree, a verdict's reviewed_sha)
+```
+
+Absolute paths in the resume set travel as the tokens `${ACS_RUN_DIR}`,
+`${ACS_REPO_DIR}` and `${ACS_CHECKOUT}` (`team_handoff.TOKENS`) and are
+rewritten to the receiver's paths on the way in. The manifest is checked
+against `schemas/handoff-manifest.schema.json` and its `format` before
+anything is written.
+
+**Left out** (`team_handoff.EXCLUDED_RULES`), because a resume never reads it
+or it is machine-local: `steps/*/iter-*/` except `verdict.json`, a step's
+sub-directories, `jobs/`, `agents/`, `lock.json`, `lock-events.jsonl`, logs,
+`sessions/`, and every outside-repo attachment not passed with `--attach`.
+
+**Send** refuses an archived ticket, a run that is not about a ticket, an
+`--attach` that is not one of the run's attachments, and an existing ref unless
+`--replace`; every push carries a lease (`--force-with-lease`), so a ref that
+changed since it was read is not overwritten. `--dry-run` reports the package
+and the attachments and builds nothing. After a successful push the sender's
+state is untouched — work, run and lock stay where they were, and no workspace
+file, index or local ref is written; a handoff is a copy.
+
+**Receive**, refusing before anything is written: fetches the ref and
+validates the manifest; refuses a local run or ticket partition with the same
+id unless `--replace`, which moves them under
+`<workspace>/<repo-id>/handoff-backups/<ID>-<stamp>/`; refuses a dirty working
+tree; dry-runs `git diff --binary <base> <work> | git apply --3way` in a
+temporary index, so a receiver whose HEAD moved on still applies and a conflict
+is reported with its paths while the checkout is untouched. Then it applies for
+real (the changes land unstaged), restores `acs/` with this machine's paths,
+upserts `tickets-index.json` and `runs-index.json`, raises `counters.next` to
+at least the sender's, and points this checkout's
+`sessions/<checkout-id>/pointer.json` at the run. It keeps the commit under
+the local ref `refs/acs/received/<ID>` (the cited trees stay reachable) and
+deletes the remote ref unless `--keep-ref`. It prints `continue_with` — the
+interrupted or in-progress step's skill, else the run's cursor, else
+`/acs:ship <ID>`. **List** reads `git ls-remote <remote> 'refs/acs/handoff/*'`;
+`--details` fetches each for its sender, time and note. Every verb takes
+`--remote NAME` (default `origin`).
+
+**Pause is not handoff.** The internal **session pause** is unchanged and keeps
+its names: a coordinator under context pressure flushes and runs `handoff.py`
+(finalize the in-flight step `interrupted`, `stop_reason: context_pressure`,
+release the lock, print `continue_with`), and the `PreCompact` hook writes
+`handoff-context.md`. It stays on one checkout and touches no remote. The
+`/acs:handoff` skill never calls `handoff.py`, and `handoff.py` never pushes.
 
 ### Requirements of a run (`acs_lib/requirements.py`, ADR-0128)
 
@@ -1282,8 +1368,8 @@ index self-heals on the next post hook — except after **merge-pr**, the
 terminal post hook, where nothing runs afterwards and the message says so
 instead. Every other entry point
 reports the refusal as `acs <command>: <reason>` and **exit 2**, and any that
-holds the ticket lock releases it first: a skill that did not start, a handoff
-that did not hand off, or a SessionEnd net that did not release would otherwise
+holds the ticket lock releases it first: a skill that did not start, a session pause
+(`handoff.py`) that did not pause, or a SessionEnd net that did not release would otherwise
 strand the lock under a pid that is about to exit — and a cross-host lock
 stranded that way does not read as stale for 24 hours.
 

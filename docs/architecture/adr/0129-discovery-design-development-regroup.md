@@ -1,6 +1,6 @@
 # 0129 — Discovery is the PRD and the feature analysis; tickets are a Utility
 
-**Status**: Accepted — amended by [0130](0130-prd-versions-and-set-doc-status.md) (Utility gains `/acs:set-doc-status`) · **Date**: 2026-10-04
+**Status**: Accepted — amended by [0130](0130-prd-versions-and-set-doc-status.md) (Utility gains `/acs:set-doc-status`) and [0131](0131-ticket-handoff-between-members.md) (Utility's `/acs:handoff` is a team handoff, member to member) · **Date**: 2026-10-04
 
 **Amends**: [0118](0118-discovery-design-development-phases.md) (which skills each
 phase groups: `/acs:analyze-requirements` joins Discovery, `/acs:create-ticket` —

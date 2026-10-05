@@ -183,7 +183,7 @@ The workspace (gitignored, the run ledger):
             ├── subject/sources.json    # what this run is about: the ticket, documents, a prompt
             ├── requirements.md         # every step reads it (context.requirements); the ledger is the ticket's
             ├── agents/                 # runtime scratch: the active-agent records
-            ├── handoff-context.md      # written by /acs:handoff
+            ├── handoff-context.md      # written by the PreCompact hook (session pause)
             ├── specs/                  # legacy input: pre-existing specs read by /code when present
             └── steps/
                 ├── create-impl-plan/
@@ -344,9 +344,9 @@ Each state file MUST capture:
   and MUST come from the closed set `session_end | needs_input |
   context_pressure`; a completed or failed step's narrative goes in
   `summary`. `handed_off` is not a status — it named a *reason* a step
-  stopped, so it lost the "what"; a deliberate handoff is `interrupted` plus
+  stopped, so it lost the "what"; a session pause is `interrupted` plus
   `stop_reason: context_pressure` and a handoff summary
-  ([workflow.md](workflow.md#session-handoff)). `skipped` is not a status
+  ([workflow.md](workflow.md#session-pause)). `skipped` is not a status
   either — a step that owes nothing is `completed` with the reason the plan's
   `## Contract` block gave (ADR-0096).
 - Working time is **computed** from `started_at`/`ended_at`, never stored.
@@ -422,8 +422,10 @@ worktree per ticket**:
 - **Locking**: a session working a ticket holds a **`.lock` file** in the
   ticket partition (containing checkout id, pid, and a timestamp). Pre-hooks
   exit 2 when another session holds the lock; the lock is released by the
-  post-hook, or by a session handoff
-  ([workflow.md](workflow.md#session-handoff)). The lock is **re-entrant for the same checkout id** — resuming
+  post-hook, or by a session pause
+  ([workflow.md](workflow.md#session-pause)); a ticket handoff to a teammate
+  leaves the sender's lock as it was
+  ([workflow.md](workflow.md#ticket-handoff)). The lock is **re-entrant for the same checkout id** — resuming
   from the same worktree reclaims its own lock
   ([workflow.md](workflow.md#resuming-a-ticket)). **[ASSUMPTION]** A
   stale lock from a *different* checkout (no live process / very old

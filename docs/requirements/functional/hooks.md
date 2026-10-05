@@ -250,10 +250,10 @@ worth stating explicitly, because each used to be an order gate:
   the last invocation `in_progress` (plus a stale lock) — the cursor is
   derived as the first step that is not `completed`, so the step is simply
   due again, and the next run reconciles
-  ([workflow.md](workflow.md#resuming-a-ticket)). A deliberate session
-  handoff finalizes the invocation `interrupted` with
+  ([workflow.md](workflow.md#resuming-a-ticket)). A session pause under
+  context pressure finalizes the invocation `interrupted` with
   `stop_reason: context_pressure` and releases the lock
-  ([workflow.md](workflow.md#session-handoff)).
+  ([workflow.md](workflow.md#session-pause)).
 - **One stage in progress (invariant I1)**: step start MUST refuse a step
   while a step of ANOTHER stage of the workflow is `in_progress`. The members
   of one parallel group MAY all be `in_progress` at once (ADR-0110); nothing

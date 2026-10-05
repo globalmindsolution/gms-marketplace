@@ -34,7 +34,9 @@ The groups below are a reader's aid, not a structure the code knows about
   `/acs:audit-security` (the repository's security): read-only, ticketless,
   runnable at any time, each writing a report
   ([ADR-0123](../../architecture/adr/0123-audit-phase-and-audit-security.md)).
-- **Utility** — `/acs:setup`, `/acs:update`, `/acs:release`, `/acs:handoff`,
+- **Utility** — `/acs:setup`, `/acs:update`, `/acs:release`, `/acs:handoff`
+  (hands a ticket to a teammate on another machine,
+  [ADR-0131](../../architecture/adr/0131-ticket-handoff-between-members.md)),
   `/acs:create-ticket`, `/acs:set-doc-status` (approves and moves the status
   of the Discovery and Design documents,
   [ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)). A ticket is one container of requirements, cut when
@@ -251,19 +253,49 @@ command.
 
 ## `/handoff` (utility)
 
-Purpose: deliberately hand the current ticket/skill off to a fresh session
-when the current one grows long
-([workflow.md](workflow.md#session-handoff)).
+Purpose: hand a ticket in mid-flight from one team member to another, across
+machines, with its uncommitted work and its pipeline state
+([workflow.md](workflow.md#ticket-handoff),
+[ADR-0131](../../architecture/adr/0131-ticket-handoff-between-members.md)).
 
-- Flushes all in-flight work and soft context (user clarifications,
-  decisions, partial findings, gotchas) to the run, finalizes the in-flight
-  step `interrupted` with `stop_reason: context_pressure` plus a handoff
-  summary, and releases the run's lock.
-- Prints the exact command to continue in a new session (e.g.
-  `/code SHOP-123`).
-- Not part of the gated pipeline; no subagents.
+- MUST offer three modes: `/acs:handoff <ID>` sends, `/acs:handoff receive
+  <ID>` receives, `/acs:handoff list` lists the waiting handoffs. The
+  deterministic work MUST go through `acs.py handoff send|receive|list`; the
+  skill only asks and reports.
+- **Send** MUST ask ONE grouped question — the handoff note (done, in
+  flight, next, decisions), each outside-repo attachment of the run (include
+  or skip, one by one) and confirmation of the push — and MUST NOT package an
+  outside-repo attachment the sender did not confirm.
+- Send MUST package only the ticket's **resume set**: the uncommitted work
+  (ignored files excluded), the ticket and its clarification ledger, the
+  run's ledger files and baseline, each step's state, result, current
+  artifacts and verdicts, the trees the state cites, the note and a
+  manifest, with absolute paths as tokens. It MUST NOT package the rest of
+  the `iter-*/` audit trails, `jobs/`, `agents/`, locks, lock events, session
+  pointers or logs.
+- Send MUST build the package as one commit on the run's `baseline.base_sha`
+  through a temporary index — never touching the sender's HEAD, index,
+  branches or working tree — and push it to `refs/acs/handoff/<ID>` only;
+  it MUST NOT push a branch. It MUST refuse an existing ref unless
+  `--replace` (every push carries a lease), an archived ticket and a run
+  that is not about a ticket.
+- After a send the sender's work, run and lock MUST stay as they were.
+- **Receive** MUST refuse a dirty working tree, MUST check the work applies
+  with a three-way merge before touching the checkout and stop on a conflict
+  with the conflicting paths, MUST
+  restore the resume set with local paths, raise `counters.next` to at least
+  the sender's, and MUST refuse a local run with the same id unless
+  `--replace` (which backs it up first). It MUST delete the remote ref unless
+  `--keep-ref`, show the note, and print `continue_with`.
+- Not part of the gated pipeline (unhooked); no subagents.
+- A phase handoff MUST NOT need this skill: `/acs:set-doc-status`, then
+  `/acs:create-pr`, then tell the next team.
+- The context-pressure **session pause** — flush the soft context, finalize
+  the in-flight step `interrupted` with `stop_reason: context_pressure`,
+  release the lock — is not this skill
+  ([workflow.md](workflow.md#session-pause)).
 - Workflow coordinators SHOULD trigger the same flush proactively on context
-  pressure, without waiting for the user to invoke `/handoff`.
+  pressure, through `handoff.py`, without waiting for the user.
 
 ## `/update` (utility)
 

@@ -1,2 +1,0 @@
-PASS if, like the reference, the run resolves run EVAL-1 without starting a step, finds no step in progress in run.json, writes no handoff-context.md, runs handoff.py with a short summary, and reports that nothing was in flight so there is nothing to hand off, that the lock is released, and the verbatim `/acs:ship EVAL-1` continue command.
-FAIL if the run asks the user anything, runs `acs step start`, writes a flush file, edits state.json, run.json or the lock by hand, changes code, or prints a continue command other than the one handoff.py returned.

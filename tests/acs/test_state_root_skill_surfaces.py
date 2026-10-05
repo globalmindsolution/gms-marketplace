@@ -5,12 +5,12 @@ Prose-contract unit test covering every shipped surface outside
 `setup/SKILL.md` (Task 1's file) that still referenced the retired
 "workspace_path lives outside the repo, machine-local, always set" model:
 
-  AC3 — handoff/SKILL.md derives the same default
-    (`<main-checkout>/.acs/state-machine`) before falling back to an
-    explicit override, and no longer frames "workspace_path is not
-    configured" as reachable prose (that message does not exist in
-    the acs_lib package or handoff.py); Step 5's "Scope" bullet no longer claims
-    workspace_path is unconditionally machine-local.
+  AC3 — handoff/SKILL.md carries no workspace derivation of its own since
+    ADR-0131 made it the team-handoff skill: `acs.py handoff` resolves the
+    in-repo default (`<main-checkout>/.acs/state-machine`) like every hook,
+    the skill never names the retired `workspace_path` or its unreachable
+    "workspace_path is not configured" hint, and its scope is cross-machine
+    through the hidden ref `refs/acs/handoff/<ID>`.
   AC4 — update/SKILL.md's Step 6 item 3 "Workspace reachable" check resolves
     the same way item 1 already does (settings load + validate/derive),
     instead of assuming a bare workspace_path key is always set;
@@ -75,44 +75,31 @@ def section(body, heading):
     return body[start:end]
 
 
-class HandoffLocatingWorkspaceCase(unittest.TestCase):
-    """AC3 — handoff/SKILL.md's `### Locating the workspace` section."""
+class HandoffLeavesTheWorkspaceToTheCliCase(unittest.TestCase):
+    """AC3, as ADR-0131 rewrote the skill: /acs:handoff no longer derives the
+    workspace by hand. Every byte a team handoff moves is moved by `acs.py
+    handoff`, which resolves the in-repo state root the way every hook does
+    (`acs_lib.default_state_root()`), so the skill carries no derivation of its
+    own to drift -- and, a fortiori, no retired `workspace_path` model."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(HANDOFF_SKILL)
-        cls.locating = section(cls.body, "### Locating the workspace")
 
-    def test_locating_the_workspace_derives_the_default(self):
-        """The section names the in-repo default derivation (state-machine
-        under the main checkout) before it describes falling back to an
-        explicit workspace_path override."""
-        self.assertIn(
-            ".acs/state-machine", self.locating,
-            msg="`### Locating the workspace` must derive the in-repo default "
-                "(.acs/state-machine) before falling back to an override (AC3)",
-        )
-        default_pos = self.locating.find(".acs/state-machine")
-        override_pos = self.locating.lower().find("override")
-        self.assertNotEqual(-1, override_pos, "an explicit override fallback must still be named (AC3)")
-        self.assertLess(
-            default_pos, override_pos,
-            msg="the derived default must be described BEFORE the override fallback (AC3)",
-        )
+    def test_no_hand_derivation_of_the_workspace(self):
+        self.assertNotRegex(self.body, r"(?m)^#+ Locating the workspace")
+        self.assertNotIn("checkout-id", self.body)
 
-    def test_locating_the_workspace_no_longer_says_absence_means_uninitialized(self):
-        """The stale claim that absence of workspace_path anywhere means acs
-        is not initialized is gone — absence now derives the default."""
-        self.assertNotIn(
-            "No `workspace_path` anywhere means acs is not initialized", self.locating,
-            msg="the now-false 'no workspace_path anywhere = not initialized' claim "
-                "must be corrected (AC3)",
-        )
+    def test_every_move_is_the_cli(self):
+        for mode in ("send", "receive", "list"):
+            self.assertRegex(self.body, r'acs\.py" handoff %s\b' % mode, mode)
+
+    def test_no_retired_workspace_path_model(self):
+        self.assertNotIn("workspace_path", self.body)
 
     def test_no_unreachable_workspace_path_is_not_configured_hint(self):
         """`workspace_path is not configured` is not a message acs_lib/ or
-        handoff.py ever emits (grep confirms it does not exist in either
-        source file) — the error-hint list must not reference it."""
+        handoff.py ever emits -- the skill must not document it either."""
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from acs_case import acs_lib_paths
         for path in acs_lib_paths() + [
@@ -123,51 +110,26 @@ class HandoffLocatingWorkspaceCase(unittest.TestCase):
                 msg="grounding check: this message must not exist in %s "
                     "for this test's premise to hold" % path,
             )
-        self.assertNotIn(
-            "workspace_path is not configured", self.body,
-            msg="handoff/SKILL.md must not document an error hint "
-                "(`workspace_path is not configured`) that the acs_lib package "
-                "or handoff.py "
-                "never actually raises (AC3)",
-        )
+        self.assertNotIn("workspace_path is not configured", self.body)
 
 
 class HandoffScopeClaimCase(unittest.TestCase):
-    """AC3 — handoff/SKILL.md Step 5 item 4 'Scope'."""
+    """AC3's Scope claim, superseded by ADR-0131: the state machine is still
+    local to each machine, and a handoff now crosses machines through the
+    shared remote's hidden ref rather than declaring that out of scope."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(HANDOFF_SKILL)
-        cls.step5 = section(cls.body, "## Step 5")
+        cls.norm = re.sub(r"\s+", " ", cls.body)
 
-    def scope_bullet(self):
-        m = re.search(r"(?m)^\d+\. \*\*Scope\*\*", self.step5)
-        self.assertIsNotNone(m, "Step 5 must retain a numbered 'Scope' bullet")
-        rest = self.step5[m.start() + 1:]
-        nxt = re.search(r"(?m)^\d+\. \*\*", rest)
-        end = m.start() + 1 + (nxt.start() if nxt else len(rest))
-        return self.step5[m.start():end]
+    def test_cross_machine_is_no_longer_out_of_scope(self):
+        self.assertNotIn("cross-machine handoff is out of scope", self.norm)
+        self.assertNotIn("same machine and checkout", self.norm)
 
-    def test_scope_no_longer_says_machine_local_only(self):
-        """The mirrored 'same machine and workspace (workspace_path is
-        machine-local)' claim is gone from the Scope bullet."""
-        bullet = self.scope_bullet()
-        self.assertNotIn(
-            "same machine and workspace", bullet,
-            msg="Scope bullet must no longer claim 'same machine and workspace' "
-                "as workspace_path being unconditionally machine-local (AC3)",
-        )
-        self.assertNotIn(
-            "workspace_path is machine-local", bullet,
-            msg="Scope bullet must drop the unconditional machine-local claim (AC3)",
-        )
-
-    def test_scope_names_the_in_repo_default(self):
-        """The corrected Scope bullet names the in-repo, main-checkout-anchored
-        workspace -- and no override, since ADR-0102 removed it."""
-        bullet = self.scope_bullet()
-        self.assertIn(".acs/state-machine", bullet)
-        self.assertNotIn("override", bullet.lower())
+    def test_names_the_hidden_ref(self):
+        self.assertIn("refs/acs/handoff/<ID>", self.body)
+        self.assertRegex(self.norm, r"(?i)never a branch or a PR")
 
 
 class UpdateWorkspaceReachableCase(unittest.TestCase):

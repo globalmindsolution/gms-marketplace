@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-I need to stop here. Park this ticket cleanly so I can pick it up in a fresh session tomorrow.
+Hand SHOP-12 to Minh. He's taking it over from tomorrow and will carry on from his own machine.

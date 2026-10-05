@@ -7,7 +7,7 @@ Edit a case by editing its files.
 
 ```
 evals/
-├── routing/                  # 268 cases: does a prompt reach the right skill?
+├── routing/                  # 274 cases: does a prompt reach the right skill?
 │   └── <case>/
 │       ├── prompt.md         # frontmatter: description, expected_outcome, tags, limits; body: the prompt
 │       └── graders/<name>.md # one grader per file
@@ -47,12 +47,12 @@ release gate's ~2,500 runs cost about $190.
 
 | Tag | Cases | Asserts |
 |---|---|---|
-| `routing` | all 268 routing cases | a prompt reaches (or avoids) a skill |
+| `routing` | all 274 routing cases | a prompt reaches (or avoids) a skill |
 | `description` | 255 | a natural-language request, never naming the skill, reaches it — at least ten phrasings for each of 25 skills |
 | `confusable` | 77 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
 | `explicit` | 5 | a typed `/acs:<skill>` reaches it — see the limit below |
 | `negative` | 4 | a description of an internal leg's subject does NOT reach the leg |
-| `control` | 4 | a request answered in prose invokes no skill at all |
+| `control` | 10 | a request answered in prose invokes no skill at all — six of them the session-pause phrasings `/acs:handoff` answered before ADR-0131 made it the team handoff |
 | `artifacts` | 2 | the skill wrote the expected workspace state |
 | `setup` | 6 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
 | `behaviour` | 94 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–7 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)) |

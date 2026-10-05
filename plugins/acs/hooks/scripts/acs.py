@@ -80,6 +80,9 @@ Usage:
   acs.py job stop --name gate-suite
   acs.py changes snapshot
   acs.py changes diff [--since TREE] [--name-only | --stat | --patch]
+  acs.py handoff send --ticket MAR-1 [--note TEXT | --note-file F] [--attach PATH] [--replace] [--dry-run]
+  acs.py handoff receive --ticket MAR-1 [--replace] [--keep-ref]
+  acs.py handoff list [--details]
 """
 
 import argparse
@@ -114,6 +117,7 @@ import acs_design_commands  # noqa: E402
 import acs_job_commands  # noqa: E402
 import acs_changes_commands  # noqa: E402
 import acs_requirements_commands  # noqa: E402
+import acs_handoff_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -400,6 +404,7 @@ def build_parser():
     acs_job_commands.add_parser(group)
     acs_changes_commands.add_parser(group)
     acs_requirements_commands.add_parser(group)
+    acs_handoff_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,
