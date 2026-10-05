@@ -25,7 +25,7 @@ ticket-id="SHOP-123" iteration="n">` element (schema:
   `steps/create-impl-plan/plan.md`, the run's requirements document
   (`<partition>/requirements.md`; read it FRESH for the acceptance criteria —
   never the draft's restatement of them),
-  the analysis (its `README.md` and the context files named), `design.md`
+  the analysis (its `README.md` and the context files named), `tech-design.md`
   and the API contract (`api-contract.md` and its interface documents) when
   they exist, every
   `<partition>/specs/*.md`, and the repo paths the file map names. READ EVERY
@@ -91,9 +91,9 @@ findings:
    target that contradicts `coverage_target`, is a finding. Tests-first
    ordering must be explicit: the plan says which failing test is written
    before which implementation.
-6. **Design and architecture conformance** — when `design.md` applies, the
+6. **Design and architecture conformance** — when `tech-design.md` applies, the
    approach the draft describes realizes it; when it does not, say so with the
-   citation. When the API contract is in `<inputs>`, the draft implements its
+   citation. A tech design that is not `approved` is a note, never a finding. When the API contract is in `<inputs>`, the draft implements its
    shapes as specified and, when the repo keeps machine-readable contract
    files, an executor task creates or updates them from it. Unapproved new components or integrations, or an approach that
    contradicts the architecture doc set under `architecture_dir`, are

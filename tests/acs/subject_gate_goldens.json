@@ -1,15 +1,15 @@
 {
   "GATE-011": [
-    "acs pre-create-design: blocked",
-    "no requirements for /create-design: no ticket, document or prompt in the invocation, and no current run. Give it a ticket id, documents or a prompt, e.g. /acs:create-design TKT-123."
+    "acs pre-create-tech-design: blocked",
+    "no requirements for /create-tech-design: no ticket, document or prompt in the invocation, and no current run. Give it a ticket id, documents or a prompt, e.g. /acs:create-tech-design TKT-123."
   ],
   "GATE-015": [
     "acs pre-merge-pr: blocked",
     "could not resolve a ticket id for /merge-pr (no argument, no session pointer, no ticket in the branch name). Pass it explicitly, e.g. /acs:merge-pr TKT-123."
   ],
   "GATE-026": [
-    "acs pre-create-design: blocked",
-    "ticket TKT-1 is not flagged needs_design — /create-design only runs for design-significant tickets; go straight to /acs:code TKT-1."
+    "acs pre-create-tech-design: blocked",
+    "ticket TKT-1 is not flagged needs_design — /create-tech-design only runs for design-significant tickets; go straight to /acs:code TKT-1."
   ],
   "GATE-030": [
     "acs pre-merge-pr: blocked",

@@ -25,7 +25,7 @@ Your prompt contains an XML `<task skill="create-api-contract"
 phase="contract-author" slice="…" ticket-id="…" iteration="N">` with
 `<objective>`, `<inputs>` (file paths: the requirements (`requirements.md`), the
 feature's living analysis, the run's analysis (its `README.md` and the context
-files named) and `design.md` when they exist, the HLD files —
+files named) and `tech-design.md` when they exist, the HLD files —
 `hld/integration-map.md` and `hld/cross-cutting.md` above all — the feature's
 `api/` and `data/` documents, and for the write pass the survey notes
 `iter-1/authoring.md` and `iter-1/gaps.md`), `<constraints>` (at least

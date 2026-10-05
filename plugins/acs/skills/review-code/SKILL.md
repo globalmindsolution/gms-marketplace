@@ -46,7 +46,7 @@ whether a previous verdict exists. **Requirements: `context.requirements` /
 they came from; never read ticket.json for acceptance criteria.**
 `requirements.path` (the run's `requirements.md`) is lens A's input, and `acs.py
 artifacts show` reports the run's `plan.md`, `test-cases.md` (Development
-folder), `api-contract.md` and `design.md` (design records under
+folder), `api-contract.md` and `tech-design.md` (design records under
 `<architecture_dir>/lld/<feature>/<id>/`; the contract links the living
 interface documents under `<architecture_dir>/lld/<feature>/api/`), the run's `analysis.md` and the
 feature's living analysis (`feature_analysis`) — a legacy `docs/tickets/<ID>/`
@@ -83,7 +83,7 @@ repo with no build step has no `gate-build` job; record that in `gate.json`.
 |---|---|---|
 | A — Acceptance | requirement conformance, features delivered | `requirements.md`, the plan, `test-cases.md`, the diff |
 | B — Changed-hunk defects | logic errors, security | **the diff and nothing else** |
-| C — Contracts & architecture | API/data contract, design, plan conformance | `api-contract.md` and the `lld/<feature>/api/` documents, `design.md`, architecture docs, the plan |
+| C — Contracts & architecture | API/data contract, design, plan conformance | `api-contract.md` and the `lld/<feature>/api/` documents, `tech-design.md` (a legacy `design.md`), architecture docs, the plan |
 | D — History & regression | revert/hotfix patterns on the touched lines | `git log --follow -p`, bounded lookback |
 | E — Craft & scope | quality, standards, simplicity, scope creep, documentation of the change | `standards/`, the diff |
 
@@ -127,7 +127,7 @@ or from `ship.yaml`.
 **Down, by the same rule: a lens runs when its inputs exist.** Lens C judges
 conformance to the API contract — `api-contract.md` and the living interface
 documents it links under `lld/<feature>/api/`, written in the Design phase —
-and the design; on a run with neither an API contract nor a `design.md`
+and the design; on a run with neither an API contract nor a `tech-design.md`
 (`acs.py artifacts show` reports both null), it has nothing to judge — record
 that in `lens-C.md` and do not spawn it. Lens A without `requirements.md` falls back to the subject
 (§3.11) — a ticket is one container of requirements, never required; with

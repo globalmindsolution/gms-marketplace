@@ -31,8 +31,9 @@
 # every loop goes back.
 #
 # The Design skills -- create-architecture, create-api-contract (ADR-0134),
-# create-data-design, create-flows, create-design -- are no steps here: they
-# run before or without a plan, and the planner reads what they wrote.
+# create-data-design, create-flows, create-tech-design (ADR-0135) -- are no
+# steps here: they run before or without a plan, and the planner reads what
+# they wrote.
 #
 # See plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md §2.
 version: 3

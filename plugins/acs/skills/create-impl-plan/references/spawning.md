@@ -96,7 +96,7 @@ agent did and spent a whole 1800s setup on the 2026-09-15 release gate.
 Spawn the three `acs:create-impl-plan-plan-reviewer` slices (Judge slices,
 above) in ONE message AFTER the draft is written, each with
 `<inputs>` of the draft, `requirements.md`, the analysis (`README.md` and its
-context files) and `design.md` when they exist, every `<partition>/specs/*.md`, and the repo paths the file map
+context files) and `tech-design.md` when they exist, every `<partition>/specs/*.md`, and the repo paths the file map
 names; the `tests` slice's `<constraints>` also name the `suite` job (SKILL.md's The
 suite job) whose result it reads. The plan reviewer judges fresh — never forward the planner's reasoning —
 and each slice writes `steps/create-impl-plan/iter-<n>/plan-reviewer-<slice>.md`,

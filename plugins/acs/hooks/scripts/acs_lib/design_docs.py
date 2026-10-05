@@ -24,7 +24,10 @@ first (it exists, its block is valid, the move is legal) and none is written
 when any is refused. `list_documents` is the deterministic lister behind
 `acs.py design list` and /acs:set-doc-status: the Discovery documents (PRD,
 roadmap, each feature's living analysis folder) and the Design documents (HLD, each feature's living
-LLD), grouped by phase and doc set, each with the moves it may make.
+LLD), grouped by phase and doc set, each with the moves it may make. A
+change's tech design (ADR-0135, `lld/<f>/<key>/tech-design.md`) is the one
+per-run record listed: the hand-off the team approves before implementation,
+shown in its feature's LLD group and labelled with its key.
 """
 
 import os
@@ -244,6 +247,8 @@ def set_status_many(paths, status, ticket=None, by=None, at=None, reason=None):
 # ---------------------------------------------------------------------------
 
 PHASES = ("discovery", "design")
+#: The per-run document the lister shows (ADR-0135).
+TECH_DESIGN = "tech-design.md"
 
 
 def _md_files(folder, recursive):
@@ -284,11 +289,27 @@ def candidates(root, settings=None):
     out += [("design", p) for p in _md_files(os.path.join(arch, "hld"), recursive=False)]
     lld = os.path.join(arch, doc_layout.LLD_DIRNAME)
     for feature in _subdirs(lld):
-        # Only the living subfolders: lld/<f>/<id>/ holds one change's records.
-        for living in sorted(LLD_LIVING):
-            out += [("design", p) for p in
-                    _md_files(os.path.join(lld, feature, living), recursive=True)]
+        # The living subfolders; lld/<f>/<id>/ holds one change's records, of
+        # which only the tech design is versioned for the team's approval.
+        for sub in _subdirs(os.path.join(lld, feature)):
+            if sub in LLD_LIVING:
+                out += [("design", p) for p in
+                        _md_files(os.path.join(lld, feature, sub), recursive=True)]
+            else:
+                tech = os.path.join(lld, feature, sub, TECH_DESIGN)
+                if os.path.isfile(tech):
+                    out.append(("design", tech))
     return out
+
+
+def _tech_design_key(rel):
+    """The run key of a change's tech design (`.../lld/<f>/<key>/tech-design.md`),
+    else None."""
+    parts = rel.split("/")
+    if len(parts) >= 4 and parts[-1] == TECH_DESIGN and parts[-4] == doc_layout.LLD_DIRNAME \
+            and parts[-2] not in LLD_LIVING:
+        return parts[-2]
+    return None
 
 
 def _entry(root, path):
@@ -329,6 +350,12 @@ def list_documents(root, phase=None, feature=None, settings=None):
         if os.path.basename(path).lower() == "readme.md" and not (front or {}).get("status"):
             continue
         key, label = doc_set(rel)
+        run_key = _tech_design_key(rel)
+        if run_key:
+            # A change's tech design joins its feature's LLD group.
+            key = key.rsplit("/", 1)[0]
+            label = "LLD %s" % key.split("/", 1)[1]
+            entry = dict(entry, key=run_key, label="%s tech design" % run_key)
         head = key.split("/")
         doc_feature = head[1] if len(head) > 1 and head[0] == "lld" else \
             head[2] if key.startswith("prd/features/") else None

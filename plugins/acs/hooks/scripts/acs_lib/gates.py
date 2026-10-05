@@ -89,7 +89,7 @@ def parent_epic_dir(ctx, ticket):
 
 
 def design_requirement(ctx, tdir, ticket, rdir=None):
-    """Returns (required, design_dir, source) — the partition whose design.md applies:
+    """Returns (required, design_dir, source) — the partition whose tech design applies:
     the ticket's own when it needs design, else the parent epic's when that needs design.
 
     needs_design is read from the run's REQUIREMENTS first (ADR-0128): the value
@@ -219,18 +219,18 @@ def _refuse_recorded_no_design(rdir, doc):
     from . import requirements
     if rdir and requirements.recorded_needs_design(rdir) is False:
         raise GateError(
-            "the requirements of run %s record needs_design false — /create-design only "
+            "the requirements of run %s record needs_design false — /create-tech-design only "
             "runs for design-significant requirements. Record the change with `acs.py "
             "requirements refine` ({\"needs_design\": true}) if a design is owed."
             % doc.get("run_id"))
 
 
-def gate_create_design(ctx, payload):
+def gate_create_tech_design(ctx, payload):
     """Brake: a design is only written for design-significant requirements.
 
     A TICKET (named, or the one the pointer or branch resolves) needs its
     needs_design flag, or a run of it whose refined requirements say so. With
-    no ticket, invoking /acs:create-design WITH requirements -- a prompt or
+    no ticket, invoking /acs:create-tech-design WITH requirements -- a prompt or
     documents -- is the ask itself (ADR-0128), and so is invoking it on a
     ticketless run: only a run whose requirements RECORDED needs_design false
     is refused. The epic refusal stays ticket-only (the step brakes)."""
@@ -246,11 +246,11 @@ def gate_create_design(ctx, payload):
         if not rdir and not resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"],
                                               ctx["repo_id"], args_text=text)[0]:
             raise GateError(
-                "no requirements for /create-design: no ticket, document or prompt in the "
+                "no requirements for /create-tech-design: no ticket, document or prompt in the "
                 "invocation, and no current run. Give it a ticket id, documents or a "
-                "prompt, e.g. /acs:create-design %s-123."
+                "prompt, e.g. /acs:create-tech-design %s-123."
                 % ctx["settings"].get("ticket_prefix", "SHOP"))
-    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-design")
+    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-tech-design")
     if ticket.get("needs_design"):
         return ticket_id
     repo = repo_dir(ctx["workspace"], ctx["repo_id"])
@@ -258,7 +258,7 @@ def gate_create_design(ctx, payload):
         if requirements.recorded_needs_design(run) is True:
             return ticket_id
     raise GateError(
-        "ticket %s is not flagged needs_design — /create-design only runs for "
+        "ticket %s is not flagged needs_design — /create-tech-design only runs for "
         "design-significant tickets; go straight to /acs:code %s."
         % (ticket_id, ticket_id))
 
@@ -316,7 +316,7 @@ def gate_merge_pr(ctx, payload):
 #: through path joins and `read_json` alone -- it opens no run, takes no lock
 #: and settles nothing, which is what keeps `acs gate` inert.
 SUBJECT_GATES = {
-    "create-design": gate_create_design,
+    "create-tech-design": gate_create_tech_design,
     "merge-pr": gate_merge_pr,
 }
 

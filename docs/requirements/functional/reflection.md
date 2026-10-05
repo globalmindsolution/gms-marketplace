@@ -30,7 +30,7 @@ for each role** (ADR-0109):
 | analyze-requirements | `analyze-requirements-impact-analyst` | `analyze-requirements-analyst` | `analyze-requirements-impact-reviewer` |
 | create-prd | `create-prd-surveyor` | `create-prd-author` | `create-prd-reviewer` |
 | create-architecture | `create-architecture-gap-analyst` (beside the architect's survey, when an HLD exists — ADR-0122) | `create-architecture-architect` | `create-architecture-reviewer` |
-| create-design | — | `create-design-designer` | `create-design-design-reviewer` |
+| create-tech-design | — | `create-tech-design-designer` | `create-tech-design-reviewer` |
 | create-data-design | `create-data-design-gap-analyst` (beside the designer's survey, when the feature's `data/` holds documents — ADR-0126) | `create-data-design-designer` | `create-data-design-reviewer` |
 | create-flows | `create-flows-gap-analyst` (beside the designer's survey, when the feature's `flows/` or `components/` hold documents — ADR-0126) | `create-flows-designer` | `create-flows-reviewer` |
 | create-impl-plan | — | `create-impl-plan-planner` | `create-impl-plan-plan-reviewer` |

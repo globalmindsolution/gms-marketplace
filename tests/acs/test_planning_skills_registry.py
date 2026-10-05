@@ -1,11 +1,12 @@
 """Behavior + registry tests for the PLANNING_SKILLS/WORKFLOW_SKILLS split.
 
-Originating ticket: MAR-77. `create-design` moves out of `WORKFLOW_SKILLS`
+Originating ticket: MAR-77. `create-design` (since ADR-0135 `create-tech-design`)
+moves out of `WORKFLOW_SKILLS`
 into a new `PLANNING_SKILLS` list; `HOOKED_SKILLS` becomes the explicit
 three-way concatenation `PRODUCT_SKILLS + WORKFLOW_SKILLS + PLANNING_SKILLS`
 so every existing `HOOKED_SKILLS` consumer (dispatch.py, `acs step start`,
 clarify.py, handoff.py, acs_lib's own session-end sweep) keeps seeing
-`create-design` with no code change of its own.
+`create-tech-design` with no code change of its own.
 
 ADR-0126 adds the two ticket-scoped low-level Design skills,
 `create-data-design` and `create-flows`, to `PLANNING_SKILLS` beside
@@ -16,6 +17,10 @@ ADR-0134 moves `create-api-contract` there too: an API contract is a Design
 document (`lld/<f>/api/<interface>.md`), written before or without a plan, so
 it leaves `WORKFLOW_SKILLS` and `ship.yaml` and joins the Design skills in the
 order the Design phase runs them.
+
+ADR-0135 renames `create-design` to `create-tech-design` -- the hand-off
+design for team review that snapshots the living LLD the other three wrote --
+and so it runs LAST in that order.
 """
 
 import json
@@ -43,8 +48,8 @@ PINNED_SORTED_HOOKED_SKILLS = [
     "analyze-requirements", "audit-design", "audit-security", "code",
     "create-api-contract",
     "create-architecture", "create-data-design",
-    "create-design", "create-e2e-tests", "create-flows", "create-impl-plan",
-    "create-pr", "create-prd",
+    "create-e2e-tests", "create-flows", "create-impl-plan",
+    "create-pr", "create-prd", "create-tech-design",
     "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "review-code",
     "run-e2e-tests",
 ]
@@ -74,12 +79,13 @@ class RegistryShapeCase(unittest.TestCase):
 
     def test_planning_skills_is_exactly_the_four_design_skills(self):
         # create-design alone through ADR-0125; ADR-0126 adds the low-level
-        # data and flows designs beside it; ADR-0134 the API contract. Pinned
-        # in order, so a fifth planning skill (or a reorder) is a deliberate
-        # edit here.
+        # data and flows designs beside it; ADR-0134 the API contract; ADR-0135
+        # renames create-design to create-tech-design, which snapshots the
+        # other three and so runs last. Pinned in order, so a fifth planning
+        # skill (or a reorder) is a deliberate edit here.
         self.assertEqual(acs_lib.PLANNING_SKILLS,
-                         ["create-design", "create-api-contract",
-                          "create-data-design", "create-flows"])
+                         ["create-api-contract", "create-data-design",
+                          "create-flows", "create-tech-design"])
 
     def test_create_api_contract_is_a_design_skill_not_a_workflow_skill(self):
         """ADR-0134: it writes a Design document and is no step of ship."""
@@ -88,14 +94,14 @@ class RegistryShapeCase(unittest.TestCase):
         wf = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
         self.assertFalse(acs_lib.has_step(wf, "create-api-contract"))
 
-    def test_create_design_not_in_workflow_skills(self):
-        self.assertNotIn("create-design", acs_lib.WORKFLOW_SKILLS)
+    def test_create_tech_design_not_in_workflow_skills(self):
+        self.assertNotIn("create-tech-design", acs_lib.WORKFLOW_SKILLS)
 
-    def test_create_design_not_in_product_skills(self):
-        self.assertNotIn("create-design", acs_lib.PRODUCT_SKILLS)
+    def test_create_tech_design_not_in_product_skills(self):
+        self.assertNotIn("create-tech-design", acs_lib.PRODUCT_SKILLS)
 
-    def test_create_design_in_hooked_skills(self):
-        self.assertIn("create-design", acs_lib.HOOKED_SKILLS)
+    def test_create_tech_design_in_hooked_skills(self):
+        self.assertIn("create-tech-design", acs_lib.HOOKED_SKILLS)
 
     def test_hooked_skills_is_three_way_concatenation(self):
         self.assertEqual(
@@ -118,8 +124,8 @@ class RegistryShapeCase(unittest.TestCase):
         # Count alone cannot catch a silent membership swap -- pin the names.
         self.assertEqual(sorted(acs_lib.HOOKED_SKILLS), PINNED_SORTED_HOOKED_SKILLS)
 
-    def test_create_design_is_hooked(self):
-        self.assertIn("create-design", lib.HOOKED_SKILLS)
+    def test_create_tech_design_is_hooked(self):
+        self.assertIn("create-tech-design", lib.HOOKED_SKILLS)
         # One gate per hooked skill: the dispatch table and the registry are
         # the same list seen from two sides (test_producer_skill_gates asserts
         # the membership direction).
@@ -127,42 +133,42 @@ class RegistryShapeCase(unittest.TestCase):
 
 
 class DispatchRoutingCase(acs_case.AcsWorkspaceCase):
-    """AC-2, restated for v0.5.0: dispatch.py's pre-hook routes create-design
+    """AC-2, restated for v0.5.0: dispatch.py's pre-hook routes create-tech-design
     as a hooked skill, and it takes NO run position because `ship.yaml` does
     not name it -- which is exactly what lets it run on its own (3.11) while
     remaining hooked.
 
-    Taking no run position is not the same as being ungated. create-design is
+    Taking no run position is not the same as being ungated. create-tech-design is
     gated on its SUBJECT, through `gates.SUBJECT_GATES`, which is consulted
     before the workflow is even resolved: a ticket flagged needs_design opens,
     and anything else is refused. So a refusal here does NOT mean the workflow
     adopted the skill -- test_the_resolved_workflow_does_not_name_it below
     still holds -- it means the subject did not warrant a design."""
 
-    def test_create_design_is_gated_on_its_subject_not_on_a_run_position(self):
-        bare = self.pre("create-design")
+    def test_create_tech_design_is_gated_on_its_subject_not_on_a_run_position(self):
+        bare = self.pre("create-tech-design")
         self.assertEqual(bare.returncode, 2, bare.stderr)
-        self.assertIn("acs pre-create-design: blocked", bare.stderr)
+        self.assertIn("acs pre-create-tech-design: blocked", bare.stderr)
         self.assertNotIn("Traceback", bare.stderr)
 
-        warranted = self.pre("create-design", self.new_ticket("Wishlist", "epic"))
+        warranted = self.pre("create-tech-design", self.new_ticket("Wishlist", "epic"))
         self.assertEqual(warranted.returncode, 0, warranted.stderr)
         self.assertNotIn("Traceback", warranted.stderr)
 
     def test_the_resolved_workflow_does_not_name_it(self):
         wf = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
-        self.assertFalse(acs_lib.has_step(wf, "create-design"))
+        self.assertFalse(acs_lib.has_step(wf, "create-tech-design"))
 
 
 class StepStartChoicesCase(acs_case.AcsWorkspaceCase):
-    """AC-2: `acs step start --step` still accepts create-design -- validated
+    """AC-2: `acs step start --step` still accepts create-tech-design -- validated
     against the resolved workflow AND the skill directories (4.8), so a
     standalone planning skill is a valid step name even though ship.yaml does
     not list it."""
 
-    def test_create_design_accepted_by_step_start(self):
+    def test_create_tech_design_accepted_by_step_start(self):
         epic = self.new_ticket("Wishlist", "epic")
-        result = self.start("create-design", epic)
+        result = self.start("create-tech-design", epic)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("invalid choice", result.stderr)
 
@@ -171,50 +177,50 @@ class StepStartChoicesCase(acs_case.AcsWorkspaceCase):
         step machine records the invocation either way -- two machines, and
         this is the seam between them (4.3/4.4)."""
         epic = self.new_ticket("Wishlist", "epic")
-        out = self.start("create-design", epic)
+        out = self.start("create-tech-design", epic)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertIs(json.loads(out.stdout)["in_workflow"], False)
         rdir = self.rdir(epic)
-        self.assertNotIn("create-design", acs_lib.load_run(rdir)["steps"])
+        self.assertNotIn("create-tech-design", acs_lib.load_run(rdir)["steps"])
         self.assertEqual(
             acs_lib.last_invocation(
-                acs_lib.load_state(rdir, "create-design"))["status"],
+                acs_lib.load_state(rdir, "create-tech-design"))["status"],
             "in_progress")
 
 
 class ClarifySkillChoicesCase(acs_case.AcsWorkspaceCase):
-    """AC-2: clarify.py add --skill choices still accept create-design."""
+    """AC-2: clarify.py add --skill choices still accept create-tech-design."""
 
-    def test_create_design_accepted_by_clarify_argparse(self):
+    def test_create_tech_design_accepted_by_clarify_argparse(self):
         ticket = self.new_ticket("Wishlist API", "story")
         result = self.run_script(
-            "clarify.py", "add", "--skill", "create-design",
+            "clarify.py", "add", "--skill", "create-tech-design",
             "--question", "Approve the layout?", "--ticket", ticket,
         )
         self.assertNotIn("invalid choice", result.stderr)
         self.assertEqual(result.returncode, 0, result.stderr)
         entry = json.loads(result.stdout)
-        self.assertEqual(entry["skill"], "create-design")
+        self.assertEqual(entry["skill"], "create-tech-design")
 
 
 class HandoffResumeCase(acs_case.AcsWorkspaceCase):
-    """AC-2, restated: handoff.py resumes a create-design invocation by name.
+    """AC-2, restated: handoff.py resumes a create-tech-design invocation by name.
 
     `flow: ticket|product` is retired (6) -- a run's SUBJECT says what it is
     over, and there is no second classification to keep in step with
     PRODUCT_SKILLS. What the hazard guard was really protecting is still
-    asserted: the resume names create-design itself, not whatever step the
+    asserted: the resume names create-tech-design itself, not whatever step the
     workflow would have pointed at."""
 
-    def test_create_design_resumes_via_handoff(self):
+    def test_create_tech_design_resumes_via_handoff(self):
         ticket = self.new_ticket("Design system revamp", "epic")  # needs_design by default
-        out = self.start("create-design", ticket)
+        out = self.start("create-tech-design", ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         result = self.run_script("handoff.py", "--summary", "s", "--run", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["step"], "create-design")
-        self.assertEqual(payload["continue_with"], "/acs:create-design %s" % ticket)
+        self.assertEqual(payload["step"], "create-tech-design")
+        self.assertEqual(payload["continue_with"], "/acs:create-tech-design %s" % ticket)
         self.assertEqual(payload["stop_reason"], "context_pressure")
         subject = acs_lib.load_run(self.rdir(ticket))["subject"]
         self.assertEqual(subject, {"kind": "ticket", "ticket_id": ticket})
@@ -222,7 +228,7 @@ class HandoffResumeCase(acs_case.AcsWorkspaceCase):
 
 class ShipPipelineOrderTableCase(unittest.TestCase):
     """AC-3 restated for v0.5.0: /acs:ship carries no implementation-step
-    table at all, and create-design is not one of its steps -- create-design
+    table at all, and create-tech-design is not one of its steps -- create-tech-design
     is Design-phase work that runs BEFORE ship, and ship.yaml simply does not
     list it.
 
@@ -239,11 +245,11 @@ class ShipPipelineOrderTableCase(unittest.TestCase):
     def test_no_numbered_pipeline_order_table_survives(self):
         self.assertNotIn("## Pipeline order", self.body)
 
-    def test_create_design_is_not_a_ship_workflow_step(self):
+    def test_create_tech_design_is_not_a_ship_workflow_step(self):
         # `steps:` is a LIST of skill names and nothing more (2): no
         # per-path mapping to union over, so membership is the whole question.
         doc = acs_lib.validate_workflow_file(acs_lib.default_workflow_path())
-        self.assertNotIn("create-design", workflow.steps_of(doc))
+        self.assertNotIn("create-tech-design", workflow.steps_of(doc))
 
     def test_the_workflow_carries_no_requires_predicate_at_all(self):
         """`requires:` is one of the keys the schema rejects outright, so

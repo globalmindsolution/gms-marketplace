@@ -329,8 +329,8 @@ def run_post(skill):
             extra={"leg": result["leg"]} if result.get("leg") else None)
     elif skill in STANDALONE_RUN_SKILLS or not (
             (doc.get("subject") or {}).get("ticket_id") or doc.get("driver")):
-        # ...and since ADR-0128 a ticketless run a design skill (create-design,
-        # create-api-contract, create-data-design, create-flows) was invoked on with a prompt or
+        # ...and since ADR-0128 a ticketless run a design skill (create-api-contract,
+        # create-data-design, create-flows, create-tech-design) was invoked on with a prompt or
         # documents: left open, its cursor would hand the next /acs:ship from
         # this checkout `analyze-requirements` on requirements it never asked
         # to deliver.

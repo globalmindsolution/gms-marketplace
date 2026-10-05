@@ -14,7 +14,7 @@ one advisory stderr line, never a refusal.
 ## Requirements
 
 - Every hooked skill — the eleven workflow skills, the five product-level
-  doc/bootstrap skills, and the conditional planning skill `/create-design` —
+  doc/bootstrap skills, and the conditional planning skill `/create-tech-design` —
   MUST have a **pre-hook** and a **post-hook**.
 - Hooks are implemented as **Python scripts**, named by convention:
   `pre-<skill>.py` and `post-<skill>.py`
@@ -181,7 +181,7 @@ Seventeen hooked skills, each with one pre-hook and one post-hook:
 | `/create-prd` | `pre-create-prd.py` | `post-create-prd.py` | `create-prd-state.json` |
 | `/create-architecture` | `pre-create-architecture.py` | `post-create-architecture.py` | `create-architecture-state.json` |
 | `/create-ticket` | `pre-create-ticket.py` | `post-create-ticket.py` | `create-ticket-state.json` |
-| `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |
+| `/create-tech-design` | `pre-create-tech-design.py` | `post-create-tech-design.py` | `create-tech-design-state.json` |
 | `/create-api-contract` | `pre-create-api-contract.py` | `post-create-api-contract.py` | `create-api-contract-state.json` |
 | `/analyze-requirements` | `pre-analyze-requirements.py` | `post-analyze-requirements.py` | `analyze-requirements-state.json` |
 | `/create-impl-plan` | `pre-create-impl-plan.py` | `post-create-impl-plan.py` | `create-impl-plan-state.json` |
@@ -213,7 +213,7 @@ for an upstream artifact.
 | `/create-prd` | — (only the baseline checks; no settings file needed) | — |
 | `/create-ticket` | — | — |
 | `/create-architecture` | — (the skill reads the PRD at Start when there is one, else works from the subject) | — |
-| `/create-design` | subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag) — a ticketless run with none recorded is allowed when the user invoked the skill with requirements (ADR-0128) | lock free |
+| `/create-tech-design` | subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag) — a ticketless run with none recorded is allowed when the user invoked the skill with requirements (ADR-0128) | lock free |
 | `/create-api-contract` | — (a Design skill, not a `ship.yaml` step: it takes a ticket — an epic included — a feature, documents or a prompt and needs no plan; ADR-0134) | — |
 | `/analyze-requirements` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; lock free |
 | `/create-impl-plan` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; lock free |
@@ -224,7 +224,7 @@ for an upstream artifact.
 | `/create-pr` | a ticket id, a prompt, or this checkout's current run (no ticket required — ADR-0127) | when the run has a code step, a recorded `/acs:review-code` step must not have left `verifier_passed != true` (a run with **no** recorded review is allowed); lock free |
 | `/merge-pr` | ticket resolves | a PR reference is recorded: `/create-pr` completed; lock free. A PR opened from a prompt (`/create-pr "<prompt>"`) names no ticket and lands through `/merge-pr --pr <n>` ([skills.md](skills.md#product-level-delivery-no-ticket)) |
 
-**A skill the workflow does not name is still gated.** `/create-design` and
+**A skill the workflow does not name is still gated.** `/create-tech-design` and
 `/merge-pr` are deliberately not steps of `ship.yaml` and MUST NOT become
 steps; their brakes are therefore consulted from a subject-ticket table
 **before** the resolved workflow is read, not from the step gate behind it. A
@@ -235,7 +235,7 @@ remove the brake ([ADR 0101](../../architecture/adr/0101-gating-skills-that-are-
 Three rows changed meaning with the skills-independence refactor and are
 worth stating explicitly, because each used to be an order gate:
 
-- `/create-design` no longer requires a completed `/create-ticket` run — the
+- `/create-tech-design` no longer requires a completed `/create-ticket` run — the
   partition existing is the input, and that is what `/create-ticket` produces.
 - `/docs-sync` no longer requires `/code` (or the post-code test step) to have
   completed; it re-derives doc impact from the branch diff, which is a real

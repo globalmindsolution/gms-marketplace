@@ -5,7 +5,7 @@ No third-party dependency, but it is not standalone: the heading scanner
 lives in the sibling `markdown_headings.py` (one implementation, MAR-522),
 which must sit beside this file on sys.path.
 
-The acs doc-producing skills (create-prd, create-architecture, create-design)
+The acs doc-producing skills (create-prd, create-architecture, create-tech-design)
 each declare a required-section list in their SKILL.md. This linter is the
 deterministic ($0, stdlib-only) backstop that checks a generated doc against
 that declared list: every required section present, non-empty, and (when

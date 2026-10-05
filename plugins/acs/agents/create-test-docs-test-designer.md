@@ -22,7 +22,7 @@ artifacts alone), and you never write outside the workspace partition.
    ticket, a prompt or documents carried them), `plan.md`,
    `api-contract.md` and the `lld/<feature>/api/` documents it links, the analysis (its `README.md` and the context files
    named), the feature's living analysis and
-   `design.md` when they exist, and the
+   `tech-design.md` when they exist, and the
    repo's existing test files — then survey the case set (below) and record
    it in your authoring notes before writing. `<context>` carries the user's
    recorded clarification answers and, on iteration ≥ 2,

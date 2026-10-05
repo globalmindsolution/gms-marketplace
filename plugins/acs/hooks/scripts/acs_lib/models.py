@@ -46,7 +46,7 @@ _RECOMMENDED = {
     "implementer": (SONNET, "medium"),
     # judge: re-derives fresh, and is the gate before approval
     "reviewer": (OPUS, "high"), "plan-reviewer": (OPUS, "high"),
-    "design-reviewer": (OPUS, "high"), "contract-reviewer": (OPUS, "high"),
+    "contract-reviewer": (OPUS, "high"),
     "drift-reviewer": (OPUS, "high"), "impact-reviewer": (OPUS, "high"),
     "adjudicator": (OPUS, "xhigh"),
     "lens": (SONNET, "high"), "trace-reviewer": (SONNET, "high"),

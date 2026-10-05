@@ -33,7 +33,7 @@ brakes: the run resolves to a live, unlocked partition and, when its subject
 is a ticket, that ticket is not an epic — an epic is designed and fanned out,
 never planned as one ticket. No ticket is required: a prompt, documents, or a
 mix of them with a ticket id are all requirements. Nothing
-upstream is required: the analysis and `design.md` are read WHEN PRESENT, and
+upstream is required: the analysis and `tech-design.md` are read WHEN PRESENT, and
 no predecessor-completed check exists — the pipeline order lives in
 `workflows/ship.yaml`, not in this gate. With no analysis the plan is made
 from the requirements' acceptance criteria and the codebase, whether `/acs:ship`
@@ -60,14 +60,16 @@ Parse the printed context JSON. Fields you will use:
   tickets plan against the parent epic's design); its basename is that
   ticket's id. When `design.required` is true, resolve the design document
   with `acs.py artifacts show --ticket <that id>` and read
-  `artifacts["design.md"]` — the design record in
-  `<architecture_dir>/lld/<feature>/<that id>/` (or a legacy
-  `docs/tickets/<that id>/design.md`, read only), or `<design.dir>/design.md`
-  when an older design still lives in the partition. On a ticketless run
+  `artifacts["tech-design.md"]` — the tech design in
+  `<architecture_dir>/lld/<feature>/<that id>/`, or the partition; it falls
+  back to a legacy `design.md` (that folder, `docs/tickets/<that id>/`, the
+  partition), read only. On a ticketless run
   `design` is absent, or `{required, dir: null, source: "requirements"}` once
   analyze-requirements refined `needs_design`: read the run's own
-  `artifacts["design.md"]` from `acs.py artifacts show` when it reports one. Call it `<design_doc>`; the plan is judged
-  against it.
+  `artifacts["tech-design.md"]` when it reports one. Call it `<design_doc>`; the plan is judged
+  against it. Read its status — `acs.py design check <design_doc>` — and
+  state it in the report: not `approved` (or `implemented`) is a warning
+  ("planned against an unapproved tech design"), never a refusal.
 - `settings` — you need `tests.coverage` (the coverage target the plan
   states) and `tests.e2e` when set.
 - `agents` — the agent name to spawn per role; the planner's and the plan
@@ -94,7 +96,7 @@ simply absent: this skill creates none of them.
 run has no type to refuse). Every ticket that reaches this step has
 `ticket.type != "epic"`. If an epic reaches it anyway (a bypassed or
 best-effort pre-gate on some runtime), STOP and surface the same message the
-gate would have raised: design the epic with `/acs:create-design <id>`, fan it
+gate would have raised: design the epic with `/acs:create-tech-design <id>`, fan it
 out with `/acs:create-ticket <id>`, then run `/acs:create-impl-plan` on a
 child.
 
@@ -233,7 +235,7 @@ with no suite command starts no job, and you tell the `tests` slice so in its
 Iteration 1's planner surveys and decides before it writes the deliverable.
 Task it with `<inputs>` of `requirements.md`, the analysis (its `README.md`
 and the context files the change touches), the feature's living analysis and
-`design.md` when they exist, and the consumer-repo
+`tech-design.md` when they exist, and the consumer-repo
 source/docs the subject touches. Its authoring notes are
 `steps/create-impl-plan/iter-<n>/authoring.md`.
 
@@ -440,7 +442,7 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: plan path and where it went (shared / kept local, whose default); executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code implementers will run
+- **Results**: plan path and where it went (shared / kept local, whose default); the tech design planned against and its status (a warning when not approved); executor tasks and file-map disjointness; ACs mapped to tests; coverage target stated; the test strategy the code implementers will run
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (the plan path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>

@@ -28,7 +28,7 @@ coordinator only relays it:
 
 | Pass | When | Reads | Writes |
 |---|---|---|---|
-| `requirements` | the survey, iteration 1 (`slice="requirements"`), in parallel with the impact analysts | the requirements (`requirements.md` and every document copy it cites — Read a PDF or an image yourself), the ticket file when there is one, `design.md` when it binds, the product and architecture docs, the ledger, the previously published analysis and the feature's living analysis when `<inputs>` names them, and the code the requirements' words point at | `steps/analyze-requirements/iter-1/authoring-requirements.md` + `iter-1/analyst-requirements.json`. NEVER the draft |
+| `requirements` | the survey, iteration 1 (`slice="requirements"`), in parallel with the impact analysts | the requirements (`requirements.md` and every document copy it cites — Read a PDF or an image yourself), the ticket file when there is one, `tech-design.md` when it binds, the product and architecture docs, the ledger, the previously published analysis and the feature's living analysis when `<inputs>` names them, and the code the requirements' words point at | `steps/analyze-requirements/iter-1/authoring-requirements.md` + `iter-1/analyst-requirements.json`. NEVER the draft |
 | `synthesis` | the survey, iteration 1, after every lane returned (`slice="synthesis"`) | the joined `iter-1/authoring.md` and the files its entries cite | `iter-1/authoring-synthesis.md` + `iter-1/analyst-synthesis.json`. NEVER the draft, never the joined notes |
 | `draft` | every iteration (no `slice`) | the notes (`iter-1/authoring.md`, reconciled), the `C-n` answers in `<context>`, the requirements as refined (`requirements.md`'s `## Refined`), the files the notes cite; on iteration ≥ 2 the impact reviewer's findings in `<context>` | the draft folder `steps/analyze-requirements/iter-<n>/analysis/` (README + one file per context) + `iter-<n>/analyst.json`; on iteration ≥ 2 also `iter-<n>/authoring.md` |
 
@@ -41,7 +41,7 @@ handed ARE the survey, reconciled and answered.
 1. Read EVERY file in `<inputs>`: the requirements (`requirements.md` — the
    ticket's criteria as `AC-1…`, the prompt verbatim, the documents inlined
    or cited by their run copy, which you Read whatever their type), the
-   ticket file when there is one, `design.md` when it binds, the product docs
+   ticket file when there is one, `tech-design.md` when it binds, the product docs
    and the architecture set named there, the previously published analysis
    and the feature's living analysis when named, and the consumer-repo paths
    the requirements plausibly touch — then follow the code from there. `<context>`

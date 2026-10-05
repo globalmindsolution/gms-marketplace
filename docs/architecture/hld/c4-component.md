@@ -58,7 +58,7 @@ the kind picks its model tier and whether the file-map guard is armed. The
 **eleven authoring skills** run a write → judge reflection
 loop over their own roles: `analyze-requirements` (analyst, impact-analyst, impact-reviewer), `create-prd`
 (surveyor, author, reviewer), `create-architecture`
-(architect, gap-analyst, reviewer), `create-design` (designer, design-reviewer),
+(architect, gap-analyst, reviewer), `create-tech-design` (designer, reviewer),
 `create-data-design` and `create-flows` (each designer, gap-analyst, reviewer —
 ADR-0126), `create-impl-plan` (planner,
 plan-reviewer), `create-api-contract` (contract-author, gap-analyst,

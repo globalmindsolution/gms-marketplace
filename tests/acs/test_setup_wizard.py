@@ -494,10 +494,10 @@ class NextStepsTest(WizardCase):
     def test_the_design_phase_runs_in_its_order_before_delivery(self):
         """ADR-0134 moved create-api-contract out of ship.yaml into Design,
         whose order is architecture, api contract, data design, flows,
-        design -- so the suggested pipeline still names it, once, there."""
+        tech design (ADR-0135) -- so the suggested pipeline still names it, once, there."""
         pipeline = setup_wizard.render_next_steps(False, self.repo)["pipeline"]
         design = ["/acs:create-architecture", "/acs:create-api-contract",
-                  "/acs:create-data-design", "/acs:create-flows", "/acs:create-design"]
+                  "/acs:create-data-design", "/acs:create-flows", "/acs:create-tech-design"]
         positions = [pipeline.index(step) for step in design]
         self.assertEqual(positions, sorted(positions))
         self.assertEqual(pipeline.count("/acs:create-api-contract"), 1)

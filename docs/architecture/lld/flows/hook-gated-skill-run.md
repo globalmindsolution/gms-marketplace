@@ -14,7 +14,7 @@ user types.
 
 The diagram below shows the **reflection loop** (write → judge), which is
 how the eleven authoring skills run (`create-prd`, `create-architecture`,
-`create-design`, `create-api-contract`, `create-data-design`, `create-flows`, `docs-sync`, `analyze-requirements`, `create-impl-plan`,
+`create-tech-design`, `create-api-contract`, `create-data-design`, `create-flows`, `docs-sync`, `analyze-requirements`, `create-impl-plan`,
 `create-test-docs`, `create-e2e-tests`). Each skill spawns its own roles, named for its
 work (ADR 0109): an optional **survey** role (`create-prd-surveyor`,
 `analyze-requirements-impact-analyst`) on iteration 1
@@ -63,7 +63,7 @@ sequenceDiagram
     Dev->>CC: /acs:<skill> SHOP-123
     CC->>D: PreToolUse(Skill) payload
     D->>PRE: route by skill name, bounded alarm (same payload)
-    alt the skill is hooked but the resolved workflow does not name it (create-design, create-data-design, create-flows, merge-pr)
+    alt the skill is hooked but the resolved workflow does not name it (create-tech-design, create-data-design, create-flows, merge-pr)
         PRE->>PRE: SUBJECT_GATES first, before the workflow is read — resolve the subject ticket and read its steps, opening no run
         alt the subject ticket fails the brake
             PRE-->>CC: exit 2 + stderr ("no PR reference recorded for SHOP-123 — /acs:create-pr (or the product-level skill) must complete first.")
@@ -208,7 +208,7 @@ is still the block. What it evaluates is now only:
 - a small set of **safety brakes** — the partition `.lock`, the epic refusal,
   `/acs:code`'s plan-approval brake on the standard and complex paths,
   `/acs:create-pr`'s `verifier_passed` brake (narrowed to a run that HAS a
-  recorded `/acs:review-code` step), `/acs:create-design`'s `needs_design`
+  recorded `/acs:review-code` step), `/acs:create-tech-design`'s `needs_design`
   brake, and `/acs:merge-pr`'s recorded-PR requirement.
 
 It never checks that an upstream artifact exists (ADR 0109): each skill reads

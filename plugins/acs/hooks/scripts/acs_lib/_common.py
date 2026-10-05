@@ -39,9 +39,12 @@ WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
 # The Design skills: any subject (ADR-0128, epics included), no run position.
 # ADR-0134 moved create-api-contract here from WORKFLOW_SKILLS -- an API
 # contract is a Design document (`lld/<f>/api/<interface>.md`) written before
-# or without a plan, so it is no step of ship.yaml.
-PLANNING_SKILLS = ["create-design", "create-api-contract", "create-data-design",
-                   "create-flows"]
+# or without a plan, so it is no step of ship.yaml. ADR-0135 renamed
+# create-design to create-tech-design -- the hand-off design that snapshots
+# the living LLD the other three write -- so it is listed last, in the order
+# the Design phase runs them.
+PLANNING_SKILLS = ["create-api-contract", "create-data-design", "create-flows",
+                   "create-tech-design"]
 # The Audit skills (ADR-0122/0123): ticketless and read-only. `step start` opens
 # (or resumes) a run over the invocation for them, and their post-hook concludes
 # it, so no ticket and no workflow step is ever needed.

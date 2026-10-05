@@ -83,7 +83,7 @@ change — uncommitted in the working tree, where the pipeline leaves it until
 case whose presupposition is false measures the scaffold, not the skill.
 
 **Two routing cases break this rule today**, knowingly:
-`route-create-design` and `route-docs-sync` each
+`route-create-tech-design` and `route-docs-sync` each
 presuppose context (an epic ticket, a finished change)
 and run in an empty workspace. Each case's `description` records it as a known
 confound. Seeding them is the fix; until then a miss on one of them is not

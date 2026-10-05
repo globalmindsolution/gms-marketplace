@@ -410,6 +410,33 @@ matching section here, and merge to `main` — the Release workflow tags
   `owes.api_contract` still loads with that key ignored. A run that already
   completed a `create-api-contract` step keeps the record; its cursor no
   longer asks for one.
+- **⚠️ BREAKING: `/acs:create-design` is renamed `/acs:create-tech-design`, and
+  its document is a versioned hand-off for team review** (ADR-0135). The old name
+  is gone, with no alias. Its agents are `create-tech-design-designer` and
+  `create-tech-design-reviewer` (role `reviewer`, was `design-reviewer`), its
+  hooks `pre-`/`post-create-tech-design.py` and its gate
+  `gate_create_tech_design` — the same `needs_design` brake, epics allowed. The
+  document is `tech-design.md` in the run's Design folder
+  `lld/<feature>/<id>/`, written in six sections: Decision & options, HLD views
+  affected, LLD (API, Data, Flows and Components — snapshots of the feature's
+  living `lld/<feature>/` documents, each linked at its version), NFRs, Risks and
+  Open questions; a story marks the sections it does not need "n/a" with the
+  reason. The reviewer also checks that flows, api and data documents agree with
+  one another and that every snapshot links the document's current version. The
+  document opens with `status: proposed` front matter written through
+  `acs.py design init|bump`, `acs.py design list` now lists it from its per-run
+  folder, and the skill ends by pointing at `/acs:set-doc-status approved
+  <feature>`, then `/acs:create-impl-plan`, which states the document's status in
+  its report and warns, without blocking, when it is not approved. The run
+  artifact key stays `design` (`acs.py artifacts show design`; `tech-design` is
+  an alias). **Migration:** invoke `/acs:create-tech-design` wherever you invoked
+  `/acs:create-design`. A saved `models.create-design` block is migrated to
+  `models.create-tech-design` automatically on load, its `design-reviewer` key
+  becoming `reviewer` — nothing to edit. An existing `design.md`, and a run
+  started under the old name (`steps/create-design/`), are still read wherever
+  `tech-design.md` is looked for; a re-design writes `tech-design.md` beside it.
+  Approve a design with `/acs:set-doc-status approved <feature>` — the reviewer's
+  pass no longer stands in for the team's sign-off.
 
 ### Removed
 

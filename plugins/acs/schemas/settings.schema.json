@@ -444,52 +444,6 @@
           },
           "additionalProperties": false
         },
-        "create-design": {
-          "type": "object",
-          "properties": {
-            "design-reviewer": {
-              "type": "object",
-              "properties": {
-                "model": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "effort": {
-                  "enum": [
-                    "low",
-                    "medium",
-                    "high",
-                    "xhigh",
-                    "max",
-                    "inherit"
-                  ]
-                }
-              },
-              "additionalProperties": false
-            },
-            "designer": {
-              "type": "object",
-              "properties": {
-                "model": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "effort": {
-                  "enum": [
-                    "low",
-                    "medium",
-                    "high",
-                    "xhigh",
-                    "max",
-                    "inherit"
-                  ]
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
-        },
         "create-e2e-tests": {
           "type": "object",
           "properties": {
@@ -692,6 +646,52 @@
               "additionalProperties": false
             },
             "surveyor": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "create-tech-design": {
+          "type": "object",
+          "properties": {
+            "designer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "reviewer": {
               "type": "object",
               "properties": {
                 "model": {

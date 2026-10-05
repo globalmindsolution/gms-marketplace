@@ -69,14 +69,14 @@ inside a parallel group (a loop that re-entered half a group would leave the
 other half's work neither kept nor redone) — and never what a skill needs. An
 out-of-order override validates, and its steps run on their fallbacks.
 
-`/create-ticket`, `/create-design`, `/create-api-contract`, `/create-data-design`
+`/create-ticket`, `/create-tech-design`, `/create-api-contract`, `/create-data-design`
 and `/create-flows` are **design** work that runs before `/ship`; `/merge-pr` is **ship** work a
 human drives after review.
 
 | Step (`ship.yaml`) | Phase | Purpose (summary) |
 |--------------------|-------|-------------------|
 | — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. Runs before `/ship`. |
-| — `/create-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
+| — `/create-tech-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`, `status: proposed` until approved with `/set-doc-status`): decision & options, the HLD views affected, snapshots of the feature's API, data, flows and components documents, NFRs, risks, open questions ([ADR-0135](../../architecture/adr/0135-create-tech-design.md)). For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
 | — `/create-data-design` | design | Write the ticket's data low-level design under `lld/<feature>/data/` — logical ERD and physical schema with a migration outline, for the enabled `design.lld_types` only; documents only. Runs before `/ship`, on any ticket that adds or changes persisted data ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
 | — `/create-api-contract` | design | Design the interfaces a feature or a change adds or changes under `lld/<feature>/api/` — one living, versioned file per interface (a REST resource, a CLI command group, an event topic, a gRPC service), each endpoint, command or message traced to an acceptance criterion — plus the run's `api-contract.md` record linking them; documents only, never the repo's OpenAPI, JSON Schema, proto or AsyncAPI files, which `/code` makes from plan items. Runs before `/ship`, before the plan, on any ticket (an epic included), feature or prompt ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)). |
 | — `/create-flows` | design | Write the ticket's behaviour low-level design under `lld/<feature>/flows/` (and `components/` when enabled) — one file per flow and one per entity state machine; documents only. Runs before `/ship` ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
@@ -105,7 +105,7 @@ and an unconfigured e2e suite is an evidenced no-op that
 ```mermaid
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
-    T -->|needs design, epic| D[/create-design/]
+    T -->|needs design, epic| D[/create-tech-design/]
     D -->|epic: after design| FO[/create-ticket --fan-out/]
     FO -->|per child| A
     D -->|child inherits the design| A
@@ -128,9 +128,9 @@ flowchart LR
 `create-e2e-tests` and `docs-sync` fan out from `review-code` side by side:
 they are one parallel group, and `run-e2e-tests` waits for both.
 
-`/create-design` runs only for tickets flagged **`needs_design: true`** —
+`/create-tech-design` runs only for tickets flagged **`needs_design: true`** —
 set for **epics only**; stories/tasks are always `false`. Child tickets of
-an epic do **not** repeat design: they inherit the parent epic's `design.md`.
+an epic do **not** repeat design: they inherit the parent epic's `tech-design.md`.
 
 `/create-api-contract`, `/create-data-design` and `/create-flows` carry no
 such flag: the SA or Tech Lead runs them on a ticket (or a feature, or a
@@ -151,7 +151,7 @@ document belongs to exactly one of them:
   Discovery `<prd_dir>/features/<feature>/analysis/` (the feature's living
   analysis — a folder, `README.md` plus one file per bounded context,
   [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`
-  (`design.md`, `api-contract.md`, beside the living LLD the Design skills edit
+  (`tech-design.md`, `api-contract.md`, beside the living LLD the Design skills edit
   in place — `lld/<feature>/{api,data,flows,components}/`, ADR-0126,
   ADR-0134); Development
   `<development_dir>/<feature>/<ticket-id or run-id>/` (the `analysis/`
@@ -353,11 +353,11 @@ An epic's own **creation** run MUST NOT propose a child breakdown and MUST
 end with `children: []` — no children are minted at epic-creation time. Two
 of `/create-ticket`'s modes mint children, and neither is the epic's own
 creation run: a later `/acs:create-ticket <epic-id> --fan-out` run, invoked
-**after** the epic's `/create-design` has completed, and a split/restructure
+**after** the epic's `/create-tech-design` has completed, and a split/restructure
 run, which mints children at the recorded seams (see
 [skills.md](skills.md)). The `--fan-out` run mints children only (it does
 not repeat the epic's own Steps 1-3); the proposed breakdown is derived from
-the epic's `design.md` slice/seam content when a design exists, and is
+the epic's `tech-design.md` slice/seam content when a design exists, and is
 presented and user-confirmed at the same Step-2 confirmation gate before any
 child is minted. Each child ticket:
 
@@ -601,7 +601,7 @@ The architecture is designed and verified to satisfy it, and
 capability that diverges from it.
 
 - **Input**: `/create-ticket` reads the PRD and the architecture doc set
-  when analyzing requirements; `/create-design` designs against the doc
+  when analyzing requirements; `/create-tech-design` designs against the doc
   set; a per-ticket design conforms to the documented architecture or
   explicitly states the architecture changes it requires.
 - **Output**: `/code` updates the doc set whenever a change alters the
@@ -667,7 +667,7 @@ ticket:
    architecture like any other ticket. Without this, the `/code` TDD gates
    have no harness to run against. The CI gates come from `/setup`.
 5. **`/create-ticket`** — typically an MVP **epic** derived from the PRD
-   roadmap, created childless; its `/create-design` then runs; then
+   roadmap, created childless; its `/create-tech-design` then runs; then
    `/acs:create-ticket <epic-id> --fan-out` mints the child stories/tasks
    ([Epic fan-out](#epic-fan-out)).
 6. **`/ship`** each child through the pipeline; **`/merge-pr`** after your

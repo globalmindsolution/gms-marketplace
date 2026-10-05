@@ -350,5 +350,5 @@ Invariants (enforced by `acs_lib` + schemas + tests):
 - `runs[-1]` is the only source of current status — nothing mirrored at top level.
 - Epic ↔ child links stored in **both** directions; epic status auto-managed.
 - Cross-partition writes limited to the defined parent-epic updates; reads
-  (e.g. a child consuming the epic's `design.md`) are allowed.
+  (e.g. a child consuming the epic's `tech-design.md`) are allowed.
 - Done partitions move to `archive/` — never deleted; the index keeps them.

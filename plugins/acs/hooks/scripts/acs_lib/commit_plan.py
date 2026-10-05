@@ -9,8 +9,8 @@ anything is staged (`recorded` mode):
 
   1. ticket docs     -- what the ticket-docs skills recorded (their phase folders,
                         ADR-0128) and a legacy `docs/tickets/<ID>/`
-  2. design docs     -- what create-design / create-api-contract /
-                        create-data-design / create-flows recorded
+  2. design docs     -- what create-api-contract / create-data-design /
+                        create-flows / create-tech-design recorded
   3. per plan slice  -- its tests, then its code (one group when it has one kind)
   4. docs-sync       -- the doc updates docs-sync recorded
   5. e2e suites      -- what create-e2e-tests recorded
@@ -49,8 +49,11 @@ SKILL_LAYER = {
     "create-ticket": "ticket-docs", "analyze-requirements": "ticket-docs",
     "create-impl-plan": "ticket-docs", "create-test-docs": "ticket-docs",
     # ADR-0134: the API contract is a Design document, committed with them.
-    "create-design": "design", "create-api-contract": "design",
+    "create-tech-design": "design", "create-api-contract": "design",
     "create-data-design": "design", "create-flows": "design",
+    # Legacy (ADR-0135 renamed it create-tech-design): a run recorded before
+    # the rename keeps its design docs in the design layer.
+    "create-design": "design",
     "code": "slice", "docs-sync": "docs-sync", "create-e2e-tests": "e2e",
 }
 
@@ -58,7 +61,7 @@ SKILL_LAYER = {
 #: step records (ADR-0127); the rest are the names steps used before it.
 STATE_LIST_KEYS = ("files", "docs_committed", "docs_updated", "suites_written")
 #: `states` keys that hold one written path.
-STATE_PATH_KEYS = ("plan_path", "contract_path", "design_path")
+STATE_PATH_KEYS = ("plan_path", "contract_path", "design_path", "tech_design_path")
 #: Top-level keys of a step's iteration reports that list written paths.
 REPORT_LIST_KEYS = ("files_changed", "repo_files_changed", "docs_committed",
                     "suites_written")

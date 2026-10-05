@@ -290,7 +290,7 @@ class TestDeriveStatus(ArtifactsCase):
             ("no ledger", [], "open"),
             ("create-ticket alone", [("create-ticket", "completed")], "open"),
             ("a skip alone", [("create-ticket", "completed"), ("create-test-docs", "skipped")], "open"),
-            ("design started", [("create-design", "in_progress")], "in_progress"),
+            ("design started", [("create-tech-design", "in_progress")], "in_progress"),
             ("code in progress", [("create-ticket", "completed"), ("code", "in_progress")], "in_progress"),
             ("code completed", [("code", "completed")], "in_progress"),
             ("pr opened", [("code", "completed"), ("create-pr", "completed")], "in_review"),
@@ -327,7 +327,7 @@ class TestDeriveStatus(ArtifactsCase):
     def test_an_epic_follows_its_children(self):
         epic = "SHOP-9"
         tdir = self.partition(epic, ttype="epic", children=["SHOP-1", "SHOP-2"])
-        self.step("create-design", "completed", ticket_id=epic)
+        self.step("create-tech-design", "completed", ticket_id=epic)
         self.index(("SHOP-1", "open"), ("SHOP-2", "open"))
         # A designed epic whose children have not started is in progress
         # (the design ran), never done.
@@ -666,9 +666,11 @@ class TestMigrate(ArtifactsCase):
         self.assertEqual(shown["source"], "ticket.json")
         self.assertEqual(shown["status"], "open")
         self.assertIsNone(shown["feature"])
-        self.assertIsNone(shown["paths"]["design.md"], "no feature: no write target")
-        self.assertEqual(shown["artifacts"]["design.md"],
+        self.assertIsNone(shown["paths"]["tech-design.md"], "no feature: no write target")
+        # ADR-0135: the legacy design.md is read where tech-design.md is absent.
+        self.assertEqual(shown["artifacts"]["tech-design.md"],
                          os.path.join(self.docs_root(), "SHOP-2", "design.md"))
+        self.assertNotIn("design.md", shown["paths"], "design.md is only a read fallback")
         self.assertEqual(shown["legacy_dir"], os.path.join(self.docs_root(), "SHOP-2"))
         self.assertIsNone(shown["artifacts"]["plan.md"])
         self.assertEqual(shown["ticket"]["id"], "SHOP-2")

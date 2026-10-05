@@ -126,7 +126,7 @@ class GateQueryParityTest(GateQueryCase):
         self.assertIn("acs pre-code: blocked", out.stderr)
         self.assertIn(
             "ticket %s is an epic — epics are never implemented directly; run "
-            "/acs:create-design %s first if the epic has no design yet, then break it "
+            "/acs:create-tech-design %s first if the epic has no design yet, then break it "
             "down into child tickets with /acs:create-ticket %s (epic fan-out), then "
             "run /acs:code on a child." % (epic, epic, epic), out.stderr)
         self.assertNotIn("no plan for this run", out.stderr,
@@ -137,7 +137,7 @@ class GateQueryParityTest(GateQueryCase):
     def test_gate_matches_the_hook_for_merge_pr_and_create_design(self):
         """The two non-step gates answer the same way through either door."""
         ticket = self.new_ticket("Add user login", "task")
-        for skill in ("merge-pr", "create-design"):
+        for skill in ("merge-pr", "create-tech-design"):
             with self.subTest(skill=skill):
                 out = self.assert_parity(skill, ticket)
                 self.assertEqual(out.returncode, 2, out.stderr)
@@ -175,7 +175,7 @@ class GateQueryIsSideEffectFreeTest(GateQueryCase):
     def test_gate_creates_no_run_no_lock_no_step(self):
         ticket = self.new_ticket("Add user login", "task")
         runs = os.path.join(lib.repo_dir(self.ws, "acme-shop"), "runs")
-        for skill in ("code", "create-pr", "merge-pr", "create-design",
+        for skill in ("code", "create-pr", "merge-pr", "create-tech-design",
                       "create-api-contract"):
             with self.subTest(skill=skill):
                 before = self.snapshot(self.ws)

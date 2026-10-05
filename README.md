@@ -194,9 +194,9 @@ The marketplace currently ships one plugin:
   PRD; a planner and plan reviewer for the plan; implementers for the code;
   none for the mechanical steps that open a ticket, a PR or a merge.
 
-  The human-facing ticket documents (`ticket.md`, `design.md`, `plan.md`,
-  `test-cases.md`, …) live in the consumer repo under
-  `docs/tickets/<ticket-id>/`, reviewable in the PR like any other doc; the
+  The human-facing documents of a change (`tech-design.md`, `plan.md`,
+  `test-cases.md`, …) live in the consumer repo's docs tree, one folder per
+  phase, reviewable in the PR like any other doc; the
   durable **run ledger** lives in a `.acs/state-machine` folder in the
   consumer repo's main checkout, which ignores itself in git, making runs
   resumable and tickets shippable in parallel across git worktrees.

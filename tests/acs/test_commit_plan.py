@@ -126,7 +126,7 @@ class PlanTicketTest(CommitPlanCase):
         self.baseline()
         write(self.repo, "cfg.ini", "a=3\n")
         write(self.repo, self.docs + "/analysis.md")
-        write(self.repo, self.docs + "/design.md")
+        write(self.repo, self.docs + "/tech-design.md")
         write(self.repo, "docs/architecture/hld/overview.md")
         write(self.repo, "src/api.py")
         write(self.repo, "tests/test_api.py")
@@ -138,8 +138,8 @@ class PlanTicketTest(CommitPlanCase):
         write(self.repo, "e2e/flow.spec.ts")
         write(self.repo, "stray.txt")
         os.remove(os.path.join(self.repo, "src/old.py"))
-        self.states("create-design", {"design_path": self.docs + "/design.md",
-                                      "files": ["docs/architecture/hld/overview.md"]})
+        self.states("create-tech-design", {"design_path": self.docs + "/tech-design.md",
+                                           "files": ["docs/architecture/hld/overview.md"]})
         self.states("create-impl-plan", {"file_map": {"1": ["src/api.py"]}})
         self.report("code", "implementer-1.json", {
             "spec": "01-import-endpoint.md",
@@ -173,7 +173,7 @@ class PlanTicketTest(CommitPlanCase):
         ])
         paths = {g["id"]: g["paths"] for g in plan["groups"]}
         self.assertEqual(paths["ticket-docs"], sorted([
-            self.docs + "/analysis.md", self.docs + "/design.md", "todo.md"]))
+            self.docs + "/analysis.md", self.docs + "/tech-design.md", "todo.md"]))
         self.assertEqual(paths["design"], ["docs/architecture/hld/overview.md"])
         self.assertEqual(paths["slice-1-tests"], ["tests/test_api.py"])
         # A file the slice and docs-sync both touched lands once, in the slice.

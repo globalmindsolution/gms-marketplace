@@ -13,7 +13,7 @@ unchanged).
 - acs MUST bundle, per standard Claude Code plugin layout:
   - **Skills** (slash commands): `/setup`, `/ship`, `/handoff`, `/update`,
     `/release`, `/create-prd`, `/create-architecture`,
-    `/create-ticket`, `/create-design`, `/create-data-design`,
+    `/create-ticket`, `/create-tech-design`, `/create-data-design`,
     `/create-flows`, `/analyze-requirements`,
     `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
     `/code`, `/review-code`, `/create-e2e-tests`, `/docs-sync`,
@@ -28,8 +28,8 @@ unchanged).
     `analyze-requirements` (plus an impact analyst: impact-analyst, analyst,
     impact-reviewer), `create-prd` (plus a surveyor: surveyor, author,
     reviewer),
-    `create-architecture` (architect, gap-analyst, reviewer), `create-design` (designer,
-    design-reviewer), `create-data-design` and `create-flows` (each designer,
+    `create-architecture` (architect, gap-analyst, reviewer), `create-tech-design` (designer,
+    reviewer), `create-data-design` and `create-flows` (each designer,
     gap-analyst, reviewer — ADR-0126), `create-impl-plan` (planner, plan-reviewer),
     `create-api-contract` (contract-author, gap-analyst, contract-reviewer —
     ADR-0134),

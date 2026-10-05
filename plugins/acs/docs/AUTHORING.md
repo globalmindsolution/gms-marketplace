@@ -43,7 +43,7 @@ win — change them first, then the implementation.
    was said earlier", rewrite it to read a file — and make sure something wrote
    that file. Which file depends on the audience: the run ledger
    (`<skill>-state.json`, `run.json`, phase artifacts) stays in the
-   workspace partition; the documents a human reads or reviews (`design.md`,
+   workspace partition; the documents a human reads or reviews (`tech-design.md`,
    the `analysis/` folder (ADR-0133), `api-contract.md`, `plan.md`, `test-cases.md`) live in the
    repo one folder per phase, keyed by the run's feature and its ticket or run
    id (ADR-0128): the feature's living analysis under
@@ -280,7 +280,9 @@ them for ordering or safety guarantees.
 - **Altitude boundaries between pipeline artifacts.** Each artifact owns one
   altitude and does not duplicate the next one down: the run's requirements
   (`requirements.md`, refined by analyze-requirements) own the WHY and the
-  acceptance criteria; `design.md` owns options/decision/architecture;
+  acceptance criteria; `tech-design.md` owns the options and the decision, and hands the team the
+  design views the change touches — snapshots linked at their versions, never
+  a second copy of the living `lld/<feature>/` documents (ADR-0135);
   the analysis owns the impact map, assumptions and risks — a folder
   (ADR-0133): `README.md` for the scope, refined criteria, cross-cutting risks
   and verdict, one file per bounded context for its impact map, rules and

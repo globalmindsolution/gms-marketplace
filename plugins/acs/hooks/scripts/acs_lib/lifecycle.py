@@ -292,7 +292,7 @@ def in_flight_step(rdir, ctx=None, run_id=None):
 
       1. the checkout POINTER, which names the step this session started. It
          is the only one that can name a step the workflow does not (I5 keeps
-         those out of the run ledger), so a standalone /acs:create-design is
+         those out of the run ledger), so a standalone /acs:create-tech-design is
          resumable at all. Confirmed against that step's own state -- a stale
          pointer must not report an invocation that already ended.
       2. the RUN ledger, which names the one workflow step in flight (I1).

@@ -32,7 +32,7 @@ parallel (see **When you are one slice**) — and:
   compatibility decisions you implement, and the source of any machine-readable
   contract file your task creates or updates — the requirements document
   (`requirements.md`), the analysis
-  and the feature's living analysis when they exist, and `design.md` when one applies. READ
+  and the feature's living analysis when they exist, and `tech-design.md` when one applies. READ
   EVERY ONE. Derive `<partition>` from the directory containing the run
   ledger named in `<inputs>`;
 - `<constraints>` — at least `coverage_target`;

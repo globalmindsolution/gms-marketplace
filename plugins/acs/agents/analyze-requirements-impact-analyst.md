@@ -23,7 +23,7 @@ Your prompt contains an XML `<task skill="analyze-requirements"
 phase="impact-analyst" slice="<area>" ticket-id="..." iteration="1">`
 (`ticket-id` only when the run has a ticket; echo it when present) with
 `<objective>`, `<inputs>` (the run's `requirements.md` and the document copies
-it cites, the ticket file when there is one, `design.md` when it binds, the
+it cites, the ticket file when there is one, `tech-design.md` when it binds, the
 architecture set when it exists, the previously published analysis and the
 feature's living analysis when there is one, and the run ledger), `<constraints>` (at least `survey_area` — the
 area's top-level paths, or the whole repository when the slice is `repo` —

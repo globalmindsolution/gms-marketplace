@@ -54,11 +54,17 @@ TICKET_JSON_FILENAME = "ticket.json"
 #: (no cwd in it) still finds the ticket.
 MOVED_POINTER_FILENAME = "ticket.json.moved"
 #: Every document artifact_path resolves, ticket.md first.
-ARTIFACT_NAMES = ("ticket.md", "design.md", "analysis.md", "api-contract.md", "plan.md", "test-cases.md")
+#: `design.md` is the tech design's name before ADR-0135, kept so a caller
+#: naming it still resolves.
+ARTIFACT_NAMES = ("ticket.md", "tech-design.md", "design.md", "analysis.md", "api-contract.md",
+                  "plan.md", "test-cases.md")
 #: Where an artifact lived before the docs tree existed, relative to the
 #: partition -- read last, so a ticket planned by /acs:code's old plan phase
 #: still resolves. Mirrors acs_lib.gate_inputs.LEGACY_ARTIFACT_PATHS.
 LEGACY_ARTIFACT_PATHS = {"plan.md": (os.path.join("phases", "code", "plan.md"),)}
+#: A document's name before it was renamed (ADR-0135), read in the docs
+#: folder and the partition after the current name.
+LEGACY_ARTIFACT_NAMES = {"tech-design.md": ("design.md",)}
 #: (partition-relative source, docs-folder name) copied by migrate.
 MIGRATED_ARTIFACTS = (("design.md", "design.md"), (os.path.join("phases", "code", "plan.md"), "plan.md"))
 
@@ -100,11 +106,14 @@ def artifact_path(checkout_root, tdir, ticket_id, name):
     """The LEGACY resolver for a ticket's document (ADR-0128 files a run's
     documents by phase -- `acs_lib.run_docs`): the first EXISTING copy in the
     old docs folder (docs/tickets/<ID>/), the partition, then the legacy
-    partition location; when none exists, the partition path. It never names a
-    path in the docs tree a writer has not already put there."""
+    partition location; when none exists, the partition path. A renamed
+    document is looked for under its old name too, in both places, once the
+    new name is found in neither (LEGACY_ARTIFACT_NAMES). It never names a path in the docs tree a
+    writer has not already put there."""
     docs = ticket_docs_dir(checkout_root, ticket_id)
-    candidates = [os.path.join(docs, name)] if docs else []
-    candidates.append(os.path.join(tdir, name))
+    candidates = []
+    for n in (name,) + LEGACY_ARTIFACT_NAMES.get(name, ()):
+        candidates += ([os.path.join(docs, n)] if docs else []) + [os.path.join(tdir, n)]
     candidates.extend(os.path.join(tdir, rel) for rel in LEGACY_ARTIFACT_PATHS.get(name, ()))
     for candidate in candidates:
         if os.path.isfile(candidate):
