@@ -94,6 +94,12 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 8. **Amend-mode diff discipline** (amend mode only) — run
    `git diff -- "<prd>" "<roadmap>"` yourself and confirm ONLY the intended sections
    changed; any byte changed in a section the notes marked "preserved" is a finding.
+   The leading front-matter block is exempt — the coordinator, not the author,
+   writes it — but a changed document must show a bumped version there: its
+   hunk reads `-version: <n>` / `+version: <n+1>` with `status: proposed`
+   (or, for a document that had no block, a new block at `version: 1`,
+   `status: proposed`). A changed document whose version did not move is a
+   finding.
 9. **Iteration 2+ regression check** — every prior finding from `<context>` is
    actually fixed; verify each one directly, never from the author report's word.
 10. **structure** — deterministic section-conformance floor over `prd.md` only
@@ -105,7 +111,10 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
     severity="blocking" dimension="structure">`; exit 0 means the dimension
     passes with no finding; exit 2 (usage error or an unreadable file) is
     itself reported as a blocking finding so a broken invocation cannot
-    silently pass.
+    silently pass. The version front matter of BOTH files belongs here too:
+    `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py design check
+    <prd> <roadmap>` — each listed problem is one `<finding
+    severity="blocking" dimension="structure">`.
 11. **audience-style** — BLOCKING: judge the CHANGESET-SCOPED
     prose this run authored (in `prd.md`, and `roadmap.md` where touched)
     against the task's `audience_style_profile` constraint (`product/business

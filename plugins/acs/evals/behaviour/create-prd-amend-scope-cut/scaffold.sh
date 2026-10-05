@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # A shipped Python product whose repo already carries an eight-section PRD and
-# a roadmap with a Release versions table (amend mode: the PRD is found, not
-# created). Order tracking is a Should-have with its own milestone, v2.6.0 --
+# a roadmap with a Release versions table, both approved at version 1 (amend
+# mode: the PRD is found, not created). Order tracking is a Should-have with its own milestone, v2.6.0 --
 # the feature leadership is about to cut. A local bare repository stands in
 # for GitHub.
 set -euo pipefail
@@ -72,6 +72,11 @@ Delivers order tracking (Should) and serves G1.
 | v2.5.0 | Checkout | Card checkout |
 | v2.6.0 | Order tracking | Order tracking |
 MD
+# Both documents are versioned and approved (ADR-0122, ADR-0130), through the
+# plugin's own writer: the amendment must bump them to v2, re-opened as
+# proposed.
+python3 "$ACS_SCRIPTS/acs.py" design init --status approved \
+  docs/product/prd.md docs/product/roadmap.md > /dev/null
 git add -A && git commit -qm "PRD and roadmap"
 acs_local_origin
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }

@@ -146,7 +146,9 @@ plan and covers the API surface the plan declares.
    `docs/product/prd.md` or `docs/product/roadmap.md` stale (factual items:
    agent/subagent counts, feature/epic shipped-vs-planned status, component
    topology, version numbers, file path references); if so, include prd.md
-   and/or roadmap.md in the documentation map for the implementer to reconcile.
+   and/or roadmap.md in the documentation map for the implementer to reconcile
+   — that edit is a new version of the file: the implementer runs `acs.py
+   design bump` on it (re-opened as `proposed`; ADR-0130).
    **Boy-scout drift repair:** while surveying the touched area, compare its
    architecture docs (the relevant C4 component entries, data-model rows,
    `lld/flows/` diagrams) against the CURRENT code; any section that already

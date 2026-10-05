@@ -11,7 +11,8 @@ expected_outcome: >-
   docs/product/prd.md with the eight sections, the 500-bookings and 5%
   no-show metrics, the 2 s and 99.5% NFRs and the Won't item;
   docs/product/roadmap.md with a Release versions table mapping v0.1.0 and
-  v0.2.0; no source file created; HEAD still the scaffold's commit on main and
+  v0.2.0; both open with version front matter at status proposed, version
+  1; no source file created; HEAD still the scaffold's commit on main and
   nothing pushed; the step finished with both files in states.files and no
   PR.
 tags: [behaviour]

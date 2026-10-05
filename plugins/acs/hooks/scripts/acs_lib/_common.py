@@ -62,7 +62,7 @@ LEG_ENTRY_POINTS = {leg: "code" for leg in CODE_PATH_LEGS}
 # pipeline skill in its default mode" framing it carried while it was the
 # `test` alias. That alias went with it (§6): the directory is deleted, and a
 # name in a list with no directory behind it is a name nothing can resolve.
-UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "release"]
+UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "release", "set-doc-status"]
 
 #: A step's states (§4.3). `skipped` never existed here; `handed_off` did, and
 #: it is gone -- it named a REASON rather than a state, and the reason is now

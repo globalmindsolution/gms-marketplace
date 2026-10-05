@@ -11,7 +11,8 @@ expected_outcome: >-
   docs/product/prd.md lists order tracking under Won't and Out of scope, with
   Vision through Goals and the NFR and Constraints sections unchanged;
   docs/product/roadmap.md keeps Checkout v2.5.0 and no longer mentions
-  v2.6.0; HEAD is still the scaffold's last commit on main and nothing was
+  v2.6.0; both files' front matter is bumped from approved v1 to proposed
+  v2; HEAD is still the scaffold's last commit on main and nothing was
   pushed; the step finished with both files in states.files and no PR.
 tags: [behaviour]
 max_turns: 150

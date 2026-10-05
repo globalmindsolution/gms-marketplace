@@ -68,7 +68,9 @@ continuing:
    and `iter-1/authoring-<id>.md` per slice; `iter-<n>/author.json`;
    `iter-<n>/reviewer-<slice>.md` per reviewer slice and the joined
    `iter-<n>/reviewer.md`), the slice plans (`iter-<n>/<role>-slices.json`) and
-   `steps/create-prd/state.json` to see which phases completed.
+   `steps/create-prd/state.json` to see which phases completed, and
+   `steps/create-prd/versions-before.json` (Versions below) — once written it is
+   never rewritten, so a resume compares against the run's true start.
 2. Re-read `<repo>/<prd>` and `<repo>/<roadmap>` — does their content
    match what the recorded author results claim?
 3. Continue from the first unfinished phase. If the reviewed docs already pass,
@@ -326,7 +328,9 @@ the only role that mutates the repo — writes:
     a release cut.
 - In amend mode: edit `prd.md` in place, preserving untouched sections exactly
   (verify with `git diff -- "<prd>" "<roadmap>"`); update `roadmap.md` only where the
-  amendment changes it.
+  amendment changes it. The leading front-matter block is exempt from that
+  rule and is never the author's: it neither writes, edits nor removes it
+  (Versions below).
 
 It also completes the notes' `## Answer fidelity` anchors against the text it
 wrote. Should the author return `needs_input` (a product fact the answers do not
@@ -342,6 +346,48 @@ anchors complete the ONE `## Answer fidelity` and `## Roadmap milestones`
 sections of the notes, and amend mode's diff discipline spans both files at
 once. The parallelism in this skill is in the survey and the review, not in
 the write.
+
+### Versions — after every author result (ADR-0122, ADR-0130)
+
+`prd.md` and `roadmap.md` are versioned documents: each opens with the
+front-matter block (`status`, `version`, `tickets`) that `/acs:set-doc-status`
+later moves to `approved`. It is set ONLY through `acs.py design`, by you,
+never by the author and never by hand.
+
+1. **Before the first author spawn** (iteration 1), record where the run
+   started — skip this when the file already exists (a resume):
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design check <the existing of "<prd>" "<roadmap>"> \
+     > <partition>/steps/create-prd/versions-before.json
+   ```
+
+   With neither file on disk (greenfield) write `{"ok": true, "files": []}`
+   there instead.
+2. **After every author result**, before the review, for each of `<prd>` and
+   `<roadmap>`:
+   - **new, or without a block** (absent from `versions-before.json`, or listed
+     there with the `no version front matter` problem):
+
+     ```bash
+     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design init --status proposed "<file>"
+     ```
+
+     `init` leaves a file that already has a block alone, so a later
+     iteration's call is a no-op.
+   - **changed** (it had a valid block, `git diff --quiet -- "<file>"` exits 1,
+     and `design check` still shows the version `versions-before.json`
+     recorded): `acs.py design bump "<file>"` — version + 1,
+     re-opened as `proposed`. A file already bumped in this run shows a higher
+     version and is not bumped again: one run is one version.
+   - **unchanged**: nothing; its block stays as it was.
+
+   The run is ticketless, so no ticket is passed and `tickets` gains no
+   entry. `bump` refuses a `deprecated` document: STOP,
+   fail the run with that error and tell the user a deprecated PRD is not
+   amended — nothing re-opens it.
+3. `acs.py design check "<prd>" "<roadmap>"` runs again in the floor (Review),
+   so a block the author broke is a blocking finding, never a silent pass.
 
 ### Review
 
@@ -368,7 +414,10 @@ blocking:
   version** (**0 orphan milestones**) — the mapping-table coverage sub-check
   (G17 100%-mapping metric); a milestone with zero or more than one mapped
   version is a blocking finding;
-- amend mode: `git diff` shows only the intended sections changed.
+- amend mode: `git diff` shows only the intended sections changed — the
+  leading front-matter block aside, which must show the version bumped (the
+  version `versions-before.json` recorded + 1, status `proposed`);
+- both files carry a valid version front-matter block (`acs.py design check`).
 
 **Reviewer slices and the floor — every iteration, the default.** The review
 has eleven check dimensions (numbered in `create-prd-reviewer.md`). The ones a
@@ -383,7 +432,7 @@ every input and constraint above:
 |---|---|---|
 | `substance` | 2 feature → goal traceability, 3 measurable success metrics, 4 prioritization discipline, 5 constraint consistency, 7 plan conformance (the semantic ceiling), 11 audience-style | the fresh semantic read of `prd.md` and `roadmap.md`, and of every entry in the notes' `## Code evidence`, `## Answer fidelity` and `## Roadmap milestones` sections |
 | `delta` | 6 roadmap coverage, 8 amend-mode diff discipline, 9 iteration 2+ regression check | `git diff -- "<prd>" "<roadmap>"` and the re-verification of every prior finding |
-| `floor` | 1 required sections, 7 plan conformance (the deterministic floor), 10 structure | run by YOU, no agent: `prd_conformance_check.py` (the three-family check, whose code-evidence family re-opens every citation through the shared citation-check helpers it imports), `structure_lint.py` and the heading check — each run here only, exactly once per iteration |
+| `floor` | 1 required sections, 7 plan conformance (the deterministic floor), 10 structure and the version front matter | run by YOU, no agent: `prd_conformance_check.py` (the three-family check, whose code-evidence family re-opens every citation through the shared citation-check helpers it imports), `structure_lint.py`, `acs.py design check` and the heading check — each run here only, exactly once per iteration |
 
 **The floor, in the reviewer's own commands** (dimensions 1, 7 and 10 of
 `create-prd-reviewer.md`, which stay the definition):
@@ -396,13 +445,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py" \
   --prd "<prd>" --roadmap "<roadmap>" [--added-heading "<heading>" ...]
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "<required_sections, verbatim>" --ordered "<prd>"
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design check "<prd>" "<roadmap>"   # 10: the version front matter
 ```
 
 In amend mode derive the `--added-heading` values yourself from `git diff --
 "<prd>" "<roadmap>"`: every `+###`/`+####` heading line added to `roadmap.md`;
 omit the flag otherwise. Each stderr `source:line: [rule] message` is one
 blocking finding (dimension `Plan conformance` or `structure`); exit 2 is
-itself a blocking finding, so a broken invocation never passes. Write
+itself a blocking finding, so a broken invocation never passes. Each problem
+`design check` lists, and its `ok: false`, is a blocking finding of dimension
+`structure`. Write
 `iter-<n>/reviewer-floor.md` — one `## ` section per dimension (Required
 sections, Plan conformance, Structure) with the exact commands and output,
 then `## Findings` — so the join below reads it like a slice's report. The
@@ -534,6 +586,8 @@ MANDATORY final step — never skipped, also on failure.
    groups exactly these into the PRD's commit. On failure keep whatever is true:
    status `failed`, remaining reviewer findings in `findings`, `states.prd` and,
    in `states.files`, the files written so far, and the reason in `summary`.
+   The front-matter changes are part of those same files; nothing else is
+   written for them.
 
 2. Run the post-hook:
 
@@ -563,9 +617,9 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: none — a ticketless run; the documents are delivered by `/acs:create-pr`
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: PRD files written/amended (`<prd>`, `<roadmap>`), left as uncommitted changes (`states.files`)
+- **Results**: PRD files written/amended (`<prd>`, `<roadmap>`) with each one's status and version (`proposed v<n>`), left as uncommitted changes (`states.files`)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files; the uncommitted repo paths>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: review the listed files, then `/acs:create-pr "<what the PRD change is>"` (e.g. `/acs:create-pr "PRD for the wishlist feature"`) to commit them and open the PR; `/acs:create-architecture` next
+- **Next**: review the listed files, then `/acs:create-pr "<what the PRD change is>"` (e.g. `/acs:create-pr "PRD for the wishlist feature"`) to commit them and open the PR; once the team approves them, `/acs:set-doc-status approved prd`; `/acs:create-architecture` next
 ```

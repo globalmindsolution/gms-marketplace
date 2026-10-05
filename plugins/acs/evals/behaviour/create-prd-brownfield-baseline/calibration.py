@@ -2,7 +2,8 @@
 tests/evals/check_grader_calibration.py). The ideal run does what the skill
 does, through its own writers: `acs step start` resumes the ticketless run the
 scaffold opened, the author writes the two documents and leaves them
-uncommitted, and the result document, listing both in `states.files`, goes
+uncommitted, the coordinator gives both their first version front matter
+(`acs.py design init --status proposed`), and the result document, listing both in `states.files`, goes
 through the real post-hook. Nothing is branched, committed or pushed
 (ADR-0127)."""
 
@@ -105,9 +106,16 @@ def _finish(ws, files=FILES, pr=None, status="completed"):
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
+def _version(ws):
+    """The coordinator's Versions step: a new document gets `design init`."""
+    done = ws.acs("design", "init", "--status", "proposed", *FILES)
+    assert done.returncode == 0, done.stderr
+
+
 def IDEAL(ws):
     _start(ws)
     _write_docs(ws)
+    _version(ws)
     _finish(ws)
     ws.reply = ("PRD and roadmap written. Uncommitted: docs/product/prd.md, "
                 "docs/product/roadmap.md. Review them, then run /acs:create-pr to commit them "
@@ -116,6 +124,12 @@ def IDEAL(ws):
 
 def _allocated_only(ws):
     _start(ws)
+
+
+def _unversioned(ws):
+    _start(ws)
+    _write_docs(ws)
+    _finish(ws)
 
 
 def _template_prd(ws):
@@ -154,6 +168,7 @@ def _recorded_no_files(ws):
 
 
 BAD = {
+    "left the new documents without version front matter": _unversioned,
     "started the run and wrote nothing": _allocated_only,
     "wrote a generic PRD without the stated facts or versions": _template_prd,
     "committed the documents on a delivery branch": _committed,

@@ -2,7 +2,8 @@
 tests/evals/check_grader_calibration.py). The ideal run: Start finds the PRD
 (amend mode) and `acs step start` resumes the ticketless run the scaffold
 opened, the author edits the two documents in place -- only the confirmed
-sections -- and leaves them uncommitted, and the result document, listing both
+sections -- and leaves them uncommitted, the coordinator bumps both changed
+documents with `acs.py design bump` (approved v1 -> proposed v2), and the result document, listing both
 files in `states.files`, goes through the real post-hook. Nothing is
 branched, committed or pushed (ADR-0127)."""
 
@@ -47,6 +48,12 @@ def _amend(ws, prd_edit=None, roadmap_edit=None):
     ws.write(ROADMAP, roadmap)
 
 
+def _bump(ws):
+    """The coordinator's Versions step: a changed document gets `design bump`."""
+    done = ws.acs("design", "bump", PRD, ROADMAP)
+    assert done.returncode == 0, done.stderr
+
+
 def _finish(ws, files=(PRD, ROADMAP), pr=None):
     states = {"prd": {"path": "docs/product"}, "files": list(files)}
     if pr:
@@ -60,6 +67,7 @@ def _finish(ws, files=(PRD, ROADMAP), pr=None):
 def IDEAL(ws):
     _start(ws)
     _amend(ws)
+    _bump(ws)
     _finish(ws)
     ws.reply = ("Amend mode: order tracking moved to Won't and Out of scope; its v2.6.0 "
                 "milestone removed. Uncommitted: docs/product/prd.md, docs/product/roadmap.md. "
@@ -117,6 +125,13 @@ def _pushed(ws):
     _finish(ws)
 
 
+def _not_bumped(ws):
+    """Amended the content and left the version at 1, still `approved`."""
+    _start(ws)
+    _amend(ws)
+    _finish(ws)
+
+
 def _recorded_no_files(ws):
     _start(ws)
     _amend(ws)
@@ -139,4 +154,5 @@ BAD = {
     "recorded no files in states.files": _recorded_no_files,
     "recorded a PR that cannot exist": _invented_pr,
     "started the run and wrote nothing": _start,
+    "amended the documents without bumping their version": _not_bumped,
 }

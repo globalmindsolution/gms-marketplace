@@ -195,7 +195,7 @@ Seventeen hooked skills, each with one pre-hook and one post-hook:
 | `/acs:audit-security` | `pre-audit-security.py` | `post-audit-security.py` | `audit-security-state.json` (a ticketless run over the invocation) |
 
 The utility skills (`/setup`, `/ship`, `/handoff`, `/update`,
-`/release`) are **unhooked**: they
+`/release`, `/set-doc-status`) are **unhooked**: they
 have no pre- or post-hook and take no position in a run. The `/test` alias is
 removed — `/run-e2e-tests` is the skill, and it is hooked like any other
 step.

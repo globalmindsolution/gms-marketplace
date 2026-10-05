@@ -12,7 +12,7 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 28 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 29 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 33 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
@@ -758,7 +758,7 @@ property, not a list: it covers the inline apply-work skills (`create-ticket`,
 analysts survey and nothing is written for a judge to judge, and
 `audit-security`, whose adjudicators rule once on each auditor's candidate
 findings with no writer between them — the unhooked utilities
-(`setup`, `update`, `test`, `release`), and the orchestrators that drive other skills'
+(`setup`, `update`, `test`, `release`, `set-doc-status`), and the orchestrators that drive other skills'
 loops without running one of their own (`ship`, `handoff`). The
 eleven skills that run a write → judge loop over their own subagents
 report it, with a constant `<cap>` of **3**. `/acs:code` reports the
@@ -768,7 +768,7 @@ that loop's `max_iterations`, the same on every delivery path.
 **Sanctioned substitutions.** A skill that runs without a ticket drops
 `<ticket-id>` from the heading and replaces the **Ticket** line with a
 one-line label naming what the run covered — **Scope** for the
-configuration utilities (`setup`, `update`), **Run** for the
+configuration utilities (`setup`, `update`) and for `set-doc-status`, **Run** for the
 two run-oriented ones (`test`, `release`), whose subject is an execution
 rather than a scope. The ticketless document skills — the audits,
 `create-prd` and `create-architecture` (ADR-0127) — put their scope or mode in
@@ -1483,20 +1483,31 @@ contradictions; `/acs:review-code` blocks a user-observable behavior change
 whose requirements file was not updated. Phrasing rule: the file states what
 the product DOES now — current behavior, not change history.
 
-### Design versions (ADR-0122)
+### Design versions (ADR-0122, ADR-0130)
 
-Every HLD and LLD document opens with a version front-matter block that says
-where the design stands against the code
-([ADR-0122](../../../docs/architecture/adr/0122-design-versions-and-gap-detection.md)):
+Every HLD and LLD document — and, since ADR-0130, the PRD's `prd.md` and
+`roadmap.md` and each feature's living analysis — opens with a version
+front-matter block that says where the document stands
+([ADR-0122](../../../docs/architecture/adr/0122-design-versions-and-gap-detection.md),
+[ADR-0130](../../../docs/architecture/adr/0130-prd-versions-and-set-doc-status.md)):
 
 ```yaml
 ---
-status: proposed        # proposed | approved | implemented | deprecated
+status: approved        # proposed | approved | implemented | deprecated
 version: 3              # an integer >= 1, bumped on every change to the document
 tickets: ["SHOP-12"]    # the tickets that changed it, oldest first
 feature: wishlist       # LLD documents (under lld/) only: the PRD feature slug
+status_by: Ada Lovelace <ada@example.com>   # who made the last status move
+status_at: 2026-10-05T09:14:00Z             # when
+status_reason: approved in design review    # why, when one was given
 ---
 ```
+
+The three `status_*` keys are written only by `design status --set` and sit
+after the ADR-0122 keys. A status move never changes `version`; a move given
+no `--reason` drops an older `status_reason`, and a `design bump` that re-opens
+an approved or implemented document drops all three, since they described the
+status it left.
 
 The block is **derived, never asserted**: it is written only through
 `acs.py design` (`acs_design_commands.py` over `acs_lib.design_docs`), never by
@@ -1507,13 +1518,23 @@ hand-editing it, and every verb prints one JSON object:
 | `design check <doc>...` | status, version and the problems per document; exits 0 whatever it finds (`ok` says whether every document is clean) — a missing or invalid block is a problem, not an error; a path that is not a file exits 2 |
 | `design init --status S [--ticket ID] [--feature F] <doc>...` | the first block, `version: 1`; a document that already has one is left alone (`already_versioned`) |
 | `design bump [--ticket ID] <doc>...` | a change: `version + 1`, the ticket appended, and the document re-opened as `proposed`; a `deprecated` document is refused |
-| `design status --set S [--ticket ID] <doc>...` | a legal transition (`acs_lib.design_docs.TRANSITIONS`): `proposed → approved \| deprecated`; `approved → proposed \| implemented \| deprecated`; `implemented → proposed \| deprecated`; `deprecated` is final |
+| `design status --set S [--ticket ID] [--by NAME] [--reason TEXT] <doc>...` | a legal transition (`acs_lib.design_docs.TRANSITIONS`): `proposed → approved \| deprecated`; `approved → proposed \| implemented \| deprecated`; `implemented → proposed \| deprecated`; `deprecated` is final. Records `status_by` (`--by`, default `git config user.name <user.email>`, else `unknown`), `status_at` (ISO-8601 UTC, one instant for the whole call) and `status_reason` (`--reason`). **All or nothing** (`design_docs.set_status_many`): every document is validated — it exists, its block is valid, the transition is legal — before any is written, and the refusal names each refused document and why; a document already at the target is left untouched and reported `unchanged`, so a no-op never rewrites who moved it, when or why (ADR-0130) |
+| `design list [--phase discovery\|design] [--feature F] [--root DIR]` | the versioned documents (`design_docs.list_documents`), read-only, exits 0 whatever it finds: `{ok, groups: [{phase, key, label, feature?, docs: [{path, status, version, problems, allowed}]}]}`, Discovery then Design. Discovery — `<prd_dir>/{prd,roadmap}.md` (group `PRD`) and `<prd_dir>/features/<f>/analysis.md` (`feature <f> analysis`); Design — `<architecture_dir>/hld/*.md` (`HLD`) and `lld/<f>/{api,data,flows,components}/**` (`LLD <f>`), never a run's design-record folder `lld/<f>/<id>/`; a README only when it carries a status. Paths are repo-relative; `allowed` is the legal moves other than the current status, empty when the document has `problems`. The folders come from `acs_lib.doc_layout.prd_dir` / `architecture_dir`, the grouping from `acs_lib.doc_sets` — the same `doc_set` / `doc_order` `/acs:create-pr`'s commit plan uses. `/acs:set-doc-status` is its reader |
 
-A refused write verb exits 2 and writes nothing for the document it refused.
+A refused write verb exits 2 and writes nothing for the document it refused;
+`design status` over several documents writes none of them when any is refused.
 `/acs:create-architecture`'s architect inits a new HLD file `implemented`
 when it documents the code as built and `proposed` when it designs ahead of it,
 and bumps a file it changes; its reviewer runs `design check` on every in-scope
-file. The team's approval of the docs PR is the design's approval.
+file. `/acs:create-prd`'s coordinator inits a new `prd.md` or `roadmap.md`
+`proposed`, bumps a changed one and runs `design check` on both in its $0
+floor; its author's byte-for-byte rule and its reviewer exempt the leading
+block, and `/acs:code`'s implementer bumps either when it reconciles a factual
+claim in it. Approval is recorded with `/acs:set-doc-status` — an unhooked,
+inline Utility skill that reads `design list`, asks one grouped question for
+the documents and one for the target, and runs a single `design status --set`;
+it commits nothing, and the docs PR `/acs:create-pr` opens carries the
+approval for review (ADR-0130).
 `acs_lib.design_docs` assigns the move to `implemented` to `/acs:docs-sync`,
 once a gap analysis finds the code matching; docs-sync's own SKILL.md does not
 run it yet, so until it does that move is a `design status --set implemented`

@@ -25,6 +25,7 @@ it always did. In dependency order:
   artifacts      the ticket documents in the repo docs tree: ticket.md, derived status, migrate
   changes        the run's baseline, working-tree snapshots and changeset (ADR-0127)
   commit_plan    the commits /acs:create-pr proposes from the recorded paths, and makes
+  doc_sets       which doc set a document belongs to (commit_plan and `design list` share it)
   requirements   a run's requirements from any container: sources, requirements.md, refine
   doc_layout     the phase folders a run's documents live in (prd/lld/development dirs)
   run_docs       one run's documents: where each is read from and written to
@@ -205,7 +206,7 @@ from . import doc_layout, requirements, run_docs  # noqa: F401,E402
 from .gates import record_requirements  # noqa: F401,E402
 
 from . import artifacts  # noqa: F401,E402
-from . import changes, commit_plan  # noqa: F401,E402
+from . import changes, commit_plan, doc_sets  # noqa: F401,E402
 from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401
     artifact_path, derive_status, parse_ticket_md, render_ticket_md, ticket_docs_dir,
     ticket_docs_root, ticket_source)

@@ -163,6 +163,15 @@ parallel) must, in order:
    intent content. When the changeset alters no factual item in prd.md or
    roadmap.md, this step is a no-op for those files.
 
+   **A factual edit is a new version.** prd.md and roadmap.md carry version
+   front matter (ADR-0122, ADR-0130). After a factual edit the implementer
+   runs `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design bump
+   [--ticket <id>] <the edited file>` once per edited file — version + 1,
+   re-opened as `proposed` for the team to approve again — and never edits
+   the front-matter block by hand. A file without a block is left without
+   one (its owner, `/acs:create-prd`, gives it its first); a `deprecated`
+   file is not edited at all — flag the stale claim in `problems` instead.
+
    **Boy-scout drift items — carried, never repaired here:** when the plan's
    `## Documentation map` names a doc section the plan's author found already
    disagreeing with the CURRENT code (its Boy-scout drift-repair survey), the

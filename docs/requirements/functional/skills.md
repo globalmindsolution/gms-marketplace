@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-eight skills in total. There is no registry file listing them: a skill is
+Twenty-nine skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
 writes, or which group it belongs to, because nothing needs to: each skill
@@ -35,7 +35,9 @@ The groups below are a reader's aid, not a structure the code knows about
   runnable at any time, each writing a report
   ([ADR-0123](../../architecture/adr/0123-audit-phase-and-audit-security.md)).
 - **Utility** — `/acs:setup`, `/acs:update`, `/acs:release`, `/acs:handoff`,
-  `/acs:create-ticket`. A ticket is one container of requirements, cut when
+  `/acs:create-ticket`, `/acs:set-doc-status` (approves and moves the status
+  of the Discovery and Design documents,
+  [ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)). A ticket is one container of requirements, cut when
   the work needs one — after a feature's analysis, again after a design — not
   a phase of its own.
 
@@ -58,12 +60,12 @@ Development steps run in is declared in
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Nineteen of the twenty-eight are **hooked** (a pre-hook and a post-hook
+Nineteen of the twenty-nine are **hooked** (a pre-hook and a post-hook
 each): both Discovery skills, all five Design skills, the other eight
 Development steps (`/create-impl-plan`, `/create-test-docs`, `/code`,
 `/review-code`, `/docs-sync`, `/create-e2e-tests`, `/run-e2e-tests`,
-`/create-pr`) and `/merge-pr`, both Audit skills and `/create-ticket`. Five (`/setup`, `/ship`,
-`/handoff`, `/update`, `/acs:release`) are unhooked and take no position in a
+`/create-pr`) and `/merge-pr`, both Audit skills and `/create-ticket`. Six (`/setup`, `/ship`,
+`/handoff`, `/update`, `/acs:release`, `/acs:set-doc-status`) are unhooked and take no position in a
 run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
 itself. `/run-e2e-tests` is a hooked step like any other; the `/acs:test`
 alias is removed. A greenfield repo's scaffold is no skill of its own
@@ -380,6 +382,59 @@ an exempt `release/*` PR for a mandatory human merge.
   `draft` and `bump` to anchor the git-history fallback to this repo's own
   ticket ids.
 
+## /acs:set-doc-status (utility)
+
+Purpose: approve, and otherwise move the status of, the versioned Discovery
+and Design documents — the PRD, the roadmap, each feature's living analysis,
+the HLD and each feature's living LLD — and record who moved them, when and
+why ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)).
+
+- **Unhooked and inline** — like `/setup`/`/update`, it spawns no subagents,
+  opens no run, runs no `acs step start` and has no pre- or post-hook. It is
+  not part of the gated pipeline and takes no position in a run. Edit and
+  Write are disallowed to it: it MUST NOT edit a front-matter block.
+- MUST list the documents through `acs.py design list` — grouped by phase
+  (Discovery: PRD with roadmap, feature analyses; Design: HLD, each feature's
+  LLD) and feature, each with its `status`, `version`, `problems` and
+  `allowed` moves — and MUST NOT list a run's design-record folders
+  (`lld/<feature>/<ticket-id or run-id>/`).
+- MUST NOT offer a document with `problems` (no or an invalid block) or one
+  with no `allowed` move (a `deprecated` one); a document with `problems` is
+  reported under Findings.
+- MUST ask which documents to move in ONE grouped multi-select question — one
+  option per group (a feature's analysis, a feature's LLD, the HLD, the PRD
+  with its roadmap), each showing every document's status and version, and
+  single documents by their path — paging a phase when it has more than four
+  groups.
+- MUST offer only a target status every selected document either may move to
+  (`allowed`) or already has — `approved` first when any is `proposed` — and
+  MUST require a reason for `deprecated` (optional otherwise); a selected
+  document already at the target is dropped and reported "already
+  <status>".
+- MUST confirm the exact plan (`<path>: <status> v<version> → <target>`, the
+  reason, who is recorded) before it writes, then MUST move every document
+  with ONE `acs.py design status --set <status> [--by <name>] [--reason
+  <text>] <doc>...` call. The CLI records `status_by` (default `git config
+  user.name <user.email>`), `status_at` (ISO-8601 UTC) and `status_reason`,
+  never changes `version`, and is **all or nothing**: it validates every
+  document (it exists, its block is valid, the transition is legal) before
+  writing any, so a refusal leaves every document as it was. The skill MUST
+  report a refusal verbatim and MUST NOT retry the documents one by one.
+- Arguments skip the asks they answer: a status (or its verb — `approve`,
+  `deprecate`, `reopen`), targets (a feature slug — its analysis and its LLD —
+  a group, a document path) and `--reason`/`--by`
+  (`/acs:set-doc-status approved wishlist`). A target that matches no listed
+  document is reported, not guessed at. With no way to ask (a headless
+  session) and an undecided request, it changes nothing and prints the
+  command that would apply it.
+- MUST NOT branch, stage, commit or push
+  ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)): it ends
+  by listing the changed files and pointing at `/acs:create-pr "<what was
+  approved>"`, whose docs-only PR carries the decision for review. Its
+  completion report reads **Scope** in the Ticket line's place.
+- The move to `implemented` is otherwise `/acs:docs-sync`'s, once it finds the
+  code matching (ADR-0122); this skill offers it only where `allowed` does.
+
 ## Product-level delivery (no ticket)
 
 The two product-level skills run **without a ticket** and deliver **nothing
@@ -455,6 +510,20 @@ else is verified against.
 - The surveyor's survey also runs the shared ADR-0012 design-time
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
+- **Versioned** ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)):
+  `prd.md` and `roadmap.md` open with the version front matter of
+  [ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)
+  (`status`, `version`, `tickets`, and the approver keys once a status is
+  moved). The coordinator MUST run `acs.py design init --status proposed` on a
+  new document and `acs.py design bump` on a changed one — a document it left
+  unchanged keeps its block and version — and MUST run `acs.py design check`
+  on both in its $0 floor, where a missing or invalid block is a finding. The
+  author's byte-for-byte preservation rule and the reviewer's
+  untouched-content dimension exempt the leading front-matter block; a
+  changed document MUST show a bumped version instead — one version per run.
+  A `deprecated` PRD is not amended: `design bump` refuses it and the run
+  fails. The skill MUST NOT write the block by hand, and MUST NOT approve its
+  own output: approval is `/acs:set-doc-status`'s, after review.
 - State lives in the run's partition (`steps/create-prd/`).
 - Delivery: none of its own — the documents stay uncommitted for
   `/create-pr "<prompt>"` ([product-level delivery rules](#product-level-delivery-no-ticket)).
@@ -1282,7 +1351,12 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   acceptance criteria and behavior-defining clarifications into the touched
   feature area's file in the requirements set (the living requirements —
   [workflow.md](workflow.md#living-requirements)). Docs work is part
-  of the change, not a follow-up.
+  of the change, not a follow-up. When it reconciles a factual claim in
+  `prd.md` or `roadmap.md`, the implementer MUST record the change with
+  `acs.py design bump` on that document — never by editing its front matter;
+  a document without a block is left without one, and a `deprecated` one is
+  not edited (the stale claim is flagged instead)
+  ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)).
 - **ADR-0012 participation (bounded, touched-area, post-plan — third
   amendment).** The plan survey's item 4 detects, for the touched area
   only, four bounded missing doc-graph edges (E1-E4; full table at
