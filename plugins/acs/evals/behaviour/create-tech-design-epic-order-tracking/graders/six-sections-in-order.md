@@ -1,7 +1,7 @@
 ---
 type: regex
-target: { source: file, path: docs/architecture/lld/order-tracking/EVAL-1/design.md }
-pattern: '^# Design[^\n]*EVAL-1[\s\S]*^## Context & constraints[ \t]*$[\s\S]*^## Options considered[ \t]*$[\s\S]*^## Decision & rationale[ \t]*$[\s\S]*^## Architecture[ \t]*$[\s\S]*^## Impact & risks[ \t]*$[\s\S]*^## Rollout/migration[ \t]*$'
+target: { source: file, path: docs/architecture/lld/order-tracking/EVAL-1/tech-design.md }
+pattern: '^# Tech design[^\n]*EVAL-1[\s\S]*^## Decision & options[ \t]*$[\s\S]*^## HLD views affected[ \t]*$[\s\S]*^## LLD[ \t]*$[\s\S]*^## NFRs[ \t]*$[\s\S]*^## Risks[ \t]*$[\s\S]*^## Open questions[ \t]*$'
 flags: m
 ---
 

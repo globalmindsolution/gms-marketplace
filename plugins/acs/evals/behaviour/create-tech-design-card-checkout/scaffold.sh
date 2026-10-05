@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# create-design: the shop repo with its PRD (F2 checkout with card payments,
+# create-tech-design: the shop repo with its PRD (F2 checkout with card payments,
 # NFR1 p95 < 300 ms) and architecture docs (a C4 context naming the external
 # payments gateway), and one design-significant story, EVAL-1, minted with
 # needs_design true and given its acceptance criteria through the plugin's own
 # CLIs (new-ticket.py, `acs.py ticket save`). No branch and no ticket docs
-# folder: create-design is Design-phase work that runs before either exists.
+# folder: create-tech-design is Design-phase work that runs before either exists.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# create-design (epic): the shop repo with its PRD (F3 order tracking, NFR1
+# create-tech-design (epic): the shop repo with its PRD (F3 order tracking, NFR1
 # p95 < 300 ms) and architecture docs (a C4 context with one external system),
 # and one epic, EVAL-1 "Order tracking", minted through new-ticket.py (epics
 # default to needs_design true, so the gate opens) and given its epic-level

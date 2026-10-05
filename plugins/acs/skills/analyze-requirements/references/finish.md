@@ -44,8 +44,10 @@ whatever is true: `ready_for_planning: false`, the open findings in
   analysis went ("shared to docs/development/…", "kept local (team
   default)", "kept local (this run only)"), the uncommitted files it left in
   the working tree, and the next step — on a
-  Development run `/acs:create-impl-plan <id>` (`/acs:create-pr <id>` later
+  Development run `/acs:create-impl-plan <id>` — preceded, when needs_design
+  is confirmed true and no approved tech design exists, by
+  `/acs:create-tech-design <id>` (`/acs:create-pr <id>` later
   commits everything the Development steps wrote); on a Discovery run the
-  Design skills that read the feature's analysis (`/acs:create-design`,
+  Design skills that read the feature's analysis (`/acs:create-tech-design`,
   `/acs:create-data-design <feature>`, `/acs:create-flows <feature>`) or
   `/acs:create-ticket` to turn it into delivery work.

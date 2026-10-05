@@ -1,8 +1,8 @@
-"""Calibration plays for create-design-epic-order-tracking.
+"""Calibration plays for create-tech-design-epic-order-tracking.
 
-IDEAL does what /acs:create-design's coordinator does, through the plugin's
+IDEAL does what /acs:create-tech-design's coordinator does, through the plugin's
 own writers: `acs step start`, the relayed answers recorded with `clarify.py
-add`, the designer's draft, the Publish copy into docs/architecture/lld/order-tracking/EVAL-1/ (left
+add`, the designer's draft with its version front matter, the Publish copy into docs/architecture/lld/order-tracking/EVAL-1/ (left
 uncommitted: no ticket branch exists), result.json and the post-hook, and a
 reply naming the fan-out."""
 
@@ -12,9 +12,86 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-design"
-PUBLISHED = "docs/architecture/lld/order-tracking/EVAL-1/design.md"
-DESIGN = '# Design — EVAL-1: Order tracking\n\n## Context & constraints\n\nShoppers track an order from payment to delivery (PRD F3). Two carriers.\nSecurity: carrier callbacks are authenticated per carrier. Performance: p95\nunder 300 ms (NFR1).\n\n## Options considered\n\n### Option A — carriers push signed webhooks\n\nNear-real-time; one inbound endpoint to secure.\n\n### Option B — scheduled polling of carrier APIs\n\nNo inbound surface; minutes of lag and load that grows with volume.\n\n## Decision & rationale\n\nOption A: signed carrier webhooks.\n\n### Decision records\n\n- Receive carrier status through signed webhooks.\n\n## Architecture\n\n```mermaid\nsequenceDiagram\n  participant K as Carrier\n  participant T as shop tracking\n  K->>T: POST /webhooks/carrier/{carrier} (signed)\n  T-->>K: 204\n```\n\n### Architecture conformance\n\nRequired architecture changes: docs/architecture/lld/flows.md gains the\ntracking sequence.\n\n## Impact & risks\n\nA forged callback misleads shoppers; mitigated by signature checks.\n\n## Rollout/migration\n\nThe epic fans out into three child slices, one reviewable PR each:\n\n| Slice | Type | Scope |\n|---|---|---|\n| 1. Carrier status webhooks | story | intake and storage |\n| 2. Order status page | story | GET /orders/{id}/status |\n| 3. Status-change emails | task | notify the shopper |\n'
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-tech-design"
+PUBLISHED = "docs/architecture/lld/order-tracking/EVAL-1/tech-design.md"
+DESIGN = r"""# Tech design — EVAL-1: Order tracking
+
+## Decision & options
+
+**Decision:** receive carrier status through signed webhooks (Option A).
+
+### Context
+
+Shoppers track an order from payment to delivery (PRD F3), fed by two carriers.
+
+### Options considered
+
+#### Option A — carriers push signed webhooks
+
+Near-real-time; one inbound endpoint to secure.
+
+#### Option B — scheduled polling of carrier APIs
+
+No inbound surface; minutes of lag and load that grows with volume.
+
+### Rationale
+
+Option A meets the one-minute criterion with the least moving parts (C-1).
+
+### Decision records
+
+- Receive carrier status through signed webhooks.
+
+## HLD views affected
+
+- [hld/c4-context.md](../../../hld/c4-context.md) — unversioned: the two
+  carriers join as external systems — change required: add them with their
+  webhook relation.
+
+## LLD
+
+The feature's LLD folder `docs/architecture/lld/order-tracking/`.
+
+### API
+
+none yet — run /acs:create-api-contract EVAL-1: POST /webhooks/carrier/{carrier}
+and GET /orders/{id}/status.
+
+### Data
+
+none yet — run /acs:create-data-design EVAL-1: the order status history.
+
+### Flows
+
+none yet — run /acs:create-flows EVAL-1: carrier callback to shopper email.
+
+### Components
+
+none yet — run /acs:create-flows EVAL-1: the tracking intake component.
+
+## NFRs
+
+Security: carrier callbacks are authenticated with a shared secret per
+carrier. Performance: p95 under 300 ms (NFR1).
+
+## Risks
+
+A forged callback misleads shoppers; mitigated by signature checks.
+
+### Rollout & migration
+
+The epic fans out into three child slices, one reviewable PR each:
+
+| Slice | Type | Scope |
+|---|---|---|
+| 1. Carrier status webhooks | story | intake and storage |
+| 2. Order status page | story | GET /orders/{id}/status |
+| 3. Status-change emails | task | notify the shopper |
+
+## Open questions
+
+none
+"""
 
 def _written(ws):
     """What the run records in `states.files`: the repo paths it wrote and
@@ -23,14 +100,16 @@ def _written(ws):
 
 
 def _start(ws):
-    ws.skill("create-design")
-    started = ws.acs("step", "start", "--step", "create-design", "--ticket", "EVAL-1")
+    ws.skill("create-tech-design")
+    started = ws.acs("step", "start", "--step", "create-tech-design", "--ticket", "EVAL-1")
     assert started.returncode == 0, started.stderr
 
 
 def _publish(ws, text):
-    ws.write(STEP + "/design.md", text)
-    ws.sh('mkdir -p docs/architecture/lld/order-tracking/EVAL-1 && cp "%s/design.md" "%s"' % (STEP, PUBLISHED))
+    ws.write(STEP + "/tech-design.md", text)
+    ws.acs("design", "init", "--status", "proposed", "--ticket", "EVAL-1",
+           "--feature", "order-tracking", STEP + "/tech-design.md")
+    ws.sh('mkdir -p docs/architecture/lld/order-tracking/EVAL-1 && cp "%s/tech-design.md" "%s"' % (STEP, PUBLISHED))
 
 
 def _finish(ws, decision):
@@ -39,20 +118,21 @@ def _finish(ws, decision):
               "findings": [], "errors": []}
     result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
-    ws.sh('python3 "%s/post-create-design.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
+    ws.sh('python3 "%s/post-create-tech-design.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 
 DECISION = "Receive carrier status through signed webhooks (Option A)"
 
 
 def IDEAL(ws):
     _start(ws)
-    ws.sh('python3 "%s/clarify.py" add --skill create-design --ticket EVAL-1 '
+    ws.sh('python3 "%s/clarify.py" add --skill create-tech-design --ticket EVAL-1 '
           '--question "Webhooks or polling?" --answer "Simplest option meeting p95 < 300 ms" > /dev/null'
           % SCRIPTS)
     _publish(ws, DESIGN)
     _finish(ws, DECISION)
-    ws.reply = ("Design published for epic EVAL-1. Next: /acs:create-ticket EVAL-1 --fan-out, "
-                "then /acs:code on each child.")
+    ws.reply = ("Tech design published (proposed) for epic EVAL-1. Next: approve it with "
+                "/acs:set-doc-status approved order-tracking, then /acs:create-ticket EVAL-1 "
+                "--fan-out, then /acs:code on each child.")
 
 
 def _minted_children(ws):
@@ -65,9 +145,9 @@ def _minted_children(ws):
 def _story_style(ws):
     """One option, no slices, and the story next step."""
     _start(ws)
-    one = DESIGN.split("### Option B")[0] + DESIGN.split("## Decision & rationale")[1].join(
-        ["## Decision & rationale", ""])
-    _publish(ws, one.split("## Rollout/migration")[0] + "## Rollout/migration\n\nSingle deploy.\n")
+    one = DESIGN.split("#### Option B")[0] + "### Rationale" + DESIGN.split("### Rationale", 1)[1]
+    _publish(ws, one.split("### Rollout & migration")[0] + "### Rollout & migration\n\n"
+             "Single deploy.\n\n## Open questions\n\nnone\n")
     _finish(ws, DECISION)
     ws.reply = "Design published. Next: /acs:code EVAL-1."
 

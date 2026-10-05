@@ -128,17 +128,17 @@ subject docs-sync falls back to):
    (`context.design.source` is `own` for the ticket's own `needs_design`, or
    `parent` when it inherits its epic's design); absent otherwise. It is NOT
    under `<partition>` (that is the run directory, whose
-   `steps/create-design/design.md` is only create-design's unverified working
-   draft). Resolve the published file with
+   `steps/create-tech-design/tech-design.md` is only create-tech-design's
+   unverified working draft). Resolve the published file with
    `acs.py artifacts show` — or `--ticket <parent-id>` when the
-   source is `parent` — and read `artifacts["design.md"]`: that is
+   source is `parent` — and read `artifacts["tech-design.md"]`: that is
    `acs_lib.artifacts.artifact_path`, which returns the first existing copy of
-   the design record in `<architecture_dir>/lld/<feature>/<that-id>/design.md`
-   (where `/acs:create-design` publishes it), then a legacy
-   `docs/tickets/<that-id>/design.md` (read only), then `design.md` in that
+   the tech design in `<architecture_dir>/lld/<feature>/<that-id>/tech-design.md`
+   (where `/acs:create-tech-design` publishes it), then a legacy `design.md`
+   there or in `docs/tickets/<that-id>/` (read only), then the copy in that
    ticket's workspace partition (`context.design.dir`, used only when there was
    no checkout to publish into). On a ticketless run `design.dir` is null (or `design`
-   is absent): read `artifacts["design.md"]` from the run's own
+   is absent): read `artifacts["tech-design.md"]` from the run's own
    `artifacts show` when it reports one. `null` there means no design was published —
    name it absent. The same call reports `artifacts["api-contract.md"]`: read it
    and the `<architecture_dir>/lld/<feature>/api/` documents it links as the

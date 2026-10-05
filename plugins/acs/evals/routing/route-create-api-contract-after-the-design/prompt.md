@@ -1,6 +1,6 @@
 ---
 description: >-
-  Borrows the vocabulary of /acs:create-design on purpose -- it opens by
+  Borrows the vocabulary of /acs:create-tech-design on purpose -- it opens by
   saying the design is settled -- while the request still belongs to this
   skill. It tests that the description, not a keyword, decides the route.
   Never names the skill.

@@ -10,7 +10,7 @@ description: >-
   the Skill tool, so the model can neither go looking for the ticket nor
   find it missing. Re-measured by the next paid run; until then its history
   is a caveat, not a baseline.
-expected_outcome: Routes to acs:create-design.
+expected_outcome: Routes to acs:create-tech-design.
 tags: [routing, description]
 max_turns: 1
 allowed_tools: [Skill]

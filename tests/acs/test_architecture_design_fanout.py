@@ -1,4 +1,4 @@
-"""Parallel fan-out prose for /acs:create-architecture and /acs:create-design.
+"""Parallel fan-out prose for /acs:create-architecture and /acs:create-tech-design.
 
 Pins the coordinator-owned fan-out each skill now runs: the partition rule for
 its parallel writers or research slices, the one-message spawn, the
@@ -12,7 +12,11 @@ Stdlib-only. Run:  python3 -m unittest tests.acs.test_architecture_design_fanout
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -210,14 +214,16 @@ class CreateArchitectureFanOutTest(JudgeSlicingMixin, unittest.TestCase):
             self.assertIn(phrase, body)
 
 
-class CreateDesignFanOutTest(JudgeSlicingMixin, unittest.TestCase):
+class CreateTechDesignFanOutTest(JudgeSlicingMixin, unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.skill = read(os.path.join(SKILLS, "create-design", "SKILL.md"))
+        # ADR-0135: the procedure moved into references/ behind pointers, so
+        # the pins read the skill's contract text, not which file says it.
+        cls.skill = skill_text.skill_contract("create-tech-design")
         cls.flat = flat(cls.skill)
-        cls.designer = read(os.path.join(AGENTS, "create-design-designer.md"))
-        cls.reviewer = read(os.path.join(AGENTS, "create-design-design-reviewer.md"))
+        cls.designer = read(os.path.join(AGENTS, "create-tech-design-designer.md"))
+        cls.reviewer = read(os.path.join(AGENTS, "create-tech-design-reviewer.md"))
 
     def test_option_research_partition_rule(self):
         for phrase in ("when the scope notes list two or more major decisions",
@@ -230,7 +236,7 @@ class CreateDesignFanOutTest(JudgeSlicingMixin, unittest.TestCase):
         self.assertNotIn("research-<topic>", self.flat)
 
     def test_draft_stays_single_writer(self):
-        self.assertIn("`design.md` is ONE document and cannot be split into disjoint files",
+        self.assertIn("`tech-design.md` is ONE document and cannot be split into disjoint files",
                       self.flat)
         self.assertIn("the write never fans out", self.flat)
 
@@ -242,14 +248,14 @@ class CreateDesignFanOutTest(JudgeSlicingMixin, unittest.TestCase):
 
     def test_notes_merge_join(self):
         self.assertIn('acs.py" notes merge', self.skill)
-        self.assertIn("--out <partition>/steps/create-design/iter-1/authoring.md", self.skill)
-        self.assertIn("acs.py notes merge --out iter-<n>/design-reviewer.md", self.flat)
+        self.assertIn("--out <partition>/steps/create-tech-design/iter-1/authoring.md", self.skill)
+        self.assertIn("acs.py notes merge --out iter-<n>/reviewer.md", self.flat)
 
     def test_grouped_ask_across_passes(self):
         self.assertIn("in ONE grouped interaction", self.flat)
 
     def test_sliced_reviewer_pass_rule(self):
-        for phrase in ("passes only if EVERY design-reviewer slice returned "
+        for phrase in ("passes only if EVERY reviewer slice returned "
                        '`status="completed"` with zero blocking findings',
                        "any slice's blocking finding blocks",
                        "ALL slices' findings go verbatim",
@@ -259,6 +265,7 @@ class CreateDesignFanOutTest(JudgeSlicingMixin, unittest.TestCase):
     def test_reviewer_dimension_slices(self):
         rows = slice_table(self.skill, "decision")
         self.assertEqual(set(rows), {"decision", "conformance", "form"})
+        self.assertIn("lld-consistency", rows["conformance"])
         self.assert_dimensions_partitioned(rows, self.reviewer)
         self.assert_lint_in_one_slice(rows, "mermaid_lint.py", "form")
         self.assert_lint_in_one_slice(rows, "structure_lint.py", "form")
@@ -298,7 +305,7 @@ class CreateDesignFanOutTest(JudgeSlicingMixin, unittest.TestCase):
     def test_reviewer_slice_contract(self):
         section = self.reviewer.split("## When you are one slice", 1)[1].split("\n## ", 1)[0]
         body = flat(section)
-        for phrase in ('<constraint name="dimensions">', "iter-<n>/design-reviewer-<id>.md",
+        for phrase in ('<constraint name="dimensions">', "iter-<n>/reviewer-<id>.md",
                        "police grounding in every slice",
                        "`mermaid_lint.py` only when dimension 5 (`completeness`) is yours",
                        "`structure_lint.py` only when dimension 6 (`structure`) is yours"):

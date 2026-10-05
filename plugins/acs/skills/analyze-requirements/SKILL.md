@@ -445,5 +445,5 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (the analysis folder's README and context files, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:create-impl-plan <ticket-id>` on a Development run (the files stay uncommitted until `/acs:create-pr <ticket-id>`); the Design skills or `/acs:create-ticket` on a Discovery run; when an interface changes — design it with `/acs:create-api-contract <ticket-id or feature>` (Design phase) before the plan
+- **Next**: `/acs:create-impl-plan <ticket-id>` on a Development run (the files stay uncommitted until `/acs:create-pr <ticket-id>`); the Design skills or `/acs:create-ticket` on a Discovery run; when an interface changes — design it with `/acs:create-api-contract <ticket-id or feature>` (Design phase) before the plan; when needs_design is true — `/acs:create-tech-design <ticket-id>`, approved before the plan
 ```

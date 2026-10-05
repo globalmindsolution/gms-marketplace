@@ -319,7 +319,7 @@ Step 4 runs ONLY under `--fan-out` mode (`references/epic-fan-out.md`) or in the
 mode (above) — the two modes that mint children — and never during the
 epic's own creation run. An epic's
 creation run (Steps 1-3) always finishes with `children: []`; fan-out is
-deferred until after `/acs:create-design` completes, when the user
+deferred until after `/acs:create-tech-design` completes, when the user
 re-invokes `/acs:create-ticket <epic-id> --fan-out`. You mint the children
 yourself, inline, per `references/materialize.md` step 4.
 
@@ -340,7 +340,7 @@ each child's implementation gets is decided later and per child, when
 This mints the child id, writes BOTH link directions (child `parent`, epic
 `children`), and records a completed create-ticket run for the child — children do
 NOT rerun /acs:create-ticket; their pipeline starts at /acs:code, which reads
-the parent epic's `design.md`. Capture each printed `ticket_id`.
+the parent epic's `tech-design.md`. Capture each printed `ticket_id`.
 
 ### Step 5 — Tracker sync
 
@@ -439,7 +439,7 @@ MANDATORY final step — never skipped, also on failure:
 
 3. Report. Direct invocation: a compact summary — ticket id, type, title,
    needs_design, children, PRD trace, tracker key — and the next command:
-   `/acs:create-design <id>` when `needs_design` is true, else
+   `/acs:create-tech-design <id>` when `needs_design` is true, else
    `/acs:code <id>` (epic children each continue with
    `/acs:code <child-id>` after the epic's design). Under /acs:ship: return
    ONLY the `<handoff>` XML as your final message (validated, summary <= 1 KB):
@@ -451,7 +451,7 @@ MANDATORY final step — never skipped, also on failure:
        <file><partition>/ticket.json</file>
        <file>steps/create-ticket/result.json</file>
      </artifacts>
-     <next-step>/acs:create-design SHOP-123</next-step>
+     <next-step>/acs:create-tech-design SHOP-123</next-step>
    </handoff>
    ```
 
@@ -475,5 +475,5 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: <wall time>
-- **Next**: `/acs:create-design <id>` when `needs_design` is true, else `/acs:code <id>`; for an epic, each child continues with `/acs:code <child-id>` after the epic's design; a not-yet-fanned-out epic runs `/acs:create-ticket <id> --fan-out` after its design
+- **Next**: `/acs:create-tech-design <id>` when `needs_design` is true, else `/acs:code <id>`; for an epic, each child continues with `/acs:code <child-id>` after the epic's design; a not-yet-fanned-out epic runs `/acs:create-ticket <id> --fan-out` after its design
 ```

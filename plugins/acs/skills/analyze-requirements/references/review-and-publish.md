@@ -34,7 +34,7 @@ ONE message, each with `<inputs>` of the draft folder (the action's `draft`,
 and every file in its `draft_files`, README first), the authoring notes (the
 action's `notes`), the analyst report (`analyst_report`), `requirements.md`
 (its `## Refined` section as Stage 2 left it) and, on a ticket run, the ticket
-file, the clarification ledger, `design.md` when it binds, and the repo paths
+file, the clarification ledger, `tech-design.md` when it binds, and the repo paths
 the impact maps name. Each judges fresh — never forward the
 analyst's reasoning — and judges EVERY file plus the README's contexts table:
 the `surface` slice re-derives the impact map from the codebase itself (and
@@ -116,7 +116,7 @@ analysis folder is what `/acs:create-impl-plan`, `/acs:create-api-contract` and
 `/acs:create-test-docs` read, and what the next run of this skill starts from
 (Stage 1's reuse); the feature's living analysis is what the Design skills
 (`/acs:create-architecture`, `/acs:create-data-design`, `/acs:create-flows`,
-`/acs:create-design`) read and what every later Development run on the feature
+`/acs:create-tech-design`) read and what every later Development run on the feature
 starts from. Every reader opens the README first (`artifacts["analysis.md"]`)
 and then only the context files it needs (`analysis_files`). The partition
 copy exists only for the no-checkout case, where there is no docs folder to

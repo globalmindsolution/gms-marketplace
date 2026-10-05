@@ -249,7 +249,7 @@ Pilot with `--runs 1 --no-publish` first.
   unexplained, not diagnosed. Hence the `explicit` tag, and why the gate does
   not run it.
 - **Three prompts were confounded** by context the empty workspace lacks:
-  `route-create-design` (an epic ticket), `route-create-requirements` (an
+  `route-create-tech-design` (then `route-create-design`; an epic ticket), `route-create-requirements` (an
   existing codebase; that skill was since removed by ADR-0118),
   `route-docs-sync` (a finished change). Each prompt now
   states that context itself, and a one-turn run with only the Skill tool can

@@ -1,7 +1,7 @@
 ---
 description: >-
   A natural-language request in the skill's domain, never naming the
-  skill. The neighbour is create-design; the prompt is scoped to
+  skill. The neighbour is create-tech-design; the prompt is scoped to
   diagramming a flow's business rules, not choosing an approach.
 expected_outcome: Routes to acs:create-flows.
 tags: [routing, description]

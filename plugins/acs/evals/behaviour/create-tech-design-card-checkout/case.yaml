@@ -1,4 +1,4 @@
 schema_version: "1.1"
-name: create-design-card-checkout
+name: create-tech-design-card-checkout
 context:
   scaffold_script: scaffold.sh

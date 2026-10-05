@@ -173,8 +173,8 @@ the solo-maintainer caveat, so you report them rather than re-deriving them.
 
 Repeat any unmet toolchain install hint, and confirm the workflow is ready:
 Design is `/acs:create-prd` → `/acs:create-architecture` →
-`/acs:create-ticket`, then `/acs:create-design` → `/acs:code` is not one fixed
-chain: `/acs:create-design` runs only for a ticket flagged `needs_design`, and
+`/acs:create-ticket`, then `/acs:create-tech-design` → `/acs:code` is not one fixed
+chain: `/acs:create-tech-design` runs only for a ticket flagged `needs_design`, and
 the Build/Test/Ship order is declared in `workflows/ship.yaml` (`acs.py
 workflow show` prints it) and walked by `/acs:ship <ticket-id>` to the PR, then
 `/acs:merge-pr <id>`.
