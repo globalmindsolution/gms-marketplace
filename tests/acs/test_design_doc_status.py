@@ -170,6 +170,19 @@ class AtomicStatusTest(TreeCase):
         self.assertEqual([f["path"] for f in out], [a, b])   # duplicates collapse
         self.assertEqual(D.read(a)[0]["status_at"], D.read(b)[0]["status_at"])
 
+    def test_a_doc_already_at_the_target_is_left_untouched(self):
+        a = self.put("docs/architecture/hld/a.md")
+        b = self.put("docs/architecture/hld/b.md")
+        D.set_status_many([a], "approved", by="Ana", reason="reviewed in sprint 9")
+        with open(a, encoding="utf-8") as fh:
+            before = fh.read()
+        out = D.set_status_many([a, b], "approved", by="Bo")
+        with open(a, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), before)   # who, when and why are kept
+        self.assertEqual([(f["path"], f.get("unchanged", False)) for f in out],
+                         [(a, True), (b, False)])
+        self.assertEqual(D.read(b)[0]["status_by"], "Bo")
+
     def test_an_unknown_status_is_refused(self):
         with self.assertRaises(lib.GateError):
             D.set_status_many([self.put("docs/architecture/hld/a.md")], "done")

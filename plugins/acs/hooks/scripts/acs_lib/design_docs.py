@@ -211,7 +211,9 @@ def set_status_many(paths, status, ticket=None, by=None, at=None, reason=None):
 
     Every target is validated first (exists, valid block, legal move); one
     refusal raises a GateError naming each refused document and why, and no
-    document is written. The moves share one `status_at`."""
+    document is written. The moves share one `status_at`. A document already
+    at `status` is left byte-for-byte as it is and reported `unchanged`: a
+    no-op must not rewrite who moved it, when, or why."""
     _check_status(status)
     if at is not None and not _ISO_INSTANT.match(str(at)):
         raise GateError("status_at must be an ISO-8601 instant; got %r" % (at,))
@@ -226,8 +228,14 @@ def set_status_many(paths, status, ticket=None, by=None, at=None, reason=None):
         raise GateError("refused %d of %d document(s), nothing was written -- %s"
                         % (len(refused), len(paths), " | ".join(refused)))
     at = at or now_iso()
-    return [dict(_apply(path, front, body, status, ticket, by, at, reason), path=path)
-            for path, front, body in loaded]
+    out = []
+    for path, front, body in loaded:
+        if front.get("status") == status:
+            out.append(dict(front, path=path, unchanged=True))
+        else:
+            out.append(dict(_apply(path, front, body, status, ticket, by, at, reason),
+                            path=path))
+    return out
 
 
 # ---------------------------------------------------------------------------
