@@ -46,7 +46,7 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.5.0 | M3 Wave 4 — skills independence | declarative pipeline order (`workflows/ship.yaml` + `workflows/phases.yaml`, `acs.py workflow show/validate/next`); hooks keep input checks and safety brakes only, so every skill is runnable on its own (ADR-0089); ticket documents move to `docs/tickets/<ID>/` with a derived status (ADR-0090; no longer written since ADR-0128 — a run's documents live one folder per phase); six new Build/Test skills (`analyze-requirements`, `create-impl-plan`, `create-api-contract`, `create-test-docs`, `create-e2e-tests`, `run-e2e-tests`); `/acs:ship` becomes a ticket-id loop that fans independent steps out in parallel | in progress |
 | v0.6.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
 | v0.7.0 | M5 | Notion/remote-docs backend (G6) | tentative |
-| v0.8.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
+| v0.8.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) — ticket handoff between members delivered early ([ADR-0131](../architecture/adr/0131-ticket-handoff-between-members.md)); a shared workspace remains | tentative |
 | v1.0 | M7 — GA | no committed epics yet | future |
 | post-GA (v1.x) | M8 — post-GA | team-shared delivery state (G23) | future |
 

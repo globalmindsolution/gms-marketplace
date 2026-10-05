@@ -7,10 +7,13 @@ anything is written:
   2. refuse when this workspace already holds the ticket's run or ticket
      partition (unless --replace, which moves them to a backup first);
   3. refuse a dirty working tree -- the work is applied onto a clean checkout;
-  4. dry-run `git diff --binary <base> <work> | git apply --3way` in a
-     TEMPORARY index, so a conflict is reported with its paths while the
+  4. merge `git diff --binary <base> <work> | git apply --3way --cached` in
+     a TEMPORARY index, so a conflict is reported with its paths while the
      checkout is still untouched;
-  5. apply it for real (the changes end up unstaged, as the sender had them);
+  5. write only the paths that merge changed into the working tree, through
+     a temporary index -- never `reset` or `clean`: the real index, HEAD's
+     reflog and every untracked or ignored file stay as they were, and the
+     work ends up uncommitted and unstaged, as the sender had it;
   6. restore the resume set, rewriting the path tokens to this machine's paths;
   7. upsert tickets-index / runs-index, raise counters.next to at least the
      sender's, point this checkout at the run;
@@ -51,7 +54,9 @@ def _validate_manifest(manifest, ticket_id):
 
 
 def _dirty_paths(root):
-    raw = _run_git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]).stdout
+    # GIT_OPTIONAL_LOCKS=0: a read, so git must not refresh-write the index.
+    raw = _run_git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+                   env={"GIT_OPTIONAL_LOCKS": "0"}).stdout
     return [rec[3:] for rec in raw.decode("utf-8", "surrogateescape").split("\0")
             if len(rec) > 3 and rec[2] == " "]
 
@@ -68,45 +73,71 @@ def work_patch(root, base, work):
                            base, work]).stdout
 
 
-def _apply(root, patch, env=None, cached=False):
-    args = ["git", "apply", "--3way"] + (["--cached"] if cached else [])
-    return subprocess.run(args, cwd=root, input=patch, capture_output=True,
-                          env=dict(os.environ, **(env or {})))
+def _apply_cached(root, patch, env):
+    """`git apply --3way --cached`: the index named by `env` only."""
+    return subprocess.run(["git", "apply", "--3way", "--cached"], cwd=root, input=patch,
+                          capture_output=True, env=dict(os.environ, **env))
 
 
-def probe_apply(root, patch):
-    """Apply `patch` to a temporary index built from HEAD. Returns the paths
-    that would conflict ([] when it applies); the checkout is never touched."""
+def merge_patch(root, patch):
+    """Apply `patch` with a 3-way fallback to a TEMPORARY index built from
+    HEAD. Returns (merged tree id, []) when it applies, (None, conflicting
+    paths) when it does not. The checkout, its index and HEAD are never
+    touched -- this is both the dry run and the merge itself."""
     tmpdir = tempfile.mkdtemp(prefix="acs-receive-")
     try:
         env = {"GIT_INDEX_FILE": os.path.join(tmpdir, "index")}
         _run_git(root, ["read-tree", "HEAD"] if head_sha(root) else ["read-tree", "--empty"],
                  env=env)
-        proc = _apply(root, patch, env=env, cached=True)
+        proc = _apply_cached(root, patch, env)
         if proc.returncode == 0:
-            return []
+            return _run_git(root, ["write-tree"], env=env).stdout.decode().strip(), []
         raw = _run_git(root, ["ls-files", "-u", "-z"], env=env).stdout
         paths = sorted({rec.split("\t", 1)[1] for rec in
                         raw.decode("utf-8", "surrogateescape").split("\0") if "\t" in rec})
         if not paths:
             raise GateError("the handoff's work does not apply here: %s"
                             % proc.stderr.decode("utf-8", "replace").strip())
-        return paths
+        return None, paths
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
-def apply_work(root, patch):
-    """Apply for real, then unstage: the receiver gets the work the way the
-    sender had it -- uncommitted -- and the index back at HEAD."""
-    proc = _apply(root, patch)
-    if proc.returncode != 0:
-        raise GateError("applying the handoff's work failed after a clean dry-run: %s"
-                        % proc.stderr.decode("utf-8", "replace").strip())
-    if head_sha(root):
-        _run_git(root, ["reset", "--quiet"])
-    else:
-        _run_git(root, ["read-tree", "--empty"])
+def apply_work(root, merged):
+    """Write the merged tree's changes into the working tree -- and nothing
+    else. Only the paths that differ between HEAD and `merged` are written or
+    removed, through a TEMPORARY index (`checkout-index`), so the real index,
+    HEAD, its reflog and every other file -- untracked or ignored -- are left
+    exactly as they were. No reset, no clean: the receiver gets the work the
+    way the sender had it, uncommitted and unstaged. Returns the paths."""
+    base = _run_git(root, ["rev-parse", "HEAD^{tree}"]).stdout.decode().strip() \
+        if head_sha(root) else empty_tree(root)
+    entries = name_status(root, base, merged)
+    write = [e["path"] for e in entries if e["status"] != "deleted"]
+    tmpdir = tempfile.mkdtemp(prefix="acs-receive-")
+    try:
+        env = {"GIT_INDEX_FILE": os.path.join(tmpdir, "index")}
+        _run_git(root, ["read-tree", merged], env=env)
+        if write:
+            proc = subprocess.run(["git", "checkout-index", "-f", "-z", "--stdin"], cwd=root,
+                                  input=("\0".join(write) + "\0").encode("utf-8",
+                                                                         "surrogateescape"),
+                                  capture_output=True, env=dict(os.environ, **env))
+            if proc.returncode != 0:
+                raise GateError("writing the handoff's work failed: %s"
+                                % proc.stderr.decode("utf-8", "replace").strip())
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    for entry in entries:
+        if entry["status"] == "deleted":
+            path = os.path.join(root, entry["path"])
+            if os.path.lexists(path):
+                os.remove(path)
+            parent = os.path.dirname(path)
+            while parent != root and os.path.isdir(parent) and not os.listdir(parent):
+                os.rmdir(parent)
+                parent = os.path.dirname(parent)
+    return [e["path"] for e in entries]
 
 
 def _package_entries(root, commit):
@@ -255,14 +286,14 @@ def receive(ctx, ticket_id, replace=False, keep_ref=False, remote="origin"):
     work = _tree_at(root, commit, "work") or empty_tree(root)
     patch = work_patch(root, base, work)
     if patch.strip():
-        conflicts = probe_apply(root, patch)
+        merged, conflicts = merge_patch(root, patch)
         if conflicts:
             raise GateError(
                 "the handoff's work conflicts with this checkout in: %s. Nothing was changed. "
                 "Check out the sender's base (git switch -c <branch> %s) and receive again, "
                 "or reconcile those files first."
                 % (", ".join(conflicts), (manifest.get("base_sha") or "")[:12]))
-        apply_work(root, patch)
+        apply_work(root, merged)
     backed_up = backup(rpath, ticket_id, existing) if existing else None
     written = restore(root, commit, tdir, rdir, th.local_paths(ctx, rdir))
     ticket = load_ticket(tdir)

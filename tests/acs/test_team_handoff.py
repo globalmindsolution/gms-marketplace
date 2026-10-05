@@ -133,6 +133,18 @@ class TwoClonesCase(unittest.TestCase):
     def remote_refs(self):
         return git(self.remote, "for-each-ref", "--format=%(refname)", "refs/acs/").split()
 
+    def checkout_state(self, root):
+        """What a receive must never disturb beyond the paths it applies: the
+        real index (bytes), HEAD and its reflog, and the untracked/ignored files."""
+        with open(os.path.join(root, ".git", "index"), "rb") as fh:
+            index = hashlib.sha256(fh.read()).hexdigest()
+        return {"index": index, "head": git(root, "rev-parse", "HEAD"),
+                "reflog": git(root, "reflog", "show", "--format=%H %gs", "HEAD"),
+                "untracked": git(root, "ls-files", "--others", "--exclude-standard"),
+                "ignored": git(root, "ls-files", "--others", "--ignored",
+                               "--exclude-standard"),
+                "files": tree_digest(os.path.join(root, "loose"))}
+
     # -- the scenario most tests start from ---------------------------------
 
     def prepare_sender(self, attachments=True):
@@ -451,6 +463,55 @@ class RefusalTest(TwoClonesCase):
             self.assertEqual(fh.read(), "decided: CSV first\n")
         with open(os.path.join(self.alice, "app.py")) as fh:
             self.assertEqual(fh.read(), "line1\nline2 alice\nline3\n")
+
+
+class NoCollateralDamageTest(TwoClonesCase):
+    """A receive writes the paths it applies and nothing else: never a reset,
+    a clean or an index rewrite -- failed or successful."""
+
+    def test_a_refused_dirty_receive_leaves_index_untracked_and_ignored_files_alone(self):
+        ticket, _rdir = self.prepare_sender(attachments=False)
+        self.ok(self.alice, "handoff", "send", "--ticket", ticket)
+        write(self.bob, "loose/notes.txt", "untracked\n")
+        write(self.bob, "loose/local.secret", "ignored\n")
+        write(self.bob, "app.py", "line1\nline2 staged by bob\nline3\n")
+        git(self.bob, "add", "app.py")
+        before = self.checkout_state(self.bob)
+        self.assertIn("not clean", self.refused(self.bob, "handoff", "receive", ticket))
+        self.assertEqual(self.checkout_state(self.bob), before)
+        self.assertEqual(git(self.bob, "diff", "--cached", "--name-only"), "app.py\n")
+
+    def test_a_conflicting_receive_leaves_index_reflog_and_ignored_files_alone(self):
+        ticket, _rdir = self.prepare_sender(attachments=False)
+        self.ok(self.alice, "handoff", "send", "--ticket", ticket)
+        write(self.bob, "app.py", "line1\nline2 bob\nline3\n")
+        git(self.bob, "commit", "-qam", "bob edits the same line")
+        write(self.bob, "loose/local.secret", "ignored\n")
+        before = self.checkout_state(self.bob)
+        self.assertIn("conflicts", self.refused(self.bob, "handoff", "receive", ticket))
+        self.assertEqual(self.checkout_state(self.bob), before)
+
+    def test_a_successful_receive_touches_only_the_applied_paths(self):
+        ticket, _rdir = self.prepare_sender(attachments=False)
+        self.ok(self.alice, "handoff", "send", "--ticket", ticket)
+        write(self.bob, "loose/local.secret", "ignored\n")
+        before = self.checkout_state(self.bob)
+        staged = git(self.bob, "ls-files", "-s")
+        got = self.ok(self.bob, "handoff", "receive", ticket)
+        after = self.checkout_state(self.bob)
+        for key in ("head", "reflog", "files"):
+            self.assertEqual(after[key], before[key], key)
+        # the only new ignored files are the workspace the receive restored
+        self.assertEqual([p for p in after["ignored"].splitlines()
+                          if not p.startswith(".acs/state-machine/")],
+                         before["ignored"].splitlines())
+        self.assertNotIn("reset", after["reflog"])
+        self.assertEqual(git(self.bob, "ls-files", "-s"), staged)
+        self.assertEqual(sorted(c["path"] for c in got["work_changes"]),
+                         ["app.py", "old.py", "pkg/new.py"])
+        self.assertFalse(os.path.exists(os.path.join(self.bob, "old.py")))
+        self.assertEqual(git(self.bob, "status", "--porcelain").splitlines(),
+                         [" M app.py", " D old.py", "?? pkg/"])
 
 
 class UnitTest(TwoClonesCase):

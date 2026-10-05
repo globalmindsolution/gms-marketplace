@@ -169,8 +169,9 @@ table itself, so a new skill's row here is not enforced; see Roadmap item 2).
 10 are n/a by construction — no `pre-*.py` exists for them (the four `code`
 legs run `code`'s), and none should. **Routing covers 29 of 29** — 264 routing
 cases in all (255 by description, at least ten phrasings for each of 25 skills
-and an eleventh for `setup`; 5 by explicit command; 4 negative) plus four
-off-domain controls, and `tests/evals/check_cases.py`
+and an eleventh for `setup`; 5 by explicit command; 4 negative) plus ten
+controls that must fire no skill (four off-domain, six session-pause phrasings
+that `/acs:handoff` no longer serves, ADR-0131), and `tests/evals/check_cases.py`
 (local, ADR-0108) fails if a shipped skill loses its case. **Behavioral coverage is authored for 29 of 29 skills but run for none**
 ([ADR-0113](../architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)): every
 skill has 2–7 behaviour cases, one per documented mode, branch and refusal
