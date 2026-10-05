@@ -6,8 +6,9 @@ description: >-
   exactly as it is -- the fix is the user's to choose.
 expected_outcome: >-
   .github/workflows/acs-conventions.yml and .acs/ci/check-conventions.py are
-  created; .gitignore still reads `.acs/` and `*.pyc` and nothing else; the
-  reply warns that .acs/ is gitignored and names the fix.
+  created; .gitignore still reads `.acs/` and `*.pyc`, plus only setup's own
+  `.claude/worktrees/` entry; the reply warns that .acs/ is gitignored and
+  names the fix.
 tags: [behaviour]
 max_turns: 40
 timeout_seconds: 900

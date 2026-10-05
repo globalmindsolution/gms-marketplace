@@ -34,5 +34,8 @@ __pycache__/
 .acs/state-machine/
 coverage.xml
 
+# Claude Code worktrees live inside the checkout; never stage them as gitlinks
+.claude/worktrees/
+
 # acs: agents generated from .acs/settings.json models (acs agents sync)
 .claude/agents/acs-*.md

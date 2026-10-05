@@ -30,6 +30,7 @@ it always did. In dependency order:
   doc_layout     the phase folders a run's documents live in (prd/lld/development dirs)
   run_docs       one run's documents: where each is read from and written to
   doc_share      shared or kept local, and whether a docs folder still needs an answer (ADR-0132)
+  claude_permissions  the Claude Code permission rules /acs:setup offers (opt-in)
   team_handoff   member -> member ticket handoff over refs/acs/handoff/<ID> (ADR-0131);
                  team_handoff_receive is its receiving half (reached via acs_handoff_commands).
 
@@ -157,6 +158,7 @@ from . import skills as skills_registry  # noqa: F401,E402
 from . import models  # noqa: F401,E402
 from . import launch_config  # noqa: F401,E402
 from . import design_types  # noqa: F401,E402
+from . import claude_permissions  # noqa: F401,E402
 from . import design_docs  # noqa: F401,E402
 from . import audit_report  # noqa: F401,E402
 from . import jobs  # noqa: F401,E402

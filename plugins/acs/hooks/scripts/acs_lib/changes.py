@@ -100,6 +100,41 @@ def resolve_tree(root, rev):
 # Snapshot
 # ---------------------------------------------------------------------------
 
+def _untracked_repos(root):
+    """Untracked, non-ignored directories that are repositories of their own --
+    a `git init`ed folder, or a worktree nested in the checkout (Claude Code
+    makes them at `.claude/worktrees/<name>/`). `git ls-files --others` lists
+    such a directory as `<dir>/` and never its files; nothing else ends in `/`."""
+    raw = _run_git(root, ["ls-files", "-z", "--others", "--exclude-standard"]).stdout
+    return [p for p in raw.decode("utf-8", "surrogateescape").split("\0") if p.endswith("/")]
+
+
+def _gitlinks(root, args, env=None):
+    """{path: record} of the mode-160000 entries `git <args> -z` prints."""
+    raw = _run_git(root, list(args) + ["-z"], env=env).stdout
+    out = {}
+    for record in raw.decode("utf-8", "surrogateescape").split("\0"):
+        if record.startswith("160000 ") and "\t" in record:
+            out[record.split("\t", 1)[1]] = record
+    return out
+
+
+def drop_new_gitlinks(root, env, base):
+    """Remove from the index `env` names every gitlink (mode 160000) that the
+    tree-ish `base` does not hold -- an embedded repository or nested worktree
+    the user never committed as a submodule. A submodule `base` already tracks
+    stays. Only the index `env` points at is written. Returns the paths."""
+    top = _out(root, ["rev-parse", "--show-toplevel"])
+    staged = _gitlinks(top, ["ls-files", "-s"], env=env)
+    if not staged:
+        return []
+    keep = _gitlinks(top, ["ls-tree", "-r", "--full-tree", base]) if base else {}
+    drop = sorted(p for p in staged if p not in keep)
+    for i in range(0, len(drop), 500):
+        _run_git(top, ["update-index", "--force-remove", "--"] + drop[i:i + 500], env=env)
+    return drop
+
+
 def snapshot(root):
     """A tree id of the full working tree -- tracked changes, deletions and
     untracked non-ignored files -- written through a TEMPORARY index.
@@ -107,7 +142,12 @@ def snapshot(root):
     The temporary index starts as a copy of the real one (so git reuses its
     stat data rather than re-hashing every file) or, with none, from HEAD;
     `git add -A` then makes it match the working tree. The real index is never
-    written: `GIT_INDEX_FILE` points every command at the copy."""
+    written: `GIT_INDEX_FILE` points every command at the copy.
+
+    A repository inside the checkout is never part of it: an untracked one is
+    excluded from the `add` (staged, it would be a gitlink; with no commit, it
+    would fail the `add`), and any gitlink HEAD does not already track -- one
+    the real index staged -- is dropped from the copy (`drop_new_gitlinks`)."""
     git_index = os.path.join(root, _out(root, ["rev-parse", "--git-path", "index"]))
     tmpdir = tempfile.mkdtemp(prefix="acs-snapshot-")
     try:
@@ -121,7 +161,12 @@ def snapshot(root):
             shutil.copy2(git_index, tmp_index)
         elif head_sha(root):
             _run_git(root, ["read-tree", "HEAD"], env=env)
-        _run_git(root, ["add", "-A", "--", "."], env=env)
+        # Pathspec magic is off under GIT_LITERAL_PATHSPECS, so this one call
+        # turns it back on and spells every path `literal` itself.
+        excludes = [":(exclude,literal)" + p for p in _untracked_repos(root)]
+        _run_git(root, ["add", "-A", "--", ":(literal)."] + excludes,
+                 env=dict(env, GIT_LITERAL_PATHSPECS="0"))
+        drop_new_gitlinks(root, env, "HEAD" if head_sha(root) else None)
         return _out(root, ["write-tree"], env=env)
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

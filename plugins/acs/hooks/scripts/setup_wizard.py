@@ -23,8 +23,9 @@ Two commands:
 
   apply    Everything the conversation decided, performed at once: the project
            settings, the ignore entries in both layers, the workspace
-           create+probe, and the CI copies. Writes only what the answers ask
-           for, and never a value equal to its built-in default.
+           create+probe, the CI copies, and (opt-in) acs's Claude Code
+           permission rules. Writes only what the answers ask for, and never
+           a value equal to its built-in default.
 
 **Idempotence is the contract, not a nicety.** /acs:setup is re-run whenever a
 format changes, and a repo initialised by an older acs is expected to be
@@ -55,8 +56,9 @@ import acs_lib as lib  # noqa: E402
 
 #: The ignore entries every repo gets, in both layers. Narrow directory entries
 #: on purpose: a broad `.acs/` glob would swallow settings.json and .acs/ci/,
-#: which CI has to read.
-IGNORE_ENTRIES = (".acs/settings.local.json", ".acs/state-machine/")
+#: which CI has to read. `.claude/worktrees/` is where Claude Code puts its
+#: worktrees -- inside the checkout, where `git add -A` would stage a gitlink.
+IGNORE_ENTRIES = (".acs/settings.local.json", ".acs/state-machine/", ".claude/worktrees/")
 
 #: Paths a broad ignore rule must NOT swallow. Warned about, never fixed for
 #: the user: a `!.acs/` negation is their configuration to decide.
@@ -228,6 +230,8 @@ def detect(cwd):
         "launch": lib.launch_config.detect(root),
         # The design-document catalog the setup question offers (ADR-0120).
         "design": lib.design_types.detect(settings),
+        # The opt-in permission rules the setup question offers, verbatim.
+        "claude_permissions": lib.claude_permissions.detect(root),
     }
 
 
@@ -399,7 +403,7 @@ def append_line_once(path, line, dry_run=False):
     return True
 
 
-def apply_ignores(root, cwd, changes, dry_run=False):
+def apply_ignores(root, cwd, changes, dry_run=False, entries=IGNORE_ENTRIES):
     """Both layers, on every run — fresh or re-run.
 
     A repo first initialised by an older acs may carry `settings.local.json`
@@ -412,7 +416,7 @@ def apply_ignores(root, cwd, changes, dry_run=False):
         common = os.path.join(root, common)
     exclude = os.path.join(common, "info", "exclude")
 
-    for entry in IGNORE_ENTRIES:
+    for entry in entries:
         if is_ignored(entry, root):
             changes.note(False, "%s already ignored" % entry)
         else:
@@ -424,7 +428,7 @@ def apply_ignores(root, cwd, changes, dry_run=False):
         changes.note(append_line_once(exclude, entry, dry_run),
                      "%s excluded in %s" % (entry, exclude))
 
-    for entry in IGNORE_ENTRIES:
+    for entry in entries:
         if not dry_run and not is_ignored(entry, root):
             changes.warn("%s is still not ignored by git — check for a conflicting "
                          "!.acs/ negation rule" % entry)
@@ -591,6 +595,8 @@ def apply(cwd, answers, dry_run=False):
     if "launch" in answers:
         launch_doc, launch = lib.launch_config.plan(root, answers["launch"])
         refused = refused + launch["errors"]
+    perms = answers.get("claude_permissions", "skip")
+    refused = refused + lib.claude_permissions.errors(root, perms)
     if refused:
         out = changes.as_dict()
         out.update({"ok": False, "dry_run": dry_run, "settings_path": settings_path,
@@ -604,7 +610,8 @@ def apply(cwd, answers, dry_run=False):
                                          remove=defaulted)
         changes.note(wrote, "wrote %s" % settings_path)
 
-    apply_ignores(root, cwd, changes, dry_run=dry_run)
+    apply_ignores(root, cwd, changes, dry_run=dry_run,
+                  entries=IGNORE_ENTRIES + lib.claude_permissions.ignore_entries(perms))
     workspace = apply_workspace(cwd, changes, dry_run=dry_run)
     staged, installed_ci = apply_ci(root, answers.get("ci") or (), changes,
                                     dry_run=dry_run)
@@ -616,6 +623,13 @@ def apply(cwd, answers, dry_run=False):
             staged.append(os.path.join(*lib.launch_config.PATH_PARTS))
         for warning in launch["warnings"]:
             changes.warn(warning)
+    permissions = None if perms == "skip" else lib.claude_permissions.apply(root, perms, dry_run)
+    if permissions is not None:
+        changes.note(bool(permissions["added"]), "added %d Claude Code permission rules to %s"
+                     % (len(permissions["added"]), permissions["path"]) if permissions["added"]
+                     else "Claude Code permission rules already in %s" % permissions["path"])
+        if permissions["added"] and perms == "team":
+            staged.append(os.path.join(".claude", "settings.json"))
 
     settings, _sources = lib.load_settings(cwd)
     errors = list(changes.errors)
@@ -633,7 +647,7 @@ def apply(cwd, answers, dry_run=False):
                 # a workflow that was never installed blocks every future PR.
                 "required_check_contexts": [CI_INSTALLS[n][2] for n in installed_ci
                                             if n in CI_INSTALLS],
-                "launch": launch})
+                "launch": launch, "claude_permissions": permissions})
     return out
 
 
@@ -649,6 +663,7 @@ ANSWER_TYPES = {
     "settings": (dict, "an object of setting keys"),
     "ci": (list, "a list of any of %s" % ", ".join(sorted(CI_INSTALLS))),
     "launch": (dict, "an object with `configurations` (and optional `autoVerify`)"),
+    "claude_permissions": (str, "one of team, user or skip"),
 }
 
 

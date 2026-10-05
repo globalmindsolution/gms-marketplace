@@ -87,7 +87,8 @@ class DetectTest(WizardCase):
     def test_it_reports_the_ignore_state_before_anything_is_written(self):
         out = setup_wizard.detect(self.repo)
         self.assertEqual(out["ignored"], {".acs/settings.local.json": False,
-                                          ".acs/state-machine/": False})
+                                          ".acs/state-machine/": False,
+                                          ".claude/worktrees/": False})
 
     def test_it_names_the_files_a_broad_rule_would_swallow(self):
         with open(os.path.join(self.repo, ".gitignore"), "w", encoding="utf-8") as fh:
@@ -383,7 +384,8 @@ class IgnoreTest(WizardCase):
         with open(os.path.join(self.repo, ".gitignore"), "w", encoding="utf-8") as fh:
             fh.write(".acs/\n")
         out = self.apply()
-        self.assertEqual(self.read(".gitignore"), ".acs/\n")
+        # `.acs/` covers both acs entries; only the worktrees entry is added.
+        self.assertEqual(self.read(".gitignore"), ".acs/\n.claude/worktrees/\n")
         self.assertTrue(any("already ignored" in line for line in out["unchanged"]))
 
     def test_a_missing_trailing_newline_cannot_glue_the_entry_on(self):
@@ -401,7 +403,76 @@ class IgnoreTest(WizardCase):
         joined = " | ".join(out["warnings"])
         self.assertIn(".acs/settings.json", joined)
         self.assertIn("narrow the rule", joined)
-        self.assertEqual(self.read(".gitignore"), ".acs/\n")
+        self.assertEqual(self.read(".gitignore"), ".acs/\n.claude/worktrees/\n")
+
+
+class ClaudePermissionsTest(WizardCase):
+    """The opt-in question: acs's permission rules in .claude/settings.json
+    (team), .claude/settings.local.json (me), or nowhere (skip)."""
+
+    def allow(self, name):
+        return json.loads(self.read(".claude", name))["permissions"]["allow"]
+
+    def test_detect_offers_the_rules_verbatim(self):
+        out = setup_wizard.detect(self.repo)["claude_permissions"]
+        self.assertEqual(out["rules"], list(lib.claude_permissions.RULES))
+        self.assertEqual(out["team"]["present"], [])
+
+    def test_no_answer_or_skip_writes_no_claude_file(self):
+        for answers in (self.answers(), self.answers(claude_permissions="skip")):
+            out = self.apply(answers)
+            self.assertTrue(out["ok"], out["errors"])
+            self.assertIsNone(out["claude_permissions"])
+            self.assertFalse(os.path.exists(os.path.join(self.repo, ".claude")))
+
+    def test_team_writes_the_shared_file_and_stages_it(self):
+        out = self.apply(self.answers(claude_permissions="team"))
+        self.assertTrue(out["ok"], out["errors"])
+        self.assertEqual(self.allow("settings.json"), list(lib.claude_permissions.RULES))
+        self.assertEqual(out["claude_permissions"]["added"], list(lib.claude_permissions.RULES))
+        self.assertIn(os.path.join(".claude", "settings.json"), out["stage_for_commit"])
+        self.assertNotIn(".claude/settings.local.json", self.read(".gitignore"))
+        again = self.apply(self.answers(claude_permissions="team"))
+        self.assertEqual(again["claude_permissions"]["added"], [])
+        self.assertNotIn(os.path.join(".claude", "settings.json"), again["stage_for_commit"])
+
+    def test_user_writes_the_local_file_and_ignores_it_in_both_layers(self):
+        out = self.apply(self.answers(claude_permissions="user"))
+        self.assertTrue(out["ok"], out["errors"])
+        self.assertEqual(self.allow("settings.local.json"), list(lib.claude_permissions.RULES))
+        self.assertNotIn(os.path.join(".claude", "settings.local.json"), out["stage_for_commit"])
+        self.assertIn(".claude/settings.local.json", self.read(".gitignore").splitlines())
+        self.assertIn(".claude/settings.local.json",
+                      self.read(".git", "info", "exclude").splitlines())
+        self.assertTrue(setup_wizard.detect(self.repo)["claude_permissions"]["user"]["ignored"])
+
+    def test_an_already_ignored_local_file_adds_no_gitignore_line(self):
+        with open(os.path.join(self.repo, ".gitignore"), "w", encoding="utf-8") as fh:
+            fh.write(".claude/*.local.json\n")
+        self.apply(self.answers(claude_permissions="user"))
+        self.assertNotIn(".claude/settings.local.json", self.read(".gitignore").splitlines())
+
+    def test_dry_run_reports_and_writes_nothing(self):
+        out = self.apply(self.answers(claude_permissions="team"), dry_run=True)
+        self.assertEqual(out["claude_permissions"]["added"], list(lib.claude_permissions.RULES))
+        self.assertTrue([c for c in out["changed"] if "permission rules" in c], out["changed"])
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".claude")))
+
+    def test_an_unknown_answer_is_refused_and_nothing_is_written(self):
+        out = self.apply({"settings": {"ticket_prefix": "SHOP"}, "claude_permissions": "all"})
+        RefusalTest._nothing_written(self, out)
+        self.assertTrue(any("team, user or skip" in e for e in out["errors"]), out["errors"])
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".claude")))
+        self.assertTrue(setup_wizard.validate_answers({"claude_permissions": ["team"]}))
+        self.assertEqual(setup_wizard.validate_answers({"claude_permissions": "user"}), [])
+
+    def test_a_file_it_cannot_merge_into_is_refused_untouched(self):
+        os.makedirs(os.path.join(self.repo, ".claude"))
+        with open(os.path.join(self.repo, ".claude", "settings.json"), "w") as fh:
+            fh.write("{oops")
+        out = self.apply(self.answers(claude_permissions="team"))
+        RefusalTest._nothing_written(self, out)
+        self.assertEqual(self.read(".claude", "settings.json"), "{oops")
 
 
 class CiInstallTest(WizardCase):
