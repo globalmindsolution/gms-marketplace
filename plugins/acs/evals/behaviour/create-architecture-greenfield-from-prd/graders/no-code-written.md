@@ -1,7 +1,7 @@
 ---
 type: regex
 target: files
-pattern: '^(?!docs/|\.acs/|\.claude/|\.eval-origin\.git/)[^\n]*\.(?:py|js|ts|toml|json|ya?ml|cfg)$|^(?:Dockerfile|docker-compose[^\n]*)$'
+pattern: '^(?!docs/|\.acs/|\.git/acs/|\.claude/|\.eval-origin\.git/)[^\n]*\.(?:py|js|ts|toml|json|ya?ml|cfg)$|^(?:Dockerfile|docker-compose[^\n]*)$'
 flags: m
 match: not_contains
 ---

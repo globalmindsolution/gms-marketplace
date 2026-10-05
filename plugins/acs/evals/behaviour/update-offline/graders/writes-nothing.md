@@ -1,7 +1,7 @@
 ---
 type: regex
 target: files
-pattern: '^\.acs/|(^|/)plugin\.json$|(^|/)settings(\.local)?\.json$'
+pattern: '^\.acs/|^\.git/acs/|(^|/)plugin\.json$|(^|/)settings(\.local)?\.json$'
 flags: m
 match: not_contains
 ---
