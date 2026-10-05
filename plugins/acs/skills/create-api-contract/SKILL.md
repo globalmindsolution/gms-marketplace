@@ -70,14 +70,14 @@ What you find decides how you scope the run, never whether it runs:
   (whether a ticket, a prompt or documents carried them) and the code are the scope. Say so in
   `## Scope & sources` and in the completion report, where the pointer is
   "run /acs:create-impl-plan <id> first" for a contract scoped by a plan.
-- `analysis.md` present — its API-surface assessment (`api_surface`) and its
-  evidence inform the survey. When it declares `api_surface: false` and you
+- the analysis present — its API-surface assessment (`api_surface` in its
+  `README.md` front matter) and its evidence inform the survey. When it declares `api_surface: false` and you
   were invoked anyway, run: the contract-author's survey either finds the
   surface the analysis missed — report that disagreement — or finds none, and
   the run completes with `outcome: no_surface_owed`.
-  Do not work around it by editing `analysis.md` yourself — the analysis is
+  Do not work around it by editing the analysis yourself — the analysis is
   `/acs:analyze-requirements`'s artifact; a stale one is re-run there.
-- `analysis.md` absent — the survey assesses the surface from the plan (or
+- the analysis absent — the survey assesses the surface from the plan (or
   the subject) and the code alone.
 
 Parse the printed context JSON. Fields you will use:
@@ -138,9 +138,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 
 It resolves by the run the checkout points at (`--run <run-id>` names
 another): design records in `<architecture_dir>/lld/<feature>/<id>/`,
-Development documents (`plan.md`, `test-cases.md`, the run's `analysis.md`) in
-`<development_dir>/<feature>/<id>/`, the feature's living analysis in
-`<prd_dir>/features/<feature>/analysis.md` (`feature_analysis`), and a legacy
+Development documents (`plan.md`, `test-cases.md`, the run's `analysis/`
+folder) in `<development_dir>/<feature>/<id>/`, the feature's living analysis
+in `<prd_dir>/features/<feature>/analysis/` (`feature_analysis`, its
+`README.md`), and a legacy
 `docs/tickets/<ID>/` file only when the new folder has none.
 
 - `artifacts["api-contract.md"]` non-null → that existing file is the contract;
@@ -151,7 +152,8 @@ Development documents (`plan.md`, `test-cases.md`, the run's `analysis.md`) in
 - else → publish to `<partition>/api-contract.md`.
 
 Call it `<contract_path>`; record it as `states.contract_path`. The same call
-reports `artifacts["plan.md"]` and `artifacts["analysis.md"]` — the exact paths
+reports `artifacts["plan.md"]` and `artifacts["analysis.md"]` (the analysis
+folder's `README.md`; `analysis_files` lists its context files) — the exact paths
 the gate resolved (`null` when one does not exist). Pass THOSE paths to every
 subagent `<inputs>`; do not
 re-derive them.
@@ -231,10 +233,12 @@ body); an input that does not exist is named as absent, never invented:
    its executor tasks, file map and API/data-changes content are the scope
    boundary. A surface the plan does not touch is out of scope, however
    tempting. With no plan, the requirements' acceptance criteria are the boundary.
-2. `analysis.md`, when it exists — the API-surface assessment and its
+2. The analysis, when it exists — the API-surface assessment and its
    evidence, the impact map, the assumptions and the refined acceptance
    criteria — and the feature's living analysis (`feature_analysis`) when one
-   exists.
+   exists. Each is a folder (ADR-0133): read its `README.md` first, then only
+   the context files whose API notes touch the surface; a legacy single
+   `analysis.md` is read whole.
 3. The requirements document (`requirements.path`, the run's
    `requirements.md`) — the acceptance criteria every item traces to.
 4. `<design_doc>` when `design.required` — interface decisions the
@@ -511,7 +515,7 @@ spawn:
 Spawn `acs:create-api-contract-contract-reviewer` AFTER the draft is written,
 with `<inputs>` of the draft, the authoring notes (`iter-<n>/authoring.md`),
 the contract-author report (`iter-<n>/contract-author.json`), `plan.md` and
-`analysis.md` when they exist, `requirements.md`, `design.md` when it binds,
+the analysis (`README.md` and its context files) when they exist, `requirements.md`, `design.md` when it binds,
 and every contract file the contract-author touched. It judges fresh — never
 forward the contract-author's reasoning — re-derives the surface from the plan
 (or the subject) and the code itself, and writes

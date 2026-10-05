@@ -189,9 +189,11 @@ tedious.
 The coordinator reads the requirements (`requirements.path` — the raw request,
 the documents, or the imported remote issue), the codebase, the PRD, the roadmap
 and — when the request names or traces to a PRD feature that has one — the
-feature's living analysis (`<prd_dir>/features/<feature>/analysis.md`, written by
-`/acs:analyze-requirements` in Discovery): its refined acceptance criteria, impact
-map and `needs_design` reasoning seed the proposal. Produce a complete proposal:
+feature's living analysis (`<prd_dir>/features/<feature>/analysis/`, written by
+`/acs:analyze-requirements` in Discovery — its `README.md` first, then only the
+context files the request touches; a legacy single `analysis.md` whole): its
+refined acceptance criteria, impact map and `needs_design` reasoning seed the
+proposal. Produce a complete proposal:
 
 - `type` (epic / story / task), `title`, `description` outline, `acceptance_criteria`
   (array of testable strings), `priority`, `story_points`

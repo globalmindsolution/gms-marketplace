@@ -23,11 +23,12 @@ skill reads is derived from this record, not asserted by an agent.
 first (it exists, its block is valid, the move is legal) and none is written
 when any is refused. `list_documents` is the deterministic lister behind
 `acs.py design list` and /acs:set-doc-status: the Discovery documents (PRD,
-roadmap, feature analyses) and the Design documents (HLD, each feature's living
+roadmap, each feature's living analysis folder) and the Design documents (HLD, each feature's living
 LLD), grouped by phase and doc set, each with the moves it may make.
 """
 
 import os
+import posixpath
 import re
 
 from ._common import GateError, TICKET_ID_RE, _ISO_INSTANT, now_iso
@@ -272,8 +273,14 @@ def candidates(root, settings=None):
     out = [("discovery", os.path.join(prd, name)) for name in ("prd.md", "roadmap.md")
            if os.path.isfile(os.path.join(prd, name))]
     features = os.path.join(prd, doc_layout.FEATURES_DIRNAME)
-    out += [("discovery", os.path.join(features, f, "analysis.md")) for f in _subdirs(features)
-            if os.path.isfile(os.path.join(features, f, "analysis.md"))]
+    for f in _subdirs(features):
+        # A feature's living analysis: its folder's files (ADR-0133), and the
+        # single analysis.md of before it while one is still there.
+        legacy = os.path.join(features, f, doc_layout.LEGACY_ANALYSIS_FILENAME)
+        if os.path.isfile(legacy):
+            out.append(("discovery", legacy))
+        out += [("discovery", p) for p in _md_files(
+            os.path.join(features, f, doc_layout.ANALYSIS_DIRNAME), recursive=False)]
     out += [("design", p) for p in _md_files(os.path.join(arch, "hld"), recursive=False)]
     lld = os.path.join(arch, doc_layout.LLD_DIRNAME)
     for feature in _subdirs(lld):
@@ -297,6 +304,12 @@ def _entry(root, path):
     return rel, front, {"path": rel, "status": status if status in STATUSES else None,
                         "version": (front or {}).get("version"), "problems": found,
                         "allowed": allowed}
+
+
+def _readme_first(entry):
+    """Path order, with a folder's README.md before everything else in it."""
+    folder, name = posixpath.split(entry["path"])
+    return folder + "/" + ("\0" if name.lower() == "readme.md" else name)
 
 
 def list_documents(root, phase=None, feature=None, settings=None):
@@ -328,6 +341,7 @@ def list_documents(root, phase=None, feature=None, settings=None):
     ordered = sorted(groups, key=lambda pk: (PHASES.index(pk[0]), doc_order(pk[1])))
     out = []
     for pk in ordered:
-        groups[pk]["docs"].sort(key=lambda e: e["path"])
+        # By path, a folder's README first (an analysis folder opens with it).
+        groups[pk]["docs"].sort(key=_readme_first)
         out.append(groups[pk])
     return {"ok": True, "groups": out}

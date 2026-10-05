@@ -2,10 +2,13 @@
 
 IDEAL does what /acs:analyze-requirements' coordinator does, through the
 plugin's own writers where they exist: `acs step start`, `clarify.py add` for
-each answer the prompt relayed, the draft in the step directory, the Publish
-copy into docs/development/customer-listing/EVAL-1/ left uncommitted on main (no branch, no
-commit -- ADR-0127), then result.json with `files` and the post-hook. The analyst's and impact reviewer's own phase
-files are workspace detail no grader reads, so only the draft is played.
+each answer the prompt relayed, the draft FOLDER in the step directory (a
+README plus one file per bounded context -- ADR-0133; here one context,
+customer-listing.md, as the prompt names it), the Publish copy into
+docs/development/customer-listing/EVAL-1/analysis/ left uncommitted on main (no
+branch, no commit -- ADR-0127), then result.json with `files` and the
+post-hook. The analyst's and impact reviewer's own phase files are workspace
+detail no grader reads, so only the draft is played.
 """
 
 import json
@@ -15,9 +18,10 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-cursor-pagination-for-get-customers"
-PUBLISHED = "docs/development/customer-listing/EVAL-1/analysis.md"
+PUBLISHED = "docs/development/customer-listing/EVAL-1/analysis"
+DRAFT = STEP + "/iter-1/analysis"
 
-ANALYSIS = """---
+README = """---
 ticket: EVAL-1
 ready_for_planning: true
 api_surface: true
@@ -26,11 +30,45 @@ needs_design_recommendation: false
 
 # Analysis — EVAL-1: Cursor pagination for GET /customers
 
-## Problem restated
+## Scope and summary
 
 Offset paging on GET /customers skips or repeats customers when rows are
 inserted between page requests. Clients need an opaque cursor that walks every
 customer exactly once, while existing offset clients keep working.
+
+## Contexts
+
+| Context | File | Purpose |
+|---|---|---|
+| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |
+
+## Refined acceptance criteria
+
+The three criteria on the ticket are confirmed as written.
+
+## Cross-cutting risks and decisions
+
+- api_surface true: GET /customers is a documented public endpoint.
+
+## Questions and assumptions
+
+- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.
+- C-2 offset compatibility — answered: kept, deprecated; cursor wins.
+- C-3 limit bounds — answered: default 20, maximum 100.
+- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.
+
+No assumptions.
+
+## Verdict
+
+Ready for planning; api_surface true; no design needed.
+"""
+
+CONTEXT = """---
+context: customer-listing
+---
+
+# Customer listing
 
 ## Impact map
 
@@ -40,30 +78,34 @@ customer exactly once, while existing offset clients keep working.
 | tests/test_customers.py | tests | new unit tests for cursor paging | tests/ holds only test_health.py |
 | README.md | docs | API section documents `cursor` and `next_cursor` | README.md:7 |
 
-## Questions
+## Rules and edge cases
 
-- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.
-- C-2 offset compatibility — answered: kept, deprecated; cursor wins.
-- C-3 limit bounds — answered: default 20, maximum 100.
-- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.
-
-## Assumptions
-
-_None._
+- `cursor` wins when both `cursor` and `offset` are given.
 
 ## Risks
 
 - Public API: GET /customers is documented in README.md and called by
   clients; `offset` must keep working (src/shop/__init__.py, README.md).
 
-## Refined acceptance criteria
+## Open questions
 
-The three criteria on the ticket are confirmed as written.
+_None._
 
-## Verdict
+## API notes
 
-Ready for planning; api_surface true; no design needed.
+- GET /customers gains `cursor`; responses carry `next_cursor`; a malformed
+  cursor is HTTP 400 `invalid_cursor`.
 """
+
+ANALYSIS = {"README.md": README, "customer-listing.md": CONTEXT}
+
+
+def _draft_and_publish(ws, files, target=PUBLISHED):
+    """The draft folder, then the publish copy: every file, byte for byte."""
+    for name, text in files.items():
+        ws.write(DRAFT + "/" + name, text)
+    ws.sh('mkdir -p "%s" && cp "%s"/*.md "%s"/' % (target, DRAFT, target))
+
 
 ANSWERS = [
     ("How is the cursor encoded?", "URL-safe base64 of the last customer id"),
@@ -87,7 +129,7 @@ def _start(ws):
     shown = ws.acs("artifacts", "show")
     assert shown.returncode == 0, shown.stderr
     target = json.loads(shown.stdout)["paths"]["analysis.md"]
-    assert target.replace(os.sep, "/").endswith(PUBLISHED), target
+    assert target.replace(os.sep, "/").endswith(PUBLISHED + "/README.md"), target
 
 
 def _finish(ws, status="completed", api_surface=True):
@@ -106,8 +148,7 @@ def IDEAL(ws):
     for question, answer in ANSWERS:
         ws.sh('python3 "%s/clarify.py" add --skill analyze-requirements --ticket EVAL-1 '
               '--question "%s" --answer "%s"' % (SCRIPTS, question, answer))
-    ws.write(STEP + "/analysis.md", ANALYSIS)
-    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/analysis.md" "%s"' % (STEP, PUBLISHED))
+    _draft_and_publish(ws, ANALYSIS)
     _finish(ws)
 
 
@@ -119,8 +160,8 @@ def _prose_on_main(ws):
     """Wrote an analysis by hand and committed it: no front matter, no impact
     map from the code, and the step never finished."""
     _start(ws)
-    ws.write(PUBLISHED, "# Analysis of EVAL-1\n\nAdd a cursor to GET /customers. "
-                        "Low risk; no API change.\n")
+    ws.write(PUBLISHED + "/README.md", "# Analysis of EVAL-1\n\nAdd a cursor to GET /customers. "
+                                     "Low risk; no API change.\n")
     ws.sh("git add docs && git commit -qm 'analysis'")
 
 
@@ -128,8 +169,8 @@ def _api_surface_false(ws):
     """Ran the whole flow but declared no API surface, so the contract step
     would be skipped."""
     _start(ws)
-    ws.write(STEP + "/analysis.md", ANALYSIS.replace("api_surface: true", "api_surface: false"))
-    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/analysis.md" "%s"' % (STEP, PUBLISHED))
+    _draft_and_publish(ws, dict(ANALYSIS, **{
+        "README.md": README.replace("api_surface: true", "api_surface: false")}))
     _finish(ws, api_surface=False)
 
 
@@ -154,10 +195,33 @@ def _published_to_the_legacy_folder(ws):
     """The pre-ADR-0128 target: everything right, but published to the
     retired ticket docs tree."""
     _start(ws)
-    ws.write(STEP + "/analysis.md", ANALYSIS)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md'
-          % STEP)
+    _draft_and_publish(ws, ANALYSIS, "docs/tickets/EVAL-1/analysis")
     _finish(ws)
 
 
 BAD["published to the legacy docs/tickets folder"] = _published_to_the_legacy_folder
+
+
+def _one_long_file(ws):
+    """The pre-ADR-0133 shape: one analysis.md with every section, no
+    folder, no README, no context file."""
+    _start(ws)
+    ws.write(STEP + "/analysis.md", README + CONTEXT.split("---\n", 2)[2])
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1 && cp "%s/analysis.md" '
+          'docs/development/customer-listing/EVAL-1/analysis.md' % STEP)
+    _finish(ws)
+
+
+BAD["published one long analysis.md instead of a folder"] = _one_long_file
+
+
+def _context_left_out_of_the_table(ws):
+    """A folder whose README does not link its context file."""
+    _start(ws)
+    _draft_and_publish(ws, dict(ANALYSIS, **{
+        "README.md": README.replace("[customer-listing.md](customer-listing.md)",
+                                    "customer listing")}))
+    _finish(ws)
+
+
+BAD["README's contexts table does not link the context file"] = _context_left_out_of_the_table

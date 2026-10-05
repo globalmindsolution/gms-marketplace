@@ -430,7 +430,14 @@ class TestDocLayout(RequirementsCase):
             join(self.repo, "docs", "architecture", "lld", "export", "r-1", "api-contract.md"))
         self.assertEqual(
             doc_layout.document_target(self.repo, "analysis.md", "export", "r-1", "discovery"),
-            join(self.repo, "docs", "product", "features", "export", "analysis.md"))
+            join(self.repo, "docs", "product", "features", "export", "analysis", "README.md"))
+        self.assertEqual(
+            doc_layout.document_target(self.repo, "analysis.md", "export", "r-1"),
+            join(self.repo, "docs", "development", "export", "r-1", "analysis", "README.md"))
+        self.assertEqual(
+            doc_layout.document_candidates(self.repo, "analysis.md", "export", "r-1")[1],
+            join(self.repo, "docs", "development", "export", "r-1", "analysis.md"),
+            "the single file of before ADR-0133 is still read")
         self.assertIsNone(doc_layout.document_target(self.repo, "plan.md", None, "r-1"))
         self.assertIsNone(doc_layout.document_target(self.repo, "ticket.md", "export", "r"))
         self.assertEqual(
@@ -531,7 +538,9 @@ class TestRunDocs(RequirementsCase):
         self.assertEqual((layout["feature"], layout["phase"], layout["key"]),
                          ("wishlist", "development", tid))
         self.assertEqual(layout["paths"]["plan.md"], os.path.join(dev, "plan.md"))
-        self.assertEqual(layout["paths"]["analysis.md"], os.path.join(dev, "analysis.md"))
+        self.assertEqual(layout["paths"]["analysis.md"],
+                         os.path.join(dev, "analysis", "README.md"))
+        self.assertEqual(layout["analysis_target_dir"], os.path.join(dev, "analysis"))
         self.assertEqual(layout["paths"]["design.md"], os.path.join(
             self.repo, "docs", "architecture", "lld", "wishlist", tid, "design.md"))
         self.assertEqual(layout["artifacts"]["plan.md"], legacy, "legacy read fallback")
@@ -544,11 +553,24 @@ class TestRunDocs(RequirementsCase):
         self.assertIsNone(layout["feature"])
         self.assertTrue(all(v is None for v in layout["paths"].values()))
         R.refine(rdir, self.ctx(), {"feature": "export"})
-        living = self.write("docs/product/features/export/analysis.md", "# a\n")
+        legacy = self.write("docs/product/features/export/analysis.md", "# a\n")
         layout = run_docs.run_layout(self.ctx(), rdir)
         self.assertEqual(layout["phase"], "discovery")
+        living = os.path.join(self.repo, "docs", "product", "features", "export", "analysis",
+                              "README.md")
         self.assertEqual(layout["paths"]["analysis.md"], living)
+        # The single file of before ADR-0133 is still read while no folder exists.
+        self.assertEqual(layout["feature_analysis"], legacy)
+        self.assertEqual(layout["artifacts"]["analysis.md"], legacy)
+        self.assertEqual(layout["analysis_files"], [legacy])
+        self.assertIsNone(layout["analysis_dir"])
+        self.write("docs/product/features/export/analysis/README.md", "# b\n")
+        self.write("docs/product/features/export/analysis/order-export.md", "# c\n")
+        layout = run_docs.run_layout(self.ctx(), rdir)
         self.assertEqual(layout["feature_analysis"], living)
+        self.assertEqual(layout["artifacts"]["analysis.md"], living)
+        self.assertEqual(layout["feature_analysis_files"], [
+            living, os.path.join(os.path.dirname(living), "order-export.md")])
         run_id = os.path.basename(rdir)
         self.assertEqual(layout["paths"]["plan.md"], os.path.join(
             self.repo, "docs", "development", "export", run_id, "plan.md"))
@@ -816,9 +838,13 @@ class TestRunDocsAreAGuardControlInput(FileMapGuardCase):
                 self.assertEqual(out.returncode, 2, out.stderr)
                 self.assertIn("this run's documents", out.stderr)
         self.assertEqual(self.write_attempt("docs/development/other.md").returncode, 0)
-        living = self.write_attempt("docs/product/features/ship-it/analysis.md")
-        self.assertEqual(living.returncode, 2, living.stderr)
-        self.assertIn("living analysis", living.stderr)
+        for path in ("docs/product/features/ship-it/analysis.md",
+                     "docs/product/features/ship-it/analysis/README.md",
+                     "docs/product/features/ship-it/analysis/order-export.md"):
+            with self.subTest(path=path):
+                living = self.write_attempt(path)
+                self.assertEqual(living.returncode, 2, living.stderr)
+                self.assertIn("living analysis", living.stderr)
 
 
 class TestCommitPlanDocSets(unittest.TestCase):

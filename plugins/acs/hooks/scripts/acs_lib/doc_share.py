@@ -28,6 +28,7 @@ refused, never guessed.
 """
 
 import os
+import posixpath
 
 from ._common import GateError, now_iso, read_json, write_json
 from . import doc_layout
@@ -60,10 +61,22 @@ DECIDE_HINT = "acs.py docs decide"
 
 def local_path(rdir, name):
     """`<run>/steps/<skill>/local/<name>` (absolute), or None without a run or
-    for a document that is never kept local."""
+    for a document that is never kept local. The analysis is a folder
+    (ADR-0133): its local path is `local/analysis/README.md`."""
     if not rdir or name not in LOCAL_STEPS:
         return None
-    return os.path.join(step_dir(rdir, LOCAL_STEPS[name]), LOCAL_DIRNAME, name)
+    base = os.path.join(step_dir(rdir, LOCAL_STEPS[name]), LOCAL_DIRNAME)
+    if name == "analysis.md":
+        return os.path.join(base, doc_layout.ANALYSIS_DIRNAME, doc_layout.ANALYSIS_ENTRY)
+    return os.path.join(base, name)
+
+
+def _folder_of(doc, path):
+    """For the analysis (a folder, ADR-0133) the folder its entry `path` is
+    in; any other document's `path` unchanged."""
+    if doc != "analysis.md" or not path:
+        return path
+    return os.path.dirname(path) if os.path.isabs(path) else posixpath.dirname(path)
 
 
 def scope_files(cwd):
@@ -153,7 +166,11 @@ def where(ctx, doc, rdir=None, layout=None):
     `path` is repo-relative when shared and run-relative when local; it is
     None while `needs` is non-empty (or, shared, while the run has no feature
     to file under). `proposed_path` is the folder a location question
-    proposes. `layout` is a `run_docs.run_layout` already computed."""
+    proposes. `layout` is a `run_docs.run_layout` already computed.
+
+    For `analysis.md` -- a folder since ADR-0133 -- `path`, `abs_path`,
+    `shared_path` and `local_path` name the analysis FOLDER, and
+    `entry_path` / `abs_entry_path` its README.md."""
     if doc not in DOC_CHOICES:
         raise GateError("unknown document %r (one of %s)" % (doc, ", ".join(DOC_CHOICES)))
     root = ctx.get("checkout_root")
@@ -207,15 +224,19 @@ def where(ctx, doc, rdir=None, layout=None):
                     else None)
     else:
         path, abs_path = _run_rel(rdir, local_abs), local_abs
-    return {
+    out = {
         "doc": doc, "kind": "living" if living else "run", "run_id": run_id,
-        "feature": feature, "path": path, "abs_path": abs_path,
+        "feature": feature, "path": _folder_of(doc, path),
+        "abs_path": _folder_of(doc, abs_path),
         "share": share, "share_scope": scope, "share_file": sfile,
         "location_kind": kind_of, "location": location["path"],
         "location_source": location["source"], "needs": needs,
-        "proposed_path": location["path"], "shared_path": shared_rel,
-        "local_path": _run_rel(rdir, local_abs), "decide": DECIDE_HINT,
+        "proposed_path": location["path"], "shared_path": _folder_of(doc, shared_rel),
+        "local_path": _folder_of(doc, _run_rel(rdir, local_abs)), "decide": DECIDE_HINT,
     }
+    if doc == "analysis.md":
+        out.update(entry_path=path, abs_entry_path=abs_path)
+    return out
 
 
 def overview(ctx, rdir=None):

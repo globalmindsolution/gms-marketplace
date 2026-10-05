@@ -60,10 +60,18 @@ area has its own impact analyst.
    slow or flaky suites in the area — each with its evidence. Name a
    load-bearing surface explicitly, with its paths.
 5. **Seams.** Every crossing into another area, cited on both sides.
+6. **Contexts.** Name the bounded context each impact entry belongs to, in
+   plain words — the part of the product whose rules the file serves
+   (`Order checkout`, `Payment refunds`), never the directory or the layer.
+   One area can hold several contexts, and a context can span areas; the
+   analyst's synthesis settles the final list, and the analysis gets one file
+   per context, so a consistent name per context is what lets it group your
+   rows.
 
 **Reuse.** When `<inputs>` names the previously published analysis (or the
-feature's living analysis), start from its impact-map rows that fall in your
-area: re-verify each against the current
+feature's living analysis), start from the impact-map rows of its context
+files (or of a legacy single `analysis.md`) that fall in your area, keeping
+their context names: re-verify each against the current
 code — still true / changed / gone — with the evidence you opened now, and
 record the differences under `## Changes since the last analysis`.
 
@@ -79,7 +87,8 @@ Write your notes with the Write tool to
 task's `slice`), using exactly these `## ` headings so `acs.py analysis
 record-survey` joins them with every other lane's into `iter-1/authoring.md`:
 
-- `## Impact surface` — a table: path → component → change → evidence.
+- `## Impact surface` — a table: path → component → context → change →
+  evidence.
 - `## Tests` — the suites and files that judge the change.
 - `## API-surface assessment` — this area's evidence, cited.
 - `## Risks` — code risks, cited; load-bearing surfaces named.
@@ -95,6 +104,7 @@ always 1 — you run in the survey only):
 ```json
 {
   "area": "api",
+  "contexts": ["CSV import"],
   "impact_paths": ["src/import/api.py", "tests/test_import_api.py"],
   "api_surface": true,
   "seams": ["src/import/api.py:88 -> web/src/upload.ts:12"],
@@ -102,7 +112,8 @@ always 1 — you run in the survey only):
 }
 ```
 
-`impact_paths` is your impact surface's first column, verbatim. A survey entry
+`impact_paths` is your impact surface's first column, verbatim; `contexts`
+lists the context names your rows use. A survey entry
 you could not confirm is a `problems` entry, not a row.
 
 ## Output contract

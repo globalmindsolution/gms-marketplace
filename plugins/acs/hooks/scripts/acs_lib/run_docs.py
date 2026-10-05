@@ -5,8 +5,10 @@ Resolved by run, not by ticket: the run's feature (refined, else its ticket's
 first), its phase (Discovery or Development, `requirements.run_phase`) and its
 key (the ticket id, else the run id) place every document:
 
-  analysis.md                Discovery: <prd_dir>/features/<f>/analysis.md
-                             Development: <development_dir>/<f>/<key>/analysis.md
+  analysis.md                a FOLDER since ADR-0133 -- README.md plus one file
+                             per bounded context; the key names its README.md:
+                             Discovery: <prd_dir>/features/<f>/analysis/README.md
+                             Development: <development_dir>/<f>/<key>/analysis/README.md
   plan.md, test-cases.md     <development_dir>/<f>/<key>/
   design.md, api-contract.md <architecture_dir>/lld/<f>/<key>/
 
@@ -21,12 +23,18 @@ target when documents are SHARED, the run's own `steps/<skill>/local/<name>`
 when they are kept LOCAL, and None -- with `needs[name]` naming the open
 question -- while the share choice or a not-yet-existing folder is undecided.
 `artifacts[name]` reads the existing file wherever it is.
+
+For the analysis, `artifacts["analysis.md"]` is the folder's README.md (a
+legacy single `analysis.md` -- beside the folder, in docs/tickets/<ID>/ or the
+partition -- when no folder has one), `analysis_files` every file of it,
+README first, `analysis_dir` the folder it is (None for a legacy single file),
+and `analysis_target_dir` the folder a new analysis is published to.
 """
 
 import os
 
 from ._common import GateError, read_json
-from . import doc_layout, doc_share
+from . import analysis_folder, doc_layout, doc_share
 from .repo import find_ticket_partition
 from .run import load_run
 
@@ -86,6 +94,10 @@ def run_layout(ctx, rdir=None, doc=None, ticket_id=None):
         order = [local[name], shared[name]] if info["share"] is False \
             else [shared[name], local[name]]
         candidates = [c for c in order if c]
+        if name == "analysis.md":
+            # A folder's README.md first, then the single file it replaced.
+            candidates = [p for c in candidates
+                          for p in (c, analysis_folder.legacy_sibling(c)) if p]
         legacy = doc_layout.legacy_ticket_dir(root, ticket_id)
         if legacy:
             candidates.append(os.path.join(legacy, name))
@@ -93,8 +105,10 @@ def run_layout(ctx, rdir=None, doc=None, ticket_id=None):
             candidates.append(os.path.join(tdir, name))
             candidates += [os.path.join(tdir, rel) for rel in _PARTITION_LEGACY.get(name, ())]
         found[name] = next((c for c in candidates if os.path.isfile(c)), None)
-    living = doc_layout.feature_analysis_path(root, feature, settings) if feature else None
+    living = doc_layout.existing_feature_analysis(root, feature, settings) if feature else None
     legacy = doc_layout.legacy_ticket_dir(root, ticket_id)
+    analysis = found.get("analysis.md")
+    target = paths.get("analysis.md")
     return {
         "run_id": doc.get("run_id"), "ticket_id": ticket_id, "feature": feature,
         "phase": phase, "key": key,
@@ -102,7 +116,11 @@ def run_layout(ctx, rdir=None, doc=None, ticket_id=None):
         "architecture_dir": doc_layout.architecture_dir(root, settings) if root else None,
         "development_dir": doc_layout.development_dir(root, settings) if root else None,
         "feature_dir": doc_layout.feature_dir(root, feature, settings),
-        "feature_analysis": living if living and os.path.isfile(living) else None,
+        "feature_analysis": living,
+        "feature_analysis_files": analysis_folder.file_list(living),
+        "analysis_files": analysis_folder.file_list(analysis),
+        "analysis_dir": analysis_folder.entry_folder(analysis),
+        "analysis_target_dir": os.path.dirname(target) if target else None,
         "docs_dir": doc_layout.development_run_dir(root, feature, key, settings),
         "design_dir": doc_layout.design_run_dir(root, feature, key, settings),
         "legacy_dir": legacy if legacy and os.path.isdir(legacy) else None,

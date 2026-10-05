@@ -5,7 +5,7 @@ in a repo with no saved document choice (ADR-0132), through the plugin's own
 CLIs: `acs step start`, `acs.py docs where --doc analysis.md` (which must
 report both questions open, proposing the built-in default folder),
 `clarify.py add` for every relayed answer, `acs.py docs decide` with the
-team's answers, then the draft, the publish into the folder `decide` resolved,
+team's answers, then the draft folder, the publish into the folder `decide` resolved,
 and result.json with `files` and the post-hook. The real `where`/`decide`
 calls are the point: a change to their keys or to what `decide` writes fails
 here, for free.
@@ -17,10 +17,11 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
-PUBLISHED = "docs/changes/customer-listing/EVAL-1/analysis.md"
-DEFAULT = "docs/development/customer-listing/EVAL-1/analysis.md"
+PUBLISHED = "docs/changes/customer-listing/EVAL-1/analysis"
+DEFAULT = "docs/development/customer-listing/EVAL-1/analysis"
+DRAFT = STEP + "/iter-1/analysis"
 
-ANALYSIS = """---
+README = """---
 ticket: EVAL-1
 ready_for_planning: true
 api_surface: true
@@ -29,11 +30,46 @@ needs_design_recommendation: false
 
 # Analysis — EVAL-1: Cursor pagination for GET /customers
 
-## Problem restated
+## Scope and summary
 
 Offset paging on GET /customers skips or repeats customers when rows are
 inserted between page requests. Clients need an opaque cursor that walks every
 customer exactly once, while existing offset clients keep working.
+
+## Contexts
+
+| Context | File | Purpose |
+|---|---|---|
+| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |
+
+## Refined acceptance criteria
+
+The three criteria on the ticket are confirmed as written.
+
+## Cross-cutting risks and decisions
+
+- Public API: GET /customers is documented in README.md and called by
+  clients; `offset` must keep working (src/shop/__init__.py, README.md).
+
+## Questions and assumptions
+
+- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.
+- C-2 offset compatibility — answered: kept, deprecated; cursor wins.
+- C-3 limit bounds — answered: default 20, maximum 100.
+- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.
+
+Assumptions: none.
+
+## Verdict
+
+Ready for planning; api_surface true; no design needed.
+"""
+
+CONTEXT = """---
+context: customer-listing
+---
+
+# Customer listing
 
 ## Impact map
 
@@ -43,14 +79,7 @@ customer exactly once, while existing offset clients keep working.
 | tests/test_customers.py | tests | new unit tests for cursor paging | tests/ holds only test_health.py |
 | README.md | docs | API section documents `cursor` and `next_cursor` | README.md:7 |
 
-## Questions
-
-- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.
-- C-2 offset compatibility — answered: kept, deprecated; cursor wins.
-- C-3 limit bounds — answered: default 20, maximum 100.
-- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.
-
-## Assumptions
+## Rules and edge cases
 
 _None._
 
@@ -59,14 +88,17 @@ _None._
 - Public API: GET /customers is documented in README.md and called by
   clients; `offset` must keep working (src/shop/__init__.py, README.md).
 
-## Refined acceptance criteria
+## Open questions
 
-The three criteria on the ticket are confirmed as written.
+_None._
 
-## Verdict
+## API notes
 
-Ready for planning; api_surface true; no design needed.
+_None._
 """
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "customer-listing.md": CONTEXT}
 
 ANSWERS = [
     ("How is the cursor encoded?", "URL-safe base64 of the last customer id"),
@@ -115,8 +147,10 @@ def _decide(ws, *args):
 
 
 def _publish(ws, target):
-    ws.write(STEP + "/analysis.md", ANALYSIS)
-    ws.sh('mkdir -p "$(dirname "%s")" && cp "%s/analysis.md" "%s"' % (target, STEP, target))
+    """The draft folder, then the publish copy of every file (ADR-0133)."""
+    for name, text in ANALYSIS.items():
+        ws.write(DRAFT + "/" + name, text)
+    ws.sh('mkdir -p "%s" && cp "%s"/*.md "%s"/' % (target, DRAFT, target))
 
 
 def _finish(ws):
@@ -136,7 +170,8 @@ def IDEAL(ws):
     assert info["needs"] == [] and info["share"] is True, info
     assert info["path"] == PUBLISHED, info
     shown = json.loads(ws.acs("artifacts", "show").stdout)
-    assert shown["paths"]["analysis.md"].replace(os.sep, "/").endswith(PUBLISHED), shown
+    assert shown["paths"]["analysis.md"].replace(os.sep, "/").endswith(
+        PUBLISHED + "/README.md"), shown
     _publish(ws, PUBLISHED)
     _finish(ws)
     ws.reply = ("## /acs:analyze-requirements · EVAL-1 · completed\n\n"

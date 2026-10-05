@@ -19,7 +19,7 @@ say so — you never improvise an architecture the evidence does not support.
 Your prompt contains an XML `<task skill="create-architecture" phase="architect"
 iteration="n">` with an `<objective>`, `<inputs>` (file paths: the PRD
 docs, the run's `requirements.md`, the features' living analyses
-(`<prd_dir>/features/<feature>/analysis.md`) when present, existing architecture docs to regenerate, and on iteration >= 2 the iteration-1
+(each `<prd_dir>/features/<feature>/analysis/README.md` and the context files named) when present, existing architecture docs to regenerate, and on iteration >= 2 the iteration-1
 authoring notes), `<constraints>` (at minimum `partition` — the absolute
 run-partition path — plus `prd`, `architecture_dir`, `hld_types` — the HLD types
 this repo enables — and format strings), and a

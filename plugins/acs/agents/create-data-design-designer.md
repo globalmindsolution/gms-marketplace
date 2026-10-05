@@ -20,7 +20,7 @@ incomplete you stop and say so; you never design data the evidence does not supp
 Your prompt contains an XML `<task skill="create-data-design" phase="designer"
 slice="…" ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (file paths:
 the requirements (`requirements.md`), the feature's living analysis,
-`analysis.md`/`design.md` when they exist, the HLD files —
+the analysis (its `README.md` and the context files named) and `design.md` when they exist, the HLD files —
 `hld/data-model.md` and `hld/cross-cutting.md` above all — the feature's `api/` and
 `data/` documents, and for the write pass the joined `iter-1/authoring.md` and
 `iter-1/gaps.md`), `<constraints>` (at minimum `partition` — the absolute

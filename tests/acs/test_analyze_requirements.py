@@ -5,12 +5,14 @@ enum) is tests/acs/test_build_test_skill_registry.py's; the gate bodies are
 tests/acs/test_acs_lib_gates.py's. THIS module pins the part that lives in
 markdown and would otherwise drift away from the deterministic layer:
 
-  * the analysis's front matter — the four keys, checked here with the SAME
-    checker and the SAME `--require` spec the SKILL.md tells the coordinator to
-    run, so the documented example actually passes it;
-  * the seven required sections, declared byte-identically in the skill and in
-    the impact reviewer's re-run, and linted here against a doc built from the skill's
-    own skeleton;
+  * the analysis is a FOLDER (ADR-0133): a README plus one file per bounded
+    context. The README's front matter -- the four keys -- and a context
+    file's `context` key are checked here with the SAME checker and the SAME
+    `--require` specs the SKILL.md shows, so the documented examples pass;
+  * the README's six and a context file's five required sections, declared
+    byte-identically in the skill, in the impact reviewer's re-run and in
+    `acs_lib.analysis_folder`, and a folder built from the skill's own
+    skeletons passes the controller's folder check;
   * the `states` keys the result document records, cross-checked against
     post-analyze-requirements.py's docstring;
   * independence: the skill points at workflows/ship.yaml for order and claims
@@ -77,10 +79,14 @@ ROLES = ("analyst", "impact-analyst", "impact-reviewer")
 #: The result-document keys the post-hook documents and the next steps read.
 STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open", "files")
 
-#: The seven headings, in order. Declared here so a reordering in the prose is
-#: a failure rather than a silent contract change.
-SECTIONS = ["Problem restated", "Impact map", "Questions", "Assumptions",
-            "Risks", "Refined acceptance criteria", "Verdict"]
+#: The README's six headings and a context file's five, in order. Declared
+#: here so a reordering in the prose is a failure rather than a silent
+#: contract change.
+SECTIONS = ["Scope and summary", "Contexts", "Refined acceptance criteria",
+            "Cross-cutting risks and decisions", "Questions and assumptions",
+            "Verdict"]
+CONTEXT_SECTIONS = ["Impact map", "Rules and edge cases", "Risks", "Open questions",
+                    "API notes"]
 
 #: The four front-matter keys the analysis publishes. `stakes_recommendation`
 #: left with the axis it set (ADR-0095).
@@ -134,7 +140,8 @@ class TestSkillFrontmatter(unittest.TestCase):
 
     def test_description_routes_on_what_it_produces(self):
         self.assertRegex(self.fm, r"(?m)^description: \S")
-        self.assertIn("analysis.md", self.fm)
+        self.assertIn("a README.md readable on its own plus one file per bounded "
+                      "context", self.fm)
 
     def test_description_routes_a_prompt_a_prd_feature_and_an_attached_spec(self):
         description = re.search(r"(?m)^description: (.*)$", self.fm).group(1)
@@ -250,8 +257,10 @@ class TestGateAgreement(unittest.TestCase):
 
 
 class TestAnalysisFrontMatterContract(unittest.TestCase):
-    """The machine-read half: four keys, and the documented example passes the
-    checker the skill tells the coordinator (and the impact reviewer) to run."""
+    """The machine-read half: the README's four keys and a context file's
+    `context`, and the documented examples pass the checker the skill shows
+    (and the impact reviewer re-runs) -- the same specs the controller's
+    folder check holds (`acs_lib.analysis_folder`)."""
 
     @classmethod
     def setUpClass(cls):
@@ -259,8 +268,10 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
         cls.specs = flag_values(cls.body, "--require")
         cls.example = doc_front_matter_example(cls.body)
 
-    def test_the_skill_declares_exactly_one_require_spec(self):
-        self.assertEqual(len(self.specs), 1, self.specs)
+    def test_the_skill_declares_a_readme_spec_and_a_context_spec(self):
+        self.assertEqual(len(self.specs), 2, self.specs)
+        self.assertEqual(self.specs[0], lib.analysis_folder.FRONT_MATTER_SPEC)
+        self.assertEqual(self.specs[1], lib.analysis_folder.CONTEXT_FRONT_MATTER_SPEC)
 
     def test_the_spec_declares_the_four_keys_with_their_types(self):
         spec = fmc.parse_spec(self.specs[0])
@@ -274,12 +285,19 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
                                           ticket="SHOP-123")
         self.assertEqual(findings, [])
 
+    def test_the_context_example_satisfies_the_context_spec(self):
+        for body in (self.body, agent("analyst")):
+            example = context_skeleton(body).split("\n---\n", 1)[0] + "\n---\n"
+            self.assertEqual(fmc.check_front_matter(example, fmc.parse_spec(self.specs[1])),
+                             [])
+
     def test_the_analyst_emits_the_same_four_keys(self):
         example = doc_front_matter_example(agent("analyst"))
         self.assertEqual(findings_of(example, self.specs[0]), [])
 
-    def test_the_impact_reviewer_re_runs_the_same_spec(self):
-        self.assertIn(self.specs[0], agent("impact-reviewer"))
+    def test_the_impact_reviewer_re_runs_the_same_specs(self):
+        for spec in self.specs:
+            self.assertIn(spec, agent("impact-reviewer"))
 
     def test_a_missing_api_surface_key_is_caught_by_that_spec(self):
         broken = re.sub(r"(?m)^api_surface: .*\n", "", self.example)
@@ -301,50 +319,92 @@ def findings_of(front_matter_text, spec):
 
 
 class TestAnalysisSectionContract(unittest.TestCase):
-    """The human-read half: seven sections, one declaration, linted for real."""
+    """The human-read half: six README sections and five per context file,
+    one declaration each, and a folder built from the skeletons passes the
+    controller's own folder check."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(SKILL_PATH)
         cls.sections = flag_values(cls.body, "--sections")
 
-    def test_the_skill_declares_the_seven_sections_in_order(self):
-        self.assertEqual(len(self.sections), 1, self.sections)
+    def test_the_skill_declares_both_section_lists_in_order(self):
+        self.assertEqual(len(self.sections), 2, self.sections)
         self.assertEqual([s.strip() for s in self.sections[0].split(";")], SECTIONS)
+        self.assertEqual([s.strip() for s in self.sections[1].split(";")],
+                         CONTEXT_SECTIONS)
 
-    def test_the_skeleton_in_the_skill_carries_those_headings_in_order(self):
-        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(self.body))
-        self.assertEqual(found, SECTIONS)
+    def test_the_declarations_are_the_controller_s(self):
+        self.assertEqual(tuple(SECTIONS), lib.analysis_folder.README_SECTIONS)
+        self.assertEqual(tuple(CONTEXT_SECTIONS), lib.analysis_folder.CONTEXT_SECTIONS)
 
-    def test_the_analyst_skeleton_matches_the_skill_skeleton(self):
-        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("analyst")))
-        self.assertEqual(found, SECTIONS)
+    def test_the_skeletons_in_the_skill_carry_those_headings_in_order(self):
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", doc_skeleton(self.body)), SECTIONS)
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", context_skeleton(self.body)),
+                         CONTEXT_SECTIONS)
 
-    def test_the_impact_reviewer_re_runs_the_same_section_list(self):
-        self.assertIn(self.sections[0], agent("impact-reviewer"))
+    def test_the_analyst_skeletons_match_the_skill_skeletons(self):
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("analyst"))),
+                         SECTIONS)
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", context_skeleton(agent("analyst"))),
+                         CONTEXT_SECTIONS)
 
-    def test_a_doc_built_from_the_skeleton_lints_clean(self):
-        doc = synthesized_analysis(SECTIONS)
-        self.assertEqual(structure_lint.lint_structure(doc, SECTIONS, ordered=True), [])
+    def test_the_impact_reviewer_re_runs_the_same_section_lists(self):
+        for sections in self.sections:
+            self.assertIn(sections, agent("impact-reviewer"))
 
-    def test_dropping_a_section_is_caught_by_that_declaration(self):
-        doc = synthesized_analysis([s for s in SECTIONS if s != "Risks"])
-        rules = [f.rule for f in structure_lint.lint_structure(doc, SECTIONS, ordered=True)]
-        self.assertEqual(rules, ["missing-section"])
+    def test_a_folder_built_from_the_skeletons_passes_the_folder_check(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            synthesized_folder(folder, self.body)
+            self.assertEqual(lib.analysis_folder.check_folder(folder, "SHOP-123"), [])
+
+    def test_dropping_a_section_or_a_link_is_caught(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            synthesized_folder(folder, self.body, drop="Risks")
+            texts = " ".join(f["text"] for f in
+                             lib.analysis_folder.check_folder(folder, "SHOP-123"))
+            self.assertIn("[missing-section]", texts)
+        with tempfile.TemporaryDirectory() as folder:
+            synthesized_folder(folder, self.body, unlinked=True)
+            self.assertTrue(lib.analysis_folder.check_folder(folder, "SHOP-123"))
 
 
 def doc_skeleton(body):
-    """The fenced markdown example that carries the doc's headings."""
+    """The fenced markdown example that carries the README's headings."""
     match = re.search(r"(?ms)^```markdown\n(---\nticket:.*?)```", body)
-    assert match, "no fenced doc skeleton found"
+    assert match, "no fenced README skeleton found"
     return match.group(1)
 
 
-def synthesized_analysis(sections):
-    lines = ["# Analysis — SHOP-123: Accept large imports", ""]
-    for name in sections:
-        lines += ["## %s" % name, "content for %s" % name, ""]
-    return "\n".join(lines)
+def context_skeleton(body):
+    """The fenced markdown example that carries a context file's headings."""
+    match = re.search(r"(?ms)^```markdown\n(---\ncontext:.*?)```", body)
+    assert match, "no fenced context-file skeleton found"
+    return match.group(1)
+
+
+def synthesized_folder(folder, body, drop=None, unlinked=False):
+    """README.md and one context file, built from the skill's own skeletons."""
+    context = re.search(r"(?m)^context: (\S+)$", context_skeleton(body)).group(1)
+    readme = doc_front_matter_example(body) + "\n# Analysis — SHOP-123: Accept large imports\n\n"
+    for name in SECTIONS:
+        readme += "## %s\n" % name
+        if name == "Contexts":
+            readme += ("\n| Context | File | Purpose |\n| --- | --- | --- |\n"
+                       "| It | [%s.md](%s.md) | the one context |\n\n"
+                       % ((context, context) if not unlinked else ("x", "x")))
+        else:
+            readme += "content for %s\n\n" % name
+    ctx = "---\ncontext: %s\n---\n\n# The context\n\n" % context
+    for name in CONTEXT_SECTIONS:
+        if name != drop:
+            ctx += "## %s\ncontent for %s\n\n" % (name, name)
+    with open(os.path.join(folder, "README.md"), "w", encoding="utf-8") as fh:
+        fh.write(readme)
+    with open(os.path.join(folder, context + ".md"), "w", encoding="utf-8") as fh:
+        fh.write(ctx)
 
 
 class TestResultDocument(unittest.TestCase):
@@ -520,8 +580,8 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("acs_lib/filemap.py", self.body)
 
     def test_the_analyst_is_barred_from_the_published_file(self):
-        self.assertRegex(agent("analyst"),
-                         r"NEVER the published\n  `analysis.md`")
+        self.assertIn("NEVER the published analysis folder (the controller "
+                      "publishes it)", norm(agent("analyst")))
 
 
 class TestSubagentShape(unittest.TestCase):
@@ -615,7 +675,10 @@ class TestParallelism(unittest.TestCase):
 
     def test_the_writer_stays_single_and_says_why(self):
         self.assertIn("Writer — one analyst, never sliced.", self.skill)
-        self.assertIn("`analysis.md` is a single document", self.skill)
+        self.assertIn("The analysis folder is one document in several files",
+                      self.skill)
+        self.assertIn("One analyst writes the whole folder on every iteration",
+                      self.skill)
 
     def test_every_fan_out_is_one_message_and_capped(self):
         self.assertIn("in ONE message (all foreground, in the same message)",
@@ -739,8 +802,9 @@ class TestParallelism(unittest.TestCase):
         self.assertIn("with one writer there is no integration pass to run", self.skill)
 
     def test_each_checker_runs_in_exactly_one_judge_slice(self):
-        self.assertIn("`front_matter_check.py` and `structure_lint.py` belong "
-                      "to `form`", self.reviewer)
+        self.assertIn("`front_matter_check.py` and `structure_lint.py` (on every "
+                      "file) and the folder's names and links belong to `form`",
+                      self.reviewer)
 
 
 def _pos(body, needle):
@@ -897,12 +961,11 @@ class TestThreeStages(unittest.TestCase):
         self.assertIn("Stage 2 skipped", self.skill)
 
     def test_the_draft_is_written_from_the_answers(self):
-        self.assertIn("`## Questions` lists every `C-n` with its answer or status",
-                      self.skill)
+        self.assertIn("the README's `## Questions and assumptions` lists every "
+                      "`C-n` with its answer or status and holds as assumptions "
+                      "only what the user did not answer", self.skill)
         self.assertIn("`## Refined acceptance criteria` states which criteria "
                       "were confirmed into the requirements", self.skill)
-        self.assertIn("`## Assumptions` holds only what the user did not answer",
-                      self.skill)
         self.assertIn("`confirmed (C-n)`", self.analyst)
         self.assertIn("Never present an unconfirmed rewrite as applied.",
                       self.analyst)
@@ -947,8 +1010,8 @@ class TestReviewerQuestionCoverage(unittest.TestCase):
         self.assertIn("**Questions and ticket coverage:** every item of the "
                       "notes' `## Questions for the user`", self.reviewer)
         self.assertIn("was either answered in the ledger or is carried in "
-                      "`## Questions` as an open or assumed `C-n` entry",
-                      self.reviewer)
+                      "`## Questions and assumptions` as an open or assumed "
+                      "`C-n` entry", self.reviewer)
 
     def test_confirmed_criteria_match_the_refined_requirements_and_the_ticket(self):
         self.assertIn("matches the refined requirements as `requirements.md`'s "
@@ -1043,9 +1106,9 @@ class TestTwoModes(unittest.TestCase):
     def test_the_modes_table_names_both_paths(self):
         self.assertIn("## Two modes — Discovery and Development", self.raw)
         self.assertLess(_pos(self.raw, "## Two modes"), _pos(self.raw, "## Start"))
-        self.assertIn("`<prd_dir>/features/<feature>/analysis.md` — the feature's "
+        self.assertIn("`<prd_dir>/features/<feature>/analysis/` — the feature's "
                       "**living analysis**", self.skill)
-        self.assertIn("`<development_dir>/<feature>/<ticket-id or run-id>/analysis.md`",
+        self.assertIn("`<development_dir>/<feature>/<ticket-id or run-id>/analysis/`",
                       self.skill)
         self.assertIn("`acs_lib.requirements.prd_dir` / `development_dir`", self.skill)
 
@@ -1066,7 +1129,8 @@ class TestTwoModes(unittest.TestCase):
     def test_nothing_is_published_to_the_legacy_ticket_folder(self):
         self.assertNotRegex(self.raw, r"published to `docs/tickets")
         self.assertNotIn("copies it to `docs/tickets", self.raw)
-        self.assertIn("nothing writes there any more", self.skill)
+        self.assertIn("nothing writes either any more — the revision is published "
+                      "as a folder", self.skill)
 
     def test_the_readers_of_each_analysis_are_named(self):
         tail = self.skill[_pos(self.skill, "**The published file is the reusable record.**"):]
@@ -1076,7 +1140,9 @@ class TestTwoModes(unittest.TestCase):
 
     def test_the_result_records_the_new_paths(self):
         block = re.search(r'(?s)"states": \{(.*?)\}', self.raw).group(1)
-        self.assertIn("docs/development/wishlist/SHOP-123/analysis.md", block)
+        self.assertIn("docs/development/wishlist/SHOP-123/analysis/README.md", block)
+        self.assertIn("docs/development/wishlist/SHOP-123/analysis/wishlist-sharing.md",
+                      block)
         self.assertNotIn("docs/tickets", block)
 
 
@@ -1146,10 +1212,87 @@ class TestTicketlessFrontMatter(unittest.TestCase):
         self.assertEqual(keys[4:], FRONT_MATTER_KEYS[1:])
 
     def test_the_skill_and_the_reviewer_say_feature_replaces_ticket(self):
-        self.assertIn("On a run with no ticket the first key is `feature: <slug>` in "
-                      "place of `ticket:`", norm(self.raw))
-        self.assertIn("On a run with no ticket, the spec names `feature: str` in "
-                      "place of `ticket: str`", norm(agent("impact-reviewer")))
+        self.assertIn("On a run with no ticket the README's first key is `feature: "
+                      "<slug>` in place of `ticket:`", norm(self.raw))
+        self.assertIn("On a run with no ticket, the README spec names `feature: "
+                      "str` in place of `ticket: str`", norm(agent("impact-reviewer")))
+
+
+class TestAnalysisIsAFolder(unittest.TestCase):
+    """ADR-0133: the analysis is a folder split by bounded context -- a README
+    readable on its own plus one plain-word kebab-case file per context -- and
+    every other skill reads the README first, then only the context files it
+    needs, with the legacy single file still read."""
+
+    READERS = ("create-impl-plan", "create-test-docs", "create-design",
+               "create-api-contract", "create-data-design", "create-flows",
+               "create-architecture", "create-ticket")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = read(SKILL_PATH)
+        cls.skill = norm(cls.raw)
+        cls.analyst = norm(agent("analyst"))
+        cls.impact = norm(agent("impact-analyst"))
+        cls.reviewer = norm(agent("impact-reviewer"))
+
+    def test_contexts_are_bounded_contexts_in_plain_words(self):
+        self.assertIn("### Contexts — how the analysis is split", self.raw)
+        self.assertIn("A **context** is a bounded context the requirements touch",
+                      self.skill)
+        self.assertIn("not a directory and not a layer", self.skill)
+        self.assertIn("Even a one-context analysis is a folder: a README plus that "
+                      "one file.", self.skill)
+        self.assertIn("Contexts come from the impact lanes' code areas and the PRD "
+                      "features together", self.skill)
+
+    def test_each_fact_lives_in_one_file_and_the_others_link(self):
+        self.assertIn("Each row, rule and risk lives in exactly ONE context file; "
+                      "another file that needs it links to it instead of repeating "
+                      "it.", self.skill)
+        self.assertIn("A context file never restates another's rows, rules or "
+                      "risks: it links to the file that owns them", self.analyst)
+        self.assertIn("The README summarizes and links — it never copies a context "
+                      "file's rows.", self.skill)
+
+    def test_the_survey_names_contexts_and_the_synthesis_settles_them(self):
+        self.assertIn("**Contexts.** Name the bounded context each impact entry "
+                      "belongs to, in plain words", self.impact)
+        self.assertIn("path → component → context → change → evidence", self.impact)
+        self.assertIn("Write a `## Contexts` section to the same file", self.analyst)
+        self.assertIn("Every impact row belongs to exactly ONE context", self.analyst)
+
+    def test_the_reviewer_judges_every_file_and_the_table(self):
+        self.assertIn("You judge EVERY file and the README's contexts table.",
+                      self.reviewer)
+        self.assertIn("every `## Contexts` link resolves and every context file is "
+                      "linked", self.reviewer)
+        self.assertIn("judges EVERY file plus the README's contexts table",
+                      self.skill)
+
+    def test_the_draft_folder_and_the_publication(self):
+        self.assertIn("`steps/analyze-requirements/iter-<n>/analysis/`", self.skill)
+        self.assertIn("copies every file of the draft folder byte-for-byte",
+                      self.skill)
+        self.assertIn("removes a context file the new analysis no longer has (only "
+                      "inside that folder)", self.skill)
+        self.assertNotIn("index.md`)", self.skill.replace("never an `index.md`)", ""))
+
+    def test_every_reader_opens_the_readme_first(self):
+        for skill in self.READERS:
+            with self.subTest(skill=skill):
+                body = norm(read(os.path.join(PLUGIN, "skills", skill, "SKILL.md")))
+                self.assertIn("README.md", body)
+                self.assertNotIn("features/<feature>/analysis.md", body)
+        protocol = norm(read(os.path.join(PLUGIN, "skills", "code", "references",
+                                          "protocol.md")))
+        self.assertIn("its `README.md` (`artifacts[\"analysis.md\"]`) first, then "
+                      "only the context files", protocol)
+        for skill in ("create-impl-plan", "create-test-docs", "create-design",
+                      "create-api-contract"):
+            with self.subTest(legacy=skill):
+                body = norm(read(os.path.join(PLUGIN, "skills", skill, "SKILL.md")))
+                self.assertIn("a legacy single `analysis.md` is read whole", body)
 
 
 if __name__ == "__main__":

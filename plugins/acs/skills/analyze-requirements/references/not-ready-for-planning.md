@@ -28,8 +28,8 @@ where every default could build the wrong thing is still open (a
 contradiction with the code, a design document or an ADR; a behaviour the
 acceptance criteria depend on that nothing defines; a fork in scope), the
 requirements contradict the design or the product docs, or the problem itself is
-undefined — set front-matter `ready_for_planning: false`, say exactly what is
-missing in `## Verdict`, and finish `interrupted` with
+undefined — set the README's front-matter `ready_for_planning: false`, say exactly
+what is missing in its `## Verdict`, and finish `interrupted` with
 `stop_reason: needs_input`:
 
 1. Record every outgoing question as `open` (`clarify.py add` without
@@ -37,7 +37,8 @@ missing in `## Verdict`, and finish `interrupted` with
 2. Report Stage 2 with `acs.py analysis record-clarify --blocking-open`, and
    follow the controller through Stage 3 anyway — the draft pass writes the
    analysis with `ready_for_planning: false` (the `draft` action carries the
-   reason as `not_ready`) and the open questions in `## Questions`, and the
+   reason as `not_ready`) and the open questions in the README's
+   `## Questions and assumptions`, and the
    `publish` action publishes it once it passed the impact review: a
    not-ready analysis is still the artifact the answers come back to, and
    the next run's survey starts from it. The loop then ends `blocked` with

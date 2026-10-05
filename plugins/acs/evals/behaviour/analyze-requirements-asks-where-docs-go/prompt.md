@@ -9,7 +9,7 @@ description: >-
 expected_outcome: >-
   .acs/settings.json still names ticket prefix EVAL and now records
   docs.share_run_documents true and docs.development_dir docs/changes; no
-  .acs/settings.local.json was created; docs/changes/customer-listing/EVAL-1/analysis.md
+  .acs/settings.local.json was created; docs/changes/customer-listing/EVAL-1/analysis/README.md
   exists and is recorded in the result's files; nothing was written under
   docs/development/; the step's state.json records the run completed.
 tags: [behaviour]

@@ -82,8 +82,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" artifacts show
 It resolves by the run the checkout points at (`--run <run-id>` names
 another): design records in `<architecture_dir>/lld/<feature>/<id>/`,
 Development documents in `<development_dir>/<feature>/<id>/`, the feature's
-living analysis in `<prd_dir>/features/<feature>/analysis.md`
-(`feature_analysis`), and a legacy `docs/tickets/<ID>/` file only when the new
+living analysis in `<prd_dir>/features/<feature>/analysis/`
+(`feature_analysis`, its `README.md`), and a legacy `docs/tickets/<ID>/` file only when the new
 folder has none — read only, nothing writes there.
 
 - `artifacts["design.md"]` non-null → that existing file is the design; this
@@ -140,10 +140,13 @@ Read (you and your designer; reference by path in XML, do not inline file bodies
 1. The requirements document (`requirements.path`, the run's
    `requirements.md`): title, description, acceptance criteria, whatever
    container they came from — plus a ticket's type, priority and children when
-   the run has one. `analysis.md` (the run's) and the feature's living
-   analysis (`feature_analysis`, `<prd_dir>/features/<feature>/analysis.md`)
-   when `acs.py artifacts show` reports them — the impact map, risks and
-   `needs_design` reasoning the design starts from.
+   the run has one. The run's analysis and the feature's living analysis
+   (`feature_analysis`, `<prd_dir>/features/<feature>/analysis/`) when
+   `acs.py artifacts show` reports them — the impact map, risks and
+   `needs_design` reasoning the design starts from. Each is a folder
+   (ADR-0133): read its `README.md` first (`artifacts["analysis.md"]`), then
+   the context files the design spans (`analysis_files`); a legacy single
+   `analysis.md` is read whole.
 2. **The product architecture doc set — PRIMARY input when it exists**:
    `<checkout_root>/<architecture_dir>/` (conventionally `docs/architecture/`):
    `hld/overview.md`, `hld/c4-context.md`, `hld/c4-container.md`,
@@ -194,7 +197,7 @@ For every phase:
      <objective>Scope pass: survey the ticket, architecture doc set, and codebase; record the major design decisions (ids d1, d2, …), candidate options (>=2 per decision) and the genuinely-open points needing user input in iter-1/authoring-scope.md. Write no draft.</objective>
      <inputs>
        <file>/abs/workspace/acme-shop/runs/SHOP-123/requirements.md</file>
-       <file>/abs/repo/docs/product/features/bulk-import/analysis.md</file>
+       <file>/abs/repo/docs/product/features/bulk-import/analysis/README.md</file>
        <file>/abs/repo/docs/architecture/hld/c4-container.md</file>
        <file>/abs/repo/docs/architecture/lld/contracts.md</file>
      </inputs>

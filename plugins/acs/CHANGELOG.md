@@ -346,6 +346,31 @@ matching section here, and merge to `main` — the Release workflow tags
   `/acs:merge-pr`; Utility is `/acs:setup`, `/acs:update`, `/acs:release`,
   `/acs:handoff` and `/acs:create-ticket` — a ticket is cut when the work needs one,
   not as a phase. The README's skill tables follow; no skill, gate or step changes.
+- **An analysis is a folder, split by bounded context** (ADR-0133, amending
+  ADR-0114 and ADR-0128). `/acs:analyze-requirements` no longer writes one long
+  `analysis.md`: it always writes an `analysis/` folder — even for a change
+  that touches one context — in the same places (Discovery
+  `<prd_dir>/features/<feature>/analysis/`, Development
+  `<development_dir>/<feature>/<id>/analysis/`, kept local
+  `steps/analyze-requirements/local/analysis/`). Its `README.md`, which the
+  forge renders when the folder is opened, holds the scope and summary, the
+  refined acceptance criteria, the cross-cutting risks and decisions, the
+  questions and assumptions, the verdict and a table of contexts; beside it,
+  one plain-words kebab-case file per bounded context (`order-checkout.md`)
+  holds that context's impact map with `file:line` citations, rules and edge
+  cases, risks, open questions and API notes. `analysis record-draft` checks
+  the folder — README's front matter, headings in order and table links, each
+  context file's `context` key and headings, kebab-case names, no `index.md`;
+  `analysis publish` copies every file, removes context files the new analysis
+  dropped (inside the folder only) and records each file's sha. The skills
+  that read an analysis read its README first and then only the contexts they
+  need. `acs.py artifacts show` keeps `artifacts["analysis.md"]` (now the
+  README) and adds `analysis_files`; `acs.py design list` shows a feature's
+  analysis as one group of files, and `/acs:create-pr` commits the folder as
+  one documents group. **Migration:** nothing to run — an `analysis.md`
+  published earlier is still read, and the next analysis of that feature or
+  ticket starts from it and writes the folder beside it. A script that parsed
+  the single file reads `analysis_files` instead.
 
 ### Removed
 

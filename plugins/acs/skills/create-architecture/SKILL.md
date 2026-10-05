@@ -113,11 +113,14 @@ where the summary points.
 The PRD is the primary input when there is one: read `<checkout_root>/<prd>`
 and `<checkout_root>/<roadmap>` (absent → the recorded goals from Start stand
 in for them). The features' living analyses — every
-`<prd_dir>/features/<feature>/analysis.md` beside the PRD (`<prd_dir>` is the
-PRD's directory), written by `/acs:analyze-requirements` in Discovery — are
+`<prd_dir>/features/<feature>/analysis/` folder beside the PRD (`<prd_dir>` is
+the PRD's directory), written by `/acs:analyze-requirements` in Discovery — are
 read with it when present: their impact maps, risks and design needs name the
-containers, integrations and data each feature touches. Pass their paths to
-the architect in `<inputs>`; absent ones are simply absent. Then pick the mode:
+containers, integrations and data each feature touches. Each folder's
+`README.md` comes first and its table names the context files (ADR-0133); a
+legacy single `analysis.md` is read whole. Pass the READMEs and the context
+files the architecture spans to the architect in `<inputs>`; absent ones are
+simply absent. Then pick the mode:
 
 - **Existing codebase** (the repo contains source beyond docs/config):
   reverse-engineer the CURRENT architecture from code and docs — manifests

@@ -28,10 +28,15 @@ def doc_set(path):
             raw = path.split("/")[:-1][dirs.index("lld") + 2]
             return "lld/%s/%s" % (feature, raw), "%s design records" % raw
         return ("lld/%s" % feature, "LLD %s" % feature) if feature else ("lld", "LLD")
-    if "features" in dirs and name == "analysis.md":
-        feature = parts[dirs.index("features") + 1] if dirs.index("features") + 1 < len(dirs) \
-            else None
-        if feature and dirs.index("features") + 2 == len(dirs):
+    if "features" in dirs:
+        # A feature's living analysis: the folder `features/<f>/analysis/`
+        # (ADR-0133) -- every file of it one group -- or the single
+        # `features/<f>/analysis.md` it replaced.
+        at = dirs.index("features")
+        feature = dirs[at + 1] if at + 1 < len(dirs) else None
+        folder = at + 3 == len(dirs) and dirs[at + 2] == "analysis"
+        single = at + 2 == len(dirs) and name == "analysis.md"
+        if feature and (folder or single):
             return "prd/features/%s" % feature, "feature %s analysis" % feature
     if "hld" in dirs:
         return "hld", "HLD"

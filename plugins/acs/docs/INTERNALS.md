@@ -879,9 +879,9 @@ runnable on its own:
 
 | Skill | Reads | Writes | Downstream use |
 |---|---|---|---|
-| `analyze-requirements` | the run's requirements (a ticket, documents, a prompt), PRD/requirements/architecture, the codebase, the ledger, the feature's living analysis and its own previously published `analysis.md` (the survey starts from them) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria, `needs_design`, features and the feature recorded via `acs.py requirements refine`, which also patches a ticket), store — ending in `analysis.md` (front matter `ticket` or `feature`, `ready_for_planning`, `api_surface`, `needs_design_recommendation`) published to the feature's living analysis `<prd_dir>/features/<f>/analysis.md` when run on its own (Discovery), or to `<development_dir>/<f>/<id>/analysis.md` as a Development step | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s planner plans from the impact map, and `create-api-contract` / `create-test-docs` read it; the Design skills read the feature's living analysis; the next analysis starts from it; a not-ready analysis returns `needs_input` |
-| `create-impl-plan` | `analysis.md` and `design.md` when present, else the run's requirements | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
-| `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts where the repo keeps them (else `docs/api/`) | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
+| `analyze-requirements` | the run's requirements (a ticket, documents, a prompt), PRD/requirements/architecture, the codebase, the ledger, the feature's living analysis and its own previously published analysis — the folder, or a single `analysis.md` from before ADR-0133 (the survey starts from them) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria, `needs_design`, features and the feature recorded via `acs.py requirements refine`, which also patches a ticket), store — ending in an `analysis/` folder (ADR-0133: `README.md` with front matter `ticket` or `feature`, `ready_for_planning`, `api_surface`, `needs_design_recommendation`, plus one file per bounded context) published to the feature's living analysis `<prd_dir>/features/<f>/analysis/` when run on its own (Discovery), or to `<development_dir>/<f>/<id>/analysis/` as a Development step | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s planner plans from the impact map, and `create-api-contract` / `create-test-docs` read it; the Design skills read the feature's living analysis; the next analysis starts from it; a not-ready analysis returns `needs_input` |
+| `create-impl-plan` | the analysis (`analysis/README.md` first, then the context files it needs — ADR-0133) and `design.md` when present, else the run's requirements | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
+| `create-api-contract` | `plan.md`, the analysis (README first), the architecture set, existing contracts where the repo keeps them (else `docs/api/`) | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
 | `create-test-docs` | the requirements' ACs (`AC-n`, refined when analysed), `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
 | `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.tests.e2e` | e2e suites at the repo's configured location, left uncommitted | `run-e2e-tests` executes them |
 | `run-e2e-tests` | the ticket's suites (from `test-cases.md`, falling back to the plan's Test-plan section) | the run artifact + triage | `on_fail: {relay_to: code}` with the fix-loop cap |
@@ -1017,10 +1017,10 @@ subject (ADR-0128). The coordinator performs ONE action at a time and reports it
 | `record-survey` | every lane's `<result>` snapshot, notes and JSON report; joins the notes into `iter-1/authoring.md` | `synthesize` (always: ≥ 2 lanes) |
 | `record-synthesis` | the synthesis snapshot and notes; re-joins with the synthesis last | `clarify` |
 | `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
-| `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 and runs `front_matter_check` and `structure_lint` on it — beside the review, not after it (ADR-0125) — listing their findings as the `review` action's `draft_checks` | `review` |
+| `record-draft` | the draft snapshot, the draft folder `iter-<n>/analysis/` (ADR-0133), `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft folder's digest (`draft_sha256`, over every file's sha256) and runs the folder checks (`acs_lib.analysis_folder`: `front_matter_check` and the structure checks on README and on every context file, see "The analysis folder" below) — beside the review, not after it (ADR-0125) — listing their findings as the `review` action's `draft_checks` | `review` |
 | `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>`, and folds in the draft's check findings (slice `draft-checks`) | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
-| `publish` | refuses unless the last review passed and the draft is the reviewed bytes (whose checks ran clean at `record-draft`); copies the draft byte-for-byte to `analysis_publish.resolve_target` — the feature's living analysis `<prd_dir>/features/<feature>/analysis.md` for a standalone (Discovery) run, `<development_dir>/<feature>/<id>/analysis.md` for a Development run (ADR-0128) — refusing, with a message naming `acs.py requirements refine` and the feature ask, a run with no recorded feature; exits 2 naming `acs.py docs decide` while `docs where` reports an answer owed (the share choice for a Development run, the folder for either phase), and with run documents kept local publishes to `steps/analyze-requirements/local/analysis.md` instead — `publication` records the path, `local`, `share_scope` and the report phrase `destination`, and lists no `files` for `/acs:create-pr` (ADR-0132); records the path it wrote; never stages, commits or pushes (ADR-0127) | (unchanged) |
-| `record-publication` | re-reads the published bytes in the working tree | `completed` |
+| `publish` | refuses unless the last review passed and the draft folder is the reviewed files — its digest unchanged (whose checks ran clean at `record-draft`); copies every draft file byte-for-byte into `analysis_publish.resolve_target`'s folder — the feature's living analysis `<prd_dir>/features/<feature>/analysis/` for a standalone (Discovery) run, `<development_dir>/<feature>/<id>/analysis/` for a Development run (ADR-0128, ADR-0133) — and removes a context file the new analysis no longer has, only inside that `analysis/` folder — refusing, with a message naming `acs.py requirements refine` and the feature ask, a run with no recorded feature; exits 2 naming `acs.py docs decide` while `docs where` reports an answer owed (the share choice for a Development run, the folder for either phase), and with run documents kept local publishes to `steps/analyze-requirements/local/analysis/` instead — `publication` records the path, `local`, `share_scope` and the report phrase `destination`, and lists no `files` for `/acs:create-pr` (ADR-0132); records `path` (the README), `dir`, the folder digest `sha256`, `file_shas` (each file's sha256), `removed` (the context files it deleted) and `superseded` (a single pre-ADR-0133 `analysis.md` left beside the folder, which every reader now passes over); never stages, commits or pushes (ADR-0127) | (unchanged) |
+| `record-publication` | re-derives the publication from the working tree: every file in `file_shas` still the reviewed bytes, and no `.md` file in the folder the review never judged | `completed` |
 
 Rules the code holds, each with a transition test in
 `tests/acs/test_analysis_loop.py`:
@@ -1045,6 +1045,66 @@ Rules the code holds, each with a transition test in
   history: the next invocation's `next` answers `plan`. A loop that ended under
   an invocation interrupted for any other reason resumes straight to Finish.
 
+### The analysis folder (`acs_lib/analysis_folder.py`, ADR-0133)
+
+An analysis is always a folder, never one long file — even a single-context
+one. The draft is `steps/analyze-requirements/iter-<n>/analysis/`; when
+iteration n fails, the controller seeds `iter-<n+1>/analysis/` with a copy of
+iteration n's files, so the next draft pass revises in place (and may delete a
+context file). It publishes to:
+
+| Run | Folder |
+|---|---|
+| Discovery | `<prd_dir>/features/<f>/analysis/` (the feature's living analysis) |
+| Development | `<development_dir>/<f>/<key>/analysis/` |
+| kept local (ADR-0132) | `<run>/steps/analyze-requirements/local/analysis/` |
+
+The folder holds `README.md` and at least one context file. Every other name
+matches `^[a-z0-9]+(-[a-z0-9]+)*\.md$`; `index.md`, any other name, a
+subfolder or a non-`.md` file is refused. `record-draft` runs the checks below;
+a finding fails the iteration like a judge's blocking finding (ADR-0125).
+
+**`README.md`** — the entry, rendered when the folder is opened on the forge.
+Front matter is the old `analysis.md` spec: `ticket` (must match the run's) or
+`feature`, `ready_for_planning`, `api_surface`, `needs_design_recommendation`
+(booleans), plus `status`, `version`, `tickets` (ADR-0122) on a Discovery
+analysis. Title `# Analysis — <ticket-id or feature>: <subject>` (not
+checked). Required `##` headings, in this order, each non-empty:
+
+1. `## Scope and summary`
+2. `## Contexts`
+3. `## Refined acceptance criteria`
+4. `## Cross-cutting risks and decisions`
+5. `## Questions and assumptions`
+6. `## Verdict`
+
+`## Contexts` holds a Markdown table — suggested columns
+`| Context | File | Purpose |`, only the links are checked — and each row
+links one context file by a bare relative link, `[order-checkout.md](order-checkout.md)` — no `/`, no `..`,
+no anchor. Findings: `broken-link` (a link that resolves to no file in the
+folder), `unlisted-context` (a context file the table does not link),
+`no-contexts` (a table that lists none).
+
+**A context file `<slug>.md`** — one bounded context, named in plain words.
+Front matter `context: <slug>`, equal to the file stem; on Discovery also
+`feature`, `status`, `version`, `tickets`. Title `# <Context name in plain
+words>` (not checked). Required `##` headings, in this order, each non-empty
+(`_None._` counts as content):
+
+1. `## Impact map` — a table whose first column is a repo-relative path (`file:line` allowed)
+2. `## Rules and edge cases`
+3. `## Risks`
+4. `## Open questions`
+5. `## API notes`
+
+**Publish** copies every reviewed file byte-for-byte into the target folder,
+deletes a context file the new analysis no longer has — only inside that
+`analysis/` folder, never beside it — and records each file with its sha256;
+`record-publication` verifies every one. **Readers** open `README.md` first and
+then only the context files they need. A single `analysis.md` — published
+before ADR-0133, or a legacy `docs/tickets/<ID>/analysis.md` — is still read
+wherever no `analysis/` folder exists; nothing converts it in place.
+
 ## Workspace layout (normative example)
 
 Durable state is split by AUDIENCE. The documents a human reads or reviews live
@@ -1057,9 +1117,9 @@ keyed by the run's feature (ADR-0128):
 
 | Phase | Folder | Documents |
 |---|---|---|
-| Discovery | `<prd_dir>/features/<feature>/` | the feature's living `analysis.md` (ADR-0122 front matter + `feature`) |
+| Discovery | `<prd_dir>/features/<feature>/` | the feature's living analysis, the `analysis/` folder (ADR-0133; ADR-0122 front matter + `feature` on every file) |
 | Design | `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/` | `design.md`, `api-contract.md`; the living `lld/<feature>/{api,data,flows,components}/` stays edited in place (ADR-0126) |
-| Development | `<development_dir>/<feature>/<ticket-id or run-id>/` | a Development run's `analysis.md`, `plan.md`, `test-cases.md` |
+| Development | `<development_dir>/<feature>/<ticket-id or run-id>/` | a Development run's `analysis/` folder (ADR-0133), `plan.md`, `test-cases.md` |
 
 `acs_lib.requirements` resolves the three roots deterministically:
 `prd_dir(root)` (the PRD the way `/acs:create-prd` finds it — a `CLAUDE.md` or
@@ -1075,7 +1135,7 @@ before ADR-0128 is only read, as a fallback.
 
 Who commits the documents (ADR 0127, amending ADR 0090): **only
 `/acs:create-pr`**. Every skill that publishes a document — `design.md`,
-`analysis.md`, `plan.md`, `test-cases.md`, the LLD under
+the `analysis/` folder, `plan.md`, `test-cases.md`, the LLD under
 `<architecture_dir>/lld/<feature>/`, the PRD, the HLD — writes it into the working
 tree on whatever branch is checked out and lists it in its result's
 `states.files`; `/acs:create-pr` commits the run's documents first, and each
@@ -1118,7 +1178,9 @@ repo's test-path conventions (a `test`/`tests`/`__tests__`/`spec` segment, or
 `conventions.COMMIT_SUBJECT`. Changed but unrecorded paths are `left_out`,
 baseline-dirty ones `excluded`; both are listed in the preview the user
 confirms (and may edit) before `acs pr commit --plan <file>` commits each group
-by pathspec — never `git add -A`. A run document kept local (ADR-0132) lives in
+by pathspec — never `git add -A`. An analysis folder (ADR-0133) is one
+documents group, every file of it together: the publication's `files`, plus
+its `removed` context files, whose deletions go in the same commit. A run document kept local (ADR-0132) lives in
 the workspace, never in the working tree, so it is in no group and never
 `left_out` — no special case, and a test holds it. `/acs:create-pr` takes a ticket id or a
 prompt; with no argument it continues this checkout's current run. A run whose
@@ -1133,9 +1195,9 @@ run has a code step, and a commit subject names a ticket only when there is one.
 so one changeset; use a separate worktree per concurrent ticket.
 
 ```
-<checkout>/<prd_dir>/features/<feature>/analysis.md            # Discovery: the living analysis
+<checkout>/<prd_dir>/features/<feature>/analysis/             # Discovery: the living analysis (README.md + <context>.md, ADR-0133)
 <checkout>/<architecture_dir>/lld/<feature>/<id>/              # Design: design.md  api-contract.md
-<checkout>/<development_dir>/<feature>/<id>/                   # Development: analysis.md  plan.md  test-cases.md
+<checkout>/<development_dir>/<feature>/<id>/                   # Development: analysis/  plan.md  test-cases.md
 <checkout>/docs/tickets/<ticket-id>/                           # LEGACY, read-only fallback (doc_layout.LEGACY_TICKETS_PATH)
 
 <workspace>/<repo-id>/                  # repo-id from git remote: owner-name
@@ -1304,7 +1366,7 @@ and its key (the ticket id, else the run id):
 
 | Document | Written to |
 |---|---|
-| `analysis.md` | Discovery: `<prd_dir>/features/<f>/analysis.md` (the feature's living analysis); Development: `<development_dir>/<f>/<key>/analysis.md` |
+| `analysis.md` (the `analysis/` folder, ADR-0133) | Discovery: `<prd_dir>/features/<f>/analysis/` (the feature's living analysis); Development: `<development_dir>/<f>/<key>/analysis/` |
 | `plan.md`, `test-cases.md` | `<development_dir>/<f>/<key>/` |
 | `design.md`, `api-contract.md` | `<architecture_dir>/lld/<f>/<key>/` |
 
@@ -1321,16 +1383,32 @@ analyze-requirements' grouped ask names one). `acs artifacts show [--run R |
 each document's existing file and write target, the legacy folder when there
 is one, and a ticket's derived status.
 
+The analysis is a folder (ADR-0133), so its keys keep their name and change
+what they hold: `artifacts["analysis.md"]` is the folder's `README.md` (else a
+single `analysis.md` published before the folder — beside it, in
+`docs/tickets/<ID>/` or in the partition); `analysis_files` lists every file
+of the folder as absolute paths, README first (`[that file]` for a single
+legacy file, `[]` when there is none); `analysis_dir` is the folder the
+analysis was read from (`null` for a single legacy file); `paths["analysis.md"]`
+is the write target `…/analysis/README.md` and `analysis_target_dir` its
+folder. The feature's living analysis gets the same pair, `feature_analysis`
+(its README) and `feature_analysis_files`. `acs docs where --doc analysis.md`
+resolves the same folder: its `path`, `abs_path`, `shared_path` and
+`local_path` name the folder, and `entry_path` / `abs_entry_path` its
+`README.md`. The file-map guard denies an executor the living analysis folder
+(and the single file it replaced) as it did `analysis.md`.
+
 ### Shared or kept local; asked before a folder is created (`acs_lib/doc_share.py`, ADR-0132)
 
 Two answers decide where a run's documents land, each asked once and saved,
 never inferred:
 
 - **Share** — `docs.share_run_documents` (`true` | `false`; absent = not
-  decided) covers the five per-run documents: a Development `analysis.md`,
+  decided) covers the five per-run documents: a Development analysis (the `analysis/` folder),
   `plan.md`, `test-cases.md`, `design.md`, `api-contract.md`. Shared, each is
   published to its phase folder (the table above). Local, it is kept at
-  `<run>/steps/<skill>/local/<name>` (`doc_share.LOCAL_STEPS` names the step;
+  `<run>/steps/<skill>/local/<name>` — the analysis at
+  `steps/analyze-requirements/local/analysis/` — (`doc_share.LOCAL_STEPS` names the step;
   `local/` keeps it apart from the step's working draft) and nothing of it
   reaches the repo. The living documents — PRD and roadmap, HLD, LLD, a
   feature's Discovery analysis — are always shared (`living:prd`,
@@ -1652,7 +1730,7 @@ hand-editing it, and every verb prints one JSON object:
 | `design init --status S [--ticket ID] [--feature F] <doc>...` | the first block, `version: 1`; a document that already has one is left alone (`already_versioned`) |
 | `design bump [--ticket ID] <doc>...` | a change: `version + 1`, the ticket appended, and the document re-opened as `proposed`; a `deprecated` document is refused |
 | `design status --set S [--ticket ID] [--by NAME] [--reason TEXT] <doc>...` | a legal transition (`acs_lib.design_docs.TRANSITIONS`): `proposed → approved \| deprecated`; `approved → proposed \| implemented \| deprecated`; `implemented → proposed \| deprecated`; `deprecated` is final. Records `status_by` (`--by`, default `git config user.name <user.email>`, else `unknown`), `status_at` (ISO-8601 UTC, one instant for the whole call) and `status_reason` (`--reason`). **All or nothing** (`design_docs.set_status_many`): every document is validated — it exists, its block is valid, the transition is legal — before any is written, and the refusal names each refused document and why; a document already at the target is left untouched and reported `unchanged`, so a no-op never rewrites who moved it, when or why (ADR-0130) |
-| `design list [--phase discovery\|design] [--feature F] [--root DIR]` | the versioned documents (`design_docs.list_documents`), read-only, exits 0 whatever it finds: `{ok, groups: [{phase, key, label, feature?, docs: [{path, status, version, problems, allowed}]}]}`, Discovery then Design. Discovery — `<prd_dir>/{prd,roadmap}.md` (group `PRD`) and `<prd_dir>/features/<f>/analysis.md` (`feature <f> analysis`); Design — `<architecture_dir>/hld/*.md` (`HLD`) and `lld/<f>/{api,data,flows,components}/**` (`LLD <f>`), never a run's design-record folder `lld/<f>/<id>/`; a README only when it carries a status. Paths are repo-relative; `allowed` is the legal moves other than the current status, empty when the document has `problems`. The folders come from `acs_lib.doc_layout.prd_dir` / `architecture_dir`, the grouping from `acs_lib.doc_sets` — the same `doc_set` / `doc_order` `/acs:create-pr`'s commit plan uses. `/acs:set-doc-status` is its reader |
+| `design list [--phase discovery\|design] [--feature F] [--root DIR]` | the versioned documents (`design_docs.list_documents`), read-only, exits 0 whatever it finds: `{ok, groups: [{phase, key, label, feature?, docs: [{path, status, version, problems, allowed}]}]}`, Discovery then Design. Discovery — `<prd_dir>/{prd,roadmap}.md` (group `PRD`) and each feature's living analysis (`feature <f> analysis`) — one group holding every file of `<prd_dir>/features/<f>/analysis/`, `README.md` first, each with its own status (a single `analysis.md` from before ADR-0133 still lists as itself); Design — `<architecture_dir>/hld/*.md` (`HLD`) and `lld/<f>/{api,data,flows,components}/**` (`LLD <f>`), never a run's design-record folder `lld/<f>/<id>/`; a README only when it carries a status. Paths are repo-relative; `allowed` is the legal moves other than the current status, empty when the document has `problems`. The folders come from `acs_lib.doc_layout.prd_dir` / `architecture_dir`, the grouping from `acs_lib.doc_sets` — the same `doc_set` / `doc_order` `/acs:create-pr`'s commit plan uses. `/acs:set-doc-status` is its reader |
 
 A refused write verb exits 2 and writes nothing for the document it refused;
 `design status` over several documents writes none of them when any is refused.
