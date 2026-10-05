@@ -14,7 +14,11 @@ from its requirements, not only from a ticket, and a feature slug also names the
 Discovery and Development folders), [0127](0127-only-create-pr-commits.md)
 (`/acs:create-pr`'s first commit groups are the run's documents in their phase
 folders, not `docs/tickets/<ID>/`; the follow-up it named — every skill accepts a
-prompt or a ticket — lands here).
+prompt or a ticket — lands here), and
+[0102](0102-documents-are-found-not-configured.md) (documents are still found, not
+configured, by default; three optional `docs.prd_dir`, `docs.architecture_dir` and
+`docs.development_dir` settings now name the phase folders for a repo whose layout
+discovery cannot find — absent, discovery and the defaults apply).
 
 ## Context
 

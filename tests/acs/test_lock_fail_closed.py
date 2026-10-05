@@ -400,10 +400,11 @@ class GuardTimeoutIsNeverATracebackTest(AcsWorkspaceCase):
         self.assertEqual(lib.load_ticket(tdir)["status"], "in_review")
         # ...the repo-level half did not: the index still carries the pre-call
         # status, which is the divergence the message tells the operator about.
-        # `open` is that status now -- starting a step records the RUN, not the
-        # tickets index, so nothing moved the ticket off its minted value.
+        # `in_progress` is that status now: starting the step re-indexed the
+        # ticket, whose status a ticket.json raises to what its run's ledger
+        # derives (ADR-0128) -- and nothing after the refused write moved it.
         index = lib.read_json(lib.index_path(self.ws, "acme-shop")) or {}
-        self.assertEqual(index["tickets"][ticket]["status"], "open")
+        self.assertEqual(index["tickets"][ticket]["status"], "in_progress")
         self.assertNotEqual(index["tickets"][ticket]["status"],
                             lib.load_ticket(tdir)["status"])
         # ...and the run is not left locked by a session that has exited.
