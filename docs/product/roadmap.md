@@ -772,7 +772,7 @@ permitted as dogfooding outside this committed scope** (does not pull the epic
 forward). A first prior Codex attempt (PR #134, MAR-5) was rejected for not
 matching the official Codex platform; the eventual epic must be re-scoped from
 scratch against the documented Codex primitives (see the Correction note in
-[`runtime-coupling-inventory.md`](../architecture/lld/runtime-coupling-inventory.md)).
+[`runtime-coupling-inventory.md`](../architecture/lld/acs/MAR-4/runtime-coupling-inventory.md)).
 
 - **Epic: headless unattended runner (LEAD, G34).** Deliver the canonical
   **unattended execution mode** — mechanically an **autonomous `/acs:ship`**
@@ -795,7 +795,7 @@ scratch against the documented Codex primitives (see the Correction note in
   complete enforcement boundary**, and its subagent model (explicit-spawn,
   custom-agent TOML format) differs from the coordinator-driven reflection
   cycle — so a genuine runtime divergence, not a thin shim (see
-  [`runtime-coupling-inventory.md`](../architecture/lld/runtime-coupling-inventory.md)
+  [`runtime-coupling-inventory.md`](../architecture/lld/acs/MAR-4/runtime-coupling-inventory.md)
   lines 13-14, 53-54, 128-131). Preserve the **full audit trail**; gate
   integrity stays **best-effort by default, non-bypassable only via
   org-managed (`requirements.toml`) hooks**. **Validation (extended G6):**

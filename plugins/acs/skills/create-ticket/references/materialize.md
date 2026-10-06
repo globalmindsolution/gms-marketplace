@@ -55,6 +55,14 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    `<repo>/.acs/templates/<name>.md` of the same name replaces it) with every
    section filled and the HTML comments deleted. Apply the user's confirmed
    revisions to it so the description and `acceptance_criteria` agree.
+
+   Every description template carries an `acs-ticket: {ticket_id}` line in
+   its `## Notes` section — the rendered text is byte-identical across the
+   built-in templates, so the acs ticket id is visibly recorded in the
+   ticket's own body regardless of type (AC-1). It renders unconditionally —
+   it is NOT itself conditional on tracker sync; what IS conditional is
+   whether that description ever reaches GitHub (Step 5, skipped on the
+   `local` provider, AC-4).
 3. **Rewrite `<partition>/ticket.json`** through `acs.py ticket save --ticket <id> --from -`
    (the whole document on stdin as a `<<'ACS_EOF'` heredoc, never the Write tool),
    PRESERVING `id`, `status`, and
@@ -78,6 +86,11 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 4. **No children.** A creation run mints none, an epic's included. Its
    breakdown outline stays in the description's `## Notes`, for
    `/acs:breakdown-ticket <id>` to read after the design.
+   An epic ends with `children: []`; once its tech design is settled
+   (`/acs:create-tech-design <id>`, approved with `/acs:set-doc-status`),
+   `/acs:breakdown-ticket <id>` proposes its children in one confirmation,
+   mints them with `new-ticket.py --parent`, and syncs them. The same skill
+   splits an oversized story or task into an epic that keeps its id.
 5. **Tracker sync** — only when `settings.tracker.provider` is `github`;
    skip entirely for `local`.
    - **The "tickets to sync" set:** `[the ticket, unless it is an import]`,

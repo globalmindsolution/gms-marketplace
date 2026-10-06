@@ -1,3 +1,10 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — enforce-e2e-merge-gate
 
 A red e2e suite becomes a fail-closed merge brake; a green one lets

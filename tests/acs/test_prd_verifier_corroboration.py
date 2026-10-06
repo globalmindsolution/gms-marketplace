@@ -21,7 +21,11 @@ Stdlib-only (re, os, unittest). Run:
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from skill_text import skill_contract  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -32,6 +36,8 @@ DOCS = os.path.join(REPO_ROOT, "docs")
 PRD_SURVEYOR = os.path.join(AGENTS, "create-prd-surveyor.md")  # the survey charter: planner, then executor (ADR-0092), now the surveyor
 PRD_REVIEWER = os.path.join(AGENTS, "create-prd-reviewer.md")  # create-prd's judge
 PRD_SKILL = os.path.join(SKILLS, "create-prd", "SKILL.md")
+# The three corroboration grammars the surveyor, author and reviewer all read.
+AUTHORING_NOTES = os.path.join(SKILLS, "create-prd", "references", "authoring-notes.md")
 SKILLS_MD = os.path.join(DOCS, "requirements", "functional", "skills.md")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py"
@@ -196,14 +202,23 @@ class ReviewerInputContractTest(unittest.TestCase):
 class SurveyorContractTest(unittest.TestCase):
     """D7: the required-heading list names the three new sections; each
     one-line grammar appears verbatim (including the greenfield
-    `Code evidence: N/A` form); the ADR-0012 canonical block is untouched."""
+    `Code evidence: N/A` form); the ADR-0012 canonical block is untouched.
+
+    The grammars moved to `references/authoring-notes.md`, which the
+    surveyor's charter points at, so they are read from the charter plus
+    that reference."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PRD_SURVEYOR)
+        cls.charter = read(PRD_SURVEYOR)
+        cls.body = cls.charter + "\n" + read(AUTHORING_NOTES)
+
+    def test_the_charter_points_at_the_grammars(self):
+        self.assertIn("${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/authoring-notes.md",
+                      self.charter)
 
     def test_required_heading_list_names_three_new_sections(self):
-        m = re.search(r"(?s)Required headings:.*?\n\n", self.body)
+        m = re.search(r"(?s)Required headings:.*?\n\n", self.charter)
         self.assertIsNotNone(m, "surveyor 'Required headings:' paragraph not found")
         paragraph = _norm(m.group(0))
         for heading in ("## Code evidence", "## Answer fidelity", "## Roadmap milestones"):
@@ -234,11 +249,11 @@ class SurveyorContractTest(unittest.TestCase):
         # here we just re-assert the exact heading and its immediately
         # following sentence are still present byte-for-byte.
         self.assertIn(
-            "### Design-time doc-consistency step (ADR 0012)", self.body)
+            "### Design-time doc-consistency step (ADR 0012)", self.charter)
         self.assertIn(
-            "1. Read the related slice of the doc graph", self.body)
+            "1. Read the related slice of the doc graph", self.charter)
         self.assertIn(
-            '"kind": "staleness"', self.body)
+            '"kind": "staleness"', self.charter)
 
 
 class SkillMirrorTest(unittest.TestCase):
@@ -246,11 +261,12 @@ class SkillMirrorTest(unittest.TestCase):
     sections; its verify paragraph names `clarifications.json`, the repo
     root, and the `git diff -- "<prd>" "<roadmap>"` derivation of
     `--added-heading` (the located PRD and roadmap files, ADR-0102 — once
-    `<settings.prd_path>`)."""
+    `<settings.prd_path>`). Read as the skill's contract: the floor's
+    commands moved to `references/review-slices.md`, inside `### Review`."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PRD_SKILL)
+        cls.body = skill_contract("create-prd")
         cls.verify_region = verify_phase_region(cls.body, "create-prd")
 
     def test_plan_task_example_names_three_new_sections(self):

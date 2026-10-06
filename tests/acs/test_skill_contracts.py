@@ -3158,13 +3158,19 @@ class TestContractsMdDeliveryPathSection(unittest.TestCase):
     gone and this pins what took its place: the two fields the path is
     recorded in, and the refusal that keeps it single."""
 
+    #: contracts.md is one file per interface under lld/acs/api/ now; the
+    #: delivery-path section is api/delivery-path.md.
+    API_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api")
+
     def _contracts_body(self):
-        return re.sub(r"\s+", " ", read(os.path.join(
-            REPO_ROOT, "docs", "architecture", "lld", "contracts.md")))
+        return re.sub(r"\s+", " ", self._all_api())
+
+    def _all_api(self):
+        return "\n".join(read(os.path.join(self.API_DIR, n)) for n in sorted(os.listdir(self.API_DIR))
+                         if n.endswith(".md") and not n.endswith(".evidence.md"))
 
     def _section(self):
-        body = read(os.path.join(REPO_ROOT, "docs", "architecture", "lld",
-                                 "contracts.md"))
+        body = read(os.path.join(self.API_DIR, "delivery-path.md"))
         start = body.index("## Delivery path (ADR-0095)")
         nxt = re.search(r"\n## ", body[start + 1:])
         end = start + 1 + nxt.start() if nxt else len(body)
@@ -3194,9 +3200,7 @@ class TestContractsMdDeliveryPathSection(unittest.TestCase):
         self.assertRegex(section, r"(?i)All of it is retired")
 
     def test_the_retired_section_heading_is_gone(self):
-        self.assertNotIn("## Escalation-event audit trail",
-                         read(os.path.join(REPO_ROOT, "docs", "architecture",
-                                           "lld", "contracts.md")))
+        self.assertNotIn("## Escalation-event audit trail", self._all_api())
 
 
 class TestChangelogMar107Entry(unittest.TestCase):

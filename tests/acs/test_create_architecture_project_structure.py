@@ -259,7 +259,7 @@ class ScopeGuardTest(unittest.TestCase):
     def test_triad_keeping_phrase_unchanged(self):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))
         hook_flow = read(
-            os.path.join(DOCS, "architecture", "lld", "flows", "hook-gated-skill-run.md"))
+            os.path.join(DOCS, "architecture", "lld", "acs", "flows", "hook-gated-skill-run.md"))
         self.assertIn("twelve authoring skills", overview)
         self.assertIn("twelve authoring skills", hook_flow)
 

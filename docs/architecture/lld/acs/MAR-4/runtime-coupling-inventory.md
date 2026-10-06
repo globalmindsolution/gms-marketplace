@@ -1,7 +1,7 @@
 # Runtime-coupling seam inventory
 
 **Ticket:** MAR-4 — "Runtime abstraction — inventory and isolate the runtime-coupled surface"
-**Committed path (stable citation target):** `docs/architecture/lld/runtime-coupling-inventory.md`
+**Committed path (stable citation target):** `docs/architecture/lld/acs/MAR-4/runtime-coupling-inventory.md`
 **Superseded by:** N/A — this is the canonical seam definition for the MAR-3 epic family.
 
 > **Correction (2026-06-28).** The original Codex-CLI-equivalent entries for Surfaces
@@ -28,7 +28,7 @@ or shim) and the **runtime-agnostic deterministic stdlib layer** (components inv
 reading/writing workspace JSON — unchanged on any runtime).
 
 The seam is the target interface for the Codex CLI adapter children MAR-5 and MAR-6.
-MAR-5 and MAR-6 MUST cite this exact path (`docs/architecture/lld/runtime-coupling-inventory.md`)
+MAR-5 and MAR-6 MUST cite this exact path (`docs/architecture/lld/acs/MAR-4/runtime-coupling-inventory.md`)
 verbatim to satisfy AC-3.
 
 **ADR-0001 invariant (binding):** the deterministic stdlib layer (`acs_lib/` gating/state/ledger/
@@ -62,7 +62,7 @@ companion `runtime-coupling-inventory.evidence.md` sidecar (Decision B / ADR
 
 Surface #5, **token sourcing**, is retired, and its number is not reused so
 that the citations keyed to #6 stay stable: acs reads no transcript and records
-no usage ([ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+no usage ([ADR 0104](../../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 `claude_code_adapter.py`, which isolated that surface's undocumented Claude Code
 interfaces (MAR-520), now encodes only the hook envelope — `session_id`, `cwd`
 (or `workspace.current_dir`), and SubagentStart/SubagentStop's `agent_id`,
@@ -127,7 +127,7 @@ invariant: their deterministic stdlib semantics are byte-for-byte unchanged acro
 > gaps this note otherwise flags. `metrics_aggregate.py` and
 > `metrics_render.py` were removed from the list, and "metrics" from the
 > `acs_lib/` line, for the same reason: they were deleted with `/acs:metrics`
-> and `/acs:usage` ([ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+> and `/acs:usage` ([ADR 0104](../../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 >
 > **The design-phase entry-point fold (ADR 0091) added no gap to close.** The
 > two skills it made internal legs of `/acs:project` kept their

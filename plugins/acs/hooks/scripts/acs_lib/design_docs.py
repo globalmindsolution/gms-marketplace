@@ -57,6 +57,17 @@ KEY_ORDER = ("status", "version", "tickets", "feature") + STATUS_META_KEYS
 _FEATURE_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
+#: The suffix of an evidence sidecar: `<doc>.evidence.md` holds the citations
+#: behind `<doc>.md` (the architect charter writes one). It carries no version
+#: block and is not a design document, so it is never listed or moved.
+SIDECAR_SUFFIX = ".evidence.md"
+
+
+def is_sidecar(path):
+    """True for an evidence sidecar (`<doc>.evidence.md`)."""
+    return os.path.basename(path).lower().endswith(SIDECAR_SUFFIX)
+
+
 def is_lld(path):
     """An LLD document lives under an `lld/` directory of the architecture set."""
     return "lld" in os.path.normpath(path).split(os.sep)
@@ -217,11 +228,14 @@ def set_status_many(paths, status, ticket=None, by=None, at=None, reason=None):
     refusal raises a GateError naming each refused document and why, and no
     document is written. The moves share one `status_at`. A document already
     at `status` is left byte-for-byte as it is and reported `unchanged`: a
-    no-op must not rewrite who moved it, when, or why."""
+    no-op must not rewrite who moved it, when, or why. An evidence sidecar
+    in `paths` (a shell glob over a folder names them) is not a document: it is
+    reported `skipped`, never written, and never refuses the batch."""
     _check_status(status)
     if at is not None and not _ISO_INSTANT.match(str(at)):
         raise GateError("status_at must be an ISO-8601 instant; got %r" % (at,))
-    paths = list(dict.fromkeys(paths))
+    order = list(dict.fromkeys(paths))
+    paths = [p for p in order if not is_sidecar(p)]
     loaded, refused = [], []
     for path in paths:
         try:
@@ -232,14 +246,15 @@ def set_status_many(paths, status, ticket=None, by=None, at=None, reason=None):
         raise GateError("refused %d of %d document(s), nothing was written -- %s"
                         % (len(refused), len(paths), " | ".join(refused)))
     at = at or now_iso()
-    out = []
+    moved = {}
     for path, front, body in loaded:
         if front.get("status") == status:
-            out.append(dict(front, path=path, unchanged=True))
+            moved[path] = dict(front, path=path, unchanged=True)
         else:
-            out.append(dict(_apply(path, front, body, status, ticket, by, at, reason),
-                            path=path))
-    return out
+            moved[path] = dict(_apply(path, front, body, status, ticket, by, at, reason),
+                               path=path)
+    return [moved.get(p) or {"path": p, "skipped": "an evidence sidecar, not a versioned document"}
+            for p in order]
 
 
 # ---------------------------------------------------------------------------
@@ -256,11 +271,13 @@ def _md_files(folder, recursive):
         return []
     if not recursive:
         return sorted(os.path.join(folder, n) for n in os.listdir(folder)
-                      if n.endswith(".md") and os.path.isfile(os.path.join(folder, n)))
+                      if n.endswith(".md") and not is_sidecar(n)
+                      and os.path.isfile(os.path.join(folder, n)))
     out = []
     for base, dirs, files in os.walk(folder):
         dirs[:] = sorted(d for d in dirs if not d.startswith("."))
-        out.extend(os.path.join(base, n) for n in files if n.endswith(".md"))
+        out.extend(os.path.join(base, n) for n in files
+                   if n.endswith(".md") and not is_sidecar(n))
     return sorted(out)
 
 

@@ -1,3 +1,10 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — File-map guard deny path
 
 `dispatch.py file-map` runs on `PreToolUse` for the write tools and exits 2 on

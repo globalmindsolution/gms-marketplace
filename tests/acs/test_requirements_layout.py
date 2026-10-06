@@ -285,11 +285,18 @@ class ContractsMdSettingsNoteTest(unittest.TestCase):
     conformance-chain line is UNCHANGED (D1 — no chain rewrite in this spec;
     that clarifying note is MAR-144's)."""
 
-    CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+    # contracts.md is one file per interface under lld/acs/api/ now; the
+    # Settings section these pins read is api/settings.md.
+    API_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api")
+    CONTRACTS_MD = os.path.join(API_DIR, "settings.md")
+
+    def _all_api(self):
+        return "\n".join(read(os.path.join(self.API_DIR, n)) for n in sorted(os.listdir(self.API_DIR))
+                         if n.endswith(".md") and not n.endswith(".evidence.md"))
 
     def test_settings_keys_list_drops_requirements_layout(self):
         body = read(self.CONTRACTS_MD)
-        self.assertNotIn("requirements_layout", body)
+        self.assertNotIn("requirements_layout", self._all_api())
         self.assertIn("No key locates the workspace or a document", flat(body))
 
     def test_functional_non_functional_resolution_documented(self):

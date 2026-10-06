@@ -72,23 +72,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ti
 ## Remote import
 
 Decide BEFORE planning whether `$ARGUMENTS` is a remote key for
-`settings.tracker.provider`:
-
-- provider `github` and `$ARGUMENTS` is `#123`, a bare integer, or a GitHub issue
-  URL: pull with `gh issue view 123 --json number,title,body,labels,assignees,url`.
-- provider `local`, or no match: not an import — the requirements
-  (`requirements.path`) are the request.
-
-On import: if the pull fails — **critical**, a gate input this run cannot
-proceed without — stop and surface the CLI error verbatim plus the canonical
-hint from `acs_lib.gh_failure_hint(stderr)` (see "GitHub call failure
-policy" below), with no fallback to any other transport. Otherwise seed the
-working title/description from the remote issue and record the mapping
-`external = {"provider": "github", "key": "123"}` for Step 3 to write into `ticket.json`. Then run the NORMAL
-analysis below on the imported description — imports get the same clarification,
-typing, PRD trace, authoring and review as a local request (an issue labelled as a
-bug is a strong `bug` signal). Never create a new remote issue for an imported
-ticket: the mapping points at the existing one.
+`settings.tracker.provider` (on `github`: `#123`, a bare integer or a GitHub
+issue URL); when it is, read
+`${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/remote-import.md`.
+Otherwise it is not an import: the requirements (`requirements.path`) are the
+request.
 
 ### GitHub call failure policy
 
@@ -134,17 +122,9 @@ batch). Per-call classification:
 
 ## Resume & reconcile
 
-- If `context.reconcile` is true: verify recorded progress against reality BEFORE
-  continuing — re-read `<partition>/ticket.json`, the
-  `steps/create-ticket/iter-*/` drafts (`draft.json`, `draft.md`), the
-  `iter-*/<role>-message.xml` snapshots and `reviewer.md` reports, and any
-  `iter-*/materialize.json`. Continue from the first unfinished phase: a draft with
-  no review → review it; a review with findings and no later draft → run the author
-  with those findings; a reviewed draft never confirmed → Step 2. Do not redo work
-  that verifiably holds.
-- If `context.handoff_summary` exists: read it, do a light reconcile (trust it but
-  cheaply re-check the artifacts it names), and continue from where it points. Also
-  read `steps/create-ticket/handoff-context.md` if present.
+If `context.reconcile` is true or `context.handoff_summary` exists, read
+`${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/resume.md` and reconcile
+BEFORE continuing; a fresh run skips it.
 
 ## The flow
 
@@ -286,69 +266,26 @@ overrides:
 5. **Due date**: ask the user for an optional due date ("YYYY-MM-DD, or leave
    blank").
 
-If you genuinely cannot reach the user (e.g. a non-interactive run), return
-`<handoff skill="create-ticket" ticket-id="<id>" status="needs_input">` with the
-open `<questions>` instead of guessing — see Finish.
-
-**A request that delegates the record up front IS the confirmation.** When
-the request itself says to decide without waiting — "you decide", "use your
-judgement", "no need to confirm", "raise it with sensible defaults" — items
-1 and 3-5 are answered by that delegation: record each field you settle
-(type, priority, every acceptance criterion, no due date)
-with `clarify.py add … --source assumption --rationale "…"`, keep
-`docs_only` at `false` (the one value a delegation never sets to `true`),
-list the assumptions under the completion report's Findings, and continue
-to Step 3. Never return `needs_input` for a question the request already
-delegated — a headless run that hands off on "story or task?" after being
-told to decide has produced nothing. Only item 2, a PRD divergence, still
-needs the user: a delegation never confirms going beyond the PRD.
+No user to reach, or a request that delegates the record up front ("you
+decide"): read `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/headless.md`
+before you hand off or continue — a delegation never confirms item 2.
 
 ### Step 3 — Rewrite ticket.json
 
-You run this step inline, as `references/materialize.md` steps 1-3 order it.
-Rewrite `<partition>/ticket.json` through `acs.py ticket save --ticket <id> --from -`
-(the whole document on stdin as a `<<'ACS_EOF'` heredoc, never the Write tool)
-from the confirmed draft, PRESERVING `id`, `status`, and `created_at`, and setting
-all fields required by `schemas/ticket.schema.json`:
-
-- `title`, `type`, `description`, `acceptance_criteria` (array of testable strings),
-  `priority` (`critical|high|medium|low`), `parent` (null — this skill creates
-  roots), `children` (`[]` on every creation run, including an epic's own —
-  `/acs:breakdown-ticket` fills it later; the retired Step 4 `--fan-out` no
-  longer does), `status`, `external` (the import mapping, the sync result from
-  step 5, or null), `assignee` (or null), `story_points` (or null),
-  `needs_design`, `docs_only` (confirmed value, default false), `due_date`
-  (ISO-8601 date string or null), `features` (the confirmed slugs; omit when
-  none), and for a bug its `severity`, `reproduction`, `expected`, `actual` and
-  `environment`; refresh `updated_at` (ISO-8601 UTC).
-
-The description is the author's: built from the type's template (`epic-default`,
-`story-default`, `task-default`, `bug-default`, at
-`${CLAUDE_PLUGIN_ROOT}/templates/<name>.md`; a repo's own
-`<repo>/.acs/templates/<name>.md` of the same name replaces it), every section
-filled. Every description template carries an `acs-ticket: {ticket_id}` line in its
-`## Notes` section — the rendered text is byte-identical across the built-in
-templates, so the acs ticket id is visibly recorded in the ticket's own body
-regardless of type (AC-1). It renders unconditionally — it is NOT itself
-conditional on tracker sync; what IS conditional is whether that description ever
-reaches GitHub (Step 5, skipped on the `local` provider, AC-4).
+You run this step inline, as `references/materialize.md` steps 1-3 order it:
+`acs.py ticket save --ticket <id> --from -` rewrites `<partition>/ticket.json`
+from the confirmed draft, its description built from the type's template.
 
 ### Step 4 — An epic's children are not minted here
 
-No creation run mints a child. An epic ends with `children: []`; once its tech
-design is settled (`/acs:create-tech-design <id>`, approved with
-`/acs:set-doc-status`), `/acs:breakdown-ticket <id>` proposes its children in one
-confirmation, mints them with `new-ticket.py --parent`, and syncs them. The same
-skill splits an oversized story or task into an epic that keeps its id.
+No creation run mints a child: an epic ends with `children: []`, and
+`/acs:breakdown-ticket <id>` mints them (`references/materialize.md` step 4).
 
 ### Step 5 — Tracker sync
 
-Only when `settings.tracker.provider` is `github` — on `local`
-there is no remote, so skip to Finish. When it does apply, open
-`${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/tracker-sync.md` and
-follow it: which tickets enter the sync set and which are excluded, the
-`acs.py tracker sync` batch call and how to read its JSON, and the per-ticket failure rule that surfaces a failed
-sync without aborting the batch.
+Only when `settings.tracker.provider` is `github` — on `local` there is no
+remote, so skip to Finish. When it applies, follow
+`${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/tracker-sync.md`.
 
 ## User interaction
 
@@ -375,23 +312,12 @@ as `due_date`, and record that answer too.
 Ask clarifying questions whenever the request is genuinely ambiguous (scope, type,
 priority, acceptance criteria, PRD divergence) — use AskUserQuestion or plain
 questions, and ask BEFORE finalizing, not after. Do not ask about things the
-codebase or docs already answer. When you genuinely cannot reach the user (a
-non-interactive run): return a `<handoff ... status="needs_input">` with
-`<questions>` instead of guessing. A request that delegates the decisions up
-front is not such a case — it is answered, by assumption entries, per Step 2's
-delegation rule.
+codebase or docs already answer. With no user to reach, see `references/headless.md`.
 
 ## Context pressure
 
-If your context is running low mid-run: flush in-flight work and soft context
-(user answers, confirmed decisions, the current draft's iteration, gotchas) to
-`steps/create-ticket/handoff-context.md`, then run:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --summary "<done / in-flight / next / decisions>"
-```
-
-Tell the user the exact `continue_with` command it prints, then stop.
+If your context is running low mid-run, follow the context-pressure arm of
+`references/resume.md`, then stop.
 
 ## Finish
 

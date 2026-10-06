@@ -72,50 +72,10 @@ iteration="1">` element (schema: `the SubagentStop hook's message check`) with:
 8. **Record the three corroboration sections the deterministic floor parses.**
    In addition to the outline above, your authoring notes carry three further sections
    whose one-line grammars `prd_conformance_check.py` parses at review time —
-   never invent or omit them:
-   - **`## Code evidence`** — brownfield/amend only; N/A in greenfield. One
-     line per citation, the existing house grammar, unchanged:
-
-     ```
-     - <claim text> — `<relative-path>[:<line>|:<line-start>-<line-end>]` — "<verbatim excerpt>"
-     ```
-
-     Path is backtick-quoted, relative to the repo root (never absolute, never
-     `..`-escaping); line/range is advisory only; excerpt is a straight-double-quoted
-     verbatim substring of the cited file. In greenfield mode the notes state `Code
-     evidence: N/A — greenfield, no code to cite` instead of the section body.
-   - **`## Answer fidelity`** — one line per `answered`/`assumed`
-     `clarifications.json` entry:
-
-     ```
-     - C-<n> — <prd.md|roadmap.md> — "<verbatim anchor text>"
-     ```
-
-     or, for an answer that yields no verbatim text:
-
-     ```
-     - C-<n> N/A: <why this answer produces no anchor>
-     ```
-
-     The anchor is a straight-double-quoted verbatim substring of the named
-     produced file (whitespace-normalized). Every ledger id must appear
-     exactly once; an id absent from this section is
-     `answer-not-dispositioned`. You write the section with a line for every
-     entry the ledger already records and name the file each answer will land
-     in; the anchors point into text that does not exist yet, so the author
-     completes each line's verbatim anchor — and adds the lines for the answers
-     your open questions produce — once it has written the documents.
-   - **`## Roadmap milestones`** — one line per milestone the notes' roadmap
-     outline declares, carrying the milestone's verbatim heading text as it
-     will appear in `roadmap.md`:
-
-     ```
-     - Milestone: "### M2.6 — v0.3.5–v0.3.7 fast-follows — complete tracker & PR metadata sync; dynamic lane correctness"
-     ```
-
-     (This mirrors `roadmap.md:273`'s actual milestone-title shape, including
-     the `;` — the grammar quotes the whole heading text so the `;` is inert,
-     never a delimiter.)
+   never invent or omit them: `## Code evidence` (brownfield/amend only),
+   `## Answer fidelity` and `## Roadmap milestones`. Read their grammars, and
+   which lines are yours and which the author completes, in
+   `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/authoring-notes.md`.
 
 ### Design-time doc-consistency step (ADR 0012)
 
@@ -177,17 +137,12 @@ In brownfield or amend mode the coordinator may run the survey as parallel
 slices over disjoint areas of the repo. You are a slice when your `<task>`
 carries `slice="<id>"` and a `<constraint name="survey_area">`. Then:
 
-- **Survey only your area.** Slice `lead` owns the repo root's files, the docs
-  tree (with an existing `<prd>`/`<roadmap>`) and the whole-product sections:
-  `## Mode & evidence`, the product-level `## PRD outline` (Vision, Problem
-  statement, personas, goals with their candidate metrics), `## Roadmap
-  outline`, `## Roadmap milestones`, `## Answer fidelity` (every ledger id
-  once, from you alone) and the ADR-0012 doc-consistency step. Any other slice
-  owns only the paths its `survey_area` names: it records the features,
-  product NFRs and code evidence its area proves under `## PRD outline` and
-  `## Code evidence`, candidate milestones under `## Roadmap outline` (never
-  `## Roadmap milestones`), and its own `## Open questions`, `## Risks` and
-  `## Reviewer checklist` entries — and cites no path outside its area.
+- **Survey only your area.** Slice `lead` owns the whole-product sections
+  (with `## Answer fidelity`: every ledger id once, from you alone) and the
+  ADR-0012 doc-consistency step; any other slice owns only the paths its
+  `survey_area` names and cites no path outside it. Read the **Partition
+  rule** in `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/survey-slices.md`:
+  which files and which headings `lead` and an area slice each own.
 - **Write the sliced file names.** Your notes go to
   `steps/create-prd/iter-1/authoring-<id>.md` (not `authoring.md`) and your
   report to `steps/create-prd/iter-1/surveyor-<id>.json`. Use the same `## `

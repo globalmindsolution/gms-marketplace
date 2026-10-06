@@ -1,8 +1,15 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — `/acs:setup` state-root setup
 
 `/acs:setup` sets up the acs workspace root on every fresh run and every
 re-run. The state root is always the in-repo default — there is no override
-to choose ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)) — so the skill retrofits
+to choose ([ADR-0102](../../../adr/0102-documents-are-found-not-configured.md)) — so the skill retrofits
 the in-repo state root's gitignore coverage through two independent layers,
 verifies the combined result, guards against a broad ignore rule swallowing
 committed CI-readable files, creates the resolved state root and checks it is writable,
@@ -12,7 +19,7 @@ both in `setup_wizard.py`. See the companion `setup-state-root-setup.evidence.md
 sidecar for the code anchors this doc would otherwise cite inline.
 
 Setup is optional, and nothing depends on this flow having run
-([ADR-0105](../../adr/0105-acs-runs-without-setup.md)): the state root
+([ADR-0105](../../../adr/0105-acs-runs-without-setup.md)): the state root
 ignores itself, because the first state write under it creates
 `.acs/state-machine/.gitignore` containing `*`. The two layers below are
 kept for a repo that runs setup, not needed by one that never does.
@@ -67,9 +74,9 @@ and continues rather than hard-failing, since a conflicting negation rule or a
 pre-existing broad `.acs/` ignore is the user's own configuration to fix, not
 something init itself can safely resolve. Moving state that an older acs kept
 in an external workspace is not part of setup: `migrate_workspace.py` does it
-by hand ([workspace-and-state.md](../../../requirements/functional/workspace-and-state.md)).
+by hand ([workspace-and-state.md](../../../../requirements/functional/workspace-and-state.md)).
 
-The sandbox write rule ([ADR-0136](../../adr/0136-state-is-written-through-acs-write.md))
+The sandbox write rule ([ADR-0136](../../../adr/0136-state-is-written-through-acs-write.md))
 lets a sandboxed `acs.py write` from a Claude Code worktree session reach the
 state root, which stays in the main checkout. It is the state root's absolute
 path — settings path rules anchor at the session's working directory — so it

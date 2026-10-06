@@ -594,6 +594,19 @@ class NextStepsTest(WizardCase):
         self.assertEqual(pipeline.count("/acs:create-api-contract"), 1)
         self.assertLess(positions[-1], pipeline.index("/acs:analyze-requirements"))
 
+    def test_breakdown_ticket_closes_the_order_before_delivery(self):
+        """ADR-0138: an epic is broken down once its tech design is approved, so
+        /acs:breakdown-ticket follows /acs:create-tech-design and the delivery
+        steps follow it."""
+        self.assertEqual(setup_wizard.PIPELINE_ORDER[-2:],
+                         ("create-tech-design", "breakdown-ticket"))
+        pipeline = setup_wizard.render_next_steps(False, self.repo)["pipeline"]
+        at = pipeline.index("/acs:breakdown-ticket")
+        self.assertEqual(pipeline[at - 1], "/acs:create-tech-design")
+        self.assertEqual(pipeline[at + 1:-1],
+                         ["/acs:%s" % s for s in setup_wizard.delivery_steps(self.repo)])
+        self.assertEqual(pipeline.count("/acs:breakdown-ticket"), 1)
+
     def test_a_repo_override_is_what_gets_suggested(self):
         override = os.path.join(self.repo, ".acs", "workflows", "ship.yaml")
         os.makedirs(os.path.dirname(override))

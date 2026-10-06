@@ -40,7 +40,8 @@ The notes the reviewer judges you against are `steps/create-prd/iter-<n>/authori
 (`<n>` = your task's `iteration`), and the review's deterministic floor
 (`prd_conformance_check.py --plan steps/create-prd/iter-<n>/authoring.md`)
 parses their `## Code evidence`, `## Answer fidelity` and `## Roadmap milestones`
-sections. Keep every heading the surveyor wrote.
+sections (grammars: `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/authoring-notes.md`).
+Keep every heading the surveyor wrote.
 
 - **Iteration 1** — the surveyor wrote `iter-1/authoring.md`. After writing the
   documents, complete it in place: give every `## Answer fidelity` line its

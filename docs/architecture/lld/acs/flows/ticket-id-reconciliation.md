@@ -1,3 +1,10 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — Ticket-id first-allocate reconciliation
 
 `allocate_ticket_id` (`acs_lib/tickets.py`) gains a fail-closed, network-free

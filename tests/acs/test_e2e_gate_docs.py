@@ -16,15 +16,25 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 MERGE_PR_PATH = os.path.join(PLUGIN, "skills", "merge-pr", "SKILL.md")
 DEPLOYMENT_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "deployment.md")
-FLOW_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows",
-                         "enforce-e2e-merge-gate.md")
-CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+LLD_ACS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs")
+FLOW_PATH = os.path.join(LLD_ACS, "flows", "enforce-e2e-merge-gate.md")
+# The old lld/contracts.md is one file per interface under lld/acs/api/ now;
+# the settings section these pins read is api/settings.md.
+CONTRACTS_PATH = os.path.join(LLD_ACS, "api", "settings.md")
+API_DIR = os.path.join(LLD_ACS, "api")
 C4_CONTAINER_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
 
 
 def read(path):
     with open(path, encoding="utf-8") as fh:
         return fh.read()
+
+
+def read_api():
+    """Every interface document under lld/acs/api/, sidecars excluded: the
+    whole of what the old contracts.md held."""
+    return "\n".join(read(os.path.join(API_DIR, n)) for n in sorted(os.listdir(API_DIR))
+                     if n.endswith(".md") and not n.endswith(".evidence.md"))
 
 
 class TestMergePrNote(unittest.TestCase):
@@ -89,15 +99,16 @@ class TestFlowFile(unittest.TestCase):
 
 
 class TestContractsMd(unittest.TestCase):
-    """[AC-7] contracts.md drift-repair + e2e artifact-family note."""
+    """[AC-7] contracts.md (now lld/acs/api/) drift-repair + e2e artifact-family note."""
 
     @classmethod
     def setUpClass(cls):
         cls.body = read(CONTRACTS_PATH)
+        cls.api = read_api()
 
     def test_contracts_md_lists_tests_and_no_enforcement_block(self):
         self.assertIn("`tests` is `{coverage?, unit?, e2e?, <name>?}`", self.body)
-        self.assertNotIn("enforcement?", self.body)
+        self.assertNotIn("enforcement?", self.api)
 
     def test_contracts_md_notes_e2e_artifact_family(self):
         self.assertIn("acs-e2e.yml", self.body)

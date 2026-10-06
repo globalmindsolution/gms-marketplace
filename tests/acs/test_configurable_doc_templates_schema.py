@@ -40,7 +40,7 @@ DESIGN_TEMPLATE_PATH = os.path.join(PLUGIN, "templates", "design-default.md")
 CREATE_DESIGN_SKILL = "create-tech-design"  # read through skill_text: the literal lives in references/
 CHANGELOG_PATH = os.path.join(PLUGIN, "CHANGELOG.md")
 C4_CONTAINER_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
-CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api", "settings.md")
 ADR_PATH = os.path.join(
     REPO_ROOT, "docs", "architecture", "adr",
     "0065-configurable-design-spec-templates-byte-identical-defaults.md",

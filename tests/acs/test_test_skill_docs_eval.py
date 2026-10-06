@@ -52,7 +52,9 @@ class ContractsMdSettingsKeyListTest(unittest.TestCase):
     must not name them and states that no key locates a document."""
 
     def _contracts(self):
-        return read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md"))
+        # The Settings section of the old contracts.md is lld/acs/api/settings.md.
+        return read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api",
+                                 "settings.md"))
 
     def test_settings_key_list_has_tests_map_and_removed_suites_e2e_note(self):
         body = self._contracts()

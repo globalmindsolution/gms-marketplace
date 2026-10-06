@@ -21,10 +21,11 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 CREATE_TICKET_SKILL = os.path.join(PLUGIN, "skills", "create-ticket", "SKILL.md")
-CONTRACTS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+CONTRACTS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api", "cli.md")
 DATA_MODEL = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "data-model.md")
 C4_COMPONENT = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md")
-FLOW_DOC = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows", "ticket-id-reconciliation.md")
+FLOW_DOC = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "flows",
+                        "ticket-id-reconciliation.md")
 WORKSPACE_AND_STATE = os.path.join(
     REPO_ROOT, "docs", "requirements", "functional", "workspace-and-state.md"
 )

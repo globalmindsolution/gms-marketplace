@@ -32,7 +32,12 @@ DEPLOYMENT = _p("docs", "architecture", "hld", "deployment.md")
 C4_CONTEXT = _p("docs", "architecture", "hld", "c4-context.md")
 C4_CONTAINER = _p("docs", "architecture", "hld", "c4-container.md")
 DATA_MODEL = _p("docs", "architecture", "hld", "data-model.md")
-CONTRACTS = _p("docs", "architecture", "lld", "contracts.md")
+#: lld/contracts.md is one file per interface under lld/acs/api/ now. The
+#: workspace default it described is the settings interface's; every negative
+#: check below still covers the whole of what the old file held (API_DOCS).
+CONTRACTS = _p("docs", "architecture", "lld", "acs", "api", "settings.md")
+API_DOCS = tuple(_p("docs", "architecture", "lld", "acs", "api", name + ".md") for name in (
+    "coordinator-subagent", "cli", "delivery-path", "guard-audit", "state-files", "settings"))
 
 WORKSPACE_AND_STATE = _p("docs", "requirements", "functional", "workspace-and-state.md")
 CONFIGURATION = _p("docs", "requirements", "functional", "configuration.md")
@@ -43,11 +48,11 @@ USAGE = _p("docs", "requirements", "functional", "usage.md")
 REQUIREMENTS_README = _p("docs", "requirements", "README.md")
 PORTABILITY = _p("docs", "requirements", "non-functional", "portability.md")
 
-# The 17 files this ticket's file map touches (3 ADR, 6 architecture, 8
-# requirements).
+# The 17 files this ticket's file map touched (3 ADR, 6 architecture, 8
+# requirements); contracts.md stands as its six lld/acs/api/ successors.
 TOUCHED_FILES = (
     ADR_0003, ADR_0086, ADR_README,
-    OVERVIEW, DEPLOYMENT, C4_CONTEXT, C4_CONTAINER, DATA_MODEL, CONTRACTS,
+    OVERVIEW, DEPLOYMENT, C4_CONTEXT, C4_CONTAINER, DATA_MODEL) + API_DOCS + (
     WORKSPACE_AND_STATE, CONFIGURATION, SKILLS, HOOKS, WORKFLOW, USAGE,
     REQUIREMENTS_README, PORTABILITY,
 )

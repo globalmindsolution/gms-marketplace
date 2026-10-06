@@ -11,7 +11,11 @@ Stdlib-only (re, unittest). Run:
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from skill_text import skill_contract  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -124,10 +128,11 @@ class ZeroOrphanMilestoneInvariantTest(unittest.TestCase):
 class CreatePrdSkillContractTest(unittest.TestCase):
     """AC-8 (reads Spec 01's output): SKILL.md's author-duties region
     states the mapping-table duty; its review region states the coverage
-    sub-check."""
+    sub-check. Read as the skill's contract: SKILL.md with its references
+    inlined where it points at them."""
 
     def _skill_md(self):
-        return read(os.path.join(PLUGIN, "skills", "create-prd", "SKILL.md"))
+        return skill_contract("create-prd")
 
     def test_author_region_states_mapping_table_duty(self):
         window = section(self._skill_md(), "### Author — the write")
@@ -197,11 +202,13 @@ class DecouplingGuardTest(unittest.TestCase):
 
 
 class ConformanceDocsTest(unittest.TestCase):
-    """AC-7: contracts.md's conformance-chain area and skills.md's
-    create-prd section document the release-versions mapping-table output."""
+    """AC-7: contracts.md's conformance-chain area (now the settings
+    interface, lld/acs/api/settings.md) and skills.md's create-prd section
+    document the release-versions mapping-table output."""
 
     def test_contracts_md_conformance_chain_area_mentions_table(self):
-        body = read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md"))
+        body = read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api",
+                                 "settings.md"))
         m = re.search(r"(?m)^Conformance chain:.*$", body)
         self.assertIsNotNone(m, "contracts.md conformance-chain line not found")
         window = body[max(0, m.start() - 200):m.end() + 800]

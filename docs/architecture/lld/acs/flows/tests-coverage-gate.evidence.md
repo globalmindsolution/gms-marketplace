@@ -1,7 +1,7 @@
 # Evidence sidecar — tests-coverage-gate.md
 
 Companion `.evidence.md` file for
-`docs/architecture/lld/flows/tests-coverage-gate.md`. Relocated
+`docs/architecture/lld/acs/flows/tests-coverage-gate.md`. Relocated
 code-evidence citations, keyed by the body's existing heading/clause
 identity, per the docs-sync sidecar convention (`docs-sync-doc-updater.md:61-69`) ->
 `[path:line]`.
