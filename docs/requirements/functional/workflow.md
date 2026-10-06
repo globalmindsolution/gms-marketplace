@@ -610,7 +610,12 @@ capability that diverges from it.
   architecture — both **HLD** (C4 views, data model, deployment) and
   **LLD**, merging the ticket design's new or changed sequence diagrams
   into `lld/flows/`; `/acs:review-code`'s documentation lens checks
-  that consistency.
+  that consistency. `/acs:docs-sync` then brings each run feature's
+  `lld/<feature>/{api,data,flows,components}/` documents in line with the
+  code — a `proposed` document updated and bumped, drift from an `approved`
+  one asked about, never silently rewritten — and moves a document whose
+  code now fully matches from `approved` to `implemented`
+  ([ADR-0137](../../architecture/adr/0137-docs-sync-keeps-the-feature-lld-current.md)).
 - **Enforcement (docs current by induction)**: `/acs:review-code` makes a
   positive, evidenced architectural-impact determination from each diff —
   impact without matching doc changes in the same changeset is a blocking

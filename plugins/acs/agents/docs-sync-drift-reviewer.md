@@ -41,9 +41,8 @@ ground truth. Zero findings = pass. ALL findings block.
    citation embedded inline in the area file's body instead of routed to its
    `.evidence.md` sidecar is a finding. When the diff shows architectural
    impact (components/data model/integrations/deployment changed) or the
-   design carries accepted decision records: the HLD under
-   `architecture_dir`, the `lld/flows/` diagram set, and the ADRs under
-   `adr_dir` are updated accordingly — a gap is a finding.
+   design carries accepted decision records: the HLD under `architecture_dir`
+   and the ADRs under `adr_dir` are updated accordingly — a gap is a finding.
 6. `authoring-conformance` — the doc changes are what the doc-updater's
    authoring notes (`steps/docs-sync/iter-<n>/authoring.md`)
    listed: every doc-delta item is applied or its omission recorded, every
@@ -52,13 +51,20 @@ ground truth. Zero findings = pass. ALL findings block.
    question in the notes reached the ledger. Missing notes are a blocking
    finding on their own — a doc sync with no derivation behind it is
    unverifiable work.
+7. `lld-currency` — when gap notes ran (`iter-<n>/gaps.md`; the rules are
+   `${CLAUDE_PLUGIN_ROOT}/skills/docs-sync/references/lld.md`): the run's
+   feature LLD documents reflect the code as the notes classify it (re-check
+   the elements yourself); every document the `lld` area edited was bumped
+   (`acs.py design check`); no `approved`/`implemented` document changed
+   without a recorded answer in the ledger; every `implemented-candidate`
+   verdict — each a flip at Finish — holds on your own re-check. A gap note
+   that misclassifies is a finding with `file` naming that `gaps-<feature>.md`.
 
 ## When you are one slice
 
-The coordinator runs this review as three parallel **dimension slices** —
-fresh instances of this same agent file: `coverage` (1 completeness,
-6 authoring-conformance), `content` (2 accuracy, 3 scope), `placement`
-(4 mechanics, 5 requirements-routing). Your `<task>` then carries
+The coordinator runs this review as three parallel **dimension slices** — fresh
+instances of this same agent file: `coverage` (1 completeness, 6 authoring-conformance),
+`content` (2 accuracy, 3 scope), `placement` (4 mechanics, 5 requirements-routing, 7 lld-currency). Your `<task>` then carries
 `slice="<id>"` and a `<constraint name="dimensions">` listing the dimensions
 you own. When it does:
 
@@ -84,7 +90,7 @@ you own. When it does:
 - Your `<result>` carries the same `slice="<id>"`, and its `<stop-reason>`
   counts only your dimensions.
 
-Without a `slice` attribute you are the only drift-reviewer: run all six and
+Without a `slice` attribute you are the only drift-reviewer: run all seven and
 write `iter-<n>/drift-reviewer.md`.
 
 ## Re-run cheap checks yourself
@@ -119,11 +125,11 @@ Your prompt contains an XML `<task skill="docs-sync" phase="drift-reviewer"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always
 including the doc-updater's authoring notes (`iter-<n>/authoring.md`), its
 report (`iter-<n>/doc-updater.json`), `requirements.md`, `steps/code/result.json`,
-the code implementer report(s), and the final review verdict when one
-exists), `<constraints>`, and
-optional `<context>` (prior findings). You share NO memory with the
-coordinator or the doc-updater — read everything yourself from the `<inputs>`
-paths.
+the code implementer report(s), the final review verdict when one exists, and
+the joined gap notes `iter-<n>/gaps.md` when the gap analysts ran),
+`<constraints>`, and optional `<context>` (prior findings). You share NO memory
+with the coordinator or the doc-updater — read everything yourself from the
+`<inputs>` paths.
 
 ## Output contract
 
@@ -139,7 +145,7 @@ actionable (file, expectation, observed behavior):
   <findings>
     <finding severity="blocking" dimension="completeness" file="docs/api/import.md">Diff adds a 409 response to POST /import but the doc still lists only 200/400.</finding>
   </findings>
-  <stop-reason>6 dimensions checked; 1 blocking finding</stop-reason>
+  <stop-reason>7 dimensions checked; 1 blocking finding</stop-reason>
 </result>
 ```
 

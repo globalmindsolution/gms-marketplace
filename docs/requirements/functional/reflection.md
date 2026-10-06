@@ -37,7 +37,7 @@ for each role** (ADR-0109):
 | create-api-contract | `create-api-contract-gap-analyst` (beside the contract-author's survey, when the feature's `api/` holds documents — ADR-0134) | `create-api-contract-contract-author` | `create-api-contract-contract-reviewer` |
 | create-test-docs | — | `create-test-docs-test-designer` | `create-test-docs-trace-reviewer` |
 | create-e2e-tests | — | `create-e2e-tests-test-writer` | `create-e2e-tests-suite-runner` |
-| docs-sync | — | `docs-sync-doc-updater` | `docs-sync-drift-reviewer` |
+| docs-sync | `docs-sync-gap-analyst` (one per run feature, beside the doc-updaters in iteration 1, over the feature's living LLD documents — ADR-0137) | `docs-sync-doc-updater` | `docs-sync-drift-reviewer` |
 
 No skill has a plan phase before its writer (ADR-0092): for an authoring
 skill the deliverable IS the document, and a plan for it is a second copy of
@@ -146,7 +146,7 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 34 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 35 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
@@ -156,10 +156,12 @@ Requirements:
   `create-impl-plan`, `create-api-contract` — a Design skill since
   ADR-0134 — `create-test-docs`, `create-e2e-tests`). One of them
   (`create-prd`) adds a surveyor, one (`analyze-requirements`) an impact
-  analyst per code area (ADR-0114), and four (`create-architecture`,
+  analyst per code area (ADR-0114), four (`create-architecture`,
   `create-api-contract`, `create-data-design`, `create-flows`) a gap analyst
   beside their survey over the documents they revise (ADR-0122, ADR-0126,
-  ADR-0134).
+  ADR-0134), and one (`docs-sync`) a gap analyst per feature beside its
+  doc-updaters, over the living LLD documents the run implemented
+  (ADR-0137).
 
   **One** prefix is write-only: `code`, whose implementers are judged by
   `/acs:review-code`, because an implementer that grades its own output gave
