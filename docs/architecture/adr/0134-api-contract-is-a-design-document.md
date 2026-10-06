@@ -1,6 +1,6 @@
 # 0134 — The API contract is a Design document: `/acs:create-api-contract` leaves the pipeline and writes documents only
 
-**Status**: Accepted · **Date**: 2026-10-05
+**Status**: Accepted — amended by [0137](0137-docs-sync-keeps-the-feature-lld-current.md) (`/acs:docs-sync` keeps `lld/<feature>/api/` current after implementation — P7 has landed) · **Date**: 2026-10-05
 
 **Amends**: [0118](0118-discovery-design-development-phases.md) (§4's move of
 `create-api-contract` out of `ship.yaml` into Design lands here),

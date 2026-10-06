@@ -13,7 +13,7 @@ component follows.
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 29 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 34 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 35 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
 | Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
@@ -799,10 +799,10 @@ defaulting would finalize the run and open the next gate on nothing. The same
 rule holds one layer down: `finalize_run` raises on a result with no status,
 so an in-process caller cannot bypass it either.
 
-**Five `states` keys are DERIVED, not read (MAR-523, MAR-578).** `run_post`
-computes `verifier_passed`, `tests`, `pr`, `review.iterations` and
-`review.guard_denials` from the artifacts before persisting the document, and
-the computed value wins:
+**Six `states` keys are DERIVED, not read (MAR-523, MAR-578, ADR-0137).**
+`run_post` computes `verifier_passed`, `tests`, `pr`, `review.iterations`,
+`review.guard_denials` and `/acs:docs-sync`'s `implemented` from the artifacts
+before persisting the document, and the computed value wins:
 
 | Key | Source | When it cannot be computed |
 |---|---|---|
@@ -811,6 +811,7 @@ the computed value wins:
 | `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
 | `review.iterations` | `/acs:review-code`'s verdict, lens and adjudication artifacts on disk | the coordinator's value is kept |
 | `review.guard_denials` | the length of `invocations[-1].guard_events` on `steps/<skill>/state.json` | **absent, not `0`** — a run that never tripped the file-map guard carries no key |
+| `implemented` (`docs-sync` only, `IMPLEMENTED_SKILLS`) | each listed design document's own version front matter, read from the checkout: only a document that reads `status: implemented` is kept; one missing, unversioned or at another status is dropped (ADR-0137) | the listed paths are kept unchecked when there is no checkout root, and the provenance says so |
 
 A disagreement is recorded, never silently resolved: `runs[-1].derived_states`
 carries `values`, a one-line `provenance` for every key considered (including
@@ -834,7 +835,7 @@ archived to `archive/<ticket-id>/`).
 
 The next skill, a ship.yaml predicate, or a gate brake reads these — keep the
 names exact. `acs_lib/derive.py` owns only `DERIVED_KEYS`
-(`verifier_passed`, `tests`, `pr`, `review`) and `VERDICT_SKILLS` (`review-code`);
+(`verifier_passed`, `tests`, `pr`, `review`, `implemented`) and `VERDICT_SKILLS` (`review-code`);
 every other key below is persisted verbatim from the result document:
 
 | Skill | Required `states` keys on success |
@@ -849,6 +850,7 @@ every other key below is persisted verbatim from the result document:
 | analyze-requirements | `ready_for_planning: true/false`, `questions_open` (int) — no `api_surface` since ADR-0134 (an older state file that carries it still validates; nothing reads it) |
 | create-impl-plan | `plan_path`, `plan_approved: true/false` (written by `plan-approval.py`), `file_map` (object) |
 | create-test-docs | `cases` (int), `e2e_cases` (int), `untraced_acs: [...]` (empty on a completed run) |
+| docs-sync | `files: [...]` (every doc it edited or bumped, left uncommitted), `implemented: [...]` (the living LLD documents it moved `approved → implemented`, derived from their front matter — ADR-0137) |
 | code | `branch`, `delivery_path`, `plan_path`, `plan_approved`, `file_map`, `specs_implemented: [...]`, `files: [...]` (the uncommitted paths; `commits` is legacy and optional) (plus `review.guard_denials`, derived, only when the file-map guard denied a write) |
 | review-code | `verifier_passed: true/false` (the /create-pr BRAKE, derived from `verdict.json`), `reviewed_sha` (the working-tree snapshot tree the review judged), `review` `{iterations, findings_open}`, `tests` `{passed, failed, coverage_percent, coverage_target}` |
 | create-e2e-tests | `suites_written: [...]`, `cases_covered: [...]` |
@@ -928,7 +930,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-34 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 34 reachable —
+35 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 35 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -960,7 +962,7 @@ setting.
 | `code` (and its four legs) | `implementer` (write), one per file-map partition |
 | `review-code` | `lens` · `adjudicator` (judge) |
 | `create-e2e-tests` | `test-writer` (write) · `suite-runner` (judge) |
-| `docs-sync` | `doc-updater` (write) · `drift-reviewer` (judge) |
+| `docs-sync` | `doc-updater` (write — one per doc area: `requirements`, `architecture`, `lld`, `adr`, `general`) · `gap-analyst` (survey — one per run feature, in the same message as the doc-updaters in iteration 1; ADR-0137) · `drift-reviewer` (judge — three slices over seven dimensions) |
 | `audit-design` | `gap-analyst` (survey — one per top-level code area); read-only, no writer and no judge (ADR-0122) |
 | `audit-security` | `auditor` (survey — one per category: `code` per code area, `secrets-config`, `dependencies`, `threat-model`) · `adjudicator` (judge — one per candidate finding, prompted to refute it); read-only, no writer (ADR-0123) |
 | `create-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from `skills/<skill>/references/` (`materialize.md`, `publish.md`, `merge.md`) |
@@ -1742,7 +1744,9 @@ current through an induction invariant, not a periodic chore:
   the SAME branch/PR: /create-tech-design conforms or lists required doc changes;
   `/acs:docs-sync`'s doc-updater names the HLD files and `lld/flows/` diagrams
   to update, from the diff, in its authoring notes after `/acs:code`
-  completes; `docs-sync`'s
+  completes, and its `lld` area brings the run's features'
+  `lld/<feature>/` documents in line with the code from its gap analysts'
+  notes (ADR-0137); `docs-sync`'s
   drift-reviewer derives the architectural impact from the diff itself (a
   positive, evidenced conclusion — never a default) and blocks before
   `/acs:create-pr` runs when impact exists without matching doc changes.
@@ -1826,11 +1830,34 @@ the documents and one for the target, and runs a single `design status --set`;
 it commits nothing, and the docs PR `/acs:create-pr` opens carries the
 approval for review (ADR-0130).
 `acs_lib.design_docs` assigns the move to `implemented` to `/acs:docs-sync`,
-once a gap analysis finds the code matching; docs-sync's own SKILL.md does not
-run it yet, so until it does that move is a `design status --set implemented`
-run by hand. The gap
-analysts (`create-architecture-gap-analyst` beside that skill's survey, and
-`/acs:audit-design`'s over the whole set) read the status: an element designed
+and docs-sync runs it (ADR-0137). Its `lld` doc area owns
+`<architecture_dir>/lld/<feature>/{api,data,flows,components}/**` for the run's
+features (`context.requirements.features`, else the ticket's `features`; none
+→ the area has no work); `architecture` keeps the HLD and the flat
+`lld/flows/`, and a run's record folder `lld/<feature>/<key>/` is never edited.
+One `docs-sync-gap-analyst` per feature, beside the doc-updaters in iteration
+1, classifies every element of every living document `matches`,
+`unimplemented`, `undocumented` or `drifted` with evidence, records the
+document's `status`/`version` from `design check`, and marks it
+`implemented-candidate` when every element matches; its notes,
+`iter-1/gaps-<feature>.md`, are joined into `iter-1/gaps.md`. The `lld`
+doc-updater updates and bumps a `proposed` (or unversioned) document; drift
+in an `approved` or `implemented` one is a question in the one grouped ask —
+update the document (bumped, so back to `proposed` for re-approval) or keep it
+and send the code back as a blocking finding — recorded headless as a
+blocking finding and `needs_input`, never decided; a `deprecated` one is left
+alone. After the review passes the coordinator moves every candidate in one
+`design status --set implemented --by acs --reason "<run-id>: the code
+matches" <doc>...` call, and the result lists them in `states.implemented`
+(every document it bumped or edited stays in `states.files`). A document with
+an element still unimplemented stays `approved`, so a design delivered across
+tickets reaches `implemented` with the last of them. The drift reviewer's
+seventh dimension, `lld-currency`, in its `placement` slice, checks those
+updates, bumps, answers and moves. A `design status --set implemented` by
+hand is still legal. The gap
+analysts (`create-architecture-gap-analyst` beside that skill's survey,
+`docs-sync-gap-analyst` per run feature, and `/acs:audit-design`'s over the
+whole set) read the status: an element designed
 but not built is *planned* in a `proposed` or `approved` document and a
 regression in an `implemented` one.
 

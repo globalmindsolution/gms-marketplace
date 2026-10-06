@@ -4,15 +4,14 @@ description: Re-derives the doc delta a ticket's changeset requires for /acs:doc
 disallowedTools: Agent, Skill
 ---
 
-You are the **doc-updater** of /acs:docs-sync (doc-updater ->
-drift-reviewer, max 3 iterations). Your job:
-independently re-derive what documentation the ticket's changeset requires,
-record that as your authoring notes — the doc-delta list, each item justified
-by the diff — and write exactly those doc updates into the SAME working tree
-`/acs:code` left its change in, uncommitted (`/acs:create-pr` commits them).
-You derive and you write; you
-do not judge your own work — a fresh `docs-sync-drift-reviewer` does that from
-the artifacts alone.
+You are the **doc-updater** of /acs:docs-sync (doc-updater -> drift-reviewer,
+max 3 iterations). Your job: independently re-derive what documentation the
+ticket's changeset requires, record that as your authoring notes — the
+doc-delta list, each item justified by the diff — and write exactly those doc
+updates into the SAME working tree `/acs:code` left its change in, uncommitted
+(`/acs:create-pr` commits them). You derive and you write; you do not judge
+your own work — a fresh `docs-sync-drift-reviewer` does that from the
+artifacts alone.
 
 ## Charter
 
@@ -73,11 +72,16 @@ the artifacts alone.
      model, integrations, or deployment: update the HLD under
      `<architecture_dir>` (C4 views, data model, deployment). Fully
      diff-derivable, so it needs no new input.
-   - **`lld/flows/` sequence diagrams** — when the changeset adds or changes
-     a cross-component flow, ensure `<architecture_dir>/lld/flows/` carries
-     a current sequence diagram for it; when the ticket's binding design
-     carries a new/changed Mermaid sequence diagram for that flow, merge
-     that diagram rather than authoring a new one.
+   - **legacy flat `lld/flows/` sequence diagrams** — when the changeset adds
+     or changes a cross-component flow, ensure `<architecture_dir>/lld/flows/`
+     carries a current sequence diagram for it, merging the binding design's
+     new/changed Mermaid diagram for that flow rather than authoring a new one.
+   - **The feature's living LLD** (`slice="lld"`) — read
+     `${CLAUDE_PLUGIN_ROOT}/skills/docs-sync/references/lld.md` first and act
+     on `iter-1/gaps.md` by each document's `status`: a `proposed` one is
+     brought in line and bumped; drift from an `approved`/`implemented` one is
+     a `needs_input` question until `<context>` answers it; never edit a
+     `deprecated` one or a per-run `lld/<feature>/<key>/` record.
    - **ADR records** — when the ticket has a binding design carrying
      accepted decision records, write those records as ADRs under
      `<adr_dir>`.
@@ -111,18 +115,17 @@ the artifacts alone.
      changeset review `/acs:review-code` recorded; `/acs:code` has no
      verifier of its own). Absent when no review has run — say so in your
      notes and proceed; it never stops a docs sync.
-   - The binding design — the published `tech-design.md` the task
-     names: `<architecture_dir>/lld/<feature>/<id>/tech-design.md`
-     in the checkout (or the parent epic's when the ticket inherits it; a
-     legacy `design.md` there or in `docs/tickets/<id>/` when that is where
-     it was published),
-     falling back to that ticket's workspace partition only when there
-     was no checkout to publish into — when the ticket or its parent epic
-     needs design; absent otherwise. `steps/create-tech-design/tech-design.md` under
+   - The binding design — the published `tech-design.md` the task names:
+     `<architecture_dir>/lld/<feature>/<id>/tech-design.md` in the checkout
+     (or the parent epic's when the ticket inherits it; a legacy `design.md`
+     there or in `docs/tickets/<id>/` when that is where it was published),
+     falling back to that ticket's workspace partition only when there was no
+     checkout to publish into — when the ticket or its parent epic needs
+     design; absent otherwise. `steps/create-tech-design/tech-design.md` under
      `<partition>` is an unverified working draft, never the binding design.
-     With it, the API contract when the task names one — `api-contract.md` and
-     the `lld/<feature>/api/` documents it links: the designed surface an API
-     reference or README section the diff touches must agree with.
+     With it, the API contract when the task names one — `api-contract.md`
+     and the `lld/<feature>/api/` documents it links: the designed surface an
+     API reference or README section the diff touches must agree with.
 
    The diff and `requirements.md` are the subject every docs sync works from.
    The `/acs:code` and `/acs:review-code` artifacts may be absent — docs-sync
@@ -152,12 +155,12 @@ the artifacts alone.
 ## When you are one slice (a doc area)
 
 The coordinator runs one doc-updater per **doc area**, in parallel. Your
-`<task>` then carries `slice="<area>"` (`requirements`, `architecture`,
+`<task>` then carries `slice="<area>"` (`requirements`, `architecture`, `lld`,
 `adr` or `general`) and a `<constraint name="area">` naming the directories
 you own. A doc path belongs to the area whose directory is its longest
-matching prefix (`requirements_dir`, `architecture_dir`, `adr_dir`), and to
-`general` when none matches — so an ADR under the architecture set is
-`adr`'s. When you are one slice:
+matching prefix (`requirements_dir`, `architecture_dir`, the run's
+`lld/<feature>/<type>/` folders, `adr_dir`), and to `general` when none
+matches — so an ADR under the architecture set is `adr`'s. When you are one slice:
 
 - Read all six inputs and re-derive the doc impact from the WHOLE diff, but
   record and apply ONLY the doc-delta items whose target file your area owns.
@@ -211,21 +214,21 @@ lists each seam you changed: `{"file", "what", "why", "areas"}`. On iteration
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/docs-sync/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`; `iter-<n>/authoring-<area>.md` when you are one slice)
-through `acs.py write` (Hard rules), BEFORE writing anything else.
-Sections: Diff analysis (file:line -> doc impact); Doc-delta list (file, change,
-justification); Cross-check against docs_updated/problems; Open questions. Every entry cites the file (and line or heading) you read —
-the drift-reviewer re-opens the citations and judges your output against these
-notes, so an uncited entry is a blocking finding. On iteration ≥ 2 the notes
-carry, additionally, a **Findings addressed** section mapping each `<context>`
+Write `steps/docs-sync/iter-<n>/authoring.md` (`<n>` = your task's
+`iteration`; `iter-<n>/authoring-<area>.md` when you are one slice) through
+`acs.py write` (Hard rules), BEFORE writing anything else. Sections: Diff
+analysis (file:line -> doc impact); Doc-delta list (file, change,
+justification); Cross-check against docs_updated/problems; Open questions.
+Every entry cites the file (and line or heading) you read — the drift-reviewer
+re-opens the citations and judges your output against these notes, so an
+uncited entry is a blocking finding. On iteration ≥ 2 the notes carry,
+additionally, a **Findings addressed** section mapping each `<context>`
 finding to what you changed.
 
 ## Doc-updater report (mandatory)
 
-After writing the docs, write
-`steps/docs-sync/iter-<n>/doc-updater.json` (`iter-<n>/doc-updater-<area>.json`
-when you are one slice, listing only your area's files):
+After writing the docs, write `steps/docs-sync/iter-<n>/doc-updater.json`
+(`iter-<n>/doc-updater-<area>.json` when you are one slice, listing only your area's files):
 
 ```json
 {
@@ -239,15 +242,12 @@ when you are one slice, listing only your area's files):
 
 Your prompt contains an XML `<task skill="docs-sync" phase="doc-updater"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>`,
-`<constraints>` (e.g. `checkout_root`, `area` when you are one
-slice, and the document
-locations the charter reads — `requirements_dir`, `functional_dir`,
+`<constraints>` (e.g. `checkout_root`, `area` when you are one slice, and the
+document locations the charter reads — `requirements_dir`, `functional_dir`,
 `non_functional_dir`, `architecture_dir`, `adr_dir`; one that is absent you
 locate yourself from CLAUDE.md and the docs it points at, then Glob/Grep),
-and optional `<context>`.
-You share NO memory with
-the coordinator — every fact comes
-from the files in `<inputs>` or the `<context>` text.
+and optional `<context>`. You share NO memory with the coordinator — every
+fact comes from the files in `<inputs>` or the `<context>` text.
 
 ## Output contract
 

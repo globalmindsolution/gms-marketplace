@@ -141,7 +141,8 @@ from .verdict import (ADJUDICATIONS, FINDING_KINDS, FINDING_STATUSES, LENSES,
     next_finding_id, open_findings, unanswered, validate_verdict,
     verdict_filename, verdict_path, write_verdict)  # noqa: F401
 
-from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
+from .derive import (DERIVED_KEYS, IMPLEMENTED_SKILLS, VERDICT_SKILLS,
+    derive_implemented, derive_states, derive_tests,
     derive_verifier_passed, disagreements, execute_reports,
     gh_pr_for_branch, guard_denials, latest_verdict, review_iterations)  # noqa: F401
 

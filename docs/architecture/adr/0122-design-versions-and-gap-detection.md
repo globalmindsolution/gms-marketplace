@@ -1,6 +1,6 @@
 # 0122 — Design documents are versioned, and every Design skill looks for design ↔ code gaps
 
-**Status**: Accepted — amended by [0130](0130-prd-versions-and-set-doc-status.md) (the PRD and roadmap are versioned too; `/acs:set-doc-status` moves a status, recording `status_by`, `status_at` and `status_reason`, all or nothing over several documents) · **Date**: 2026-10-04
+**Status**: Accepted — amended by [0130](0130-prd-versions-and-set-doc-status.md) (the PRD and roadmap are versioned too; `/acs:set-doc-status` moves a status, recording `status_by`, `status_at` and `status_reason`, all or nothing over several documents) and by [0137](0137-docs-sync-keeps-the-feature-lld-current.md) (`/acs:docs-sync` now runs §1's move to `implemented`: its gap analyst marks a document whose code fully matches, and the coordinator moves it after the review passes) · **Date**: 2026-10-04
 
 **Amends**: [0118](0118-discovery-design-development-phases.md) (the Design phase gains
 version control for its documents and a gap analysis beside every design pass) and

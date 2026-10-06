@@ -280,7 +280,8 @@ def run_post(skill):
             rdir, skill, result, settings=ctx["settings"], run_id=run_id,
             since=(step_machine.last_invocation(
                 step_machine.load_state(rdir, skill, run_id)) or {}).get("started_at"),
-            branch=(result.get("states") or {}).get("branch") or current_branch(cwd))
+            branch=(result.get("states") or {}).get("branch") or current_branch(cwd),
+            root=ctx.get("checkout_root"))
     except Exception as exc:  # noqa: BLE001
         # A derivation that cannot run degrades to "not derived", never to a
         # stranded step: it happens BEFORE the finalize below, so anything it

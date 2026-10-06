@@ -64,8 +64,9 @@ ADR-0126), `create-impl-plan` (planner,
 plan-reviewer), `create-api-contract` (contract-author, gap-analyst,
 contract-reviewer — ADR-0134),
 `create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
-(test-writer, suite-runner) and `docs-sync` (doc-updater, drift-reviewer)
-— **28 agents**. No skill has a plan
+(test-writer, suite-runner) and `docs-sync` (doc-updater, gap-analyst,
+drift-reviewer — ADR-0137)
+— **29 agents**. No skill has a plan
 phase before its writer (ADR 0092): a surveyor runs on iteration 1
 only and freezes its notes, and where there is none the writer surveys first
 and records `iter-<n>/authoring.md`; the judge judges the deliverable against
@@ -82,7 +83,7 @@ The read-only `/acs:audit-security` runs no loop: its auditors (survey kind, one
 per category) raise candidate findings and one adjudicator (judge kind) per
 candidate tries to refute it, with no writer between them — 2 agents
 (ADR-0123). That gives
-**34 agent files, all reachable**: every file name resolves to a shipped
+**35 agent files, all reachable**: every file name resolves to a shipped
 skill and a known role, so no agent file is orphaned. `/create-impl-plan`'s
 planner is spawned on every run: MAR-72/ADR 0074's coordinator-authored fast
 path went with the lanes (ADR 0095).

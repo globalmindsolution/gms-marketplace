@@ -239,7 +239,8 @@ class ScopeGuardTest(unittest.TestCase):
     twelve->nine authoring skills; ADR-0126: create-data-design and
     create-flows added, 26->28 skills, 27->33 agent files, nine->eleven
     authoring skills; ADR-0134: create-api-contract's gap analyst added,
-    33->34 agent files) — these
+    33->34 agent files; ADR-0137: docs-sync's gap analyst added, 34->35
+    agent files) — these
     assertions track the current epic state, not a frozen MAR-120
     snapshot."""
 

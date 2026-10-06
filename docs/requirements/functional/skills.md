@@ -92,7 +92,7 @@ Every **workflow** skill MUST:
   (planner, plan-reviewer), `create-api-contract` (contract-author,
   gap-analyst, contract-reviewer), `create-test-docs` (test-designer, trace-reviewer),
   `create-e2e-tests` (test-writer, suite-runner) and `docs-sync` (doc-updater,
-  drift-reviewer). No skill has
+  gap-analyst, drift-reviewer). No skill has
   a plan phase before its writer (ADR-0092). `code` spawns implementers only —
   its review is `/review-code`, which runs lenses and adjudicators. Three
   **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
@@ -557,8 +557,10 @@ why ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md),
   by listing the changed files and pointing at `/acs:create-pr "<what was
   approved>"`, whose docs-only PR carries the decision for review. Its
   completion report reads **Scope** in the Ticket line's place.
-- The move to `implemented` is otherwise `/acs:docs-sync`'s, once it finds the
-  code matching (ADR-0122); this skill offers it only where `allowed` does.
+- The move to `implemented` is otherwise `/acs:docs-sync`'s, once its gap
+  analyst finds the code matching (ADR-0122,
+  [ADR-0137](../../architecture/adr/0137-docs-sync-keeps-the-feature-lld-current.md));
+  this skill offers it only where `allowed` does.
 
 ## Product-level delivery (no ticket)
 
@@ -1810,7 +1812,41 @@ artifact, never from a hand-off summary alone.
   changeset (`acs.py changes diff`, untracked files included), the ticket JSON, `/code`'s
   `result.json` (`states.docs_updated`), `/code`'s implementer report(s)
   `problems` field, and the final code-verify artifact.
-- Subagents: `docs-sync-doc-updater`, `docs-sync-drift-reviewer` (update → drift review — ADR-0109).
+- MUST keep the run's features' low-level design current
+  ([ADR-0137](../../architecture/adr/0137-docs-sync-keeps-the-feature-lld-current.md)).
+  Its doc areas are `requirements`, `architecture` (the HLD and the flat
+  `lld/flows/`), `lld`, `adr` and `general`, one doc-updater each; the `lld`
+  area owns `<architecture_dir>/lld/<feature>/{api,data,flows,components}/**`
+  for the run's features (`context.requirements.features`, else the ticket's
+  `features`; none → no work) and never edits a run's record folder
+  `lld/<feature>/<key>/`. In iteration 1, in the same message as the
+  doc-updaters, one `docs-sync-gap-analyst` per feature (capped by
+  `parallel.max_agents`) classifies every element of every living document —
+  operation, entity, flow, component — `matches`, `unimplemented`,
+  `undocumented` or `drifted`, with `file:line` evidence, the document's
+  `status` and `version`, and a per-document `implemented-candidate` verdict
+  when every element matches; the notes are joined into `iter-1/gaps.md`.
+- MUST NOT silently rewrite an approved contract. A `proposed` (or
+  unversioned) document is updated to match the code and bumped with
+  `acs.py design bump`, and its unimplemented elements are left as planned. An
+  undocumented or drifted element in an `approved` or `implemented` document
+  is a question in the ONE grouped ask: update the document (bumped, so back
+  to `proposed` for re-approval) or keep it — the code is wrong, a blocking
+  finding for `/acs:code`; headless, it is recorded as a blocking finding and
+  `needs_input`, never decided. A `deprecated` document is never touched.
+- MUST move every `implemented-candidate` document `approved → implemented`
+  after the review passes, in ONE `acs.py design status --set implemented
+  --by acs --reason "<run-id>: the code matches" <doc>...` call, and list them
+  in `states.implemented` (derived by the post-hook from each document's front
+  matter) beside `states.files`. A document with any element still
+  unimplemented stays `approved`.
+- The drift reviewer judges seven dimensions in three slices; the seventh,
+  `lld-currency` (in the `placement` slice with mechanics and
+  requirements-routing), checks the feature LLD against the gap notes, that
+  every edited document was bumped, that no approved or implemented document
+  changed without a recorded answer, and that every move to `implemented` is
+  backed by a candidate verdict whose evidence holds.
+- Subagents: `docs-sync-doc-updater`, `docs-sync-gap-analyst`, `docs-sync-drift-reviewer` (update, with a gap survey beside it → drift review — ADR-0109, ADR-0137).
 - State file: `docs-sync-state.json`, written by the post-hook
   ([workspace-and-state.md](workspace-and-state.md)).
 - Declared position: in the default `ship.yaml`, `docs-sync` needs only

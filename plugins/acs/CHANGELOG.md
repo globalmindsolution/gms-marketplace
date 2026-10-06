@@ -472,6 +472,32 @@ matching section here, and merge to `main` — the Release workflow tags
   `sandbox_rule`.
   **Migration:** none — no state moves and no stored path changes.
 
+- **`/acs:docs-sync` keeps each feature's low-level design current, and moves a
+  matching design to `implemented`** (ADR-0137). A new doc area, `lld`, owns
+  `<architecture_dir>/lld/<feature>/{api,data,flows,components}/**` for the
+  run's features (the requirements' `features`, else the ticket's); the
+  `architecture` area keeps the HLD and the flat `lld/flows/`, and a run's
+  record folder `lld/<feature>/<key>/` (`tech-design.md`, `api-contract.md`) is
+  never edited. A new read-only agent, `docs-sync-gap-analyst`, runs one per
+  feature beside the doc-updaters in iteration 1 and classifies every
+  operation, entity, flow and component of the feature's documents `matches`,
+  `unimplemented`, `undocumented` or `drifted`, with evidence, marking a
+  document `implemented-candidate` when all of it matches (35 agent files). A
+  `proposed` document is updated to match the code and bumped. Drift from an
+  `approved` or `implemented` document is never rewritten silently: it is a
+  question in docs-sync's one grouped ask — update the document (bumped, back
+  to `proposed` for re-approval) or keep it and fix the code (a blocking finding
+  for `/acs:code`); with no one to ask it is recorded as a blocking finding and
+  `needs_input`. A `deprecated` document is left alone. After the review
+  passes, each candidate moves `approved → implemented` in one
+  `acs.py design status --set implemented --by acs` call, recorded with
+  `status_by`, `status_at` and `status_reason` and listed in the result's
+  `states.implemented` — which the post-hook derives from the documents' own
+  front matter. A document with an element still unimplemented stays
+  `approved`. The drift reviewer gains a seventh dimension, `lld-currency`, in
+  its `placement` slice, and the scaffold gains `models.docs-sync.gap-analyst`.
+  Nothing to migrate: a run whose ticket names no feature behaves as before.
+
 ### Removed
 
 - **⚠️ BREAKING: the session-handoff skill is gone; `/acs:handoff` is now a

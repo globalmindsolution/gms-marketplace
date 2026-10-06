@@ -160,6 +160,10 @@
       "drift-reviewer": {
         "model": "claude-opus-5-5",
         "effort": "high"
+      },
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
       }
     },
     "review-code": {

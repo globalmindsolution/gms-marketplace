@@ -40,7 +40,7 @@ CEILINGS = {
     "skills/create-prd/SKILL.md": 640,
     "skills/create-test-docs/SKILL.md": 640,
     "skills/create-ticket/SKILL.md": 480,
-    "skills/docs-sync/SKILL.md": 590,
+    "skills/docs-sync/SKILL.md": 580,
     "skills/merge-pr/SKILL.md": 490,
     "skills/run-e2e-tests/SKILL.md": 410,
     "agents/analyze-requirements-analyst.md": 300,
