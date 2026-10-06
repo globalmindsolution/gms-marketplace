@@ -20,7 +20,9 @@ the request touches, and
 `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/authoring-rules.md`),
 `<constraints>` (`partition` — the absolute run directory — and `template`, the
 epic template's path) and a `<context>` carrying the clarification answers and, on
-iteration 2, the reviewer's findings verbatim. Read `authoring-rules.md` FIRST:
+iteration 2, the reviewer's findings verbatim;
+a `<context name="references">` lists the documents found for the request's
+features (cite only those, and leave the template's `## References` markers alone). Read `authoring-rules.md` FIRST:
 its rules on acceptance criteria, PRD trace, features, grounding and the draft's
 keys bind you; this file adds only what an epic needs.
 

@@ -27,7 +27,8 @@
           "required": ["provider", "key"],
           "properties": {
             "provider": {"enum": ["github"]},
-            "key": {"type": "string", "minLength": 1}
+            "key": {"type": "string", "minLength": 1},
+            "url": {"description": "The issue's web URL, kept by `record-external.py --url` (ADR-0140).", "type": "string"}
           },
           "additionalProperties": true
         }
@@ -58,6 +59,25 @@
       "type": "array",
       "items": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
       "uniqueItems": true,
+      "default": []
+    },
+    "references": {
+      "description": "Optional. The repo documents that exist for this ticket's features, found in the standard doc layout by `acs.py ticket references` (ADR-0140): the PRD feature section, the feature's living analysis, the HLD views, the living LLD, the tech designs and API contracts of the ticket and its parent epic, and the ticket's development docs. Each entry links to the remote's default branch once the document is published there (`url`), else is pending. Written by `ticket references --write` and `tracker refresh`; never hand-edited.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "path"],
+        "properties": {
+          "kind": {"enum": ["prd", "analysis", "hld", "lld", "design", "development"]},
+          "path": {"type": "string", "minLength": 1},
+          "title": {"type": "string"},
+          "status": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+          "version": {"oneOf": [{"type": "integer"}, {"type": "null"}]},
+          "published": {"type": "boolean"},
+          "url": {"oneOf": [{"type": "string"}, {"type": "null"}]}
+        },
+        "additionalProperties": true
+      },
       "default": []
     },
     "severity": {

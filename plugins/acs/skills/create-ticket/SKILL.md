@@ -108,9 +108,9 @@ batch). Per-call classification:
   hint), `replayable: false`, but does NOT abort the batch: the loop
   continues to the next ticket, and that ticket's `external` stays null.
 - **Non-critical**: the labels/assignee/milestone/Projects v2 field-fill
-  checklist only (`gh label list`, `gh api …/milestones`, `gh project
-  item-add` / `field-list` / `item-edit`) — one `info` finding,
-  `replayable: true`, continue.
+  checklist (`gh label list`, `gh api …/milestones`, `gh project
+  item-add` / `field-list` / `item-edit`) and an import's `acs.py tracker
+  refresh` — one `info` finding, `replayable: true`, continue.
 
 ## References, and when to open each
 
@@ -214,12 +214,14 @@ loops. ONE author per run — the chosen type's — never two types side by side
    (`<partition>`), `<constraint name="template">` (the type's template:
    `<repo>/.acs/templates/<type>-default.md` when the repo has one, else
    `${CLAUDE_PLUGIN_ROOT}/templates/<type>-default.md`) and `<context>` (the
-   ledger's `C-<n>` answers; on iteration 2 the reviewer's findings verbatim). It
+   ledger's `C-<n>` answers; on iteration 2 the reviewer's findings verbatim) and
+   `<context name="references">`: the JSON of `acs.py ticket references --features
+   <slugs> --fetch`, run once Step 1 knows the features (`[]` when it found none). It
    writes `steps/create-ticket/iter-<n>/draft.json`, `draft.md` and its
    `<type>-author.json` report, and mints nothing.
 2. **Reviewer.** `<task skill="create-ticket" phase="reviewer" ticket-id="<id>"
    iteration="<n>">` with the draft, the author's report, the same sources and
-   `<constraint name="type">`. It writes `iter-<n>/reviewer.md`.
+   `<constraint name="type">` and the same references. It writes `iter-<n>/reviewer.md`.
 
 **Pass rule.** The iteration passes when the reviewer returned
 `status="completed"` with zero blocking findings. Findings → iteration 2, all of
@@ -263,6 +265,8 @@ overrides:
    `severity` is shown beside its `priority`; the user may change either.
 5. **Due date**: ask the user for an optional due date ("YYYY-MM-DD, or leave
    blank").
+6. **References**: show the documents found (title, kind, link), each pending
+   one marked `pending: not on <default> yet` — information, not a question.
 
 No user to reach, or a request that delegates the record up front ("you
 decide"): read `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/headless.md`
@@ -272,7 +276,8 @@ before you hand off or continue — a delegation never confirms item 2.
 
 You run this step inline, as `references/materialize.md` steps 1-3 order it:
 `acs.py ticket save --ticket <id> --from -` rewrites `<partition>/ticket.json`
-from the confirmed draft, its description built from the type's template.
+from the confirmed draft, its description built from the type's template; then
+`acs.py ticket references --ticket <id> --write` stores its references.
 
 ### Step 4 — An epic's children are not minted here
 
@@ -385,7 +390,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: ticket id, type, title; a bug's severity; PRD trace or flagged divergence; reviewer iterations; tracker key when synced; children none (an epic's are minted by `/acs:breakdown-ticket`)
+- **Results**: ticket id, type, title; a bug's severity; PRD trace or flagged divergence; reviewer iterations; references (each pending one marked); tracker key when synced; children none (an epic's are minted by `/acs:breakdown-ticket`)
 - **Findings**: <open findings / clarifications / kept reviewer findings, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/2 · <wall time>

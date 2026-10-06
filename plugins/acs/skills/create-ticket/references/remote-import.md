@@ -20,4 +20,6 @@ working title/description from the remote issue and record the mapping
 analysis below on the imported description — imports get the same clarification,
 typing, PRD trace, authoring and review as a local request (an issue labelled as a
 bug is a strong `bug` signal). Never create a new remote issue for an imported
-ticket: the mapping points at the existing one.
+ticket: the mapping points at the existing one, and materialization gives that
+issue its `## References` section with `acs.py tracker refresh --ticket <id>`
+(`references/materialize.md` step 5), never a sync.

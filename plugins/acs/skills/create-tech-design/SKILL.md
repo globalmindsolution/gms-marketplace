@@ -50,6 +50,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-te
   from `settings.models.create-tech-design.<role>`, inheriting when unset), `reconcile`,
   `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root` (consumer repo
   root).
+- `references` — **References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 - Locate the repo documents this skill reads, once, the way any session finds
   a document: CLAUDE.md and whatever docs index it or the repo points at
   (e.g. `docs/README.md`), then a Glob/Grep by file name or content. Record

@@ -46,6 +46,7 @@ Parse the printed context JSON. Fields you will use:
   verbatim, the documents inlined or cited, and the `## Refined` section
   `/acs:analyze-requirements` wrote). The plan must satisfy every criterion in
   it.
+- `references` — **References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 - `ticket_id`, `ticket` — present only when a ticket is one of the sources:
   the tracker container (`type`, `docs_only`, `parent`, `external`; no size,
   stakes or design flag — the plan's `delivery_path` classifies the work).

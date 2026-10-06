@@ -163,7 +163,8 @@ class AdrTest(unittest.TestCase):
         for adr in AMENDED:
             self.assertIn(LINK, _index_row(adr).rsplit("|", 2)[-2], adr)
         rows = [l for l in _read(ADR_README).splitlines() if l.startswith("| [01")]
-        self.assertTrue(rows[-1].startswith("| [0139]("), "the 0139 row is the last row")
+        at = next(i for i, l in enumerate(rows) if l.startswith("| [0139]("))
+        self.assertTrue(rows[at - 1].startswith("| [0138]("), "the 0139 row follows the 0138 row")
 
 
 class ChangelogTest(unittest.TestCase):

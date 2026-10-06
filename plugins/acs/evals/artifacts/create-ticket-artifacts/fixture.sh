@@ -18,6 +18,26 @@ git config user.name eval
 
 printf 'def health():\n    return "ok"\n' > app.py
 
+# The feature's documents in the standard layout (ADR-0140): a PRD whose
+# Health check section the ticket traces to, and that feature's living
+# analysis. The ticket must come out referencing them -- found from the layout,
+# never searched for. Nothing is pushed, so every entry is pending (no link).
+mkdir -p docs/product/features/health-check/analysis
+cat > docs/product/prd.md <<'MD'
+# PRD -- shop
+
+## Features
+
+### Health check
+
+Operators and load balancers can ask the service whether it is up.
+MD
+cat > docs/product/features/health-check/analysis/README.md <<'MD'
+# Health check -- analysis
+
+A GET endpoint load balancers poll; it must answer without touching the database.
+MD
+
 mkdir -p .acs
 cat > .acs/settings.json <<'JSON'
 {

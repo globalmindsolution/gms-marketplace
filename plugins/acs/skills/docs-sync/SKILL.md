@@ -56,6 +56,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step docs-sync
   `ticket_id` (present only when a ticket is one of the sources), `settings`,
   `models`, `reconcile`, `handoff_summary`, `pipeline`, `post_hook`,
   `checkout_root`.
+- `references` — **References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 
 Throughout this file `<partition>` means the `partition` path from the
 context JSON and `<id>` means `ticket_id` (e.g. `SHOP-123`) when the run has a

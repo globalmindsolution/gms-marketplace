@@ -20,8 +20,10 @@ ticket-id="…" iteration="n">` with an `<objective>`, `<inputs>` (the draft
 the author read, the type's template, and
 `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/authoring-rules.md`),
 `<constraints>` (`partition` — the absolute run directory — and `type`, the type
-the coordinator chose) and, on iteration 2, a `<context>` listing your prior
-findings. Read `authoring-rules.md` first: it is the standard the draft is held to.
+the coordinator chose), a `<context name="references">` (the documents found for
+the ticket's features — the same list the author had) and, on iteration 2, a
+`<context>` listing your prior findings. Read `authoring-rules.md` first: it is
+the standard the draft is held to.
 
 ## Check dimensions — run every one, every iteration
 
@@ -35,8 +37,10 @@ findings. Read `authoring-rules.md` first: it is the standard the draft is held 
    `features` slug is what `acs.py slug --text "<PRD feature name>"` prints for
    a real PRD feature — run it.
 3. **type-completeness** — the draft is complete for its type, and the
-   description fills every template section (no HTML comment left, the
-   `acs-ticket:` line kept):
+   description fills every template section (no HTML comment left but the marker pair, the
+   `acs-ticket:` line kept, the `## References` section and its
+   `<!-- acs:references -->` … `<!-- /acs:references -->` marker pair exactly as
+   the template has them — an edited, filled or deleted marker pair is a finding):
    - epic: problem and outcome, scope in AND out, measurable success metrics, a
      `breakdown_outline` — and NO child acceptance criteria, ids or points;
      title prefixed `[EPIC] `;
@@ -54,7 +58,9 @@ findings. Read `authoring-rules.md` first: it is the standard the draft is held 
    small enough to be one — is a finding. No invented facts: spot-check every
    path, module, version, persona and number against its cited source (Read,
    Glob, Grep); one that does not exist or does not say what the draft claims is
-   a finding. Unknowns are `open_questions` or `assumptions`, never defaults.
+   a finding. Unknowns are `open_questions` or `assumptions`, never defaults. A
+   document the description cites that is not in `<context name="references">`
+   (and not a file the requirements name) is an invented reference — a finding.
 
 Iteration 2, additionally: confirm each prior finding is fixed, with no regression.
 

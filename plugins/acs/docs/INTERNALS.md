@@ -420,6 +420,7 @@ why the review could not be a separate skill until the loop moved here.
 | `acs handoff send --ticket ID [--note TEXT\|--note-file F] [--attach PATH]… [--replace] [--dry-run] [--remote NAME]` | package the ticket's resume set as one commit and push it to `refs/acs/handoff/<ID>`; the sender's state is untouched; `--dry-run` reports the package and the attachments without building or pushing (see "Ticket handoff") |
 | `acs handoff receive ID\|--ticket ID [--replace] [--keep-ref] [--remote NAME]` | fetch, `git apply --3way` the work onto a clean tree, restore the run with local paths, raise the counters, delete the remote ref; prints `continue_with` |
 | `acs handoff list [--details] [--remote NAME]` | the handoffs waiting under `refs/acs/handoff/` (`git ls-remote`); `--details` adds each one's sender, time and note |
+| `acs ticket references (--ticket ID \| --features a,b [--parent ID]) [--fetch] [--write] [--render]` | the documents the standard layout holds for a ticket (its own and its parent epic's records included), or for features not minted yet (`--parent` adds that epic's records) (ADR-0140): `{ok, ticket_id \| features+parent, references, default_branch, web_base, web_base_reason, remote_checked, written}` plus `block` with `--render`, the `## References` markdown; `--fetch` first runs a best-effort `git fetch origin <default>` (`remote_checked: false` when it fails); `--write` (with `--ticket` only) stores `references` on the ticket. Exactly one of `--ticket` and `--features` (see "Tickets") |
 | `acs artifacts show [--run R \| --ticket ID]` | where one run's documents resolve — its phase folders, a legacy `docs/tickets/<ID>/`, or the partition — and, for a ticket, its derived status |
 
 `acs run next` is **the cursor**: the first step in workflow order that is not
@@ -460,7 +461,7 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 (PreToolUse fired pre-<skill>.py — already passed or we wouldn't be running)
 1. acs step start  --step <skill> [--ticket|--args|--allocate ...]   # FIRST action
      -> context JSON: settings, partition, ticket, reconcile/handoff info,
-        per-tier models, design source, post_hook path; the run's first
+        per-tier models, design source, references, post_hook path; the run's first
         start also writes <run>/baseline.json (ADR-0127)
 2. if context.reconcile: reconcile recorded state against reality before continuing
    if context.handoff_summary: read it, light-verify, continue from where it points
@@ -1440,6 +1441,17 @@ No skill requires a ticket.
   the ticket partition, and `null` when none exists. The planning, code, test-docs and review
   skills read the design when `exists`, and proceed without one otherwise —
   no advisory. Nothing records whether a design is *required*.
+- **The run's references are found, not searched for** (ADR-0140). Beside
+  `design`, the step-start context carries `references`, from
+  `requirements.run_references(ctx, rdir)`: for each ticket source
+  `doc_links.references_for_ticket(ctx, ticket)`, for a ticketless run with
+  refined features `doc_links.references_for_features(ctx, features)`, else
+  `[]` — local only, never a fetch. `materialise` renders the same list as
+  `requirements.md`'s `## References` section (title, kind, path, url), from
+  the same function, so the context and the file cannot drift. Every hooked
+  skill that runs on a ticket reads the documents relevant to its step from
+  `context.references` before working and never searches the repo for them
+  (one shared Start line, read through `skill_contract`).
   `run_feature` is the refined `feature`, else the refined `features`' first,
   else the first feature the run's ticket traces to; `run_phase` is
   `development` for a run with a ticket or one `/acs:ship` drives, else
@@ -1583,6 +1595,40 @@ ledger) and in the tracker. Nothing renders a `ticket.md`.
   index entry that still carries the key validates and the key is ignored.
   Whether a change gets a tech design is the user's call; whether one exists
   is `context.design` (see "Requirements of a run").
+- **References** (ADR-0140). A ticket may carry `references`, an optional
+  array placed after `features` in `_FRONT_MATTER_ORDER` (`ticket.schema.json`:
+  objects with `kind` and `path` required, `additionalProperties: true`), which
+  `tickets.new_ticket_doc` and `acs.py ticket save` accept. Each entry is
+  `{kind, path, title, status, version, published, url}`, derived by
+  `acs_lib/doc_links.py` from the STANDARD LAYOUT — never chosen — and ordered
+  by kind, then path: `prd` (`<prd_dir>/prd.md`, `path` carrying the `#anchor`
+  of the heading that names each feature, GitHub's anchor algorithm with
+  `-1`, `-2` … for duplicates), `analysis` (the feature's living analysis,
+  `README.md` first), `hld` (`hld/overview.md` and the views whose text names
+  the feature), `lld` (the living `lld/<f>/{api,data,flows,components}/**`, no
+  sidecars), `design` (`lld/<f>/<id>/tech-design.md` and `api-contract.md`, for
+  the ticket and its parent epic) and `development` (`<development_dir>/<f>/<id>/`'s
+  `analysis/**`, `plan.md`, `test-cases.md`). A ticket with no `features`
+  falls back to an id glob (`lld/*/<id>/`, `<development_dir>/*/<id>/`, the
+  parent's records) and `prd.md`. `status` and `version` come from ADR-0122's
+  front matter when present; `title` is the first H1, else the file name.
+  `url` is `<web_base>/blob/<default>/<path>` (`/-/blob/` on gitlab hosts,
+  `/src/` on bitbucket hosts; `web_base` knows `github.com`, `*.ghe.com` and
+  any host with a `github`, `gitlab` or `bitbucket` label) only when the
+  document is **published** — on `origin/<default>`, checked with
+  `changes.blobs` — and `null` otherwise or with no web remote
+  (`web_base_reason: "no-web-remote"`). Stored references are a snapshot for
+  the tracker; readers derive the list again (`context.references`), so a
+  ticket that never stored any still gets one. The description templates
+  carry a `## References` heading over an empty `<!-- acs:references -->` …
+  `<!-- /acs:references -->` pair before `## Notes`; `doc_links.render_block`
+  fills it (a published entry `- [<title>](<url>): <kind>, vN status`, a
+  published one with no web remote ``- `<path>`: <kind>, vN status``, a
+  pending one ``- `<path>`: <kind>, pending: not on `<default>` yet``, none
+  `_No documents for this ticket's features yet._`) and `apply_block`
+  replaces only the text between the markers — inserting them under an
+  existing `## References`, else appending the section before the trailing
+  `acs-ticket:` line — idempotently.
 - **A child inherits its parent's `features`.** `new-ticket.py --parent <epic>`
   copies the parent's `features` onto the child unless `--features` is given
   (`--features ""` traces it to none), and reports `features_inherited`. It
@@ -1963,17 +2009,18 @@ hard limits enforced by hooks — splitting at a bad seam (e.g. a child that
 cannot build alone) is worse than a slightly large PR; feature flags are the
 sanctioned way to keep children shippable when a slice alone would break.
 
-## Forge metadata: two commands, two failure policies
+## Forge metadata: three commands, two failure policies
 
 `gh` is acs's only transport to GitHub, and everything acs writes through it
 beyond the PR or issue itself — labels, assignee, milestone, reviewers, Project
-membership and fields — goes through `acs_lib.forge` (MAR-525), reached as two
-commands:
+membership and fields, and an issue's `## References` block — goes through
+`acs_lib.forge` (MAR-525), reached as three commands:
 
 | Command | Performs | Policy |
 |---|---|---|
 | `acs.py pr metadata fill --pr N` | create-pr step 6a: assignee, the ticket-type label alongside `ACS`, CODEOWNERS reviewers minus the author, the Project item, Status, and Priority / Story Points / Parent | **non-critical throughout** — the PR already exists, so every failure is one `info` finding carrying the command, and the next sub-step still runs |
 | `acs.py tracker sync --ticket … ` | create-ticket step 5's batch (and `/acs:breakdown-ticket`'s, through the same `references/tracker-sync.md`): issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed `gh issue create` is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
+| `acs.py tracker refresh (--ticket ID \| --pending) [--dry-run]` | ADR-0140: one fetch of the default branch, then per ticket recompute its references, store them when they changed, and — on the `github` tracker, for a ticket with `external.key` — `gh issue view <key> --json body`, `doc_links.apply_block`, and `gh issue edit <key> --body-file <tmp>` only when the body changed; a `local` ticket or one with no issue is `skipped`. `--pending` covers every open ticket with `external.key` whose stored references hold an unpublished entry (`/acs:merge-pr` runs it after a merge); `--dry-run` reads the issue and stores or edits nothing. stdout `{ok, dry_run, tickets: [{ticket_id, references, pending, stored, changed, edited, key \| skipped}], findings, calls, remote_checked, default_branch}` | **non-critical** (ADR-0088) — a failed `gh issue view` or `gh issue edit` is one `info` finding carrying the command and `gh_failure_hint`; the next ticket still runs and the command never stops a skill |
 
 Both resolve Project fields the same way: **the board's own spelling wins.** A
 field is matched case-insensitively against a fixed table of accepted names
@@ -1993,7 +2040,19 @@ Four rules keep the two flows honest about what they did:
 
 - **The issue body is a precondition, not an argument.** `tracker sync` posts
   each partition's `tracker-body.md`, and `/acs:create-ticket`'s
-  `references/materialize.md` is what tells its coordinator to write it. A partition without one is reported under `failed`
+  `references/materialize.md` is what tells its coordinator to write it
+  (`/acs:breakdown-ticket` writes each child's, ADR-0140). Before `gh issue
+  create`, the sync applies the ticket's `## References` block to the body
+  (`doc_links.apply_block`, fresh references after one fetch, stored on the
+  ticket too), so every synced issue carries real links; a block that cannot
+  be written is an `info` finding and the issue is still created. The issue
+  URL `gh issue create` prints is kept as `external.url`
+  (`record-external.py --url`).
+- **The failure class is declared once.** `forge.GH_FLOW_CRITICALITY` maps
+  each gh-driven command to its ADR-0088 class — `pr metadata fill`
+  non-critical, `tracker sync` critical per ticket and soft per batch,
+  `tracker refresh` non-critical — and the skills' failure-policy prose and
+  this table quote it. A partition without one is reported under `failed`
   with an `error` finding naming the missing path — never a bodiless issue,
   and never N opaque per-ticket gh errors for one missed step.
 - **A create that cannot be parsed is a failure.** `gh issue create` exiting 0

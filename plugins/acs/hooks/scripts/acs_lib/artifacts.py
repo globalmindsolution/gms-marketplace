@@ -71,7 +71,7 @@ MIGRATED_ARTIFACTS = (("design.md", "design.md"), (os.path.join("phases", "code"
 #: A bug's severity sits by its priority; its report (ADR-0138) after the
 #: dates a planner reads, before the timestamps.
 _FRONT_MATTER_ORDER = ("id", "title", "type", "priority", "severity", "parent", "children",
-                       "features", "external", "assignee", "story_points",
+                       "features", "references", "external", "assignee", "story_points",
                        "docs_only", "due_date", "reproduction", "expected", "actual",
                        "environment", "created_at", "updated_at")
 _BODY_FIELDS = ("description", "acceptance_criteria")

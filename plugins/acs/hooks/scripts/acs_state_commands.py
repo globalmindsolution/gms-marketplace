@@ -603,7 +603,9 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
     SUBJECT is a ticket -- a run started from a prompt or a document has none.
     `design` is always present: `{exists, dir, source}`, the tech design found
     for the run (its own, else its ticket's parent epic's; ADR-0139), which a
-    skill reads when `exists` and otherwise proceeds without.
+    skill reads when `exists` and otherwise proceeds without. `references` is
+    always present too: the run's documents found in the standard layout
+    (ADR-0140), [] when there are none.
     """
     entry = lib.step_entry(doc, step)
     subject = doc.get("subject") or {}
@@ -651,6 +653,10 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
     # required -- the run's or ticket's own, else its parent epic's.
     exists, design_dir, source = lib.design_source(ctx, tdir, ticket, rdir)
     out["design"] = {"exists": exists, "dir": design_dir, "source": source}
+    # The documents the run's subject has in the standard layout (ADR-0140):
+    # read the relevant ones, never search the repo for them. The same list
+    # requirements.md renders under `## References`.
+    out["references"] = lib.requirements.run_references(ctx, rdir, doc)
     return out
 
 

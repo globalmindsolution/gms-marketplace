@@ -67,6 +67,9 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
     if kw.get("features"):
         # The PRD features it traces to (ADR-0120); absent rather than [] when none.
         doc["features"] = list(kw["features"])
+    if kw.get("references"):
+        # The documents found for it in the standard layout (ADR-0140).
+        doc["references"] = [dict(r) for r in kw["references"]]
     # A bug's report (ADR-0138): each field only when given, never a null.
     for field in BUG_FIELDS:
         if kw.get(field) is not None:
@@ -96,6 +99,25 @@ def check_bug_fields(ticket):
             raise GateError("%s must be a string, not %s"
                             % (field, type(ticket[field]).__name__))
 
+
+
+#: The kinds a reference entry may have (ticket.schema.json, ADR-0140).
+REFERENCE_KINDS = ("prd", "analysis", "hld", "lld", "design", "development")
+
+
+def check_references(references):
+    """Raise GateError unless `references` is what ticket.schema.json allows:
+    a list of objects, each with a known `kind` and a non-empty `path`."""
+    if not isinstance(references, list):
+        raise GateError("references must be a list of {kind, path, ...} entries (ADR-0140)")
+    for index, entry in enumerate(references):
+        if not isinstance(entry, dict):
+            raise GateError("references[%d] must be an object" % index)
+        if entry.get("kind") not in REFERENCE_KINDS:
+            raise GateError("references[%d].kind must be one of %s; got %r"
+                            % (index, ", ".join(REFERENCE_KINDS), entry.get("kind")))
+        if not (isinstance(entry.get("path"), str) and entry["path"]):
+            raise GateError("references[%d].path must be a non-empty string" % index)
 
 
 def allocate_ticket_id(workspace, repo_id, prefix, repo_root=None, seed_next=None):

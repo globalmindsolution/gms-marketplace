@@ -1,6 +1,6 @@
 # 0138 — `/acs:breakdown-ticket` breaks work down, `/acs:create-ticket` drafts through a type author, and `bug` is a ticket type
 
-**Status**: Accepted — amended by [0139](0139-tickets-carry-no-design-flag.md) (children carry no `needs_design`; an epic's Next reads `/acs:create-tech-design <id>` when you want a design) · **Date**: 2026-10-05
+**Status**: Accepted — amended by [0139](0139-tickets-carry-no-design-flag.md) (children carry no `needs_design`; an epic's Next reads `/acs:create-tech-design <id>` when you want a design) and [0140](0140-tickets-link-their-documents.md) (each child's references are stored and its `tracker-body.md` written before the sync; the epic's issue is refreshed) · **Date**: 2026-10-05
 
 **Amends**: [0069](0069-oversized-ticket-two-lever-split-control.md) (lever 2's
 "split" answer now points at `/acs:breakdown-ticket <id>`, not

@@ -1,6 +1,6 @@
 # 0088 — gh is acs's only GitHub transport; failures are classified, not routed around
 
-**Status**: Accepted · **Date**: 2026-09-03
+**Status**: Accepted — amended by [0140](0140-tickets-link-their-documents.md) (`acs.py tracker refresh`'s `gh issue view` / `gh issue edit` of an existing issue body is non-critical; `tracker sync`'s issue body carries the references block) · **Date**: 2026-09-03
 
 ## Context
 

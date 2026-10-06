@@ -193,18 +193,28 @@ def main_repo_root(cwd):
     return common  # bare-ish layouts; best effort
 
 
+def remote_segments(remote):
+    """The path segments of a git remote URL, host first: the scheme, a
+    `user@` and a trailing `.git` dropped, and scp-style `host:path` read as
+    `host/path`. `git@github.com:acme/shop.git` and
+    `https://u@github.com/acme/shop.git` both give
+    ["github.com", "acme", "shop"]. One parser for the partition id and the
+    web links a ticket's references are built from (ADR-0140)."""
+    path = remote or ""
+    path = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", "", path)   # scheme
+    path = re.sub(r"^[^/@]+@", "", path)                       # user@
+    path = path.replace(":", "/")
+    path = re.sub(r"\.git/?$", "", path)
+    return [s for s in path.split("/") if s]
+
+
 def repo_partition_id(cwd):
     """Stable per-repo identifier: derived from the git remote (owner-name), so every
     worktree of a repo resolves to the same partition; falls back to the main repo
     directory name when there is no remote."""
     remote = _git(["config", "--get", "remote.origin.url"], cwd)
     if remote:
-        path = remote
-        path = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", "", path)   # scheme
-        path = re.sub(r"^[^/@]+@", "", path)                       # user@
-        path = path.replace(":", "/")
-        path = re.sub(r"\.git/?$", "", path)
-        segments = [s for s in path.split("/") if s]
+        segments = remote_segments(remote)
         if len(segments) >= 2:
             raw = "%s-%s" % (segments[-2], segments[-1])
         elif segments:

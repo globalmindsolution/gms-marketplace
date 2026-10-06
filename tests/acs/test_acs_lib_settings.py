@@ -218,12 +218,7 @@ class TestPathHelpersByteUnchanged(unittest.TestCase):
     directory name when there is no remote."""
     remote = _git(["config", "--get", "remote.origin.url"], cwd)
     if remote:
-        path = remote
-        path = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", "", path)   # scheme
-        path = re.sub(r"^[^/@]+@", "", path)                       # user@
-        path = path.replace(":", "/")
-        path = re.sub(r"\.git/?$", "", path)
-        segments = [s for s in path.split("/") if s]
+        segments = remote_segments(remote)
         if len(segments) >= 2:
             raw = "%s-%s" % (segments[-2], segments[-1])
         elif segments:
@@ -267,6 +262,18 @@ class TestPathHelpersByteUnchanged(unittest.TestCase):
         for name, expected_source in pinned.items():
             actual = inspect.getsource(getattr(lib, name))
             self.assertEqual(actual, expected_source, "helper %s changed" % name)
+
+    def test_the_remote_parser_moved_out_verbatim(self):
+        """ADR-0140 factored repo_partition_id's URL normalisation out as
+        `repo.remote_segments` (the web links reuse it). The four steps are the
+        ones the pin above used to hold inline, unchanged."""
+        source = inspect.getsource(lib.repo.remote_segments)
+        for line in ('path = re.sub(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", "", path)   # scheme',
+                     'path = re.sub(r"^[^/@]+@", "", path)                       # user@',
+                     'path = path.replace(":", "/")',
+                     'path = re.sub(r"\\.git/?$", "", path)',
+                     'return [s for s in path.split("/") if s]'):
+            self.assertIn(line, source)
 
 
 class TestNoSettingLocatesAnything(unittest.TestCase):

@@ -59,6 +59,7 @@ Parse the printed context JSON. Fields you will use:
   show` — a ticket id, documents and a prompt are only where they came from;
   never read ticket.json for acceptance criteria.** Its `acceptance_criteria`
   are the spine of this document: every one of them must end up traced.
+- `references` — **References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 - `ticket_id`, `ticket` — present only when a ticket is one of the sources
   (its `type`, for the epic check); null on a prompt or document run.
 - `partition` — absolute path of the run directory (`<workspace>/<repo-id>/runs/<run-id>/`). Phase

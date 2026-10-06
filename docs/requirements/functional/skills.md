@@ -226,6 +226,27 @@ next `/analyze-requirements` survey) — MUST:
   analysis published before ADR-0133, or a legacy
   `docs/tickets/<ID>/analysis.md`), reading it whole as before.
 
+### A run's references: found from the standard layout
+
+Every run carries the list of repo documents that exist for it
+([ADR-0140](../../architecture/adr/0140-tickets-link-their-documents.md)) —
+the PRD section of each of its features, the feature's living analysis, the
+HLD overview and the views that name the feature, the feature's living LLD
+(`api`, `data`, `flows`, `components`), the tech design and API contract of
+the ticket and of its parent epic, and the ticket's development `analysis/`,
+`plan.md` and `test-cases.md`. Everything for the feature is listed; there is
+no selection step. The list is derived from the standard layout, the
+ticket's `features` and its id, so a ticket created before ADR-0140 gets it
+too. It reaches a skill as the step-start `context.references` and as the
+`## References` section of `<run>/requirements.md`, both from the same
+function. Every hooked skill that runs on a ticket (`/analyze-requirements`,
+`/create-impl-plan`, `/create-test-docs`, `/code`, `/review-code`,
+`/create-e2e-tests`, `/docs-sync`, `/create-api-contract`,
+`/create-data-design`, `/create-flows`, `/create-tech-design`,
+`/breakdown-ticket`) MUST read the documents relevant to its step from
+`context.references` before working and MUST NOT search the repo for them; the
+agents it spawns get the same list as `requirements.md`'s `## References`.
+
 ---
 
 ## `/setup` (optional)
@@ -963,6 +984,24 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   confirms the reviewed draft, the coordinator runs the apply-work directly
   from `references/materialize.md` (`new-ticket.py`, `acs.py ticket save`)
   and tracker sync; the authors and the reviewer never mint a ticket.
+- **References (ADR-0140).** Every ticket MUST carry a `## References`
+  section: each type's description template has the heading and an empty
+  `<!-- acs:references -->` … `<!-- /acs:references -->` marker pair before
+  `## Notes`, which code fills and nothing else edits, and
+  `references/materialize.md`'s template check requires it. Once the
+  ticket's `features` are known, the coordinator MUST look up the documents
+  the standard layout holds for them (`acs.py ticket references --features …
+  [--parent ID] --fetch`) and give the list to the type author, which cites
+  the relevant ones in the description and never invents one; the reviewer
+  flags a cited document that is not in the list and a draft whose markers
+  were edited. The confirmation MUST show the list, pending entries marked.
+  After minting, the list is stored on the ticket (`acs.py ticket references
+  --ticket ID --write`), and tracker sync renders it into the issue body; an
+  imported issue already exists, so it is refreshed (`acs.py tracker refresh
+  --ticket ID`) instead. A link points at the document on the remote default
+  branch (`https://<host>/<owner>/<repo>/blob/<default>/<path>`); a document
+  not on `origin/<default>` yet is listed as pending, with its path and no
+  link.
 - Ticket ids use the **per-repo prefix + sequence** (e.g. `SHOP-123`); the
   per-repo counter lives in `<workspace>/<repo>/counters.json`. The
   **first** allocation for a `(repo_id, prefix)` partition is fail-closed —
@@ -1074,9 +1113,14 @@ split <id>` did.
   user confirms or edits the breakdown.
 - MUST mint the confirmed children with `new-ticket.py --parent <id>` — which
   copies the parent's `features` unless `--features` is given — save each
-  child's acceptance criteria with `acs.py ticket save`, and sync them to the
-  tracker through create-ticket's tracker-sync reference (one copy, shared),
-  excluding any ticket already synced.
+  child's acceptance criteria with `acs.py ticket save`, store each child's
+  references (`acs.py ticket references --ticket <child> --write`; the
+  parent epic's tech design and API contract come from the layout), write
+  each child's `tracker-body.md` — the issue body the sync requires — and
+  sync them to the tracker through create-ticket's tracker-sync reference
+  (one copy, shared), excluding any ticket already synced. The epic's own
+  issue is then refreshed (`acs.py tracker refresh --ticket <epic>`), so its
+  `## References` block is current ([ADR-0140](../../architecture/adr/0140-tickets-link-their-documents.md)).
 - A **story or task** being split is first converted to an **epic that keeps
   its id**, description and PRD trace; downstream work already present on it
   requires the user's confirmation first. `new-ticket.py --parent` still
@@ -2098,6 +2142,14 @@ Purpose: land the change.
   PR #{pr.number} — {pr.url}`), so the closed issue's timeline still reaches
   both the acs ticket id and the PR. The `gh issue close` call and the
   Status→Done edit are otherwise unchanged.
+- **Reference refresh (ADR-0140):** after a successful merge, `/merge-pr`
+  MUST run `acs.py tracker refresh --pending`, best-effort: every open,
+  synced ticket whose stored references still list a document as pending
+  (not on the default branch yet) has its references recomputed and, when
+  the rendered block changed, its issue body's `## References` marker block
+  rewritten — nothing outside the markers. The documents the merge just
+  landed become links. A failure is non-critical (ADR-0088): one finding,
+  never a stop and never a revert. The summary reports what was refreshed.
 - **GitHub call failure policy (standing behavior, MAR-403, ADR-0088):** `gh`
   is this skill's only GitHub transport. A readiness *dimension that
   evaluates to fail* stays report-only, unchanged. A readiness *read that

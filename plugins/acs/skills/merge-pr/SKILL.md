@@ -114,9 +114,8 @@ continue from where it points.
 
 ## GitHub call failure policy
 
-`gh` is acs's only GitHub transport for this skill — no MCP-based transport,
-no second credential path (ADR-0088). Two classes apply throughout the flow
-below:
+`gh` is acs's only GitHub transport for this skill — no MCP-based transport, no
+second credential path (ADR-0088). Two classes apply (plus one non-critical call):
 
 - **Critical** (a gate input, or the merge call itself): verbatim gh stderr
   plus ONE canonical hint from `acs_lib.gh_failure_hint(stderr)`
@@ -154,6 +153,8 @@ Per-call classification:
   Step 2 cleanup ever runs, identically on both paths.
 - **Loud-but-non-reverting**: Step 2's post-merge `gh issue close` and
   Projects Status→Done edit — see Step 2 below.
+- **Non-critical**: Step 2's `acs.py tracker refresh --pending`, best-effort after
+  the merge — one `info` finding with the replayable command, never a failure.
 
 **Not gh call sites (informational-only mentions, not covered by this
 policy):** the BEHIND carve-out's
@@ -166,12 +167,8 @@ this skill is never sanctioned — name `gh pr merge` without themselves
 calling it. Naming these keeps the classification above complete and
 falsifiable.
 
-Two entries were removed from this list when MAR-524 moved the readiness reads
-into `acs.py readiness`: the `ci` dimension no longer describes
-`gh pr checks --required exits 0`, and Step 0 is no longer a gh code block.
-The reads still happen — inside the command, which classifies its own failures
-per the policy above — so the list stays accurate by naming only what is still
-here.
+MAR-524 moved the readiness reads into `acs.py readiness`, which classifies its
+own failures per the policy above, so this list names only what is still here.
 
 ## Inline merge-pr apply flow
 
@@ -357,7 +354,10 @@ removed):
      --format json`, then `gh project item-edit --id <item-id> --project-id
      <project-id> --field-id <status-field-id> --single-select-option-id
      <done-option-id>`.
-4. Touch NOTHING else: do not edit `ticket.json` status, do not archive the
+4. Refresh the References of open tickets whose documents this merge published
+   (ADR-0140): `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" tracker
+   refresh --pending` — best-effort, `references/merge.md` step 4b.
+5. Touch NOTHING else: do not edit `ticket.json` status, do not archive the
    partition, do not mark the parent epic — `acs step finish` marks the
    ticket done, archives the partition to `archive/<ticket-id>/`, and
    auto-marks the epic Done when this was its last open child. Rely on it; do
@@ -465,7 +465,7 @@ resolves the workspace from cwd):
 
 3. Report a compact summary to the user: merged or blocked (and exactly what
    blocks, per dimension), strategy used, cleanup performed (remote branch,
-   local branch, worktree, tracker), the archive location and
+   local branch, worktree, tracker, references refreshed), the archive location and
    `epic_marked_done` from the post-hook output. On a
    readiness failure remind the user: fixes are theirs to drive — re-invoke
    /acs:merge-pr <ticket-id> once the blockers are resolved.
@@ -482,7 +482,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, partition archived, epic auto-done when last child)
+- **Results**: merged true/false; merge strategy used; readiness breakdown (CI, approvals, conflicts, protections); cleanup performed (branch deleted, worktree cleaned, ticket done + tracker synced, pending references refreshed, partition archived, epic auto-done when last child)
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: <wall time>

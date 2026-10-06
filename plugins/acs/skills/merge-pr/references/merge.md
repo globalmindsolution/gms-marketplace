@@ -37,7 +37,8 @@ Canon lives in `merge-pr/SKILL.md`'s own "GitHub call failure policy"
 section — this reference classifies no `gh` call itself, it only follows that
 classification: critical for the merge itself and every readiness/
 update-branch read (step 0, step 1a, step 1); loud-but-non-reverting for
-Step 2's post-merge tracker sync only. Canon hint text
+Step 2's post-merge tracker sync only; non-critical for step 4b's `acs.py
+tracker refresh --pending`. Canon hint text
 (`acs_lib.GH_ACCESS_HINT`, selected by `acs_lib.gh_failure_hint(stderr)`):
 
 > This looks like a session-level access restriction — a Claude Code
@@ -117,6 +118,23 @@ about to remove.
      with `gh project item-list <project_number> --owner <owner> --format json`,
      then `gh project item-edit --id <item-id> --project-id <project-id>
      --field-id <status-field-id> --single-select-option-id <done-option-id>`.
+4b. **Refresh pending references** (ADR-0140) — after the merge, best-effort,
+   whatever happened in step 4. The merge may have put documents on the
+   default branch that other open tickets list as ``pending: not on
+   `<default>` yet``; turn them into links in their issues:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" tracker refresh --pending
+   ```
+
+   It fetches `origin/<default>`, recomputes the references of every open
+   ticket that has an issue and a pending entry, and rewrites only the
+   `## References` block of the issues whose block changed. **Non-critical**
+   (merge-pr/SKILL.md's classification): a non-zero exit or a failed `gh` call
+   inside it is one `info` finding carrying the command to re-run, never a
+   failed step and never a reason to revisit the merge. Report the tickets it
+   refreshed (or "none pending") in the summary. On the `local` provider there
+   are no issues and the command has nothing to do.
 5. **Touch NOTHING else.** Do not edit `ticket.json` status, do not archive
    the partition, do not mark the parent epic done — `post-merge-pr.py` owns
    all of that; duplicating it corrupts workspace state.
@@ -143,7 +161,8 @@ How the run ends, and what the report then says:
   naming the first failed step. Partial progress is normal and valuable — the
   report lets a resumed run redo only what failed. A failed step-4 tracker
   sync is NOT this case: the merge stands and the run still finishes with
-  `merged: true`.
+  `merged: true`; nor is a failed step-4b refresh, which is only an `info`
+  finding.
 
 ## Hard rules
 

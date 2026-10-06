@@ -347,6 +347,19 @@ order:
 
 If neither a run nor any source resolves, the skill MUST stop and ask the user.
 
+Once the subject resolves, the skill MUST also know the documents that exist
+for it: the step-start context's `references` lists every document the
+standard layout holds for the run's features and ticket — the PRD feature
+section, the living analysis, the HLD views, the living LLD, the tech designs
+and API contracts (the ticket's own and its parent epic's) and the ticket's
+development documents
+([ADR-0140](../../architecture/adr/0140-tickets-link-their-documents.md)).
+A skill reads the ones relevant to its step from that list and never searches
+the repo for them. The same list is the ticket's `## References` section in
+the tracker, linked to the remote default branch; a document still pending
+there becomes a link when `/merge-pr` refreshes the synced tickets after a
+merge.
+
 Note: pre/post **hooks** are deterministic scripts and cannot interpret
 conversation history — they resolve the ticket id from the **per-checkout
 pointer file** written by the coordinator at skill start

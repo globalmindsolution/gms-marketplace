@@ -112,7 +112,8 @@ from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_sho
     cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
     cmd_run_check, cmd_run_new, cmd_run_next, cmd_run_show, cmd_slug,
     cmd_step_finish, cmd_step_show, cmd_step_start, cmd_ticket_save,
-    cmd_ticket_show, cmd_tracker_sync, cmd_verdict_show,
+    cmd_ticket_references, cmd_ticket_show, cmd_tracker_refresh, cmd_tracker_sync,
+    cmd_verdict_show,
     cmd_workflow_show, cmd_workflow_validate)
 import acs_analysis_commands  # noqa: E402
 import acs_model_commands  # noqa: E402
@@ -271,6 +272,19 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
+    refs = ticket_sub.add_parser(
+        "references", help="the documents that exist for a ticket's features (ADR-0140)")
+    refs.add_argument("--ticket", help="the ticket (its features, own and parent's records)")
+    refs.add_argument("--features", help="comma-separated feature slugs, for a ticket not "
+                                         "minted yet")
+    refs.add_argument("--parent", help="with --features: the parent epic whose records count")
+    refs.add_argument("--fetch", action="store_true",
+                      help="fetch origin's default branch first (best effort)")
+    refs.add_argument("--write", action="store_true", help="store the list on the ticket")
+    refs.add_argument("--render", action="store_true",
+                      help="also return the ## References block text as `block`")
+    refs.set_defaults(func=cmd_ticket_references)
+
     pr = group("pr", help="PR metadata, and the commits /acs:create-pr makes (ADR-0127)")
     pr_sub = pr.add_subparsers(dest="cmd")
     metadata = pr_sub.add_parser("metadata", help="PR metadata fill")
@@ -285,7 +299,7 @@ def build_parser():
     fill.set_defaults(func=cmd_pr_metadata_fill)
     acs_changes_commands.add_pr_parsers(pr_sub)
 
-    tracker = group("tracker", help="tracker sync")
+    tracker = group("tracker", help="tracker sync and refresh")
     tracker_sub = tracker.add_subparsers(dest="cmd")
     sync = tracker_sub.add_parser("sync", help="create-ticket step 5's batch in one call")
     sync.add_argument("--ticket", action="append", default=[], required=True,
@@ -295,6 +309,17 @@ def build_parser():
     sync.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
                       help="replay recorded gh output instead of calling gh")
     sync.set_defaults(func=cmd_tracker_sync)
+    refresh = tracker_sub.add_parser(
+        "refresh", help="recompute tickets' references and rewrite their issues' "
+                        "## References block (non-critical)")
+    refresh.add_argument("--ticket", help="one ticket")
+    refresh.add_argument("--pending", action="store_true",
+                         help="every open synced ticket with a pending reference")
+    refresh.add_argument("--dry-run", dest="dry_run", action="store_true",
+                         help="read the issues; edit and store nothing")
+    refresh.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
+                         help="replay recorded gh output instead of calling gh")
+    refresh.set_defaults(func=cmd_tracker_refresh)
     ready = group("readiness", help="merge-pr's four readiness dimensions")
     ready.add_argument("--pr", help="PR number to read through gh")
     ready.add_argument("--from", dest="source", metavar="FILE",

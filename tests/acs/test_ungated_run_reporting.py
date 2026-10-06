@@ -56,7 +56,7 @@ START_CONTEXT_KEYS = {
     "ticket_id", "ticket", "partition", "workflow", "cursor", "repo_id",
     "workspace", "checkout_id", "checkout_root", "plugin_root", "settings",
     "settings_sources", "agents", "agents_sync", "prior_status", "reconcile", "handoff_summary",
-    "design", "requirements",
+    "design", "requirements", "references",
 }
 
 #: The same, for the exempt-pr document (skill-start.py:95-114 at the merge base).

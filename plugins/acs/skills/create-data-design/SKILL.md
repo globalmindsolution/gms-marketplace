@@ -43,6 +43,7 @@ role's model and effort come from `settings.models.create-data-design.<role>`,
 inheriting when unset), `reconcile`, `handoff_summary`, `checkout_root`.
 `<partition>` below is `partition`, `<id>` is `ticket_id` when the run has a
 ticket, else `run_id`.
+**References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 
 Then, in order:
 

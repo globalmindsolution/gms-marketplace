@@ -2,7 +2,8 @@ schema_version: "1.1"
 name: create-ticket-artifacts
 description: >-
   /acs:create-ticket writes a schema-complete task ticket and the repo-level
-  indexes. Migrated from the behavioural harness's s02 scenario; the assertion
+  indexes, and records the references the standard layout holds for its
+  feature (ADR-0140). Migrated from the behavioural harness's s02 scenario; the assertion
   target is workspace state, never the model's prose.
 tags: [artifacts]
 context:

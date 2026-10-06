@@ -21,7 +21,9 @@ exists, the feature analysis files the report touches, and
 `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/authoring-rules.md`),
 `<constraints>` (`partition` — the absolute run directory — and `template`, the
 `bug-default` template's path) and a `<context>` carrying the clarification answers
-and, on iteration 2, the reviewer's findings verbatim. Read `authoring-rules.md`
+and, on iteration 2, the reviewer's findings verbatim;
+a `<context name="references">` lists the documents found for the request's
+features (cite only those, and leave the template's `## References` markers alone). Read `authoring-rules.md`
 FIRST: its rules on acceptance criteria, PRD trace, features, grounding and the
 draft's keys bind you; this file adds only what a bug needs.
 
@@ -56,7 +58,7 @@ Plus:
   corrected behaviour as observable outcomes (`expected`, made checkable), and any
   related case the report names.
 - **The description** — the `bug-default` template, every section filled, the
-  HTML comments deleted, the `acs-ticket: <ticket-id>` line kept.
+  HTML comments deleted but the `## References` marker pair, the `acs-ticket: <ticket-id>` line kept.
 - **Size** — a bug is one PR. If the report describes several defects, or a fix
   that needs a redesign, say so in `## Size`: the coordinator splits or re-types.
 

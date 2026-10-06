@@ -68,6 +68,18 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   no body is reported under `failed` with an `error` finding naming the
   missing path, and no bodiless issue is created.
 
+  **Every issue gets its `## References` section** (ADR-0140). Before it
+  creates an issue, the command fetches `origin/<default>` and fills the body's
+  `<!-- acs:references -->` block with every document the standard layout
+  holds for that ticket: a link to the default branch for each one already
+  there, ``pending: not on `<default>` yet`` for the rest (adding the section
+  when the body has none). A ticket that already has an issue — an import, a
+  breakdown run's parent — is not re-created; `python3
+  "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" tracker refresh --ticket <id>`
+  rewrites only that block in its existing issue. `tracker refresh` is
+  **non-critical**: a failure is one `info` finding with the replayable
+  command, never a failed ticket.
+
   **Read the printed JSON.** `synced` maps a ticket id to its `external`;
   `failed` lists the ids whose `gh issue create` failed. Those are
   **error**-severity findings carrying the ticket id, the error and the
@@ -85,5 +97,6 @@ content, not new GitHub-facing behavior; this is expected and not a regression
 
 - Write `external` into each synced ticket's own `ticket.json` — root and
   every child — via `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-external.py"
-  --ticket <ticket-id> --provider <provider> --key <key>` once per successfully
-  synced ticket.
+  --ticket <ticket-id> --provider <provider> --key <key> --url <url>` (the `key`
+  and `url` of its `synced` entry, so the issue link is kept) once per
+  successfully synced ticket.

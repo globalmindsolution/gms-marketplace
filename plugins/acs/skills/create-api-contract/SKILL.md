@@ -40,8 +40,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ap
 order: a ticket id (`<PREFIX>-<n>` — an epic too: Design runs on epics), a PRD
 feature slug, documents (repo paths, or files attached from outside the repo —
 copied into the run), and a prompt. No ticket is required: a feature slug, a
-prompt or a document is enough. `step start` turns them into the run's
-requirements.
+prompt or a document is enough. `step start` turns them into the run's requirements.
 
 If it exits non-zero: stop immediately and surface its stderr to the user
 verbatim. Do not improvise a workaround. Otherwise parse the context JSON; the
@@ -56,6 +55,7 @@ sources), `settings` (`design.lld_types`, `parallel.max_agents`, `models`),
 from `settings.models.create-api-contract.<role>`, inheriting when unset),
 `reconcile`, `handoff_summary`, `checkout_root`. `<partition>` below is
 `partition`, `<id>` is `ticket_id` when the run has a ticket, else `run_id`.
+**References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 
 Then, in order:
 
