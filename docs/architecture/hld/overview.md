@@ -15,13 +15,11 @@ is published today:
 
 - **acs** (full-shape: `.acs/`, schemas, hooks, agents, skills) — targets
   **Claude Code**; drives an agentic software-delivery workflow on any
-  **consumer repository**, persisting all pipeline state into an
-  **`acs/state-machine/` folder inside that repo's shared git directory**
-  (`<git-common-dir>`, never tracked), so every linked worktree — a Claude
-  Code worktree session and the Bash sandbox included — resolves to and can
-  write the same on-disk state (no setting overrides it; ADR-0086,
-  [ADR-0102](../adr/0102-documents-are-found-not-configured.md),
-  [ADR-0136](../adr/0136-state-in-the-git-common-dir.md)).
+  **consumer repository**, persisting all pipeline state into a gitignored
+  **`.acs/state-machine/` folder inside that repo**, anchored to the repo's
+  main checkout so every linked worktree resolves to the same on-disk state
+  (no setting overrides it; ADR-0086,
+  [ADR-0102](../adr/0102-documents-are-found-not-configured.md)).
 
 ## Quality attributes (drive the design)
 

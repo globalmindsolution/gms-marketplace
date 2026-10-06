@@ -285,12 +285,6 @@ growth path.
   `default_state_root()` now derives the state root,
   `<main-checkout>/.acs/state-machine`, anchored to the main checkout so
   linked worktrees share one state root; no setting overrides it.
-  **Amended by ADR-0136:** the state root is
-  `<git-common-dir>/acs/state-machine`, inside the shared git directory, so a
-  Claude Code worktree session and the Bash sandbox can write it; skills and
-  agents write state through `acs.py write`, never the `Write` tool, and an
-  existing in-checkout tree moves on its own
-  ([ADR-0136](../architecture/adr/0136-state-in-the-git-common-dir.md)).
 - Reflection cycle with a task/result message format and phase artifacts, over subagents named for each skill's own work (ADR 0109). The eleven authoring skills (create-prd, create-architecture, create-tech-design, create-data-design, create-flows, analyze-requirements, create-impl-plan, create-api-contract, create-test-docs, create-e2e-tests, docs-sync) each run a write → judge loop over their own roles — e.g. create-prd's surveyor, author and reviewer; create-impl-plan's planner and plan-reviewer; analyze-requirements' impact-analyst, analyst and impact-reviewer — with no planning pass before the writer (ADR 0092); `/code` spawns implementers against the plan `/acs:create-impl-plan` approved, and `/acs:review-code` judges the changeset; the three apply-work skills (create-ticket, create-pr, merge-pr) run **inline** (the coordinator alone, no subagent); the read-only `/acs:audit-design` spawns gap analysts and reports design ↔ code gaps without a write → judge loop (ADR-0122); the read-only `/acs:audit-security` spawns auditors per security category and one refute-by-default adjudicator per candidate finding, and reports only (ADR-0123). 34 agent files exist on disk and only 34 are reachable — every one: 28 agents in the eleven authoring skills + `/code`'s implementer + `/acs:review-code`'s lens and adjudicator + `/acs:audit-design`'s gap analyst + `/acs:audit-security`'s auditor and adjudicator.
 - TDD `/code` with coverage hard-fail and the 16-dimension, multi-lens changeset review loop (≤ 3 iterations).
 - Local-first tickets: epics with child fan-out, per-repo id sequence, archive lifecycle.

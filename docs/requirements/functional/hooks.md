@@ -20,11 +20,9 @@ one advisory stderr line, never a refusal.
   `pre-<skill>.py` and `post-<skill>.py`
   (e.g. `pre-code.py`, `post-code.py`).
 - Hooks MUST read and write state files only in the **workspace folder**
-  (`<workspace>/<repo>/…`), always `<git-common-dir>/acs/state-machine`
-  (see [configuration.md](configuration.md),
-  [ADR-0136](../../architecture/adr/0136-state-in-the-git-common-dir.md)).
-  Git tracks nothing under its own directory, so it never shows up in
-  `git status`;
+  (`<workspace>/<repo>/…`), always `<main-checkout>/.acs/state-machine`
+  (see [configuration.md](configuration.md)). The first state write creates
+  the folder's own `.gitignore` of `*`, so it never shows up in `git status`;
   a hook that only reads state writes nothing, so a repo that never runs acs
   gets no folder (ADR-0105). Most access stays inside the
   run's own directory (`runs/<run-id>/`), but hooks also maintain the
@@ -54,7 +52,7 @@ is absent (ADR-0109).
   ran `/setup` passes; a malformed hand-set value, such as a lowercase
   `ticket_prefix`, is refused with a message to fix it in
   `.acs/settings.json` or remove it to use the default `ACS`), the workspace
-  (always `<git-common-dir>/acs/state-machine`, no override) can be derived
+  (always `<main-checkout>/.acs/state-machine`, no override) can be derived
   and is consistent across worktrees, and the `<ticket-id>` partition can be
   resolved.
 - There are no skill-specific input checks. A skill that reads an upstream

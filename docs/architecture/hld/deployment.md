@@ -21,7 +21,7 @@ flowchart LR
         subgraph checkouts["Consumer repo checkouts"]
             CO1["main checkout"]
             CO2["worktree per ticket (parallel sessions)"]
-            WS["Workspace folder<br/>(.git/acs/state-machine, never tracked,<br/>in the shared git dir)"]
+            WS["Workspace folder<br/>(.acs/state-machine, gitignored,<br/>anchored to main checkout)"]
         end
         PY["python3 (stdlib) · git · gh · xmllint?"]
     end
@@ -32,7 +32,7 @@ flowchart LR
     PI_ACS -- hooks/skills --> CC
     CC --> CO1 & CO2
     CO1 -- "all pipeline state" --> WS
-    CO2 -. "resolves to the same WS via the git common dir" .-> WS
+    CO2 -. "resolves to the same WS via main-checkout anchor" .-> WS
     CC -- "gh pr create / merge" --> PRS
     G_CONV & G_TEST & G_E2E -- "required status check" --> BP
     BP -- "mergeStateStatus" --> PRS
@@ -50,17 +50,12 @@ Key facts:
 - **Per-plugin install paths**: acs installs into Claude Code
   (`claude plugin install acs@gms-marketplace`). The catalog is designed so a
   plugin names its own runtime host (ADR 0021); acs is the only one today.
-- **In-repo, one workspace store per repo checkout** (ADR-0086,
-  [ADR-0136](../adr/0136-state-in-the-git-common-dir.md)): the workspace is
-  always `<git-common-dir>/acs/state-machine/` (`.git/acs/state-machine/` in
-  an ordinary clone), inside the shared git directory (`git rev-parse
+- **In-repo, one workspace store per repo checkout** (ADR-0086):
+  the workspace is always `<main-checkout>/.acs/state-machine/`,
+  gitignored, anchored to the repo's main checkout (`git rev-parse
   --git-common-dir`) so every linked worktree resolves to the same physical
   partition, with partitions keyed by repo identity derived from the git
-  remote. It is the one location both a Claude Code worktree session and
-  the Bash sandbox let a linked worktree write; skills and agents write it
-  through `acs.py write`, never the `Write` tool. A tree left at the old
-  `<main-checkout>/.acs/state-machine/` moves there on the first acs call.
-  No setting overrides it ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)); acs must be
+  remote. No setting overrides it ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)); acs must be
   run from a regular git checkout.
 - **No server-side anything**: the plugins are files; all execution happens in
   the user's Claude Code session and shell. Tracker/PR access goes

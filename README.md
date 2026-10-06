@@ -197,10 +197,9 @@ The marketplace currently ships one plugin:
   The human-facing documents of a change (`tech-design.md`, `plan.md`,
   `test-cases.md`, …) live in the consumer repo's docs tree, one folder per
   phase, reviewable in the PR like any other doc; the
-  durable **run ledger** lives in the consumer repo's shared git directory
-  (`.git/acs/state-machine`, which git never tracks), making runs resumable
-  and tickets shippable in parallel across git worktrees — Claude Code's own
-  worktree sessions and its Bash sandbox included.
+  durable **run ledger** lives in a `.acs/state-machine` folder in the
+  consumer repo's main checkout, which ignores itself in git, making runs
+  resumable and tickets shippable in parallel across git worktrees.
 
   The delivery **order** is declared in
   [`plugins/acs/workflows/ship.yaml`](plugins/acs/workflows/ship.yaml) — a version, a

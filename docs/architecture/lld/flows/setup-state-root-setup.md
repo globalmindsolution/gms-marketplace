@@ -12,13 +12,10 @@ both in `setup_wizard.py`. See the companion `setup-state-root-setup.evidence.md
 sidecar for the code anchors this doc would otherwise cite inline.
 
 Setup is optional, and nothing depends on this flow having run
-([ADR-0105](../../adr/0105-acs-runs-without-setup.md)): the state root is
-`<git-common-dir>/acs/state-machine`, inside the git directory, which git
-never tracks ([ADR-0136](../../adr/0136-state-in-the-git-common-dir.md)).
-The two ignore layers below name the pre-ADR-0136 path
-`.acs/state-machine/`: they are kept for a clone whose state has not been
-moved out of the checkout yet, which acs does on its first call, and are not
-needed by one that never had state there.
+([ADR-0105](../../adr/0105-acs-runs-without-setup.md)): the state root
+ignores itself, because the first state write under it creates
+`.acs/state-machine/.gitignore` containing `*`. The two layers below are
+kept for a repo that runs setup, not needed by one that never does.
 
 ## Sequence diagram
 
@@ -35,8 +32,7 @@ sequenceDiagram
         Init->>User: name the key and its file, say it is ignored
     end
     Init->>Init: Step 3 - setup apply
-    Init->>Init: state root = git-common-dir + acs/state-machine - no override
-    Init->>Init: ignore layers below cover the legacy .acs/state-machine path
+    Init->>Init: state root = main-checkout root + .acs/state-machine - no override
     Init->>Git: check-ignore -q .acs/state-machine
     alt not already ignored
         Init->>FS: append .acs/state-machine/ to .gitignore - tracked layer

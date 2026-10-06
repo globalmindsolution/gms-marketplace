@@ -35,10 +35,7 @@ The assertion target is a file the skill wrote: `ticket.json`,
 `run.json`, a `steps/<skill>/state.json` invocation, a result document, a
 doc under the consumer's `docs/` tree, a branch, a commit, a PR. If the
 scenario would still pass with the model's prose replaced by lorem ipsum, it is
-asserting the right thing. The state files live in the eval repo's git
-directory, under `.git/acs/state-machine/<repo-id>/`
-([ADR-0136](../architecture/adr/0136-state-in-the-git-common-dir.md)), not in
-the checkout tree, so a grader reads them there.
+asserting the right thing.
 
 An assertion on stdout is allowed only where stdout **is** the contract — a
 gate's refusal text, `acs.py`'s JSON on stdout — and then it is a deterministic

@@ -182,12 +182,7 @@ its reference transcript — they need a host where Claude Code's Bash sandbox
 starts. Until then the *common* skill bugs (a missing script reference, a
 malformed completion report, a broken gate, the wrong skill firing) are caught
 cheaply for the whole surface, while whether a skill produced the *right*
-output is asserted but not yet measured. That first run also settles whether
-a grader sees acs's workspace at all: since
-[ADR-0136](../architecture/adr/0136-state-in-the-git-common-dir.md) it is
-`.git/acs/state-machine/`, inside the git directory, and whether the CLI lets a
-file grader read there — and counts it among the files a run created — is an
-open question the [suite README](../../plugins/acs/evals/README.md) records.
+output is asserted but not yet measured.
 
 ## Principles
 

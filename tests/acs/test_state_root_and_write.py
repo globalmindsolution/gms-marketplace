@@ -1,25 +1,23 @@
-"""ADR-0136: acs state lives in the git common dir, and is written through `acs.py write`.
+"""ADR-0136: acs state stays in the main checkout, and is written through `acs.py write`.
 
-A Claude Code session in a worktree is refused any Edit/Write whose target is in
-the main checkout, and the Bash sandbox lets Bash write only the working
-directory, $TMPDIR and -- from a linked worktree -- the main repo's shared `.git`
-directory. The workspace used to be `<main-checkout>/.acs/state-machine`, which
-both rules refuse. It is now `<git-common-dir>/acs/state-machine`, migrated on
-first derivation, and every state file a skill or an agent writes goes through
-`acs.py write` instead of the Write tool.
+The workspace is `<main-checkout>/.acs/state-machine/<repo-id>/` -- one folder
+at the main checkout's root that every linked worktree resolves to, never a
+worktree's own folder. A Claude Code session in a worktree is refused any
+Edit/Write whose target is in the main checkout, so every state file a skill or
+an agent writes goes through `acs.py write` -- Python run from the worktree --
+instead of the Write tool. (When the Bash sandbox is on, /acs:setup offers the
+`sandbox.filesystem.allowWrite` rule for that folder: tests/acs/test_claude_permissions.py.)
 
 Pinned here:
   * root derivation -- main checkout, subdirectory, linked worktree, a worktree
-    nested in the checkout (`.claude/worktrees/x`), the unchanged refusals, and
-    `git clean -fdx` leaving the state alone;
-  * migration -- move, both-exist, idempotent, stored absolute paths, the
-    cross-device fallback, a removal that fails, and doctor's leftover report;
+    nested in the checkout (`.claude/worktrees/x`), all to the main checkout's
+    `.acs/state-machine`; the unchanged refusals; doctor's `state_root`;
   * `acs.py write` -- inside/outside/`..`/symlink/append/atomic, the run-relative
-    default, `--run`, the machine-owned ledgers it refuses.
+    default, `--run`, the machine-owned ledgers it refuses, and a first write
+    that leaves the checkout clean.
 """
 
 import errno
-import io
 import json
 import os
 import shutil
@@ -33,7 +31,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acs_case import SCRIPTS, load_module, run_main, pushd  # noqa: E402
 
 import acs_lib as lib  # noqa: E402
-from acs_lib import state_root as state_root_mod  # noqa: E402
 
 ACS = os.path.join(SCRIPTS, "acs.py")
 
@@ -60,12 +57,9 @@ def _real(path):
     return os.path.realpath(path)
 
 
-def _legacy(repo):
+def _root(repo):
+    """The one state root: the MAIN checkout's .acs/state-machine."""
     return os.path.join(repo, ".acs", "state-machine")
-
-
-def _new(repo):
-    return os.path.join(repo, ".git", "acs", "state-machine")
 
 
 class _TmpCase(unittest.TestCase):
@@ -80,29 +74,36 @@ class _TmpCase(unittest.TestCase):
 
 class TestRootDerivation(_TmpCase):
 
-    def test_main_checkout_resolves_under_the_git_dir(self):
+    def test_main_checkout_resolves_to_its_acs_state_machine(self):
         repo = _mkrepo(self.tmp)
-        self.assertEqual(_real(lib.default_state_root(repo)), _real(_new(repo)))
+        self.assertEqual(_real(lib.default_state_root(repo)), _real(_root(repo)))
 
     def test_subdirectory_resolves_to_the_same_root(self):
         repo = _mkrepo(self.tmp)
         sub = os.path.join(repo, "a", "b")
         os.makedirs(sub)
-        self.assertEqual(_real(lib.default_state_root(sub)), _real(_new(repo)))
+        self.assertEqual(_real(lib.default_state_root(sub)), _real(_root(repo)))
 
-    def test_linked_worktree_shares_the_main_repos_root(self):
+    def test_linked_worktree_resolves_to_the_main_checkouts_root(self):
         repo = _mkrepo(self.tmp)
         wt = os.path.join(self.tmp, "wt")
         _git("-C", repo, "worktree", "add", "-q", "-b", "wt-branch", wt)
-        self.assertEqual(_real(lib.default_state_root(wt)), _real(_new(repo)))
+        self.assertEqual(_real(lib.default_state_root(wt)), _real(_root(repo)))
+        self.assertNotEqual(_real(lib.default_state_root(wt)), _real(_root(wt)))
 
-    def test_nested_claude_worktree_shares_the_main_repos_root(self):
+    def test_nested_claude_worktree_resolves_to_the_main_checkouts_root(self):
         repo = _mkrepo(self.tmp)
         nested = os.path.join(repo, ".claude", "worktrees", "x")
         _git("-C", repo, "worktree", "add", "-q", "-b", "nested", nested)
-        self.assertEqual(_real(lib.default_state_root(nested)), _real(_new(repo)))
+        self.assertEqual(_real(lib.default_state_root(nested)), _real(_root(repo)))
         self.assertEqual(_real(lib.default_state_root(nested)),
                          _real(lib.default_state_root(repo)))
+
+    def test_nothing_lives_in_the_git_dir(self):
+        repo = _mkrepo(self.tmp)
+        root = lib.default_state_root(repo)
+        lib.write_json(os.path.join(root, "acme-shop", "counters.json"), {"next": 1})
+        self.assertFalse(os.path.exists(os.path.join(repo, ".git", "acs")))
 
     def test_deriving_the_root_creates_nothing(self):
         repo = _mkrepo(self.tmp)
@@ -134,253 +135,58 @@ class TestRootDerivation(_TmpCase):
             lib.default_state_root(os.path.join(superp, "mod"))
         self.assertIn("submodule", str(ctx.exception))
 
-    def test_git_clean_fdx_leaves_the_state_alone(self):
-        repo = _mkrepo(self.tmp)
-        root = lib.default_state_root(repo)
-        os.makedirs(os.path.join(root, "acme-shop"))
-        marker = os.path.join(root, "acme-shop", "counters.json")
-        with open(marker, "w") as fh:
-            fh.write("{}\n")
-        _git("-C", repo, "clean", "-fdxq")
-        self.assertTrue(os.path.isfile(marker))
-
     def test_the_checkout_stays_clean_after_a_state_write(self):
         repo = _mkrepo(self.tmp)
         root = lib.default_state_root(repo)
         lib.write_json(os.path.join(root, "acme-shop", "counters.json"), {"next": 1})
-        status = _git("-C", repo, "status", "--porcelain", "--ignored").stdout
+        status = _git("-C", repo, "status", "--porcelain", "-uall").stdout
         self.assertEqual(status.strip(), "")
 
+    def test_doctor_reports_the_state_root(self):
+        repo = _mkrepo(self.tmp)
+        proc = subprocess.run([sys.executable, ACS, "doctor"], cwd=repo,
+                              capture_output=True, text=True)
+        out = json.loads(proc.stdout)
+        self.assertEqual(_real(out["state_root"]["path"]), _real(_root(repo)))
+        self.assertIsNone(out["state_root"]["error"])
+        self.assertEqual(sorted(out["state_root"]), ["error", "path"])
 
-# ---------------------------------------------------------------------------
-# migration
-# ---------------------------------------------------------------------------
+    def test_doctor_from_a_worktree_reports_the_main_checkouts_root(self):
+        repo = _mkrepo(self.tmp)
+        wt = os.path.join(self.tmp, "wt")
+        _git("-C", repo, "worktree", "add", "-q", "-b", "wt-branch", wt)
+        proc = subprocess.run([sys.executable, ACS, "doctor"], cwd=wt,
+                              capture_output=True, text=True)
+        self.assertEqual(_real(json.loads(proc.stdout)["state_root"]["path"]),
+                         _real(_root(repo)))
 
-def _seed_legacy(repo):
-    """An un-migrated workspace with absolute paths stored in it, as the
-    analysis loop (`draft.dir`) and a run's ledger store them."""
-    old = _legacy(repo)
-    rdir = os.path.join(old, "acme-shop", "runs", "SHOP-1")
-    os.makedirs(os.path.join(rdir, "steps", "code"))
-    with open(os.path.join(old, ".gitignore"), "w") as fh:
-        fh.write("*\n")
-    with open(os.path.join(rdir, "steps", "code", "result.json"), "w") as fh:
-        json.dump({"status": "completed"}, fh)
-    with open(os.path.join(rdir, "analysis.json"), "w") as fh:
-        json.dump({"draft": {"dir": os.path.join(rdir, "steps", "a", "iter-1", "draft"),
-                             "files": [os.path.join(old, "acme-shop", "x.md"),
-                                       "/elsewhere/keep.md"]},
-                   "workspace": old, "unrelated": old + "-not-under-it",
-                   "count": 3}, fh)
-    with open(os.path.join(rdir, "notes.md"), "w") as fh:
-        fh.write("prose stays as written\n")
-    return old, rdir
+    def test_doctor_outside_a_repo_reports_why_there_is_no_root(self):
+        plain = os.path.join(self.tmp, "plain")
+        os.makedirs(plain)
+        proc = subprocess.run([sys.executable, ACS, "doctor"], cwd=plain,
+                              capture_output=True, text=True)
+        report = json.loads(proc.stdout)["state_root"]
+        self.assertIsNone(report["path"])
+        self.assertIn("not a git repository", report["error"])
 
-
-class TestMigration(_TmpCase):
-
-    def setUp(self):
-        super().setUp()
-        self.repo = _mkrepo(self.tmp)
-
-    def test_the_legacy_root_is_moved_and_a_note_left_behind(self):
-        old, _ = _seed_legacy(self.repo)
-        root = lib.default_state_root(self.repo)
-        self.assertEqual(_real(root), _real(_new(self.repo)))
-        self.assertFalse(os.path.exists(old))
-        moved = os.path.join(root, "acme-shop", "runs", "SHOP-1", "steps", "code",
-                             "result.json")
-        self.assertEqual(lib.read_json(moved), {"status": "completed"})
-        note = old + ".MOVED"
-        with open(note, encoding="utf-8") as fh:
-            text = fh.read()
-        self.assertEqual(text.count("\n"), 1)
-        self.assertIn(root, text)
-
-    def test_stored_absolute_paths_are_rewritten_to_the_new_root(self):
-        old, _ = _seed_legacy(self.repo)
-        root = lib.default_state_root(self.repo)
-        new_rdir = os.path.join(root, "acme-shop", "runs", "SHOP-1")
-        doc = lib.read_json(os.path.join(new_rdir, "analysis.json"))
-        self.assertEqual(doc["draft"]["dir"],
-                         os.path.join(new_rdir, "steps", "a", "iter-1", "draft"))
-        self.assertEqual(doc["draft"]["files"],
-                         [os.path.join(root, "acme-shop", "x.md"), "/elsewhere/keep.md"])
-        self.assertEqual(doc["workspace"], root)
-        self.assertEqual(doc["unrelated"], old + "-not-under-it")
-        self.assertEqual(doc["count"], 3)
-        with open(os.path.join(new_rdir, "notes.md")) as fh:
-            self.assertEqual(fh.read(), "prose stays as written\n")
-
-    def test_a_migrated_run_still_resolves_through_the_cli(self):
-        old = _legacy(self.repo)
-        repo_dir = lib.repo_dir(old, "acme-shop")
+    def test_a_worktrees_context_names_the_main_checkouts_workspace_and_run(self):
+        repo = _mkrepo(self.tmp)
+        repo_dir = lib.repo_dir(lib.default_state_root(repo), "acme-shop")
         wf_path = lib.default_workflow_path()
         wf = lib.validate_workflow_file(wf_path)
         lib.create_run(repo_dir, {"kind": "ticket", "ticket_id": "SHOP-1"}, wf, wf_path,
                        run_id="SHOP-1")
-        lib.save_pointer(repo_dir, lib.checkout_id(self.repo), run_id="SHOP-1",
-                         checkout_path=self.repo)
-        proc = subprocess.run([sys.executable, ACS, "context"], cwd=self.repo,
+        wt = os.path.join(self.tmp, "wt")
+        _git("-C", repo, "worktree", "add", "-q", "-b", "wt-branch", wt)
+        lib.save_pointer(repo_dir, lib.checkout_id(wt), run_id="SHOP-1", checkout_path=wt)
+        proc = subprocess.run([sys.executable, ACS, "context"], cwd=wt,
                               capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         out = json.loads(proc.stdout)
-        self.assertEqual(_real(out["workspace"]), _real(_new(self.repo)))
+        self.assertEqual(_real(out["workspace"]), _real(_root(repo)))
         self.assertEqual(out["run_id"], "SHOP-1")
         self.assertEqual(_real(out["run_dir"]),
-                         _real(os.path.join(_new(self.repo), "acme-shop", "runs", "SHOP-1")))
-        proc = subprocess.run([sys.executable, ACS, "run", "show"], cwd=self.repo,
-                              capture_output=True, text=True)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertFalse(os.path.exists(old))
-
-    def test_migration_is_idempotent(self):
-        _seed_legacy(self.repo)
-        first = lib.default_state_root(self.repo)
-        note = _legacy(self.repo) + ".MOVED"
-        with open(note) as fh:
-            before = fh.read()
-        snapshot = sorted(os.listdir(os.path.join(first, "acme-shop", "runs", "SHOP-1")))
-        second = lib.default_state_root(self.repo)
-        self.assertEqual(first, second)
-        with open(note) as fh:
-            self.assertEqual(fh.read(), before)
-        self.assertEqual(sorted(os.listdir(os.path.join(second, "acme-shop", "runs",
-                                                        "SHOP-1"))), snapshot)
-
-    def test_both_roots_present_uses_the_new_one_and_leaves_the_old(self):
-        old, _ = _seed_legacy(self.repo)
-        new = _new(self.repo)
-        os.makedirs(os.path.join(new, "acme-shop"))
-        with open(os.path.join(new, "acme-shop", "counters.json"), "w") as fh:
-            fh.write('{"next": 7}\n')
-        root = lib.default_state_root(self.repo)
-        self.assertEqual(_real(root), _real(new))
-        self.assertTrue(os.path.isdir(old), "a leftover is reported, never deleted")
-        self.assertFalse(os.path.exists(os.path.join(new, "acme-shop", "runs")))
-        report = lib.state_root_report(self.repo)
-        self.assertTrue(report["legacy_leftover"])
-        self.assertEqual(_real(report["legacy"]), _real(old))
-        self.assertEqual(_real(report["path"]), _real(new))
-
-    def test_doctor_reports_the_leftover(self):
-        _seed_legacy(self.repo)
-        os.makedirs(_new(self.repo))
-        proc = subprocess.run([sys.executable, ACS, "doctor"], cwd=self.repo,
-                              capture_output=True, text=True)
-        out = json.loads(proc.stdout)
-        self.assertTrue(out["state_root"]["legacy_leftover"])
-        self.assertEqual(_real(out["state_root"]["legacy"]), _real(_legacy(self.repo)))
-        self.assertIn("leftover", out["state_root"]["message"])
-
-    def test_doctor_reports_no_leftover_on_a_clean_repo(self):
-        proc = subprocess.run([sys.executable, ACS, "doctor"], cwd=self.repo,
-                              capture_output=True, text=True)
-        out = json.loads(proc.stdout)
-        self.assertFalse(out["state_root"]["legacy_leftover"])
-        self.assertEqual(_real(out["state_root"]["path"]), _real(_new(self.repo)))
-
-    def test_no_legacy_root_means_no_note(self):
-        lib.default_state_root(self.repo)
-        self.assertFalse(os.path.exists(_legacy(self.repo) + ".MOVED"))
-
-    def test_a_worktree_migrates_the_main_checkouts_legacy_root(self):
-        _seed_legacy(self.repo)
-        wt = os.path.join(self.tmp, "wt")
-        _git("-C", self.repo, "worktree", "add", "-q", "-b", "wt-branch", wt)
-        root = lib.default_state_root(wt)
-        self.assertEqual(_real(root), _real(_new(self.repo)))
-        self.assertTrue(os.path.isdir(os.path.join(root, "acme-shop", "runs", "SHOP-1")))
-        self.assertFalse(os.path.exists(_legacy(self.repo)))
-
-    def test_cross_device_move_falls_back_to_copy_then_remove(self):
-        old, _ = _seed_legacy(self.repo)
-        real_rename = os.rename
-
-        def rename(src, dst):
-            if os.path.abspath(src) == os.path.abspath(old):
-                raise OSError(errno.EXDEV, "Invalid cross-device link")
-            return real_rename(src, dst)
-
-        with mock.patch.object(state_root_mod.os, "rename", side_effect=rename):
-            root = lib.default_state_root(self.repo)
-        self.assertFalse(os.path.exists(old))
-        doc = lib.read_json(os.path.join(root, "acme-shop", "runs", "SHOP-1", "analysis.json"))
-        self.assertEqual(doc["workspace"], root)
-        parent = os.path.dirname(root)
-        self.assertEqual(sorted(n for n in os.listdir(parent) if n.startswith(".")), [],
-                         "no temp directory or guard file is left behind")
-
-    def test_a_removal_that_fails_leaves_both_and_uses_the_new_one(self):
-        old, _ = _seed_legacy(self.repo)
-
-        def refuse_rename(src, dst):
-            raise OSError(errno.EPERM, "Operation not permitted")
-
-        def refuse_rmtree(path, *a, **k):
-            raise OSError(errno.EPERM, "Operation not permitted")
-
-        with mock.patch.object(state_root_mod.os, "rename", side_effect=refuse_rename), \
-                mock.patch.object(state_root_mod.shutil, "rmtree", side_effect=refuse_rmtree), \
-                mock.patch("sys.stderr", new_callable=io.StringIO) as err:
-            # os.rename refused for the tree; the staging->final step is os.replace.
-            root = lib.default_state_root(self.repo)
-        self.assertIn("could not be removed", err.getvalue())
-        self.assertTrue(os.path.isdir(old))
-        self.assertTrue(os.path.isfile(os.path.join(root, "acme-shop", "runs", "SHOP-1",
-                                                    "steps", "code", "result.json")))
-        self.assertTrue(lib.state_root_report(self.repo)["legacy_leftover"])
-
-    def test_a_migration_that_cannot_complete_is_a_gate_error(self):
-        _seed_legacy(self.repo)
-
-        def refuse(*a, **k):
-            raise OSError(errno.EACCES, "Permission denied")
-
-        with mock.patch.object(state_root_mod.os, "rename", side_effect=refuse), \
-                mock.patch.object(state_root_mod.shutil, "copytree", side_effect=refuse):
-            with self.assertRaises(lib.GateError) as ctx:
-                lib.default_state_root(self.repo)
-        self.assertIn(_legacy(self.repo), str(ctx.exception))
-        self.assertTrue(os.path.isdir(_legacy(self.repo)))
-        self.assertFalse(os.path.exists(_new(self.repo)))
-
-    def test_a_move_interrupted_after_the_rename_is_finished(self):
-        """The old tree was renamed into staging, then the process died."""
-        old, _ = _seed_legacy(self.repo)
-        staging = os.path.join(self.repo, ".git", "acs", ".state-machine.migrating")
-        os.makedirs(os.path.dirname(staging))
-        os.rename(old, staging)
-        root = lib.default_state_root(self.repo)
-        self.assertFalse(os.path.exists(staging))
-        doc = lib.read_json(os.path.join(root, "acme-shop", "runs", "SHOP-1", "analysis.json"))
-        self.assertEqual(doc["workspace"], root)
-
-    def test_a_partial_copy_is_discarded_and_redone(self):
-        old, _ = _seed_legacy(self.repo)
-        staging = os.path.join(self.repo, ".git", "acs", ".state-machine.migrating")
-        os.makedirs(os.path.join(staging, "half"))
-        root = lib.default_state_root(self.repo)
-        self.assertFalse(os.path.exists(os.path.join(root, "half")))
-        self.assertTrue(os.path.isdir(os.path.join(root, "acme-shop", "runs", "SHOP-1")))
-        self.assertFalse(os.path.exists(old))
-
-    def test_a_concurrent_migrator_that_won_is_respected(self):
-        """The loser of a race finds the new root already there: it uses it."""
-        old, _ = _seed_legacy(self.repo)
-        new = _new(self.repo)
-        real_rename = os.rename
-
-        def lose(src, dst):
-            if os.path.abspath(src) == os.path.abspath(old):
-                os.makedirs(new)              # the winner landed first
-                raise OSError(errno.ENOTEMPTY, "Directory not empty")
-            return real_rename(src, dst)
-
-        with mock.patch.object(state_root_mod.os, "rename", side_effect=lose):
-            root = lib.default_state_root(self.repo)
-        self.assertEqual(_real(root), _real(new))
-        self.assertTrue(os.path.isdir(old))
+                         _real(os.path.join(_root(repo), "acme-shop", "runs", "SHOP-1")))
 
 
 # ---------------------------------------------------------------------------
@@ -579,6 +385,18 @@ class TestWriteVerb(_TmpCase):
             self.assertEqual(fh.read(), "before\n")
         self.assertEqual([n for n in os.listdir(os.path.dirname(target))
                           if n != "result.json"], [], "no temp file left behind")
+
+    def test_a_first_write_leaves_the_checkout_clean(self):
+        """The workspace sits in the main checkout: a write through the CLI
+        ignores it exactly as write_json does, before anything lands there
+        (ADR-0105 -- a repo may run acs without setup's ignore entry)."""
+        os.unlink(os.path.join(self.ws, ".gitignore"))
+        proc = self.write("steps/code/iter-1/notes.md", stdin="# Notes\n")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(self.ws, ".gitignore")) as fh:
+            self.assertEqual(fh.read(), "*\n")
+        status = _git("-C", self.repo, "status", "--porcelain", "-uall").stdout
+        self.assertEqual(status.strip(), "")
 
     def test_context_reports_the_current_run(self):
         proc = subprocess.run([sys.executable, ACS, "context"], cwd=self.repo,

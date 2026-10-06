@@ -2,8 +2,11 @@
 
 No skill sets `allowed-tools`, so every acs CLI call and every read-only git
 call prompts. Setup offers (opt-in) a fixed set of `permissions.allow` rules for
-the team's `.claude/settings.json` or the user's `.claude/settings.local.json`.
-These tests pin the rules against the command strings Claude Code actually
+the team's `.claude/settings.json` or the user's `.claude/settings.local.json`,
+and with either answer the Bash sandbox write rule for acs's state folder
+(`sandbox.filesystem.allowWrite`, the main checkout's absolute
+`.acs/state-machine`) in the main checkout's `.claude/settings.local.json` --
+never the team file, since the path is machine-specific (ADR-0136). These tests pin the rules against the command strings Claude Code actually
 sees -- `${CLAUDE_PLUGIN_ROOT}` already expanded -- with a matcher that follows
 Claude Code's documented wildcard rule, and drive detect/apply in real repos.
 
@@ -156,17 +159,29 @@ class DetectTest(RepoCase):
 
 class ApplyTest(RepoCase):
 
+    def state_root(self, root=None):
+        return os.path.join(root or self.root, ".acs", "state-machine")
+
     def test_team_creates_the_file_with_every_rule(self):
         out = CP.apply(self.root, "team")
         self.assertEqual(out, {"scope": "team", "path": self.path("team"),
-                               "added": list(CP.RULES)})
+                               "added": list(CP.RULES),
+                               "sandbox": {"path": self.path("user"),
+                                           "rule": self.state_root(),
+                                           "added": [self.state_root()]}})
         doc = {"permissions": {"allow": list(CP.RULES)}}
         self.assertEqual(self.read("team"), json.dumps(doc, indent=2) + "\n")
-        self.assertFalse(os.path.exists(self.path("user")))
+        # The sandbox rule is machine-specific: the local file, never the team's.
+        self.assertEqual(json.loads(self.read("user")),
+                         {"sandbox": {"filesystem": {"allowWrite": [self.state_root()]}}})
 
     def test_user_writes_the_local_file(self):
-        CP.apply(self.root, "user")
-        self.assertEqual(json.loads(self.read("user"))["permissions"]["allow"], list(CP.RULES))
+        out = CP.apply(self.root, "user")
+        doc = json.loads(self.read("user"))
+        self.assertEqual(doc["permissions"]["allow"], list(CP.RULES))
+        self.assertEqual(doc["sandbox"], {"filesystem": {"allowWrite": [self.state_root()]}})
+        self.assertEqual(out["sandbox"], {"path": self.path("user"), "rule": self.state_root(),
+                                          "added": [self.state_root()]})
         self.assertFalse(os.path.exists(self.path("team")))
 
     def test_the_merge_keeps_every_other_key_and_rule(self):
@@ -197,8 +212,12 @@ class ApplyTest(RepoCase):
         self.assertEqual(CP.detect(self.root)["user"]["missing"], [])
 
     def test_dry_run_reports_and_writes_nothing(self):
-        self.assertEqual(CP.apply(self.root, "team", dry_run=True)["added"], list(CP.RULES))
-        self.assertFalse(os.path.exists(os.path.join(self.root, ".claude")))
+        for scope in ("team", "user"):
+            with self.subTest(scope=scope):
+                out = CP.apply(self.root, scope, dry_run=True)
+                self.assertEqual(out["added"], list(CP.RULES))
+                self.assertEqual(out["sandbox"]["added"], [self.state_root()])
+                self.assertFalse(os.path.exists(os.path.join(self.root, ".claude")))
 
     def test_a_linked_worktree_writes_the_main_checkouts_local_file(self):
         wt = os.path.join(self.tmp, "wt")
@@ -208,6 +227,11 @@ class ApplyTest(RepoCase):
         self.assertEqual(out["path"], self.path("user"))
         self.assertTrue(os.path.isfile(self.path("user")))
         self.assertFalse(os.path.exists(os.path.join(wt, ".claude")))
+        # ...and the sandbox rule names the MAIN checkout's state folder, the
+        # one every worktree resolves to -- never the worktree's own.
+        self.assertEqual(out["sandbox"]["rule"], self.state_root())
+        self.assertEqual(json.loads(self.read("user"))["sandbox"]["filesystem"]["allowWrite"],
+                         [self.state_root()])
 
     def test_files_it_cannot_merge_into_are_refused_untouched(self):
         for bad, why in (("{not json", "not valid JSON"), ("[]", "not a JSON object"),
@@ -230,10 +254,108 @@ class ApplyTest(RepoCase):
                 with self.assertRaises(lib.GateError):
                     CP.apply(self.root, bad)
 
-    def test_only_the_user_scope_needs_an_ignore_entry(self):
+    def test_both_scopes_write_the_local_file_so_both_ignore_it(self):
+        """`team` also writes the sandbox rule to the machine-specific local
+        file, so it needs the same ignore entry as `user`."""
         self.assertEqual(CP.ignore_entries("user"), (".claude/settings.local.json",))
-        self.assertEqual(CP.ignore_entries("team"), ())
+        self.assertEqual(CP.ignore_entries("team"), (".claude/settings.local.json",))
         self.assertEqual(CP.ignore_entries("skip"), ())
+
+    def test_team_refuses_a_local_file_it_cannot_merge_the_sandbox_rule_into(self):
+        self.seed("user", '{"sandbox": []}')
+        errors = CP.errors(self.root, "team")
+        self.assertTrue(errors and "sandbox" in errors[0], errors)
+        with self.assertRaises(lib.GateError):
+            CP.apply(self.root, "team")
+        self.assertFalse(os.path.exists(self.path("team")), "nothing is written")
+
+
+class SandboxRuleTest(RepoCase):
+    """The Bash sandbox lets Bash write only the working directory, $TMPDIR,
+    added dirs and `sandbox.filesystem.allowWrite` paths. A worktree session's
+    working directory is the worktree, so acs's state folder in the MAIN
+    checkout needs that rule -- absolute, because settings path rules anchor at
+    the session's own working directory."""
+
+    def state_root(self, root=None):
+        return os.path.join(root or self.root, ".acs", "state-machine")
+
+    def allow_write(self):
+        return json.loads(self.read("user"))["sandbox"]["filesystem"]["allowWrite"]
+
+    def test_detect_reports_the_rule_missing_on_a_fresh_repo(self):
+        out = CP.detect(self.root)["sandbox_rule"]
+        self.assertEqual(out, {"path": self.state_root(), "file": self.path("user"),
+                               "present": False, "error": None})
+        self.assertTrue(os.path.isabs(out["path"]))
+
+    def test_detect_reports_it_present_after_apply(self):
+        CP.apply(self.root, "team")
+        self.assertTrue(CP.detect(self.root)["sandbox_rule"]["present"])
+
+    def test_detect_reports_a_local_file_it_cannot_read(self):
+        self.seed("user", '{"sandbox": {"filesystem": {"allowWrite": "x"}}}')
+        out = CP.detect(self.root)["sandbox_rule"]
+        self.assertFalse(out["present"])
+        self.assertIn("allowWrite", out["error"])
+
+    def test_the_merge_keeps_every_other_key_and_entry(self):
+        self.seed("user", {"sandbox": {"enabled": True,
+                                       "filesystem": {"allowWrite": ["/opt/cache"],
+                                                      "denyRead": ["~/.ssh"]},
+                                       "network": {"allowedDomains": ["x.dev"]}},
+                           "permissions": {"allow": ["Bash(npm test)"]}, "model": "m"})
+        CP.apply(self.root, "user")
+        doc = json.loads(self.read("user"))
+        self.assertEqual(doc["model"], "m")
+        self.assertTrue(doc["sandbox"]["enabled"])
+        self.assertEqual(doc["sandbox"]["network"], {"allowedDomains": ["x.dev"]})
+        self.assertEqual(doc["sandbox"]["filesystem"]["denyRead"], ["~/.ssh"])
+        self.assertEqual(self.allow_write(), ["/opt/cache", self.state_root()])
+        self.assertEqual(doc["permissions"]["allow"][0], "Bash(npm test)")
+
+    def test_a_rule_already_there_is_not_duplicated(self):
+        self.seed("user", {"sandbox": {"filesystem": {"allowWrite": [self.state_root()]}}})
+        out = CP.apply(self.root, "team")
+        self.assertEqual(out["sandbox"]["added"], [])
+        self.assertEqual(self.allow_write(), [self.state_root()])
+
+    def test_a_re_run_adds_nothing_and_rewrites_nothing(self):
+        for scope in ("team", "user"):
+            with self.subTest(scope=scope):
+                CP.apply(self.root, scope)
+                before = self.read("user")
+                os.utime(self.path("user"), (1, 1))
+                again = CP.apply(self.root, scope)
+                self.assertEqual((again["added"], again["sandbox"]["added"]), ([], []))
+                self.assertEqual(self.read("user"), before)
+                self.assertEqual(os.stat(self.path("user")).st_mtime, 1)
+                self.assertEqual(self.allow_write().count(self.state_root()), 1)
+
+    def test_the_team_file_never_carries_the_rule(self):
+        CP.apply(self.root, "team")
+        self.assertNotIn("sandbox", json.loads(self.read("team")))
+        self.assertNotIn(self.root, self.read("team"))
+
+    def test_a_linked_worktree_names_the_main_checkouts_folder_in_its_file(self):
+        wt = os.path.join(self.tmp, "wt")
+        git(self.root, "worktree", "add", "-q", "-b", "feat", wt)
+        self.assertEqual(CP.detect(wt)["sandbox_rule"]["path"], self.state_root())
+        self.assertEqual(CP.detect(wt)["sandbox_rule"]["file"], self.path("user"))
+        out = CP.apply(wt, "team")
+        self.assertEqual(out["sandbox"], {"path": self.path("user"), "rule": self.state_root(),
+                                          "added": [self.state_root()]})
+        self.assertEqual(self.allow_write(), [self.state_root()])
+        self.assertFalse(os.path.exists(os.path.join(wt, ".claude")))
+
+    def test_the_rule_is_the_state_root_acs_derives(self):
+        self.assertEqual(os.path.realpath(CP.detect(self.root)["sandbox_rule"]["path"]),
+                         os.path.realpath(lib.default_state_root(self.root)))
+
+    def test_skip_writes_no_rule(self):
+        self.assertEqual(CP.apply(self.root, "skip"),
+                         {"scope": "skip", "path": None, "added": [], "sandbox": None})
+        self.assertFalse(os.path.exists(os.path.join(self.root, ".claude")))
 
 
 if __name__ == "__main__":

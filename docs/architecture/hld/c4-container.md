@@ -12,7 +12,7 @@ C4Container
         Container(schemas, "acs Schemas & templates", "JSON Schema / md", "13 JSON schemas (run, step-state, result, verdict, workflow, lock, ...), 7 description templates (PR, epic/story/task, design, and the audit-design and audit-security report templates, ADR-0123); templates/ci/ includes the opt-in e2e workflow+runner pair (acs-e2e.yml + run-e2e.py) alongside the tests/conventions gate templates")
     }
     System_Ext(cc, "Claude Code runtime")
-    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In the repo's shared git dir: <git-common-dir>/acs/state-machine/<repo>/runs/<run-id>/ partitions (steps/, subject/) plus ticket partitions and repo-level index/counters/sessions, never tracked, one per repo for every worktree (ADR-0086, ADR-0136); written through acs.py, never the Write tool; no override (ADR-0102)")
+    ContainerDb_Ext(ws, "Workspace store", "Filesystem", "In-repo by default: <main-checkout>/.acs/state-machine/<repo>/runs/<run-id>/ partitions (steps/, subject/) plus ticket partitions and repo-level index/counters/sessions, gitignored, anchored to the main checkout (ADR-0086); written through acs.py, never the Write tool (ADR-0136); no override (ADR-0102)")
     System_Ext(repo, "Consumer repo")
     System_Ext(trackers, "GitHub")
 
