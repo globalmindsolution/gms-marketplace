@@ -158,7 +158,7 @@ class TestFolderChecks(FolderCase):
         self.assertIn(("analysis/README.md", "missing-section"), self.rules())
 
     def test_readme_front_matter_is_the_full_spec(self):
-        self.put("README.md", readme().replace("needs_design_recommendation: false\n", ""))
+        self.put("README.md", readme().replace("ready_for_planning: true\n", "", 1))
         self.assertEqual(self.rules(), [("analysis/README.md", "missing-key")])
         self.put("README.md", readme(tid="SHOP-9"))
         self.assertEqual(self.rules(), [("analysis/README.md", "ticket-mismatch")])
@@ -179,6 +179,19 @@ class TestFolderChecks(FolderCase):
         legacy = readme().replace("ready_for_planning: true\n",
                                   "ready_for_planning: true\napi_surface: true\n")
         self.assertIn("api_surface: true", legacy)
+        self.put("README.md", legacy)
+        self.assertEqual(F.check_folder(self.folder, TID), [])
+
+    def test_an_analysis_published_with_a_design_recommendation_still_validates(self):
+        """ADR-0139: the analysis says nothing about design. One published
+        before it carries `needs_design_recommendation:` -- an unknown key,
+        ignored, so it keeps validating."""
+        for spec in (F.FRONT_MATTER_SPEC, F.FEATURE_FRONT_MATTER_SPEC):
+            self.assertNotIn("needs_design_recommendation", spec)
+        self.assertNotIn("needs_design_recommendation", readme())
+        legacy = readme().replace("ready_for_planning: true\n",
+                                  "ready_for_planning: true\n"
+                                  "needs_design_recommendation: true\n")
         self.put("README.md", legacy)
         self.assertEqual(F.check_folder(self.folder, TID), [])
 

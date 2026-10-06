@@ -71,8 +71,10 @@ pays ~5 coordinators + ~15 subagent spawns (~20 fresh model contexts), so simple
 supervised changes cost disproportionate wall-clock time and token/cost. The rigor
 that is the product is right for unattended and complex work, but is double-paid on
 interactive simple work where a human is already the reviewer. Rigor is scaled today
-by design-significance (the `needs_design` flag) but never by implementation size or
-supervision level. The residual problem is WHEN rigor is chosen: a classification
+by design-significance (the `needs_design` flag — since removed: a ticket carries no
+design flag and the user runs `/acs:create-tech-design` when they want one,
+[ADR 0139](../architecture/adr/0139-tickets-carry-no-design-flag.md)) but never by
+implementation size or supervision level. The residual problem is WHEN rigor is chosen: a classification
 fixed at create-ticket is made before anyone has read the code, so it can be
 **wrong for what the change turns out to be** — a cheap ticket can touch a
 high-stakes surface (auth, migrations, money paths) that was not visible from
@@ -479,7 +481,8 @@ growth path.
      (exact CODEOWNERS template, path-to-owner mapping) is **deferred to the
      implementing epic's design phase**. Traces **G12, G24** + the AI-native
      operating model.
-  3. **Design sign-off surface** — for `needs_design` tickets, publish the
+  3. **Design sign-off surface** — for a change the user designs with
+     `/acs:create-tech-design` (no ticket flag since ADR 0139), publish the
      approved `design.md` to a **shared reviewable surface** (a tracker issue
      or a docs PR) for **Principal AI Platform sign-off** — today `design.md`
      is machine-local, the one real role-separation break in the pipeline.

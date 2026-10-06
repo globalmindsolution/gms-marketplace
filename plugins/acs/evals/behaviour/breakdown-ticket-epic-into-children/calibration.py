@@ -38,7 +38,7 @@ def _mint(ws, children, with_criteria=True, features=None):
     for title, ttype, points, criteria in children:
         narrowed = "" if features is None else ' --features "%s"' % features
         out = ws.sh('python3 "%s/new-ticket.py" --title "%s" --type %s --parent EVAL-1 '
-                    '--priority medium --needs-design false --story-points %s%s'
+                    '--priority medium --story-points %s%s'
                     % (SCRIPTS, title, ttype, points, narrowed))
         tid = json.loads(out)["ticket_id"]
         ids.append(tid)

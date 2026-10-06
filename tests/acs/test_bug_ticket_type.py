@@ -170,7 +170,7 @@ class NewTicketBugTest(AcsWorkspaceCase):
         self.assertEqual(ticket["expected"], "quantity 2")
         self.assertEqual(ticket["actual"], "two rows of quantity 1")
         self.assertEqual(ticket["environment"], "v0.5.0, Firefox 140")
-        self.assertFalse(ticket["needs_design"])
+        self.assertNotIn("needs_design", ticket, "tickets carry no design flag (ADR-0139)")
         self.assertEqual(schemasubset.schema_errors(schema("ticket.schema.json"), ticket), [])
         index = lib.read_json(lib.index_path(self.ws, REPO_ID))
         self.assertEqual(index["tickets"][tid]["type"], "bug")
@@ -238,7 +238,7 @@ class TicketSaveTest(AcsWorkspaceCase):
     def test_a_story_converts_to_an_epic_keeping_its_id(self):
         """breakdown-ticket's split conversion: a patch, then --parent works."""
         tid = self.new_ticket("Wishlist", "story", "--features", "wishlist")
-        out = self.save(tid, {"type": "epic", "needs_design": True})
+        out = self.save(tid, {"type": "epic"})
         self.assertEqual(out.returncode, 0, out.stderr)
         ticket = lib.load_ticket(self.tdir(tid))
         self.assertEqual((ticket["id"], ticket["type"], ticket["features"]),

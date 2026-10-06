@@ -140,6 +140,13 @@ class BreakdownInputsTest(unittest.TestCase):
         self.assertIn("warn, never block", inputs)
         self.assertIn("design_not_approved", inputs)
 
+    def test_a_missing_design_warns_nothing(self):
+        """ADR-0139: a ticket carries no design flag, so an epic with no
+        design is normal -- only a design that exists unapproved warns."""
+        inputs = norm(section(read(BREAKDOWN_SKILL), "## Inputs"))
+        self.assertIn("ADR-0139", inputs)
+        self.assertIn("with no design, derive from the other inputs and warn nothing", inputs)
+
     def test_reads_the_plans_split_seams(self):
         """ADR-0069 lever 2: the plan's oversize signal is the split's evidence."""
         inputs = norm(section(read(BREAKDOWN_SKILL), "## Inputs"))
@@ -163,7 +170,7 @@ class BreakdownInputsTest(unittest.TestCase):
         self.assertIn("create-ticket/SKILL.md", derive)
         self.assertIn("The sizing rubric", derive)
         self.assertIn("coverage table", derive)
-        self.assertIn("`needs_design` | `false`", derive)
+        self.assertNotIn("needs_design", derive, "ADR-0139: a child carries no design flag")
 
 
 class BreakdownMaterializeTest(unittest.TestCase):
@@ -173,7 +180,8 @@ class BreakdownMaterializeTest(unittest.TestCase):
         self.norm = norm(self.mat)
 
     def test_a_split_converts_the_parent_before_minting(self):
-        convert = self.mat.index('{"type": "epic", "needs_design": true')
+        convert = self.mat.index('{"type": "epic", "title": "[EPIC] ')
+        self.assertNotIn("needs_design", self.mat, "ADR-0139: no design flag on the conversion")
         mint = self.mat.index('new-ticket.py" --title')
         self.assertLess(convert, mint, "the conversion must come before the first mint")
         self.assertIn("refuses a parent that is not an epic", self.norm)
@@ -182,7 +190,7 @@ class BreakdownMaterializeTest(unittest.TestCase):
         m = re.search(r'new-ticket\.py" --title[^\n]*', self.mat)
         self.assertIsNotNone(m)
         self.assertIn("--parent", m.group(0))
-        self.assertIn("--needs-design false", m.group(0))
+        self.assertNotIn("--needs-design", m.group(0), "ADR-0139: the flag is gone")
         self.assertNotIn("--features", m.group(0), "features are inherited by default")
         self.assertIn("copies the parent's `features`", self.norm)
 
@@ -259,8 +267,9 @@ class CreateTicketRetiredModesTest(unittest.TestCase):
     def test_the_epic_path_names_design_then_breakdown(self):
         body = read(CREATE_TICKET_SKILL)
         report = norm(body[body.index("## Completion report (normative)"):])
-        self.assertRegex(report, r"/acs:create-tech-design <id>` \(when `needs_design`\) → "
-                                 r"`/acs:breakdown-ticket <id>`")
+        self.assertIn("/acs:create-tech-design <id> (when you want a design) → "
+                      "/acs:breakdown-ticket <id>", report)
+        self.assertNotIn("needs_design", read(CREATE_TICKET_SKILL), "ADR-0139")
         finish = norm(section(read(CREATE_TICKET_SKILL), "## Finish"))
         summary = re.search(r"<summary>(.*?)</summary>", finish).group(1)
         self.assertIn("/acs:breakdown-ticket SHOP-123", summary)
@@ -324,12 +333,12 @@ class SplitConvertsThenMintsUnderTheSameIdCase(acs_case.AcsWorkspaceCase):
         self.assertEqual(refused.returncode, 2, "--parent must refuse a story")
 
         saved = self.run_script("acs.py", "ticket", "save", "--ticket", story, "--from", "-",
-                                stdin=json.dumps({"type": "epic", "needs_design": True,
+                                stdin=json.dumps({"type": "epic",
                                                   "title": "[EPIC] Order management"}))
         self.assertEqual(saved.returncode, 0, saved.stderr)
 
         minted = self.run_script("new-ticket.py", "--title", "Refunds", "--type", "story",
-                                 "--parent", story, "--needs-design", "false")
+                                 "--parent", story)
         self.assertEqual(minted.returncode, 0, minted.stderr)
         child = json.loads(minted.stdout)["ticket_id"]
 
@@ -369,8 +378,7 @@ class FannedOutChildNeverRunsCreateTicketCase(acs_case.AcsWorkspaceCase):
 
     def test_a_minted_child_has_no_run(self):
         epic = self.new_ticket("Wishlist epic", "epic")
-        child = self.new_ticket("Wishlist API", "story", "--parent", epic,
-                                "--needs-design", "false")
+        child = self.new_ticket("Wishlist API", "story", "--parent", epic)
         self.assertTrue(os.path.isdir(self.tdir(child)))
         self.assertIsNone(lib.load_run(self.rdir(child)))
         self.assertIn("No run ledger is written here", read(NEW_TICKET_PY))

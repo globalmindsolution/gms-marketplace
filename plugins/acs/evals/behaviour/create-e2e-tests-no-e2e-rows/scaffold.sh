@@ -91,7 +91,7 @@ git add -A
 git commit -qm "HTTP front and its e2e harness"
 
 ACS_FEATURES=customer-listing
-acs_ticket "Cap the customer page size at 100" task false \
+acs_ticket "Cap the customer page size at 100" task \
   "list_customers must clamp limit to at most 100."
 
 # /acs:code's change and its unit test, uncommitted ...

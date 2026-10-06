@@ -17,8 +17,8 @@ markdown and would otherwise drift away from the deterministic layer:
     post-analyze-requirements.py's docstring;
   * independence: the skill points at workflows/ship.yaml for order and claims
     no predecessor-completed check, because there no longer is one;
-  * the one recommendation (refined ACs / needs_design / features / the
-    feature) going through its CLI — `acs.py requirements refine`, which also
+  * the one recommendation (refined ACs / features / the feature) going
+    through its CLI — `acs.py requirements refine`, which also
     patches the ticket when there is one — and never through a hand-written
     ticket field (ADR-0128);
   * requirements from any container: the run's `requirements.md` /
@@ -116,10 +116,11 @@ SECTIONS = ["Scope and summary", "Contexts", "Refined acceptance criteria",
 CONTEXT_SECTIONS = ["Impact map", "Rules and edge cases", "Risks", "Open questions",
                     "API notes"]
 
-#: The three front-matter keys the analysis publishes. `stakes_recommendation`
+#: The two front-matter keys the analysis publishes. `stakes_recommendation`
 #: left with the axis it set (ADR-0095); `api_surface` with the ship step it
-#: decided (ADR-0134).
-FRONT_MATTER_KEYS = ["ticket", "ready_for_planning", "needs_design_recommendation"]
+#: decided (ADR-0134); `needs_design_recommendation` with the ticket's design
+#: flag (ADR-0139).
+FRONT_MATTER_KEYS = ["ticket", "ready_for_planning"]
 
 
 def read(path):
@@ -302,11 +303,23 @@ class TestAnalysisFrontMatterContract(unittest.TestCase):
         self.assertEqual(self.specs[0], lib.analysis_folder.FRONT_MATTER_SPEC)
         self.assertEqual(self.specs[1], lib.analysis_folder.CONTEXT_FRONT_MATTER_SPEC)
 
-    def test_the_spec_declares_the_three_keys_with_their_types(self):
+    def test_the_spec_declares_the_two_keys_with_their_types(self):
         spec = fmc.parse_spec(self.specs[0])
         self.assertEqual([key for key, _ in spec], FRONT_MATTER_KEYS)
         self.assertEqual(dict(spec)["ready_for_planning"], "bool")
-        self.assertEqual(dict(spec)["needs_design_recommendation"], "bool")
+
+    def test_the_analysis_says_nothing_about_design(self):
+        """ADR-0139: no `needs_design_recommendation` key, no design-significance
+        judgment, no design question -- in the skill, its references or its
+        agents."""
+        bodies = {"skill": self.body, "analyst": agent_contract("analyst"),
+                  "impact-reviewer": agent_contract("impact-reviewer")}
+        for name, body in bodies.items():
+            with self.subTest(body=name):
+                self.assertNotRegex(body, r"(?i)design[- ]significan")
+                self.assertNotIn("needs_design recommendation", body)
+        self.assertNotRegex(self.body, r"needs_design_recommendation:\s*(?:true|false)")
+        self.assertNotIn('{"needs_design"', self.body)
 
     def test_the_documented_example_satisfies_the_documented_spec(self):
         findings = fmc.check_front_matter(self.example, fmc.parse_spec(self.specs[0]),
@@ -471,9 +484,10 @@ class TestResultDocument(unittest.TestCase):
                       self.body)
 
     def test_the_recommendations_are_not_states(self):
-        """needs_design is applied through its own CLI, so a `states` key for it
-        would be a second, divergent source of truth — and `stakes` is not a
-        field anywhere any more."""
+        """Confirmed criteria and features are applied through their own CLI,
+        so a `states` key for them would be a second, divergent source of
+        truth — and neither `stakes` nor `needs_design` is a field anywhere
+        any more."""
         block = re.search(r'(?s)"states": \{(.*?)\}', self.body).group(1)
         self.assertNotIn("stakes", block)
         self.assertNotIn("needs_design", block)
@@ -514,7 +528,7 @@ class TestItClassifiesNothingTest(unittest.TestCase):
 
 
 class TestTicketAmendments(unittest.TestCase):
-    """Refined ACs and needs_design are proposals; the requirements (and the
+    """Refined ACs and features are proposals; the requirements (and the
     ticket, when there is one) change only on a user answer, and only through
     the CLI that records them -- `acs.py requirements refine`, which patches
     and re-indexes the ticket too (ADR-0128)."""
@@ -938,8 +952,7 @@ class TestThreeStages(unittest.TestCase):
             self.assertIn("## Questions for the user", body)
             for group in ("(a) Open questions", "(b) Conventional defaults",
                           "(c) Proposed refined acceptance criteria",
-                          "(d) A needs_design recommendation"
-                          if body is self.skill else "(d) needs_design recommendation"):
+                          "(d) The feature"):
                 self.assertIn(group, body)
             self.assertIn("Assumed: <default> — confirm or correct", body)
         self.assertIn("Researchable facts are never questions", self.skill)
@@ -983,7 +996,8 @@ class TestThreeStages(unittest.TestCase):
         section = self.contract_raw[_pos(self.contract_raw, heading):
                                     _pos(self.contract_raw, "### When the user is not reachable")]
         self.assertIn('acs.py" requirements refine --from -', section)
-        self.assertIn('{"needs_design": true}', section)
+        self.assertNotIn("needs_design", section, "ADR-0139: refine takes no design key")
+        self.assertIn('{"features": ["wishlist"]}', section)
         self.assertIn('{"feature": "wishlist"}', section)
 
     def test_at_most_one_follow_up_round(self):
@@ -1095,7 +1109,7 @@ class TestRequirementsFromAnyContainer(unittest.TestCase):
                       "they came from; never read ticket.json for acceptance "
                       "criteria.**", self.skill)
         self.assertIn("`{path, sources, acceptance_criteria, features, feature, "
-                      "needs_design, phase, feature_analysis}`", self.skill)
+                      "phase, feature_analysis}`", self.skill)
         self.assertIn("The mode is derived, never chosen by you "
                       "(`context.requirements.phase`)", self.skill)
         self.assertIn('acs.py requirements add --args "…"', self.skill)

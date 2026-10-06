@@ -185,7 +185,7 @@ them from the contract, in the repo's format, with those files in its file map.
    drift repair above — no whole-repo reconciliation. Explicitly NOT
    covered: `requirements_dir` edges and `adr_dir` edges — they
    remain the responsibility of `/acs:create-tech-design`'s full ADR-0012
-   step (for `needs_design: true` tickets) and `/acs:docs-sync`'s
+   step (when the user ran one) and `/acs:docs-sync`'s
    diff-grounded re-derivation. When the consumer repo has no
    architecture doc set on disk, this check finds nothing to compare
    against and raises no finding — it never fails or blocks.

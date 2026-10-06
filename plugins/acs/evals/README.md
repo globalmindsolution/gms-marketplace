@@ -181,7 +181,7 @@ itself (claude 2.1.281):
 
 - **`create-ticket-artifacts`** passed a run that started the skill and wrote
   nothing. The allocate step, the skill's mandatory first action, writes a
-  placeholder ticket that already has the right id, type and `needs_design`.
+  placeholder ticket that already has the right id and type.
   Two graders now require real content: at least one acceptance criterion, and
   a title that is no longer the placeholder.
 - **`resume-and-verify`** passed on `/health` appearing anywhere in `app.py`,

@@ -62,8 +62,7 @@ Parse the printed context JSON. Fields you will use:
 
 - `run_id`, `subject` — the run and what it is about (`kind` `ticket` or
   `prompt`; a prompt subject carries its text).
-- `requirements` — `{path, sources, acceptance_criteria, features, feature,
-  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+- `requirements` — `{path, sources, acceptance_criteria, features, feature}`. **Requirements: `context.requirements` / `acs.py requirements
   show` — a ticket id, documents and a prompt are only where they came from;
   never read ticket.json for acceptance criteria.** The body's acceptance
   criteria and test plan come from `requirements.path`.
@@ -83,14 +82,12 @@ Parse the printed context JSON. Fields you will use:
 - `checkout_root`, `plugin_root` — for template resolution.
 - `reconcile`, `handoff_summary`, `prior_status` — see
   `references/resume.md`.
-- `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
-  ticket whose design applies and its basename is that ticket's id. When
-  required, the tech design — `artifacts["tech-design.md"]` from
-  `acs.py artifacts show --ticket <that id>`, i.e. its tech design in
-  `<architecture_dir>/lld/<feature>/<that id>/` (a legacy `design.md` there or
-  in `docs/tickets/<that id>/` is still read), or the copy in
-  `<design.dir>` when the tree is opted out — feeds the
-  Summary/Changes content. Call it `<design_doc>`.
+- `design` — `{exists, dir, source}`: the tech design found for the run —
+  its own (`source` `"own"`), else its parent epic's (`"parent"`). `design.dir`
+  is the folder the found file is in (normally
+  `<architecture_dir>/lld/<feature>/<id>/`, or a kept-local copy). When
+  `design.exists`, the tech design there — `tech-design.md`, else a legacy
+  `design.md` — feeds the Summary/Changes content. Call it `<design_doc>`.
 
 State inputs (read these; conversation history is NOT an input):
 
@@ -105,7 +102,7 @@ State inputs (read these; conversation history is NOT an input):
   this skill's gate stays `verifier_passed` and the body's review tick stays
   `review.findings_open == 0`).
 - `<partition>/specs/*.md` — scope and API/data changes per spec.
-- `<design_doc>` — the decision, when `design.required`.
+- `<design_doc>` — the decision, when `design.exists`.
 - The commit plan `acs.py pr plan-commits` prints (step C1) — built from what
   every step recorded (`states.files`, the analysis publish record, the
   implementers' reports, docs-sync's and create-e2e-tests' files — other

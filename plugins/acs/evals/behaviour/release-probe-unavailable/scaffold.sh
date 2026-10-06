@@ -21,9 +21,9 @@ git add -A
 git commit -qm "Add package manifest"
 git tag v2.4.0
 
-acs_ticket "Cap the customer page size at 100" task false \
+acs_ticket "Cap the customer page size at 100" task \
   "list_customers must refuse a limit above 100 with ValueError."
-acs_ticket "Fix health check casing" task false "health() must return lowercase ok."
+acs_ticket "Fix health check casing" task "health() must return lowercase ok."
 
 cat > src/shop/__init__.py <<'PY'
 PAGE_SIZE = 20

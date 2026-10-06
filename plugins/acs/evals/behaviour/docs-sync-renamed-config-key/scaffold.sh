@@ -48,7 +48,7 @@ MD
 git add -A
 git commit -qm "Environment configuration and its docs"
 
-acs_ticket "Rename SHOP_PAGE_SIZE to SHOP_CUSTOMERS_PAGE_SIZE" task false \
+acs_ticket "Rename SHOP_PAGE_SIZE to SHOP_CUSTOMERS_PAGE_SIZE" task \
   "The page-size variable is renamed to SHOP_CUSTOMERS_PAGE_SIZE so it names what it pages. The old name is no longer read."
 
 python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null 2>&1

@@ -44,8 +44,7 @@ keys bind you; this file adds only what a task needs.
 5. **Size** — `## Size` reads the expected diff surface against the sizing rubric.
    If it does not fit one PR, say so: the coordinator re-types it as an epic.
 
-`needs_design` is `false` — a task never carries the design flag. A change to
-documentation alone may recommend `docs_only: true`; the coordinator confirms it.
+A change to documentation alone may recommend `docs_only: true`; the coordinator confirms it.
 
 ## Iteration 2
 

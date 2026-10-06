@@ -16,7 +16,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 acs_repo
 
-acs_ticket "Raise the customer page size to 50" task false \
+acs_ticket "Raise the customer page size to 50" task \
   "Customers are listed 50 per page by default instead of 20."
 acs_branch task/EVAL-1-raise-the-customer-page-size-to-50
 

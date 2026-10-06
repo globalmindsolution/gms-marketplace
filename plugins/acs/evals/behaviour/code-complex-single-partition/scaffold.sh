@@ -23,7 +23,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 ACS_FEATURES=merchant-api-keys
-acs_ticket "Store merchant API keys hashed" story false \
+acs_ticket "Store merchant API keys hashed" story \
   "Merchant API keys are about to be persisted; a leaked table must not leak usable keys."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["hash_key(key) returns a salted hash that never contains the key", "verify_key(key, stored) is true only for the key that was hashed", "verify_key compares digests in constant time"]}' \

@@ -221,7 +221,7 @@ skill that is legitimately not a step of `ship.yaml` is gated from it:
 
 | Table | Precondition it checks | Rows |
 |---|---|---|
-| `SUBJECT_GATES` | the SUBJECT TICKET the invocation names | `create-tech-design` (flagged `needs_design`), `merge-pr` (a PR reference recorded by a completed step) |
+| `SUBJECT_GATES` | the SUBJECT TICKET the invocation names | `create-tech-design` (requirements to design from — any ticket, a prompt, documents or a current run; no ticket flag, ADR-0139), `merge-pr` (a PR reference recorded by a completed step) |
 
 It is consulted **unconditionally**, before the workflow is read,
 because a safety brake must not be switchable off by editing `ship.yaml`. A
@@ -414,9 +414,9 @@ why the review could not be a separate skill until the loop moved here.
 | `acs changes diff [--since <tree-or-commit>] [--name-only\|--stat\|--patch] [--run R]` | what this run changed: `<since>` (default: the baseline's `base_sha`) against a fresh snapshot, minus the paths already dirty at the baseline that did not change again; `--name-only` prints `{files: [{path, status}]}` |
 | `acs pr plan-commits [--ticket ID] [--run R] [--out FILE]` | the commit groups `/acs:create-pr` previews: `{branch, base, groups: [{id, subject, layer, paths}], left_out, excluded}` |
 | `acs pr commit --plan FILE` | execute a (possibly edited) plan: switch to its branch when not on it, then one `git add -- <paths>` + `git commit` per group; never pushes |
-| `acs requirements show [--run R]` | the run's requirements (ADR-0128): `{path, sources, acceptance_criteria, features, needs_design, feature}` — `path` is `<run>/requirements.md` (see "Requirements of a run") |
+| `acs requirements show [--run R]` | the run's requirements (ADR-0128): `{path, sources, acceptance_criteria, features, feature}` — `path` is `<run>/requirements.md` (see "Requirements of a run") |
 | `acs requirements add --args "…"` | parse more sources (ticket ids, documents, a prompt) into the run: deduplicated, appended to `subject/sources.json`, `requirements.md` regenerated; a source is never replaced |
-| `acs requirements refine --from FILE\|-` | record `/acs:analyze-requirements`' refined acceptance criteria, `needs_design`, features and feature into `<run>/requirements-refined.json` and `requirements.md`'s `## Refined`; also patches the ticket, as `ticket save` does, when the run has one |
+| `acs requirements refine --from FILE\|-` | record `/acs:analyze-requirements`' refined acceptance criteria, features and feature into `<run>/requirements-refined.json` and `requirements.md`'s `## Refined`; also patches the ticket, as `ticket save` does, when the run has one. A `needs_design` key is refused with a GateError naming ADR-0139 |
 | `acs handoff send --ticket ID [--note TEXT\|--note-file F] [--attach PATH]… [--replace] [--dry-run] [--remote NAME]` | package the ticket's resume set as one commit and push it to `refs/acs/handoff/<ID>`; the sender's state is untouched; `--dry-run` reports the package and the attachments without building or pushing (see "Ticket handoff") |
 | `acs handoff receive ID\|--ticket ID [--replace] [--keep-ref] [--remote NAME]` | fetch, `git apply --3way` the work onto a clean tree, restore the run with local paths, raise the counters, delete the remote ref; prints `continue_with` |
 | `acs handoff list [--details] [--remote NAME]` | the handoffs waiting under `refs/acs/handoff/` (`git ls-remote`); `--details` adds each one's sender, time and note |
@@ -843,7 +843,7 @@ every other key below is persisted verbatim from the result document:
 |-------|-----------------------------------|
 | create-prd | `prd` `{path}`, `files: [...]` (the PRD and roadmap, left uncommitted for `/acs:create-pr`) |
 | create-architecture | `architecture` `{path, hld:[...]}`, `files: [...]` (every HLD path written, left uncommitted) |
-| create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
+| create-ticket | `ticket_id`, `type`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | breakdown-ticket | `ticket_id`, `type` (always `epic` after the run), `converted_from` (`story`/`task` when a split converted the ticket, else `null`), `children: [ids]` (the parent's full list), `minted: [ids]` (this run's), `design_status` (the tech design's status, or `null`) — ADR-0138 |
 | create-tech-design | `design_path` (the published `tech-design.md` — the run's Design folder `lld/<feature>/<id>/`, or the partition when there is no checkout), `decision` (one line) |
 | create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — left as uncommitted changes for `/acs:create-pr`), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |
@@ -885,7 +885,7 @@ runnable on its own:
 
 | Skill | Reads | Writes | Downstream use |
 |---|---|---|---|
-| `analyze-requirements` | the run's requirements (a ticket, documents, a prompt), PRD/requirements/architecture, the codebase, the ledger, the feature's living analysis and its own previously published analysis — the folder, or a single `analysis.md` from before ADR-0133 (the survey starts from them) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria, `needs_design`, features and the feature recorded via `acs.py requirements refine`, which also patches a ticket), store — ending in an `analysis/` folder (ADR-0133: `README.md` with front matter `ticket` or `feature`, `ready_for_planning`, `needs_design_recommendation`, plus one file per bounded context; an interface change is named in its Next as work for `/acs:create-api-contract`, ADR-0134) published to the feature's living analysis `<prd_dir>/features/<f>/analysis/` when run on its own (Discovery), or to `<development_dir>/<f>/<id>/analysis/` as a Development step | `/acs:create-impl-plan`'s planner plans from the impact map, and `create-test-docs` reads it; the Design skills — `create-api-contract` among them — read the feature's living analysis; the next analysis starts from it; a not-ready analysis returns `needs_input` |
+| `analyze-requirements` | the run's requirements (a ticket, documents, a prompt), PRD/requirements/architecture, the codebase, the ledger, the feature's living analysis and its own previously published analysis — the folder, or a single `analysis.md` from before ADR-0133 (the survey starts from them) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria, features and the feature recorded via `acs.py requirements refine`, which also patches a ticket), store — ending in an `analysis/` folder (ADR-0133: `README.md` with front matter `ticket` or `feature` and `ready_for_planning`, plus one file per bounded context; an interface change is named in its Next as work for `/acs:create-api-contract`, ADR-0134) published to the feature's living analysis `<prd_dir>/features/<f>/analysis/` when run on its own (Discovery), or to `<development_dir>/<f>/<id>/analysis/` as a Development step | `/acs:create-impl-plan`'s planner plans from the impact map, and `create-test-docs` reads it; the Design skills — `create-api-contract` among them — read the feature's living analysis; the next analysis starts from it; a not-ready analysis returns `needs_input` |
 | `create-impl-plan` | the analysis (`analysis/README.md` first, then the context files it needs — ADR-0133), `tech-design.md` (a legacy `design.md` when that is all there is; its status stated in the report, a warning when not approved — ADR-0135) and the approved API contract (`api-contract.md` and the feature's `lld/<feature>/api/` files, ADR-0134) when present, else the run's requirements | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX; when the repo keeps machine-readable contract files (OpenAPI, JSON Schema, proto, AsyncAPI), the plan items that create or update them from the contract | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
 | `create-test-docs` | the requirements' ACs (`AC-n`, refined when analysed), `plan.md`, and the API contract (`api-contract.md` through `artifacts show`, plus the living `lld/<feature>/api/`) when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
 | `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.tests.e2e` | e2e suites at the repo's configured location, left uncommitted | `run-e2e-tests` executes them |
@@ -1074,9 +1074,9 @@ a finding fails the iteration like a judge's blocking finding (ADR-0125).
 
 **`README.md`** — the entry, rendered when the folder is opened on the forge.
 Front matter is the old `analysis.md` spec: `ticket` (must match the run's) or
-`feature`, `ready_for_planning`, `needs_design_recommendation`
-(booleans; an `api_surface` key left by an analysis published before ADR-0134
-is ignored, never refused), plus `status`, `version`, `tickets` (ADR-0122) on a Discovery
+`feature`, and `ready_for_planning` (a boolean; an `api_surface` key left by
+an analysis published before ADR-0134, or a `needs_design_recommendation` left
+by one published before ADR-0139, is ignored, never refused), plus `status`, `version`, `tickets` (ADR-0122) on a Discovery
 analysis. Title `# Analysis — <ticket-id or feature>: <subject>` (not
 checked). Required `##` headings, in this order, each non-empty:
 
@@ -1407,8 +1407,8 @@ No skill requires a ticket.
   outside the repo to `<run>/subject/<n>-<basename>` (nothing is added to the
   repo for it), and regenerates `<run>/requirements.md`: a front block (run
   id, `generated_at`, sources), then `## Ticket <ID>` (title, description,
-  acceptance criteria numbered `AC-1…` in ticket order, features,
-  `needs_design`), `## Prompt` (verbatim), `## Documents` (markdown and text
+  acceptance criteria numbered `AC-1…` in ticket order, features),
+  `## Prompt` (verbatim), `## Documents` (markdown and text
   inlined under `### <ref>`; any other type cited by its run copy for the
   model to Read) and `## Refined`. The file is GENERATED — nothing edits it by
   hand.
@@ -1417,15 +1417,29 @@ No skill requires a ticket.
   text, and regenerates; a repo document edited since keeps one entry with its
   new digest. A source is never replaced silently.
 - **Refining.** `refine(rdir, ctx, data)` (`acs requirements refine`) stores
-  `/acs:analyze-requirements`' refined `acceptance_criteria`, `needs_design`,
+  `/acs:analyze-requirements`' refined `acceptance_criteria`,
   `features`, `feature` and, when it must be explicit, `phase` in
   `<run>/requirements-refined.json`, re-renders `## Refined`, and — only when
-  the run has a ticket — patches the ticket as `ticket save` does.
+  the run has a ticket — patches the ticket as `ticket save` does. A
+  `needs_design` key is refused with a `GateError` naming ADR-0139: a run's
+  requirements carry no design flag, and a refined file written before it that
+  still holds the key is read as if it did not.
 - **Reading.** `summary(rdir, ctx)` is the `requirements` block of the
   step-start context and of `acs requirements show`: `{path, sources,
-  acceptance_criteria, features, feature, needs_design, phase,
-  feature_analysis, refined}`, for every run, ticket or not. Skills read
-  acceptance criteria from it, never from `ticket.json`.
+  acceptance_criteria, features, feature, phase, feature_analysis,
+  refined}`, for every run, ticket or not. Skills read acceptance criteria
+  from it, never from `ticket.json`.
+- **The tech design is found, not required** (ADR-0139). Beside
+  `requirements`, the step-start context carries `design: {exists, dir,
+  source}` for every run, ticket or not, from `gates.design_source(ctx, tdir,
+  ticket, rdir)`: the ticket's (or a ticketless run's) own `tech-design.md` —
+  a legacy `design.md` still read, the lookup `acs.py artifacts show design`
+  uses — with `source: own`, else its parent epic's with `source: parent`, else
+  `exists: false` and `source: null`. `dir` is the folder holding the design
+  file that was found (normally `<architecture_dir>/lld/<feature>/<id>/`), never
+  the ticket partition, and `null` when none exists. The planning, code, test-docs and review
+  skills read the design when `exists`, and proceed without one otherwise —
+  no advisory. Nothing records whether a design is *required*.
   `run_feature` is the refined `feature`, else the refined `features`' first,
   else the first feature the run's ticket traces to; `run_phase` is
   `development` for a run with a ticket or one `/acs:ship` drives, else
@@ -1562,12 +1576,19 @@ ledger) and in the tracker. Nothing renders a `ticket.md`.
   expected, actual, environment, created_at, updated_at`. A bug runs like a
   story: only an `epic` is refused by `/acs:code`'s and
   `/acs:analyze-requirements`' gates, and its branch is `bug/<ID>-<slug>`.
+- **No design flag** (ADR-0139). A ticket carries no `needs_design`: it left
+  both ticket schemas (`required` and `properties`), `new_ticket_doc`, the
+  index entry and `_FRONT_MATTER_ORDER`, and `new-ticket.py --needs-design`
+  exits 2. `additionalProperties` stays `true`, so an older `ticket.json` or
+  index entry that still carries the key validates and the key is ignored.
+  Whether a change gets a tech design is the user's call; whether one exists
+  is `context.design` (see "Requirements of a run").
 - **A child inherits its parent's `features`.** `new-ticket.py --parent <epic>`
   copies the parent's `features` onto the child unless `--features` is given
   (`--features ""` traces it to none), and reports `features_inherited`. It
   still refuses a parent that is not an epic: `/acs:breakdown-ticket`
   converts a story or task it splits into an epic first — `acs.py ticket
-  save` with `{"type": "epic", "needs_design": true}`, same id — then mints
+  save` with `{"type": "epic"}`, same id — then mints
   its children (ADR-0138).
 - **`acs.py artifacts migrate` is retired** (ADR-0128): tickets are no longer
   stored in the docs tree, so it reports and writes nothing.
@@ -1675,10 +1696,10 @@ A failure is **not** an outcome. A step that could not do its work records
 `status: failed` with an error — the distinction is what keeps "nothing was
 owed" from being confused with "something went wrong".
 
-Ticket flags still steer the skills that read them (`needs_design` gates
-`/acs:create-tech-design`; `docs_only` drops tests-first and the coverage hard fail
-in `/acs:code`), but they are inputs to a skill, never predicates in a
-workflow.
+Ticket flags still steer the skills that read them (`docs_only` drops
+tests-first and the coverage hard fail in `/acs:code`), but they are inputs to
+a skill, never predicates in a workflow. A ticket carries no design flag
+(ADR-0139): `/acs:create-tech-design` runs when the user asks.
 
 ## Testing layers — unit always, e2e by configuration, CI at the gate
 
@@ -1734,11 +1755,11 @@ rationale for assumptions.
    /analyze-requirements, execution-level behavior at /code — batched, not dribbled.
    `/acs:analyze-requirements` is where requirement questions now belong: its
    survey pass ends with `## Questions for the user` (open questions,
-   conventional defaults to confirm, refined criteria, a needs_design
-   recommendation), and between that survey and its draft pass the
+   conventional defaults to confirm, refined criteria — nothing about
+   design, ADR-0139), and between that survey and its draft pass the
    coordinator asks every one the ledger does not answer in ONE grouped
    `AskUserQuestion` (at most one follow-up round), records each through
-   `clarify.py`, and records confirmed criteria, `needs_design` and the
+   `clarify.py`, and records confirmed criteria and the
    feature with `acs.py requirements refine` (which patches the ticket when
    there is one). Only when no user is reachable does a default fall
    back to `--source assumption`; `/acs:create-ticket` parks anything needing

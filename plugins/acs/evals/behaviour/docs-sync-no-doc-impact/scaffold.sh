@@ -15,7 +15,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 acs_repo
 
-acs_ticket "Extract the customer page builder" task false \
+acs_ticket "Extract the customer page builder" task \
   "Internal refactor: list_customers builds its page through a private helper. No behaviour change."
 
 python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null 2>&1

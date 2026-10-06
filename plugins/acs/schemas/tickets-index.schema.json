@@ -19,7 +19,6 @@
           "status": {"enum": ["open", "in_progress", "in_review", "done"]},
           "parent": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "children": {"type": "array", "items": {"type": "string"}},
-          "needs_design": {"oneOf": [{"type": "boolean"}, {"type": "null"}]},
           "external": {"oneOf": [{"type": "object"}, {"type": "null"}]},
           "features": {"type": "array", "items": {"type": "string"}},
           "archived": {"type": "boolean"},

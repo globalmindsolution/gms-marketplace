@@ -1,6 +1,6 @@
 # 0101 — Gating a skill that is not a workflow step: a third pre-step table, and a run projected for the query
 
-**Status**: Accepted · **Date**: 2026-09-21
+**Status**: Accepted — amended by [0139](0139-tickets-carry-no-design-flag.md) (§3: `create-tech-design`'s precondition is no longer a ticket flag — it admits any ticket, prompt or documents) · **Date**: 2026-09-21
 
 **Amends**: [0089](0089-pipeline-order-declared-in-ship-yaml.md) (the two
 brakes it kept per-skill stand and are restored; its "`_require_completed` is

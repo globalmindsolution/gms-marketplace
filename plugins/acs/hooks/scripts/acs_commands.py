@@ -152,7 +152,7 @@ def cmd_ticket_save(args):
     up on two rigors.
 
     Refuses a merged document `check_bug_fields` refuses (ADR-0138). A story or
-    task patched to `{"type": "epic", "needs_design": true}` is
+    task patched to `{"type": "epic"}` is
     /acs:breakdown-ticket's split conversion: the id, description, priority and
     features are kept, and `new-ticket.py --parent` then accepts it."""
     ticket_id, tdir, ctx = partition_or_die("ticket save", args.ticket)

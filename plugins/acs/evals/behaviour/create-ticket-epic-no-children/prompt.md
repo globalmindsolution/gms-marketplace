@@ -2,14 +2,14 @@
 description: >-
   /acs:create-ticket on a raw request that is plainly an epic (order tracking,
   PRD feature F3), with every record decision delegated up front. The skill
-  should mint ONE ticket typed epic with needs_design true stated (never
-  asked), drafted by the epic author and checked by the reviewer, its title
+  should mint ONE ticket typed epic with no design flag (ADR-0139), drafted by
+  the epic author and checked by the reviewer, its title
   rendered through the epic title format, children left empty for a later
   /acs:breakdown-ticket run, the PRD trace recorded, and close its step
   -- without asking anything and without minting any child.
 expected_outcome: >-
-  The minted ticket.json is type epic, needs_design true, children [] and a
-  title starting [EPIC]; no second ticket partition exists; the create-ticket
+  The minted ticket.json is type epic with no needs_design key, children []
+  and a title starting [EPIC]; no second ticket partition exists; the create-ticket
   step state records completed with a prd_trace naming F3 / order tracking.
 tags: [behaviour]
 max_turns: 100
@@ -29,5 +29,5 @@ I can't answer questions during this run, so don't ask me anything. Use your
 judgement for the rest of the record — title, description, priority and the
 epic's acceptance criteria are yours to decide, no need to confirm them — and
 there is no due date. Do not break it into child tickets now; that happens
-after its design. Take the skill all the way through: ticket written and the
+later. Take the skill all the way through: ticket written and the
 step finished.

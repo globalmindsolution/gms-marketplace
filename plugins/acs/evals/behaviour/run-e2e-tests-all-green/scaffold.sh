@@ -118,5 +118,5 @@ printf '__pycache__/\n' >> .gitignore
 git add -A
 git commit -qm "HTTP front with /customers, unit and e2e suites"
 
-acs_ticket "Serve the customer listing over HTTP" task false \
+acs_ticket "Serve the customer listing over HTTP" task \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."

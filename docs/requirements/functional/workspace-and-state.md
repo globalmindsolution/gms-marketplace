@@ -145,8 +145,8 @@ Every run, ticket or not, carries its requirements in the workspace
   repo for it.
 - `<run>/requirements.md` MUST be regenerated from the sources, never edited
   by hand: a front block (run id, generated time, sources), `## Ticket <ID>`
-  (title, description, acceptance criteria numbered `AC-1…`, features,
-  `needs_design`), `## Prompt` (verbatim), `## Documents` (text inlined, other
+  (title, description, acceptance criteria numbered `AC-1…`, features),
+  `## Prompt` (verbatim), `## Documents` (text inlined, other
   types cited by their run copy) and `## Refined` — written only by `acs.py
   requirements refine`, from `/acs:analyze-requirements`, into
   `<run>/requirements-refined.json`.
@@ -216,7 +216,7 @@ The workspace (gitignored, the run ledger):
         │   │   ├── sources.json
         │   │   └── 1-spec.pdf          # a document attached from outside the repo, copied and hashed
         │   ├── requirements.md
-        │   ├── requirements-refined.json   # analyze-requirements' refined AC, needs_design, features, feature
+        │   ├── requirements-refined.json   # analyze-requirements' refined AC, features, feature
         │   └── clarifications.json     # a ticketless run's ledger lives in the run
         └── SHOP-123/                   # a story/task: the full pipeline
             ├── run.json                # THE RUN MACHINE: workflow, subject, loop iteration, status
@@ -328,7 +328,6 @@ Key fields written by `/acs:create-ticket` and maintained by hooks:
 | `children` | string[] | Child ticket ids (epics only) |
 | `features` | string[] | The PRD feature slugs the ticket traces to (ADR-0120); a child minted with `new-ticket.py --parent` (by `/acs:breakdown-ticket`) inherits its parent's unless `--features` is given (ADR-0138) |
 | `external` | object\|null | Remote tracker mapping (`provider`/`key`) |
-| `needs_design` | boolean | True for epics only; always `false` for stories/tasks/bugs (never offered or confirmed) — MAR-76 |
 | `docs_only` | boolean | True when the change is docs/comments only; default false |
 | `due_date` | string\|null | Optional delivery target date, ISO-8601 `YYYY-MM-DD`; `null` = no deadline set (MAR-15) |
 | `severity` | `"critical"\|"high"\|"medium"\|"low"` | Optional, on a `bug` only (refused on any other type); a bug's impact, separate from `priority` (ADR-0138) |
@@ -338,6 +337,13 @@ Key fields written by `/acs:create-ticket` and maintained by hooks:
 | `environment` | string | Optional, on a `bug` only (refused on any other type); the environment or version a bug was seen in (ADR-0138) |
 | `created_at` | ISO-8601 datetime | Set at ticket creation, never changed |
 | `updated_at` | ISO-8601 datetime | Refreshed on every save |
+
+A ticket carries **no design flag** ([ADR-0139](../../architecture/adr/0139-tickets-carry-no-design-flag.md)):
+`needs_design` left the schema, and an older `ticket.json` or index entry that
+still carries it validates — the schemas allow additional properties — with
+the key ignored. Whether a change has a tech design is found at run time: the
+step-start context's `design` block (`{exists, dir, source}`) names the
+ticket's own `tech-design.md`, else its parent epic's.
 
 ## State files
 

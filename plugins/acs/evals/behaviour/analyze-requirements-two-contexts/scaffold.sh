@@ -37,7 +37,7 @@ def charge(card_token, amount_cents):
     return {"charge_id": "ch_" + card_token[-4:], "amount_cents": amount_cents}
 PY
 git add -A && git commit -qm "Orders and payments"
-acs_ticket "Refund the card when a paid order is cancelled" story false \
+acs_ticket "Refund the card when a paid order is cancelled" story \
   "Shoppers who cancel a paid order before it ships wait for us to refund them by hand. Cancelling a paid order should refund the card charge automatically."
 printf '%s' '{"features": ["checkout-with-card-payments"], "acceptance_criteria": [
   "Cancelling an unshipped paid order refunds its card charge in full",

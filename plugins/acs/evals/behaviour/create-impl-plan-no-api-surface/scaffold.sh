@@ -16,7 +16,7 @@ acs_repo
 acs_prd
 acs_architecture
 ACS_FEATURES=customer-listing
-acs_ticket "Log slow customer listings" story false \
+acs_ticket "Log slow customer listings" story \
   "Operators cannot tell when customer listing pages are slow. When list_customers takes longer than 200 ms, log a warning through the standard logging module so slow pages show up in the service log."
 printf '%s' '{"acceptance_criteria": [
   "list_customers logs one WARNING on the shop logger when a call takes longer than 200 ms",
@@ -29,7 +29,6 @@ cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Log slow customer listings
@@ -66,6 +65,5 @@ The three criteria on the ticket are confirmed as written.
 ## Verdict
 
 Ready for planning; no API surface changes (the return value, parameters and
-errors of GET /customers are untouched; the log line is operator output); no
-design needed.
+errors of GET /customers are untouched; the log line is operator output).
 MD

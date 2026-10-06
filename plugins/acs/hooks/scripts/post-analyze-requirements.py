@@ -13,8 +13,8 @@ Result-document `states` this run records for the steps that follow it:
 designed with /acs:create-api-contract, a Design skill no step decision reads
 it for. The fragment still declares it, deprecated, so older state validates.
 
-The needs_design recommendation the analysis may carry is applied through its
-own CLI (`acs.py ticket save`), so it is a finding here, not a state.
+The analysis says nothing about design (ADR-0139): a ticket carries no design
+flag, and the user runs /acs:create-tech-design when they want one.
 
 Invoked by the skill's coordinator as its mandatory final step:
   python3 post-analyze-requirements.py --result-file <result.json>     # or JSON on stdin

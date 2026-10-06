@@ -2,11 +2,12 @@
 
 `structure_lint.py` checks a generated doc's SECTIONS; this checks the
 machine-read half. It exists because a ticket document's front matter is
-read by code -- the analysis's `ready_for_planning` and
-`needs_design_recommendation` among it -- so a missing key, a string where a
-boolean belongs, or a block outside the YAML subset is a pipeline defect that
-would otherwise surface one skill too late. A key the spec does not declare is
-ignored: an analysis published before ADR-0134 still carries `api_surface`.
+read by code -- the analysis's `ready_for_planning` among it -- so a missing
+key, a string where a boolean belongs, or a block outside the YAML subset is a
+pipeline defect that would otherwise surface one skill too late. A key the spec
+does not declare is ignored: an analysis published before ADR-0134 still
+carries `api_surface`, and one published before ADR-0139
+`needs_design_recommendation`.
 
 The parse is `acs_lib.yamlsubset` — the same parser the gate uses — so these
 tests also pin the promise that a draft this checker accepts cannot be rejected
@@ -34,13 +35,12 @@ sys.path.insert(0, HOOKS)
 import front_matter_check as fmc  # noqa: E402
 
 ANALYSIS_SPEC = ("ticket: str; ready_for_planning: bool; "
-                 "stakes_recommendation: normal|high; needs_design_recommendation: bool")
+                 "stakes_recommendation: normal|high")
 
 GOOD_ANALYSIS = """---
 ticket: SHOP-123
 ready_for_planning: true
 stakes_recommendation: high
-needs_design_recommendation: false
 ---
 
 # Analysis — SHOP-123
@@ -96,7 +96,7 @@ class TestCheckFrontMatter(unittest.TestCase):
     def test_a_missing_key_is_reported_per_key(self):
         text = "---\nticket: SHOP-1\n---\n\nbody\n"
         findings = self.check(text)
-        self.assertEqual(rules(findings), ["missing-key"] * 3)
+        self.assertEqual(rules(findings), ["missing-key"] * 2)
         self.assertIn("ready_for_planning", findings[0].message)
 
     def test_an_explicit_null_counts_as_missing(self):

@@ -10,7 +10,7 @@ Read (you and your designer; reference by path in XML, do not inline file bodies
    ticket's type, priority and children when the run has one. The run's
    analysis and the feature's living analysis (`feature_analysis`,
    `<prd_dir>/features/<feature>/analysis/`) when `acs.py artifacts show`
-   reports them — the impact map, risks and `needs_design` reasoning the
+   reports them — the impact map and risks the
    design starts from. Each is a folder (ADR-0133): read its `README.md`
    first (`artifacts["analysis.md"]`), then the context files the design spans
    (`analysis_files`); a legacy single `analysis.md` is read whole.

@@ -14,7 +14,7 @@ Most questions an analysis raises never get here: a reachable user answers
 them in the one grouped ask, and with nobody to ask, a conventional default is
 an assumption — an analysis that publishes with `ready_for_planning: true` and
 a stated assumption is worth more than one that stops for an answer nobody is
-there to give. An unanswered refined-criterion or needs_design proposal never
+there to give. An unanswered refined-criterion or `features` proposal never
 gets here either: it stays an open ledger entry and `/acs:create-impl-plan`
 plans against the ticket (or the requirements) as written.
 

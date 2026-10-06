@@ -88,24 +88,40 @@ def parent_epic_dir(ctx, ticket):
     return parent, (pdir if os.path.isdir(pdir) else None)
 
 
-def design_requirement(ctx, tdir, ticket, rdir=None):
-    """Returns (required, design_dir, source) — the partition whose tech design applies:
-    the ticket's own when it needs design, else the parent epic's when that needs design.
+def _own_tech_design(ctx, rdirs, ticket_id):
+    """The first existing tech design among these runs' documents (current
+    name, then the legacy `design.md`, wherever `acs_lib.run_docs` reads a run's
+    documents from), else the ticket's own with no run named; None when none."""
+    from . import run_docs
+    for rdir in rdirs:
+        if rdir and run_machine.load_run(rdir) is not None:
+            found, _target = run_docs.document_path(ctx, "tech-design.md", rdir=rdir)
+            if found:
+                return found
+    if ticket_id:
+        found, _target = run_docs.document_path(ctx, "tech-design.md", ticket_id=ticket_id)
+        return found
+    return None
 
-    needs_design is read from the run's REQUIREMENTS first (ADR-0128): the value
-    analyze-requirements refined (`acs.py requirements refine`) when the run
-    recorded one -- source `requirements` -- else the ticket's own flag."""
-    from . import requirements
-    recorded = requirements.recorded_needs_design(rdir) if rdir else None
-    if recorded is True:
-        return True, tdir, "requirements"
-    if recorded is None and ticket.get("needs_design"):
-        return True, tdir, "own"
-    parent, pdir = parent_epic_dir(ctx, ticket)
-    if parent and pdir:
-        parent_ticket = load_ticket(pdir)
-        if parent_ticket and parent_ticket.get("needs_design"):
-            return True, pdir, "parent"
+
+def design_source(ctx, tdir, ticket, rdir=None):
+    """(exists, dir, source) -- the tech design that applies, FOUND rather than
+    required (ADR-0139): the run's or ticket's own (`own`), else its parent
+    epic's (`parent`), else (False, None, None). `dir` is the folder the
+    design is in. A ticketless run passes no ticket and is asked for its own.
+    A legacy `needs_design` on the ticket or the run decides nothing."""
+    ticket = ticket if isinstance(ticket, dict) else {}
+    ticket_id = ticket.get("id")
+    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
+    rdirs = [rdir] + (_run_dirs_for_ticket(repo, ticket_id) if ticket_id else [])
+    found = _own_tech_design(ctx, list(dict.fromkeys(rdirs)), ticket_id)
+    if found:
+        return True, os.path.dirname(found), "own"
+    parent, _pdir = parent_epic_dir(ctx, ticket)
+    if parent:
+        found = _own_tech_design(ctx, _run_dirs_for_ticket(repo, parent), parent)
+        if found:
+            return True, os.path.dirname(found), "parent"
     return False, None, None
 
 
@@ -215,25 +231,16 @@ def _live_current_run(ctx):
     return rdir, doc
 
 
-def _refuse_recorded_no_design(rdir, doc):
-    from . import requirements
-    if rdir and requirements.recorded_needs_design(rdir) is False:
-        raise GateError(
-            "the requirements of run %s record needs_design false — /create-tech-design only "
-            "runs for design-significant requirements. Record the change with `acs.py "
-            "requirements refine` ({\"needs_design\": true}) if a design is owed."
-            % doc.get("run_id"))
-
-
 def gate_create_tech_design(ctx, payload):
-    """Brake: a design is only written for design-significant requirements.
+    """Brake: a design needs requirements to design from -- nothing more.
 
-    A TICKET (named, or the one the pointer or branch resolves) needs its
-    needs_design flag, or a run of it whose refined requirements say so. With
-    no ticket, invoking /acs:create-tech-design WITH requirements -- a prompt or
-    documents -- is the ask itself (ADR-0128), and so is invoking it on a
-    ticketless run: only a run whose requirements RECORDED needs_design false
-    is refused. The epic refusal stays ticket-only (the step brakes)."""
+    Tickets carry no design flag (ADR-0139): the user asks for a design by
+    invoking the skill, on any ticket, epic, prompt or documents. A named or
+    resolved TICKET only has to be one that can run (`_resolve_ticket_for_gate`:
+    present, not archived, not locked by another checkout). Refused only when
+    there are no requirements at all -- no ticket, document or prompt in the
+    invocation and no current run. The epic refusal stays ticket-only (the
+    step brakes)."""
     from . import requirements
     text = _merge_pr_arg_text(payload).strip()
     sources = requirements.parse_sources(text, ctx)
@@ -241,7 +248,6 @@ def gate_create_tech_design(ctx, payload):
     if not requirements.ticket_ids(sources):
         current_ticket = ((doc or {}).get("subject") or {}).get("ticket_id")
         if sources or (rdir and not current_ticket):
-            _refuse_recorded_no_design(rdir, doc)
             return None
         if not rdir and not resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"],
                                               ctx["repo_id"], args_text=text)[0]:
@@ -250,17 +256,8 @@ def gate_create_tech_design(ctx, payload):
                 "invocation, and no current run. Give it a ticket id, documents or a "
                 "prompt, e.g. /acs:create-tech-design %s-123."
                 % ctx["settings"].get("ticket_prefix", "SHOP"))
-    ticket_id, tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "create-tech-design")
-    if ticket.get("needs_design"):
-        return ticket_id
-    repo = repo_dir(ctx["workspace"], ctx["repo_id"])
-    for run in _run_dirs_for_ticket(repo, ticket_id):
-        if requirements.recorded_needs_design(run) is True:
-            return ticket_id
-    raise GateError(
-        "ticket %s is not flagged needs_design — /create-tech-design only runs for "
-        "design-significant tickets; go straight to /acs:code %s."
-        % (ticket_id, ticket_id))
+    ticket_id, _tdir, _ticket = _resolve_ticket_for_gate(ctx, payload, "create-tech-design")
+    return ticket_id
 
 
 def _pr_recorded_for(repo, ticket_id):

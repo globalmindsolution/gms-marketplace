@@ -1,12 +1,12 @@
 ---
 name: create-tech-design
-description: Write the tech design for a design-significant change — the hand-off document the team reviews and approves before implementation is planned — analyzing its requirements (a ticket, a prompt, documents or a mix), the feature analysis, the codebase and the architecture docs, weighing options with trade-offs, and producing a reviewed, versioned tech-design.md in the change's design record folder under the architecture LLD (decision and options, the HLD views it affects, snapshots of the feature's API, data, flow and component LLD, NFRs, risks, open questions). Use when a ticket or the analyzed requirements carry needs_design true (always for epics) and no approved tech design exists yet, or when asked for a tech design or a hand-off design for team review; tickets without the flag skip straight to /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Write the tech design for a change — the hand-off document the team reviews and approves before implementation is planned — analyzing its requirements (a ticket, a prompt, documents or a mix), the feature analysis, the codebase and the architecture docs, weighing options with trade-offs, and producing a reviewed, versioned tech-design.md in the change's design record folder under the architecture LLD (decision and options, the HLD views it affects, snapshots of the feature's API, data, flow and component LLD, NFRs, risks, open questions). Use whenever the user wants a tech design — for an epic before it is broken down, a story or task, the analyzed requirements, a prompt or documents — and no approved tech design exists yet, or when asked for a hand-off design for team review; work the user wants built without one goes straight to /acs:code. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-tech-design. Your job: turn a design-significant
-change (`needs_design: true` on its requirements or its ticket) into `tech-design.md` — the
+You are the coordinator of /acs:create-tech-design. Your job: turn the change the user
+asked a design for into `tech-design.md` — the
 hand-off document the team reviews before implementation, in its design record folder
 `<architecture_dir>/lld/<feature>/<id>/` (ADR-0128, ADR-0135): the decision and the options
 weighed, the HLD views the change affects, snapshots of the feature's living LLD (API, data,
@@ -19,17 +19,16 @@ never write the design content yourself.
 
 The pre-hook (`pre-create-tech-design.py`) checks this skill's SUBJECT, never
 its place in any order and never whether an upstream artifact exists: settings
-exist, the run resolves to a live, unlocked partition, and its requirements
-carry `needs_design: true` (the refined value `/acs:analyze-requirements`
-recorded, else the ticket's flag). No ticket is required: a run on a prompt or
-documents with no recorded `needs_design` opens when the user invoked this
-skill explicitly with those requirements — the invocation IS the ask. It does
+exist, the run resolves to a live, unlocked partition, and there are
+requirements to design (a ticket, documents, a prompt or a current run). A
+ticket carries no design flag (ADR-0139): the invocation IS the ask, for an
+epic, a story, a task or a ticketless run alike. It does
 NOT check that a `/acs:create-ticket` run is recorded completed, nor that an
 analysis, an LLD or an architecture doc set exists: the skill works from what
 it finds (Inputs below). Pipeline order lives in `workflows/ship.yaml`, not in
-the gate. Epic children inherit the EPIC's design — this skill runs on the epic
-(or a design-flagged story/task), never on a child; a child carries
-`needs_design: false`, so the flag check blocks it automatically.
+the gate. Epic children inherit the EPIC's design (`context.design.source`
+`parent`): design the epic, not each child, unless the user asks for a
+child's own.
 
 ## Start
 
@@ -43,7 +42,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-te
   improvise a workaround.
 - Parse the printed context JSON. Fields you will use: `partition` (the run directory — all
   state lives here), `requirements` (`{path, sources, acceptance_criteria, features,
-  feature, needs_design}` — **Requirements: `context.requirements` / `acs.py requirements
+  feature}` — **Requirements: `context.requirements` / `acs.py requirements
   show` — a ticket id, documents and a prompt are only where they came from; never read
   ticket.json for acceptance criteria**), `ticket` and `ticket_id` (present only when a
   ticket is one of the sources: its type, parent and children), `settings` (notably

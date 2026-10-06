@@ -18,7 +18,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 ACS_FEATURES=customer-listing
-acs_ticket "Default customer page size should be 25" task false \
+acs_ticket "Default customer page size should be 25" task \
   "Merchants asked for 25 customers per page. PAGE_SIZE is still 20."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers() defaults to a limit of 25", "the README states 25 per page"]}' \

@@ -31,7 +31,7 @@ git clone -q -b main "$origin" "$lan/shop"
   mkdir -p "$ACS_PARTITION"
   printf '{"next": 1, "reconciled": true, "seed_source": "explicit-user", "seeded_at": "%s"}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ACS_PARTITION/counters.json"
-  acs_ticket "Cap the customer page size at 100" task false \
+  acs_ticket "Cap the customer page size at 100" task \
     "list_customers must clamp limit to at most 100."
   acs_branch task/EVAL-1-cap-the-customer-page-size-at-100
   python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null 2>&1

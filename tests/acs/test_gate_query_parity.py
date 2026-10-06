@@ -135,13 +135,19 @@ class GateQueryParityTest(GateQueryCase):
                                                   "exit_code": 2})
 
     def test_gate_matches_the_hook_for_merge_pr_and_create_design(self):
-        """The non-step gates answer the same way through either door."""
+        """The non-step gates answer the same way through either door: merge-pr
+        refuses a ticket with no recorded PR, and create-tech-design refuses
+        only an invocation with no requirements at all -- any ticket opens it,
+        tickets carry no design flag (ADR-0139)."""
         ticket = self.new_ticket("Add user login", "task")
-        for skill in ("merge-pr", "create-tech-design"):
+        for skill, args_text in (("merge-pr", ticket), ("create-tech-design", "")):
             with self.subTest(skill=skill):
-                out = self.assert_parity(skill, ticket)
+                out = self.assert_parity(skill, args_text)
                 self.assertEqual(out.returncode, 2, out.stderr)
                 self.assertIn("acs pre-%s: blocked" % skill, out.stderr)
+        out = self.assert_parity("create-tech-design", ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("blocked", out.stderr)
 
     def test_gate_matches_the_hook_for_breakdown_ticket(self):
         """ADR-0138: breakdown-ticket's subject gate, through either door --

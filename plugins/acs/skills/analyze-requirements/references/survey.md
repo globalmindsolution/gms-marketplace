@@ -49,13 +49,13 @@ living analysis when one exists. A later invocation that
 names new containers adds them (`acs.py requirements add --args "…"`), and
 `requirements.md` is regenerated, never edited by hand.
 
-- `design` — `{required, dir, source}`. `design.dir` is the PARTITION of the
-  ticket whose design applies (`source` is `"own"` or `"parent"`); its
-  basename is that ticket's id. When `design.required` is true, resolve the
-  design document itself with `acs.py artifacts show --ticket <that id>` and
-  read `artifacts["tech-design.md"]` (a legacy `design.md` when no
-  `tech-design.md` exists). Call it `<design_doc>`; the analysis is
-  bounded by a design that already exists, never a second opinion on it.
+- `design` — `{exists, dir, source}`: the tech design found for the run —
+  its own (`source` `"own"`), else its parent epic's (`"parent"`). `design.dir`
+  is the folder the found file is in. When `design.exists`, read
+  `tech-design.md` there (a legacy `design.md` when no `tech-design.md`
+  exists). Call it `<design_doc>`; the
+  analysis is bounded by a design that already exists, never a second opinion
+  on it. With none, analyze without one and say nothing about design.
 
 ## Resolving the previous analysis
 
@@ -105,7 +105,7 @@ publish to: `publish` refuses until Stage 2 records one.
    acceptance criteria, the prompt, the documents, in that order. When the
    run has a ticket, also its file (whatever `acs.py artifacts show` reports
    as `source_path`) for its type and parent.
-2. `<design_doc>` when `design.required` — the decided architecture.
+2. `<design_doc>` when `design.exists` — the decided architecture.
    The analysis maps the requirements onto that decision; it never re-opens it.
 3. The PRD and the living requirements set when they exist — what the
    product already promises about this area, and the feature list the
@@ -141,7 +141,7 @@ records, from the requirements (`requirements.md` and the documents it
 cites), the design when one binds, the product docs and the ledger, what the
 requirements ASK: the problem against the code, which acceptance criteria are
 ambiguous or untestable as written (or missing, when a prompt or a document
-states behaviour as prose and no criterion yet), the design significance, the
+states behaviour as prose and no criterion yet), the
 PRD feature the work belongs to, the risks in the requirements, the
 candidate **contexts** the PRD features suggest, and the questions for the
 user. Each impact lane (`phase="impact-analyst"` `slice="<area>"`) records what
@@ -163,10 +163,7 @@ whole of what Stage 2 takes to the user:
   `Assumed: <default> — confirm or correct`.
 - **(c) Proposed refined acceptance criteria** — the rewrite of each
   ambiguous, untestable or contradicted criterion, and each missing one.
-- **(d) A needs_design recommendation**, when the survey has one (true: the
-  change needs a tech design — `/acs:create-tech-design` — the team approves
-  before it is planned), and the
-  **feature**: a `features` correction when the PRD features the work touches
+- **(d) The feature**: a `features` correction when the PRD features the work touches
   differ from the requirements' `features`, and — when the run has no feature
   yet (`context.requirements.feature` null and no ticket `features`) — the
   PRD feature slugs it most likely belongs to, best first, or a new slug when

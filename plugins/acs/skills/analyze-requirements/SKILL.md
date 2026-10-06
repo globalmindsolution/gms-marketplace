@@ -1,6 +1,6 @@
 ---
 name: analyze-requirements
-description: Analyze requirements before anything is planned — from a ticket, a prompt, a PRD feature or an attached spec or document (PDF, image, markdown), or any mix of them — survey the codebase to map the impact across components/files/tests, clarify the open questions, assumed defaults and refined acceptance criteria with the user through the clarification ledger, then write, review and publish the analysis — a folder: a README.md readable on its own plus one file per bounded context the requirements touch — as the reusable record later skills and re-analyses start from — a PRD feature's living analysis, or the delivery run's own. Names the risks, the load-bearing surfaces and interfaces it touches and whether a design is needed; an interface change is pointed to /acs:create-api-contract. Use as the first step on a ticket, before /acs:create-impl-plan; to analyze a PRD feature, a spec or a requirement written in the prompt, with or without a ticket; and whenever the user asks what a ticket or a feature really changes, touches or risks, or wants its open questions and acceptance criteria pinned down before it is planned. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, documents, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Analyze requirements before anything is planned — from a ticket, a prompt, a PRD feature or an attached spec or document (PDF, image, markdown), or any mix of them — survey the codebase to map the impact across components/files/tests, clarify the open questions, assumed defaults and refined acceptance criteria with the user through the clarification ledger, then write, review and publish the analysis — a folder: a README.md readable on its own plus one file per bounded context the requirements touch — as the reusable record later skills and re-analyses start from — a PRD feature's living analysis, or the delivery run's own. Names the risks and the load-bearing surfaces and interfaces it touches; an interface change is pointed to /acs:create-api-contract. Use as the first step on a ticket, before /acs:create-impl-plan; to analyze a PRD feature, a spec or a requirement written in the prompt, with or without a ticket; and whenever the user asks what a ticket or a feature really changes, touches or risks, or wants its open questions and acceptance criteria pinned down before it is planned. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, documents, plan, run or repo files, and do not look for a shell: it locates all of them itself.
 argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
@@ -63,7 +63,7 @@ starts (the controller enforces the order):
 | Stage | What happens | Who | Ends with |
 |---|---|---|---|
 | **1 — Impact: survey the codebase** | The `survey` action: the analyst's requirements lane and one impact lane per code area run in parallel and record what the requirements ask and what code they touch, ending in a `## Questions for the user` section; the `synthesize` action reconciles the lanes. | analyst (`pass` = `requirements`, then `synthesis`) · impact analysts | `iter-1/authoring.md` |
-| **2 — Clarify: make the requirements clear with the user** | The `clarify` action: you ask every remaining question — the feature too, when the run has none — in ONE grouped AskUserQuestion, record each answer in the ledger, and record the confirmed acceptance criteria / `needs_design` / feature with `acs.py requirements refine` (which amends the ticket when there is one). | you | answers in the ledger; the requirements refined |
+| **2 — Clarify: make the requirements clear with the user** | The `clarify` action: you ask every remaining question — the feature too, when the run has none — in ONE grouped AskUserQuestion, record each answer in the ledger, and record the confirmed acceptance criteria / features / feature with `acs.py requirements refine` (which amends the ticket when there is one). | you | answers in the ledger; the requirements refined |
 | **3 — Store: write, review and publish the analysis for reuse** | The `draft` action writes the analysis folder — README plus one file per context — from the notes and the answers; the `review` action judges it; the `publish` action copies it to the mode's path (Two modes, above) and leaves it uncommitted in the working tree. | analyst (`pass` = `draft`) → impact reviewer → the controller | the published analysis, an uncommitted change |
 
 The survey never writes the draft and the draft pass never re-surveys: the
@@ -86,7 +86,7 @@ says what the gate checks, and what to do if an epic reaches this step anyway.
 Parse the printed context JSON. Fields you will use:
 
 - `requirements` — `{path, sources, acceptance_criteria, features, feature,
-  needs_design, phase, feature_analysis}`: the run's requirements, normalised
+  phase, feature_analysis}`: the run's requirements, normalised
   once per run from every container the invocation named
   (`acs_lib.requirements`); what each field holds is in `references/survey.md`.
   **Requirements: `context.requirements` /
@@ -100,8 +100,9 @@ Parse the printed context JSON. Fields you will use:
   `steps/analyze-requirements/loop.json`.
 - `checkout_root` — the consumer repo root; every impact path in the analysis
   is repo-relative to it.
-- `design` — `{required, dir, source}`: when `required`, the design that
-  bounds the analysis, `<design_doc>` (`references/survey.md` resolves it).
+- `design` — `{exists, dir, source}`: when `exists`, the tech design that
+  bounds the analysis, `<design_doc>` (`references/survey.md` resolves it);
+  whether a design is needed is never judged here (ADR-0139).
 - `agents` — the agent name to spawn per role (Subagents, below).
 - `reconcile`, `handoff_summary`, `prior_status` — when `reconcile` is true or
   `handoff_summary` is set, read `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/resume.md`
@@ -248,9 +249,9 @@ below) reports no `needs` — Stage 2 is skipped; say so in the report
 grouped interaction** — a single AskUserQuestion containing all of them as a
 numbered list, grouped (a)–(d), not serial round-trips; the questions of every
 lane go in that one ask. Conventional defaults (b) are asked as confirmations
-("Assumed: … — confirm or correct"), proposed criteria (c) and the
-needs_design recommendation (d) as confirm / reject / amend, and the feature
-(d) as a choice among the proposed slugs (The feature, below).
+("Assumed: … — confirm or correct"), proposed criteria (c) and a `features`
+correction (d) as confirm / reject / amend, and the feature (d) as a choice
+among the proposed slugs (The feature, below).
 
 Record each answer as its own `clarify.py add` entry (one `C-<n>` per
 question, `--source` preserved), BEFORE acting on it. Never skip a question,
@@ -292,8 +293,8 @@ saved — and when the run has no feature yet: naming or inferring it.
 
 ### Confirmed requirements are refined — and go into the ticket when there is one
 
-A proposed refined acceptance criterion, a needs_design recommendation or a
-`features` correction is a RECOMMENDATION until the user answers it — recorded
+A proposed refined acceptance criterion or a `features` correction is a
+RECOMMENDATION until the user answers it — recorded
 as a ledger question (`clarify.py add --skill analyze-requirements --question
 "..."`) before it is acted on. Apply it ONLY on an explicit user answer, and
 then only through the CLI that records it in the run's requirements and, when
@@ -305,10 +306,9 @@ printf '{"acceptance_criteria": ["...", "..."]}' \
   | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" requirements refine --from -
 ```
 
-(`needs_design`, `features`, the run's `feature` and — only on the user's
-explicit ask — its `phase` are recorded the same way, as
-`{"needs_design": true}`, `{"features": ["wishlist"]}`,
-`{"feature": "wishlist"}` or `{"phase": "discovery"}`.) `refine` writes the
+(`features`, the run's `feature` and — only on the user's explicit ask — its
+`phase` are recorded the same way, as `{"features": ["wishlist"]}`,
+`{"feature": "wishlist"}` or `{"phase": "discovery"}`; no design key, ADR-0139.) `refine` writes the
 run's `## Refined` section of `requirements.md` (never edit it by hand) and, on a ticket run, applies the
 same document to the ticket as a PATCH merged over it, so send the WHOLE
 confirmed criteria list — the requirements' criteria (`AC-1…`) with each
@@ -335,7 +335,7 @@ The `draft` action. Spawn ONE un-sliced analyst (`phase="analyst"`, no
 the mode and the feature as
 `<constraint name="mode">discovery|development</constraint>` and
 `<constraint name="feature"><slug></constraint>`. It
-settles the whole-subject verdicts (interfaces changed, design significance) once,
+settles the whole-subject verdict (interfaces changed) once,
 from the reconciled notes plus the recorded answers — it does not re-survey —
 and writes the analysis folder the action prints as `draft`
 (`steps/analyze-requirements/iter-<n>/analysis/` — name it in the task's
@@ -441,9 +441,9 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 
 - **Requirements**: <ticket id — title (type)>, <documents>, <prompt>; feature <slug> (<Discovery|Development>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted or failed>
-- **Results**: verdict (ready_for_planning); contexts (one file each); impact map counts; interfaces changed; load-bearing surfaces named in Risks; questions asked/answered (or Stage 2 skipped); criteria / needs_design confirmed into the requirements (and the ticket); proposals still open; where the analysis went (shared to <path> / kept local (<your|team> default, or this run only))
+- **Results**: verdict (ready_for_planning); contexts (one file each); impact map counts; interfaces changed; load-bearing surfaces named in Risks; questions asked/answered (or Stage 2 skipped); criteria / features confirmed into the requirements (and the ticket); proposals still open; where the analysis went (shared to <path> / kept local (<your|team> default, or this run only))
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (the analysis folder's README and context files, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:create-impl-plan <ticket-id>` on a Development run (the files stay uncommitted until `/acs:create-pr <ticket-id>`); the Design skills or `/acs:create-ticket` on a Discovery run; when an interface changes — design it with `/acs:create-api-contract <ticket-id or feature>` (Design phase) before the plan; when needs_design is true — `/acs:create-tech-design <ticket-id>`, approved before the plan
+- **Next**: `/acs:create-impl-plan <ticket-id>` on a Development run (the files stay uncommitted until `/acs:create-pr <ticket-id>`); the Design skills or `/acs:create-ticket` on a Discovery run; when an interface changes — design it with `/acs:create-api-contract <ticket-id or feature>` (Design phase) before the plan
 ```

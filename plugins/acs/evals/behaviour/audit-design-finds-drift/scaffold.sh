@@ -24,7 +24,7 @@ acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 
 acs_repo
 acs_prd
-acs_ticket "Baseline the architecture set" task false \
+acs_ticket "Baseline the architecture set" task \
   "Write the HLD and the customer-listing LLD for the shop as built."
 
 mkdir -p src/notifier

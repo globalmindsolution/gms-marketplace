@@ -322,7 +322,7 @@ class TestReviewFixes(AcsCliCase):
         self.assertEqual(out["fields_written"], ["description"])
         after = lib.load_ticket(self.tdir(ticket))
         self.assertEqual(after["description"], "clarified")
-        for key in ("id", "title", "type", "status", "needs_design"):
+        for key in ("id", "title", "type", "status"):
             self.assertEqual(after.get(key), before.get(key),
                              "%s must survive a partial save" % key)
 

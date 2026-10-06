@@ -22,7 +22,6 @@ DRAFT = STEP + "/iter-1/analysis"
 README = """---
 ticket: EVAL-1
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Cursor pagination for GET /customers
@@ -59,7 +58,7 @@ Assumptions: none.
 
 ## Verdict
 
-Ready for planning; no design needed.
+Ready for planning.
 """
 
 CONTEXT = """---

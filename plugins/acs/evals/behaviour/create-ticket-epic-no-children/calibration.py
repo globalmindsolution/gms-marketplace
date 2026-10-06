@@ -32,9 +32,9 @@ def _save(ws, **fields):
     assert saved.returncode == 0, saved.stderr
 
 
-def _finish(ws, ttype="epic", needs_design=True, children=()):
+def _finish(ws, ttype="epic", children=()):
     result = {"status": "completed", "summary": "epic created; children deferred to /acs:breakdown-ticket",
-              "states": {"ticket_id": "EVAL-1", "type": ttype, "needs_design": needs_design,
+              "states": {"ticket_id": "EVAL-1", "type": ttype,
                          "children": list(children),
                          "prd_trace": {"feature": "F3 Order tracking (P1, roadmap Q1)",
                                        "divergence": None}},
@@ -43,7 +43,7 @@ def _finish(ws, ttype="epic", needs_design=True, children=()):
     ws.sh('python3 "%s/post-create-ticket.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 
 
-EPIC = {"title": "[EPIC] Order tracking", "type": "epic", "needs_design": True, "children": [],
+EPIC = {"title": "[EPIC] Order tracking", "type": "epic", "children": [],
         "priority": "high",
         "description": "## Summary\n\nShoppers track an order from payment to delivery.\n\n## Notes\n\nacs-ticket: EVAL-1\n",
         "acceptance_criteria": ["A shopper sees the current status of each of their orders",
@@ -74,20 +74,20 @@ def _minted_children(ws):
     _save(ws, **EPIC)
     for title in ("Carrier status intake", "Order status page"):
         ws.sh('python3 "%s/new-ticket.py" --title "%s" --type story --parent EVAL-1 '
-              '--needs-design false > /dev/null' % (SCRIPTS, title))
+              '> /dev/null' % (SCRIPTS, title))
     _finish(ws, children=["EVAL-2", "EVAL-3"])
 
 
 def _typed_story(ws):
-    """Treated the epic as one story and left needs_design false."""
+    """Treated the epic as one story."""
     _start(ws)
     _drafted(ws, "story-author")
-    _save(ws, **dict(EPIC, title="Order tracking", type="story", needs_design=False))
-    _finish(ws, ttype="story", needs_design=False)
+    _save(ws, **dict(EPIC, title="Order tracking", type="story"))
+    _finish(ws, ttype="story")
 
 
 BAD = {
     "fired the skill, allocated, wrote nothing": _started_only,
     "minted children in the creation run": _minted_children,
-    "typed it a story without a design": _typed_story,
+    "typed it a story": _typed_story,
 }

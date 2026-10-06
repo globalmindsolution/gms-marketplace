@@ -25,8 +25,8 @@ them and the next steps read them:
   `docs/product/features/wishlist/analysis/README.md`). `/acs:create-pr` commits
   them; empty when nothing was published or the analysis was kept local.
 
-The needs_design recommendation is applied through its own CLI
-(`acs.py requirements refine`), so it belongs in
+Confirmed criteria and features are applied through their own CLI
+(`acs.py requirements refine`), so they belong in
 `findings` and the completion report, not in `states`. On failure keep
 whatever is true: `ready_for_planning: false`, the open findings in
 `findings`, and the reason (`stalled`, the iteration cap, needs input) in
@@ -39,14 +39,12 @@ whatever is true: `ready_for_planning: false`, the open findings in
   when there was one, the interfaces it changes (and, when any, "an interface
   changes — design it with /acs:create-api-contract"), the questions asked
   and answered (or "Stage 2 skipped"), the feature it is filed under, the
-  criteria and needs_design confirmed into the requirements (and the
+  criteria and features confirmed into the requirements (and the
   ticket), any proposal still awaiting the user, open questions, where the
   analysis went ("shared to docs/development/…", "kept local (team
   default)", "kept local (this run only)"), the uncommitted files it left in
   the working tree, and the next step — on a
-  Development run `/acs:create-impl-plan <id>` — preceded, when needs_design
-  is confirmed true and no approved tech design exists, by
-  `/acs:create-tech-design <id>` (`/acs:create-pr <id>` later
+  Development run `/acs:create-impl-plan <id>` (`/acs:create-pr <id>` later
   commits everything the Development steps wrote); on a Discovery run the
   Design skills that read the feature's analysis (`/acs:create-tech-design`,
   `/acs:create-data-design <feature>`, `/acs:create-flows <feature>`) or

@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-TKT-20 is an epic to add offline mode to the mobile app, and it is flagged as needing a design. Compare a few approaches with their trade-offs and get one approved before any planning starts.
+TKT-20 is an epic to add offline mode to the mobile app, and it has no design yet. Compare a few approaches with their trade-offs and get one approved before any planning starts.

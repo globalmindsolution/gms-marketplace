@@ -21,8 +21,9 @@ only when they exist, whether `/acs:ship` invoked it or a user did.
 **Epics are refused by the gate.** Every ticket that reaches this step has
 `ticket.type != "epic"`. If an epic reaches it anyway (a bypassed or
 best-effort pre-gate on some runtime), STOP and surface the same message the
-gate would have raised: design the epic with `/acs:create-tech-design <id>`, break
-it down with `/acs:breakdown-ticket <id>`, then run `/acs:analyze-requirements` on a child.
+gate would have raised: break the epic down with `/acs:breakdown-ticket <id>`
+(after `/acs:create-tech-design <id>` when you want a design), then run
+`/acs:analyze-requirements` on a child.
 
 ## The controller returned `blocked`
 

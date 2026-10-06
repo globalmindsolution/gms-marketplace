@@ -16,7 +16,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Look up a customer by email" task false \
+acs_ticket "Look up a customer by email" task \
   "Support staff need to find a customer's record from the email address they wrote in from."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["find_customer_by_email(conn, email) returns the one customer row with that email, or None", "the lookup is safe for any email string a user can type"]}' \

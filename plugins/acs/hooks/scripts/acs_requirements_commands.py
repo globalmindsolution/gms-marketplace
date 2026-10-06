@@ -30,7 +30,7 @@ def _ensure(rdir, ctx):
 
 def cmd_requirements_show(args):
     """The run's requirements: {path, sources, acceptance_criteria, features,
-    feature, needs_design, phase, feature_analysis, refined}."""
+    feature, phase, feature_analysis, refined}."""
     run_id, rdir, ctx = run_or_die("requirements show", args.run)
     try:
         _ensure(rdir, ctx)
@@ -54,8 +54,9 @@ def cmd_requirements_add(args):
 
 
 def cmd_requirements_refine(args):
-    """Store refined acceptance criteria / needs_design / features / feature /
-    phase; regenerate `## Refined`; patch the ticket when the run has one."""
+    """Store refined acceptance criteria / features / feature / phase (a
+    `needs_design` key is refused, ADR-0139); regenerate `## Refined`; patch
+    the ticket when the run has one."""
     run_id, rdir, ctx = run_or_die("requirements refine", args.run)
     data = read_json_arg("requirements refine", args.source)
     try:
@@ -127,6 +128,6 @@ def add_parser(group):
     refine.add_argument("--run")
     refine.add_argument("--from", dest="source", metavar="FILE",
                         help="a JSON object ('-' or omitted reads stdin): "
-                             "acceptance_criteria, needs_design, features, feature, phase")
+                             "acceptance_criteria, features, feature, phase")
     refine.set_defaults(func=cmd_requirements_refine)
     return requirements

@@ -25,7 +25,6 @@ version: 1
 tickets: []
 feature: customer-listing
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — customer-listing: Customer listing that scales
@@ -60,7 +59,7 @@ Assumptions: none.
 
 ## Verdict
 
-Ready for planning as delivery tickets; no design needed.
+Ready for planning as delivery tickets.
 MD
 cat > docs/product/features/customer-listing/analysis/customer-listing.md <<'MD'
 ---
@@ -97,7 +96,7 @@ _None._
 _None._
 MD
 git add -A && git commit -qm "Customer listing discovery analysis"
-acs_ticket "Cursor pagination for GET /customers" story false \
+acs_ticket "Cursor pagination for GET /customers" story \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
 printf '%s' '{"features": ["customer-listing"], "acceptance_criteria": [
   "GET /customers accepts an optional cursor query parameter and returns the page of customers that follows it",

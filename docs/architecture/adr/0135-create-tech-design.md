@@ -1,6 +1,6 @@
 # 0135 — `/acs:create-design` becomes `/acs:create-tech-design`: a versioned hand-off document for team review, approved with `/acs:set-doc-status`
 
-**Status**: Accepted · **Date**: 2026-10-05
+**Status**: Accepted — amended by [0139](0139-tickets-carry-no-design-flag.md) (the `needs_design` brake is gone; `design_requirement` becomes `design_source`) · **Date**: 2026-10-05
 
 **Amends**: [0118](0118-discovery-design-development-phases.md) (the Design
 phase's per-change skill is renamed `/acs:create-tech-design`, and its document

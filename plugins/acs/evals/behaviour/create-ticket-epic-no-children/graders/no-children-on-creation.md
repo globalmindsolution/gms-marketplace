@@ -5,4 +5,4 @@ pattern: '"children"\s*:\s*\[\s*\]'
 ---
 
 An epic's own creation run always ends with `children: []`: the breakdown is
-deferred to `/acs:breakdown-ticket EVAL-1` after `/acs:create-tech-design`.
+deferred to `/acs:breakdown-ticket EVAL-1`.

@@ -12,7 +12,8 @@ Pinned here, against real temp repos and workspaces:
   * materialise -- sources.json, the copy and digest of an outside document,
     requirements.md (AC-n numbering, inlined markdown, cited binaries),
     idempotent, regenerated when a later invocation adds sources;
-  * refine -- with and without a ticket (the ticket is patched too);
+  * refine -- with and without a ticket (the ticket is patched too); a
+    `needs_design` key is refused (ADR-0139, test_design_found_not_required);
   * the PRD / architecture / Development directories and the phase folders a
     run's documents are filed in, with the legacy docs/tickets read fallback;
   * the plumbing: the pre-hook and `step start` both materialise, the start
@@ -325,53 +326,52 @@ class TestRefine(RequirementsCase):
     def test_without_a_ticket_it_records_and_renders_the_refined_section(self):
         rdir = self.new_run({"kind": "prompt", "text": "bulk export"})
         report = R.refine(rdir, self.ctx(), {
-            "acceptance_criteria": ["exports CSV", "exports JSON"], "needs_design": True,
+            "acceptance_criteria": ["exports CSV", "exports JSON"],
             "features": ["export"], "feature": "export", "phase": "discovery"})
         self.assertIsNone(report["ticket_patched"])
         text = self.read(R.requirements_path(rdir))
         self.assertIn("## Refined", text)
         self.assertIn("- **AC-2** exports JSON", text)
-        self.assertIn("- needs_design: true", text)
+        self.assertIn("- phase: discovery", text)
+        self.assertNotIn("needs_design", text)
         summary = R.summary(rdir, self.ctx())
         self.assertEqual([c["source"] for c in summary["acceptance_criteria"]],
                          ["refined", "refined"])
-        self.assertEqual((summary["feature"], summary["features"], summary["needs_design"],
+        self.assertEqual((summary["feature"], summary["features"],
                           summary["phase"], summary["refined"]),
-                         ("export", ["export"], True, "discovery", True))
-        R.refine(rdir, self.ctx(), {"needs_design": False})
+                         ("export", ["export"], "discovery", True))
+        R.refine(rdir, self.ctx(), {"phase": "development"})
         self.assertEqual(R.load_refined(rdir)["acceptance_criteria"],
                          ["exports CSV", "exports JSON"], "a refine is a patch")
-        self.assertIs(R.recorded_needs_design(rdir), False)
 
     def test_with_a_ticket_it_patches_the_ticket_too(self):
         tid = self.ticket(features=None, criteria=["old"])
         rdir = self.new_run({"kind": "ticket", "ticket_id": tid}, run_id=tid)
         report = R.refine(rdir, self.ctx(), {"acceptance_criteria": ["new 1", "new 2"],
-                                            "needs_design": True, "feature": "wishlist"})
+                                            "feature": "wishlist"})
         self.assertEqual(report["ticket_patched"], tid)
-        self.assertEqual(report["ticket_fields"],
-                         ["acceptance_criteria", "features", "needs_design"])
+        self.assertEqual(report["ticket_fields"], ["acceptance_criteria", "features"])
         ticket = lib.load_ticket(self.tdir(tid))
         self.assertEqual(ticket["acceptance_criteria"], ["new 1", "new 2"])
-        self.assertTrue(ticket["needs_design"])
+        self.assertNotIn("needs_design", ticket)
         self.assertEqual(ticket["features"], ["wishlist"])
         index = lib.read_json(lib.index_path(self.ws, REPO_ID))["tickets"][tid]
         self.assertEqual(index["features"], ["wishlist"])
 
     def test_a_later_refine_of_one_key_keeps_the_others(self):
         rdir = self.new_run({"kind": "prompt", "text": "x"})
-        R.refine(rdir, self.ctx(), {"acceptance_criteria": ["a"], "needs_design": True,
+        R.refine(rdir, self.ctx(), {"acceptance_criteria": ["a"], "phase": "discovery",
                                     "feature": "export"})
         R.refine(rdir, self.ctx(), {"features": ["export", "billing"]})
         refined = R.load_refined(rdir)
-        self.assertEqual((refined["acceptance_criteria"], refined["needs_design"],
+        self.assertEqual((refined["acceptance_criteria"], refined["phase"],
                           refined["feature"], refined["features"]),
-                         (["a"], True, "export", ["export", "billing"]))
+                         (["a"], "discovery", "export", ["export", "billing"]))
 
     def test_bad_input_is_refused(self):
         rdir = self.new_run({"kind": "prompt", "text": "x"})
         for data in ({"ticket": "SHOP-1"}, {"acceptance_criteria": "one"},
-                     {"acceptance_criteria": [""]}, {"needs_design": "yes"},
+                     {"acceptance_criteria": [""]}, {"needs_design": True},
                      {"features": ["Not A Slug"]}, {"feature": "x y"},
                      {"phase": "design"}, ["not", "an", "object"]):
             with self.subTest(data=data), self.assertRaises(lib.GateError):
@@ -632,14 +632,13 @@ class TestPlumbing(RequirementsCase):
                        "--args", "~/brief.md speed up the import")
         req = out["requirements"]
         self.assertEqual(sorted(req), ["acceptance_criteria", "feature", "feature_analysis",
-                                       "features", "needs_design", "path", "phase",
+                                       "features", "path", "phase",
                                        "refined", "sources"])
         self.assertEqual(out["subject"]["kind"], "document")
         self.assertEqual([s["kind"] for s in req["sources"]], ["document", "prompt"])
         self.assertEqual(self.read(req["sources"][0]["copy"]), self.read(outside))
-        self.assertEqual((req["phase"], req["feature"], req["needs_design"]),
-                         ("discovery", None, None))
-        self.assertNotIn("design", out)
+        self.assertEqual((req["phase"], req["feature"]), ("discovery", None))
+        self.assertEqual(out["design"], {"exists": False, "dir": None, "source": None})
         self.assertTrue(os.path.isfile(req["path"]))
 
     def test_a_ticket_runs_context_carries_both_its_ticket_and_requirements(self):
@@ -649,7 +648,7 @@ class TestPlumbing(RequirementsCase):
         self.assertEqual(out["requirements"]["acceptance_criteria"],
                          [{"id": "AC-1", "text": "a", "source": tid}])
         self.assertEqual(out["requirements"]["phase"], "development")
-        self.assertEqual(out["design"], {"required": False, "dir": None, "source": None})
+        self.assertEqual(out["design"], {"exists": False, "dir": None, "source": None})
 
     def test_step_start_adds_a_later_invocations_sources_to_the_current_run(self):
         first = self.acs("step", "start", "--step", "analyze-requirements",
@@ -664,32 +663,6 @@ class TestPlumbing(RequirementsCase):
         out = self.acs("step", "start", "--step", "create-impl-plan", "--args", "SHOP-77",
                        code=2)
         self.assertIn("no ticket SHOP-77", out.stderr)
-
-    def test_a_refined_needs_design_reaches_a_ticketless_runs_context(self):
-        first = self.acs("step", "start", "--step", "analyze-requirements",
-                         "--args", "split the service")
-        self.acs("requirements", "refine", "--from", "-",
-                 stdin=json.dumps({"needs_design": True}))
-        self.acs("step", "finish", "--step", "analyze-requirements", "--status",
-                 "interrupted", "--stop-reason", "session_end")
-        again = self.acs("step", "start", "--step", "analyze-requirements")
-        self.assertEqual(again["run_id"], first["run_id"])
-        self.assertEqual(again["design"],
-                         {"required": True, "dir": None, "source": "requirements"})
-
-    def test_a_refined_needs_design_is_the_tickets_design_requirement(self):
-        tid = self.ticket()
-        rdir = self.ensure_run(tid)
-        ctx = self.ctx()
-        tdir = self.tdir(tid)
-        ticket = lib.load_ticket(tdir)
-        self.assertEqual(lib.design_requirement(ctx, tdir, ticket, rdir), (False, None, None))
-        R.refine(rdir, ctx, {"needs_design": True})
-        self.assertEqual(lib.design_requirement(ctx, tdir, lib.load_ticket(tdir), rdir),
-                         (True, tdir, "requirements"))
-        lib.write_json(R.refined_path(rdir), {"needs_design": False})
-        self.assertEqual(lib.design_requirement(ctx, tdir, lib.load_ticket(tdir), rdir),
-                         (False, None, None), "the refined value wins over the flag")
 
     def test_run_next_takes_a_raw_invocation_and_marks_the_run_shipped(self):
         tid = self.ticket(criteria=["a"])

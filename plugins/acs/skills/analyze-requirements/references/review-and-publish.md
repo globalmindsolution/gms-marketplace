@@ -58,7 +58,7 @@ action lists their findings as `draft_checks`. Per file, they are:
 ```bash
 # README.md
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
-  --require "ticket: str; ready_for_planning: bool; needs_design_recommendation: bool" \
+  --require "ticket: str; ready_for_planning: bool" \
   --ticket <id> "<draft>/README.md"
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Scope and summary; Contexts; Refined acceptance criteria; Cross-cutting risks and decisions; Questions and assumptions; Verdict" \

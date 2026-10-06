@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # create-tech-design: the shop repo with its PRD (F2 checkout with card payments,
 # NFR1 p95 < 300 ms) and architecture docs (a C4 context naming the external
-# payments gateway), and one design-significant story, EVAL-1, minted with
-# needs_design true and given its acceptance criteria through the plugin's own
-# CLIs (new-ticket.py, `acs.py ticket save`). No branch and no ticket docs
+# payments gateway), and one story, EVAL-1, minted and given its acceptance
+# criteria through the plugin's own CLIs (new-ticket.py, `acs.py ticket save`). No branch and no ticket docs
 # folder: create-tech-design is Design-phase work that runs before either exists.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -14,7 +13,7 @@ acs_repo
 acs_prd
 acs_architecture
 ACS_FEATURES=checkout-with-card-payments
-acs_ticket "Checkout with card payments" story true \
+acs_ticket "Checkout with card payments" story \
   "Shoppers pay for an order by card at checkout. The shop charges the card through the external payments gateway and records the order only once the charge succeeds. This is PRD feature F2."
 printf '%s' '{"acceptance_criteria": [
   "POST /checkout charges the shopper card through the payments gateway and returns the created order",

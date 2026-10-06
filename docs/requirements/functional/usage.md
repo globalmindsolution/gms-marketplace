@@ -73,12 +73,14 @@ work, no skill of its own (ADR-0118):
 What happens (you are asked clarifying questions along the way):
 
 1. `/create-ticket` — analyzes the prompt against the PRD, codebase, and
-   docs; creates epic `SHOP-4` with **no children** (`children: []`). Its
-   `/create-tech-design` runs next (approve its `tech-design.md` with
-   `/set-doc-status approved <feature>`); then `/acs:breakdown-ticket SHOP-4`
+   docs; creates epic `SHOP-4` with **no children** (`children: []`). When
+   you want a design, run `/create-tech-design` next (approve its
+   `tech-design.md` with `/set-doc-status approved <feature>`) — no ticket
+   flag asks for it (ADR-0139); then `/acs:breakdown-ticket SHOP-4`
    mints children `SHOP-5`, `SHOP-6` from the design's seams (you confirm
    the breakdown in one step; each child inherits the epic's features). Epic flips to **In Progress** when work starts.
-2. Per child: `/create-tech-design` (or the child inherits the epic's design) →
+2. Per child: `/create-tech-design` if you want one (otherwise the child reads
+   the epic's design when there is one) →
    `/code` (TDD against 90% coverage, verifier review loop
    ≤3 iterations, docs + architecture updated) → `/docs-sync` → `/create-pr`.
 3. `/ship` **stops before merge** — it never merges for you.

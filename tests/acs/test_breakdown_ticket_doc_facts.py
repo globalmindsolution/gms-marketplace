@@ -105,7 +105,8 @@ class AdrTest(unittest.TestCase):
     def test_adr_is_accepted_and_dated(self):
         text = _read(ADR_0138)
         self.assertTrue(text.startswith("# 0138 — "), text[:80])
-        self.assertIn("**Status**: Accepted · **Date**: 2026-10-05", text)
+        # Accepted, possibly amended later (ADR-0139 amends its needs_design facts).
+        self.assertRegex(text, r"\*\*Status\*\*: Accepted( — amended by [^\n]*)? · \*\*Date\*\*: 2026-10-05")
 
     def test_adr_names_what_it_amends(self):
         text = _read(ADR_0138)
@@ -148,8 +149,8 @@ class AdrTest(unittest.TestCase):
     def test_index_row_and_amended_rows(self):
         row = _index_row("0138")
         self.assertIn(LINK, row)
-        self.assertTrue(row.endswith("(amends 0069, 0075, 0109, 0118, 0120, 0129) | Accepted |"),
-                        row[-80:])
+        self.assertRegex(row, r"\(amends 0069, 0075, 0109, 0118, 0120, 0129\) \| Accepted"
+                              r"( — amended by [^|]*)? \|$")
         self.assertIn("30 skills, 40 agent files", row)
         for adr in AMENDED:
             self.assertIn(LINK, _index_row(adr).rsplit("|", 2)[-2], adr)

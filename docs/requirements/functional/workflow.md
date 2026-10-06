@@ -77,7 +77,7 @@ human drives after review.
 |--------------------|-------|-------------------|
 | — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, **task** or **bug**, drafted by one author for that type and checked by a reviewer before you confirm it ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). Runs before `/ship`. |
 | — `/breakdown-ticket` | design | Break an epic — or a story or task too large for one PR, converted to an epic that keeps its id — into PR-sized children, proposed in one confirmation and minted with the parent's `features` ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). Runs before `/ship`, after the epic's tech design. |
-| — `/create-tech-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`, `status: proposed` until approved with `/set-doc-status`): decision & options, the HLD views affected, snapshots of the feature's API, data, flows and components documents, NFRs, risks, open questions ([ADR-0135](../../architecture/adr/0135-create-tech-design.md)). For an **epic**, the step that follows is `/acs:breakdown-ticket <epic-id>` (ADR-0138), not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
+| — `/create-tech-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`, `status: proposed` until approved with `/set-doc-status`): decision & options, the HLD views affected, snapshots of the feature's API, data, flows and components documents, NFRs, risks, open questions ([ADR-0135](../../architecture/adr/0135-create-tech-design.md)). For an **epic**, the step that follows is `/acs:breakdown-ticket <epic-id>` (ADR-0138), not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when you want a design — no ticket flag asks for it ([ADR-0139](../../architecture/adr/0139-tickets-carry-no-design-flag.md)). |
 | — `/create-data-design` | design | Write the ticket's data low-level design under `lld/<feature>/data/` — logical ERD and physical schema with a migration outline, for the enabled `design.lld_types` only; documents only. Runs before `/ship`, on any ticket that adds or changes persisted data ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
 | — `/create-api-contract` | design | Design the interfaces a feature or a change adds or changes under `lld/<feature>/api/` — one living, versioned file per interface (a REST resource, a CLI command group, an event topic, a gRPC service), each endpoint, command or message traced to an acceptance criterion — plus the run's `api-contract.md` record linking them; documents only, never the repo's OpenAPI, JSON Schema, proto or AsyncAPI files, which `/code` makes from plan items. Runs before `/ship`, before the plan, on any ticket (an epic included), feature or prompt ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)). |
 | — `/create-flows` | design | Write the ticket's behaviour low-level design under `lld/<feature>/flows/` (and `components/` when enabled) — one file per flow and one per entity state machine; documents only. Runs before `/ship` ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
@@ -106,10 +106,10 @@ and an unconfigured e2e suite is an evidenced no-op that
 ```mermaid
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
-    T -->|needs design, epic| D[/create-tech-design/]
+    T -.->|when you want a design| D[/create-tech-design/]
     D -->|epic: after design| FO[/breakdown-ticket/]
     FO -->|per child| A
-    D -->|child inherits the design| A
+    D -.->|read when it exists, own or the epic's| A
     T -->|otherwise| A[/analyze-requirements/]
     T -.->|an interface changes| AC[/create-api-contract/]
     AC -.->|the plan reads the contract| PL
@@ -129,12 +129,17 @@ flowchart LR
 `create-e2e-tests` and `docs-sync` fan out from `review-code` side by side:
 they are one parallel group, and `run-e2e-tests` waits for both.
 
-`/create-tech-design` runs only for tickets flagged **`needs_design: true`** —
-set for **epics only**; stories/tasks are always `false`. Child tickets of
-an epic do **not** repeat design: they inherit the parent epic's `tech-design.md`.
+`/create-tech-design` runs **when the user asks for it**, on any ticket — epic,
+story, task or bug — a prompt or documents. No ticket carries a design flag
+and nothing in the pipeline asks for a design
+([ADR-0139](../../architecture/adr/0139-tickets-carry-no-design-flag.md)).
+A design is **found, not required**: the later skills read the ticket's own
+`tech-design.md`, else its parent epic's, when one exists, and go on without
+one when none does. Child tickets of an epic do **not** repeat design: they
+read the parent epic's.
 
-`/create-api-contract`, `/create-data-design` and `/create-flows` carry no
-such flag: the SA or Tech Lead runs them on a ticket (or a feature, or a
+`/create-api-contract`, `/create-data-design` and `/create-flows` work the same
+way: the SA or Tech Lead runs them on a ticket (or a feature, or a
 prompt) whose interfaces, persisted data or behaviour they want designed
 before implementation. Neither takes a run position, and neither branches,
 commits or opens a PR: each leaves its `lld/` documents as local uncommitted
@@ -354,7 +359,7 @@ branch name. See [hooks.md](hooks.md) and
 An epic's own **creation** run MUST NOT mint children and MUST end with
 `children: []` — no children are minted at epic-creation time; its draft
 carries a candidate breakdown *outline* only, and
-the run points at `/acs:create-tech-design <id>` (when `needs_design`) and then
+the run points at `/acs:create-tech-design <id>` (when you want a design) and then
 `/acs:breakdown-ticket <id>`. Children are minted by **`/acs:breakdown-ticket`**
 ([ADR-0138](../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md);
 it replaced `/acs:create-ticket <epic-id> --fan-out` and `/acs:create-ticket

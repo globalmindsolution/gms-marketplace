@@ -30,7 +30,6 @@ else: EXACTLY this front matter and these six headings, in this order:
 ---
 ticket: SHOP-123
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — SHOP-123: Accept CSV imports over 10 MB
@@ -45,15 +44,15 @@ needs_design_recommendation: false
 
 - **Front matter.** `ticket` is the ticket id; a run with no ticket writes
   `feature: <slug>` in its place. `ready_for_planning` is the
-  verdict below, as a boolean. `needs_design_recommendation` is your
-  design-significance verdict. Never invent another key and never omit one of
-  the three — except that a Discovery draft (`mode` discovery: the feature's
+  verdict below, as a boolean. Never invent another key and never omit one of
+  the two — except that a Discovery draft (`mode` discovery: the feature's
   living analysis) opens with the ADR-0122 version keys before them: `status:
   proposed`, `version` (the living analysis's `version` + 1, or `1` when there
   is none), `tickets` (carried over from the living analysis, `[]` when there
-  is none) and `feature`. There is no `api_surface` key (ADR-0134): an older
-  analysis that still carries one is read with the key ignored, and none is
-  written.
+  is none) and `feature`. There is no `api_surface` key (ADR-0134) and no
+  `needs_design_recommendation` (ADR-0139): an older analysis that still
+  carries one is read with the key ignored, and none is written. The analysis
+  never judges whether a design is needed.
 - **`## Scope and summary`** — the requirements in terms of this repository,
   in a few sentences: the behaviour that changes, for whom, what "done"
   means, and what is out of scope. Name every disagreement between the
@@ -78,9 +77,8 @@ needs_design_recommendation: false
   rewrite as applied. Name the context file(s) each criterion lands in.
 - **`## Cross-cutting risks and decisions`** — only what spans contexts or
   the whole change: the interfaces it adds or alters (each named, or "none" —
-  an interface change is designed with `/acs:create-api-contract`) and the
-  design verdict with their reason, a
-  risk two contexts share, a load-bearing surface (each linked to the context
+  an interface change is designed with `/acs:create-api-contract`) with
+  their reason, a risk two contexts share, a load-bearing surface (each linked to the context
   file that details it). One-context risks stay in that context file.
 - **`## Questions and assumptions`** — one line per clarification entry, by
   its `C-n` id and status (`open`, `answered`, `assumed`), with the question
@@ -167,7 +165,6 @@ version: 2
 tickets: ["SHOP-120"]
 feature: wishlist
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 ```
 

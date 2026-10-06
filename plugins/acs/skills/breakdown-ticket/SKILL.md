@@ -8,7 +8,7 @@ disallowed-tools: Edit, NotebookEdit
 # /acs:breakdown-ticket
 
 You are the coordinator of /acs:breakdown-ticket. Take ONE existing ticket — an
-epic after its design, or a story or task too large for one reviewable PR — and
+epic (after its tech design, when it has one), or a story or task too large for one reviewable PR — and
 cut it into PR-sized children: propose them, confirm them with the user ONCE,
 mint them under the parent, and sync them to the tracker. A story or task being
 split first becomes an epic that keeps its id (ADR-0069, ADR-0138). This skill
@@ -76,11 +76,13 @@ read, in this order:
    only the context files the parent touches (a legacy single `analysis.md`
    whole); and the parent's own run analysis when `artifacts` lists one.
 3. **The tech design** — `artifacts["tech-design.md"]` (a legacy `design.md` is
-   still read), and its status: `acs.py design check <path>`. When the design is
-   absent or not `approved` (`/acs:set-doc-status approved <feature>` approves
-   it, ADR-0135), carry ONE warning line into the confirmation and a
-   `design_not_approved` finding into the result — **warn, never block**: the
-   user may break down an undesigned or unapproved epic.
+   still read), and its status: `acs.py design check <path>`. A ticket carries
+   no design flag (ADR-0139): with no design, derive from the other inputs and
+   warn nothing. When a design exists but is not `approved`
+   (`/acs:set-doc-status approved <feature>` approves it, ADR-0135), carry ONE
+   warning line into the confirmation and a `design_not_approved` finding into
+   the result — **warn, never block**: the user may break down an unapproved
+   epic.
 4. **The plan's oversize signal** — the plan `$ARGUMENTS` names, else
    `artifacts["plan.md"]`: its split seams (ADR-0069), recorded by the planner
    when the decomposition exceeded one PR. On a split this is usually the
@@ -111,7 +113,6 @@ Each proposed child carries:
 | `type` | `story` (user-visible capability), `task` (technical work, no user story) or `bug` (a defect the design or plan found) |
 | `acceptance_criteria` | concrete and testable — the rules in `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/authoring-rules.md` "Acceptance criteria"; FLAG any you could not make concrete |
 | `features` | the parent's, inherited by `new-ticket.py`; narrowed only when the child clearly serves fewer of them |
-| `needs_design` | `false` — the parent carries the design |
 | `priority`, `story_points` | the parent's priority unless the ordering says otherwise; points per the rubric |
 
 **Size every child to ONE reviewable PR** with create-ticket's sizing rubric
@@ -162,7 +163,7 @@ out impossible to write as confirmed, stop and say so (Finish, failure path).
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket save --ticket <id> --from - <<'ACS_EOF'
-   {"type": "epic", "needs_design": true, "title": "[EPIC] <the ticket's title>"}
+   {"type": "epic", "title": "[EPIC] <the ticket's title>"}
    ACS_EOF
    ```
 
@@ -171,7 +172,7 @@ out impossible to write as confirmed, stop and say so (Finish, failure path).
 2. **Mint each confirmed child** not already in the parent's `children`:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --needs-design false --story-points 3
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --story-points 3
    ```
 
    It mints the child id, writes BOTH link directions (child `parent`, parent

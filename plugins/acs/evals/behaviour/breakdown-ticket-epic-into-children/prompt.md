@@ -12,8 +12,8 @@ description: >-
 expected_outcome: >-
   EVAL-1's ticket.json lists children EVAL-2, EVAL-3, EVAL-4 and is still the
   epic titled Order tracking; exactly three child tickets were minted in the
-  workspace (no ticket file enters the repo), each with parent EVAL-1,
-  needs_design false, the features ["order-tracking"] and a non-empty
+  workspace (no ticket file enters the repo), each with parent EVAL-1, no
+  design flag, the features ["order-tracking"] and a non-empty
   acceptance-criteria list; the breakdown-ticket step state records completed.
 tags: [behaviour]
 max_turns: 100

@@ -1,6 +1,6 @@
 ---
 name: analyze-requirements-analyst
-description: Records what the requirements ask — from a ticket, documents, a prompt or a mix, normalised in the run's requirements.md — the problem against the code, the acceptance criteria to refine, design significance, the PRD feature and the questions for the user — as the requirements lane of the survey (starting from the previously published analysis, and the feature's living analysis, when there is one); reconciles that lane with the impact analysts' code-impact lanes and settles the bounded contexts; and, in a separate pass after the user's answers, writes the analysis draft — a folder with a README and one file per context (impact maps, the interfaces it changes, refined acceptance criteria) — for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
+description: Records what the requirements ask — from a ticket, documents, a prompt or a mix, normalised in the run's requirements.md — the problem against the code, the acceptance criteria to refine, the PRD feature and the questions for the user — as the requirements lane of the survey (starting from the previously published analysis, and the feature's living analysis, when there is one); reconciles that lane with the impact analysts' code-impact lanes and settles the bounded contexts; and, in a separate pass after the user's answers, writes the analysis draft — a folder with a README and one file per context (impact maps, the interfaces it changes, refined acceptance criteria) — for /acs:analyze-requirements. Spawned by the /acs:analyze-requirements coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
@@ -84,12 +84,9 @@ otherwise from the requirements and the code.
    `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/survey.md`
    "A bug — reproduce first": record `## Reproduction` in your notes (the
    commands and their output), or an (a) question saying it did not reproduce.
-2. **Design significance.** Judge whether the work needs a design it does not have
-   (`needs_design` false in the requirements, no parent-epic design binding) — a
-   cross-component change, a new persisted format, a security or data-migration decision, or
-   several plausible architectures with different user-visible outcomes. This is a
-   RECOMMENDATION for the user, never a ticket write. In the same pass, check
-   `ticket.features` (the requirements' `features`) — the slugs of the PRD features the work
+2. **The PRD feature.** Never judge whether the work needs a design: a ticket carries
+   no design flag, and the user runs `/acs:create-tech-design` when they want one
+   (ADR-0139). Instead, check `ticket.features` (the requirements' `features`) — the slugs of the PRD features the work
    traces to (`acs.py slug --text "<PRD feature name>"`; ADR-0120), which name the
    `lld/<feature>/` folders its design lives in and the folders its analysis is filed under
    — against the PRD features the work actually touches; a missing, extra or misspelt slug
@@ -122,8 +119,8 @@ otherwise from the requirements and the code.
      `Assumed: <default> — confirm or correct`, citing the convention.
    - **(c) Proposed refined acceptance criteria** — each rewrite from step 3,
      and each missing criterion, quoted in full.
-   - **(d) needs_design recommendation and `features` correction** — from
-     step 2, when you have one (the proposed `features` list in full), and
+   - **(d) The feature: a `features` correction** — from step 2, when you
+     have one (the proposed `features` list in full), and
      the proposed feature slugs when the run has no feature.
 
    Researchable facts are never questions: everything the code, the docs, the
@@ -145,8 +142,6 @@ the requirements slice:
   joins every lane's file by `## ` heading into `iter-1/authoring.md` (the
   same join `acs.py notes merge` does), so the general rule for a slice file
   is `steps/analyze-requirements/iter-1/authoring-<area>.md`.
-- Your design-significance entry is evidence, not the analysis's verdict: the
-  verdict is settled once, in the draft.
 - Do NOT write the draft. Your questions go in your notes' `## Questions for the
   user`, in the four groups; the synthesis de-duplicates them for one grouped ask.
 - Your result carries the slice:
@@ -163,7 +158,7 @@ before you start — what you reconcile, the `## Synthesis`, `## Contexts` and
 On iteration 1 the requirements pass writes its lane of the notes, and the
 controller joins every lane into `steps/analyze-requirements/iter-<n>/authoring.md`
 (`<n>` = 1) BEFORE any draft exists. Your lane's sections: Problem and
-disagreements; Design significance; Acceptance-criteria review; Risks;
+disagreements; Features; Acceptance-criteria review; Risks;
 Changes since the last analysis (when a previous analysis was an input);
 Reproduction (a bug); Questions for the user. The impact lanes add Impact surface, Tests,
 API-surface assessment, Risks and Seams; the synthesis adds `## Synthesis`

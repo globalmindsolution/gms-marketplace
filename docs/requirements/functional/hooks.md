@@ -215,7 +215,7 @@ for an upstream artifact.
 | `/create-ticket` | — | — |
 | `/breakdown-ticket` | a ticket resolves (argument, else the session pointer or branch) and its partition exists and is not archived (ADR-0138) | not `done`; not a `bug`; lock free. The tech design's status is the skill's warning, never a gate |
 | `/create-architecture` | — (the skill reads the PRD at Start when there is one, else works from the subject) | — |
-| `/create-tech-design` | subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag) — a ticketless run with none recorded is allowed when the user invoked the skill with requirements (ADR-0128) | lock free |
+| `/create-tech-design` | requirements resolve — a ticket of any type, a prompt, documents or a current run; no design flag is read: the invocation is the ask ([ADR-0139](../../architecture/adr/0139-tickets-carry-no-design-flag.md)) | the ticket's partition exists and is not archived; lock free |
 | `/create-api-contract` | — (a Design skill, not a `ship.yaml` step: it takes a ticket — an epic included — a feature, documents or a prompt and needs no plan; ADR-0134) | — |
 | `/analyze-requirements` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; lock free |
 | `/create-impl-plan` | subject resolves (a ticket, documents or a prompt — ADR-0128) | not an epic; lock free |

@@ -22,7 +22,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 ACS_FEATURES=order-tracking
-acs_ticket "Track order status for shoppers" story false \
+acs_ticket "Track order status for shoppers" story \
   "Orders move placed -> paid -> shipped -> delivered and never backwards; shoppers see a friendly label for each status."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["advance(order, status) moves an order one step forward: placed, paid, shipped, delivered", "advance refuses a backward or skipped transition with ValueError", "tracking_label(status) gives a shopper-facing label for every status an order can have"]}' \

@@ -65,9 +65,8 @@ Stated so a green run is not read as more than it is:
   finish`). An ideal run must pass every free grader, and each bad run must fail
   at least one. Two graders failed that bar and were fixed:
   - `create-ticket-artifacts` passed a run that only started the skill. The
-    allocate step's placeholder ticket already has the right id, type and
-    `needs_design`. It now also requires an acceptance criterion and a
-    non-placeholder title.
+    allocate step's placeholder ticket already has the right id and type. It
+    now also requires an acceptance criterion and a non-placeholder title.
   - `resume-and-verify` passed on a comment mentioning `/health`. It now
     requires the quoted route string.
 - **Both seeds are verified**: run by hand, each exits 0; `resume-and-verify`

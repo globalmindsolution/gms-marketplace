@@ -722,8 +722,9 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      axis; where the path list comes from is settled in the design phase. Maps to
      PRD **G12, G24**. The MECHANISM (CODEOWNERS template, path-to-owner
      mapping) is settled in this epic's design phase.
-  3. **Design sign-off surface** — publish approved `design.md` (for
-     `needs_design` tickets) to a shared reviewable surface (tracker issue or
+  3. **Design sign-off surface** — publish approved `design.md` (for a
+     change the user designs with `/acs:create-tech-design`; no ticket flag
+     since ADR-0139) to a shared reviewable surface (tracker issue or
      docs PR) for Principal AI Platform sign-off, closing today's
      machine-local role-separation gap. *(Partly delivered by ADR-0135: the
      design is `tech-design.md` in the Design folder, and its sign-off is

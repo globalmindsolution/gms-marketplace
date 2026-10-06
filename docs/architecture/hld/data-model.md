@@ -40,7 +40,6 @@ erDiagram
         json external "tracker mapping or null"
         string assignee
         number story_points
-        bool needs_design "true for epics only; always false for story/task/bug (MAR-76)"
         bool docs_only
         string due_date "ISO-8601 date or null (NEW, MAR-8 Child 3)"
         array features "PRD feature slugs (ADR-0120); a child inherits its parent's (ADR-0138)"

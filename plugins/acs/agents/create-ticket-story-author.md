@@ -45,8 +45,6 @@ grounding and the draft's keys bind you; this file adds only what a story needs.
    sizing rubric. If it does not fit one PR, say so plainly: the coordinator
    re-types it as an epic. Never trim criteria to make it fit.
 
-`needs_design` is `false` — a story never carries the design flag.
-
 ## Iteration 2
 
 The reviewer's findings are in `<context>`. Address every one: rewrite the

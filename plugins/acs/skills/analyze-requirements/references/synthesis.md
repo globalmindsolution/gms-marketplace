@@ -11,7 +11,7 @@ into contexts, and what the synthesis writes.
 The synthesis analyst reads every section across the
 `<!-- slice: <id> -->` markers and, where two lanes' notes contradict each
 other (a symbol one lane calls unused and another finds called, an
-API-surface or design verdict the areas disagree on, one file claimed by two
+API-surface verdict the areas disagree on, one file claimed by two
 seams, a criterion the requirements lane calls testable that an impact lane
 shows the code contradicts), records the resolution with the evidence under a
 `## Synthesis` section of the notes — or, when no source settles it, turns it

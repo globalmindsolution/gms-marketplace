@@ -6,5 +6,5 @@ flags: m
 match: not_contains
 ---
 
-Discovery analyzes; it never implements, and a confirmed needs_design is
-recorded, not acted on -- the design is /acs:create-tech-design's.
+Discovery analyzes; it never implements, and it never designs -- a design
+is /acs:create-tech-design's, run when the user asks for one (ADR-0139).

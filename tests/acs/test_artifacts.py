@@ -59,7 +59,7 @@ def full_ticket(ticket_id=TICKET):
         description="Add the widget.\n\nSecond paragraph with `code`, a # hash and a: colon.",
         acceptance_criteria=["Widget lists items", "Widget handles an empty list:\nshows a hint"],
         priority="high", parent="SHOP-9", children=[], external={"provider": "jira", "key": "PROJ-1"},
-        assignee="jane", story_points=3, needs_design=False, docs_only=False,
+        assignee="jane", story_points=3, docs_only=False,
         due_date="2026-12-01")
     doc["status"] = "in_progress"
     return doc
@@ -388,7 +388,7 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertEqual(os.listdir(self.docs_root()), [])
         self.assertEqual(loaded["status"], "in_progress")
         for key in ("id", "title", "description", "acceptance_criteria",
-                    "external", "needs_design", "due_date"):
+                    "external", "due_date"):
             with self.subTest(field=key):
                 self.assertEqual(loaded[key], doc[key])
 
@@ -633,7 +633,7 @@ class TestMigrate(ArtifactsCase):
     def setUp(self):
         super().setUp()
         self.a = self.partition("SHOP-1", description="A", acceptance_criteria=["one"])
-        self.b = self.partition("SHOP-2", needs_design=True)
+        self.b = self.partition("SHOP-2", ttype="epic")
         os.makedirs(os.path.join(self.a, "phases", "code"))
         with open(os.path.join(self.a, "phases", "code", "plan.md"), "w") as fh:
             fh.write("# Plan A\n")

@@ -21,7 +21,7 @@ acs_repo
 acs_prd
 acs_architecture
 ACS_FEATURES=order-tracking
-acs_ticket "Order tracking" epic true \
+acs_ticket "Order tracking" epic \
   "Shoppers track an order from payment to delivery: carrier status updates, an order status page, and an email on every status change. PRD feature F3."
 printf '%s' '{"acceptance_criteria": [
   "A shopper sees the current status and history of each of their orders",
