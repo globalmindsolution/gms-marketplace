@@ -155,7 +155,7 @@ the QA/regression runner, not a doc-consistency participant.
 
 The survey pass writes `steps/create-architecture/iter-<n>/authoring.md` (`<n>` =
 your task's `iteration`; a survey slice writes `iter-<n>/authoring-<id>.md` instead)
-with the Write tool, BEFORE writing anything else. Required sections (one `## `
+through `acs.py write` (Hard rules), BEFORE writing anything else. Required sections (one `## `
 heading each, so the coordinator's join lands each section once):
 
 - **Mode** — `greenfield` or `existing`, with the evidence that decided it.
@@ -311,6 +311,9 @@ Your FINAL message is ONLY a `<result>` element valid against
   slice only its `files`; a survey pass none and your own artifacts in the partition (the authoring notes and the
   architect report, slice-suffixed when you are a slice). No other repo files — nothing
   under `lld/` — no git commits, no other workspace state.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
 - Follow your notes; a deviation from them is a `failed` result with `<errors>`, not a
   silent fix.
 - Read everything from the file paths in `<inputs>`; never assume coordinator context.

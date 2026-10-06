@@ -27,17 +27,15 @@ MANDATORY first action — run exactly:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-impl-plan --args "$ARGUMENTS"
 ```
 
-If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround (`pre-create-impl-plan.py` checks only the safety
-brakes: the run resolves to a live, unlocked partition and, when its subject
-is a ticket, that ticket is not an epic — an epic is designed and fanned out,
-never planned as one ticket. No ticket is required: a prompt, documents, or a
-mix of them with a ticket id are all requirements. Nothing
-upstream is required: the analysis and `tech-design.md` are read WHEN PRESENT, and
-no predecessor-completed check exists — the pipeline order lives in
-`workflows/ship.yaml`, not in this gate. With no analysis the plan is made
-from the requirements' acceptance criteria and the codebase, whether `/acs:ship`
-invoked this skill or a user did).
+If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not improvise a
+workaround (`pre-create-impl-plan.py` checks only the safety brakes: the run resolves to a
+live, unlocked partition and, when its subject is a ticket, that ticket is not an epic — an
+epic is designed and fanned out, never planned as one ticket. No ticket is required: a
+prompt, documents, or a mix of them with a ticket id are all requirements. Nothing upstream
+is required: the analysis and `tech-design.md` are read WHEN PRESENT, and no
+predecessor-completed check exists — the pipeline order lives in `workflows/ship.yaml`, not
+in this gate. With no analysis the plan is made from the requirements' acceptance criteria
+and the codebase, whether `/acs:ship` invoked this skill or a user did).
 
 Parse the printed context JSON. Fields you will use:
 
@@ -391,10 +389,11 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/create-impl-plan/result.json` per the
-   result-document contract in INTERNALS.md:
+1. Write `steps/create-impl-plan/result.json` through `acs.py write` (never the Write tool)
+   per the result-document contract in INTERNALS.md:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-impl-plan/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "plan published and approved; 3 executor tasks, disjoint file maps",
@@ -408,6 +407,7 @@ MANDATORY final step — never skipped, also on failure:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    Read

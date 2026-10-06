@@ -210,8 +210,9 @@ C2. **Preview and confirm — ONE grouped question.** Show the user the whole
    off `needs_input` (see "User interaction").
 
 C3. **Keep the confirmed plan** in `steps/create-pr/iter-<n>/commit-plan.json`:
-   `--out` already wrote it as proposed; after an edit, rewrite it (Write) as
-   that plan with the user's edits applied, nothing else changed.
+   `--out` already wrote it as proposed; after an edit, rewrite it whole through
+   `acs.py write` (as in Finish) as that plan with the user's edits applied, nothing
+   else changed.
 
 C4. **Commit.**
 
@@ -258,8 +259,8 @@ C4. **Commit.**
    (`${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`), or the repo's own
    `<checkout_root>/.acs/templates/pr-default.md` when it has one.
    Unresolvable template = blocking problem, surface it. Fill the resolved
-   template into `steps/create-pr/pr-body.md`: replace every
-   placeholder (`{ticket_id}`, `{type}`, `{title}`, `{summary}`,
+   template into `steps/create-pr/pr-body.md` through `acs.py write` (as in Finish):
+   replace every placeholder (`{ticket_id}`, `{type}`, `{title}`, `{summary}`,
    `{external_key}`; `{external_key_line}` renders as
    ` — tracker: <provider> <key>` when `ticket.external` is set, empty
    otherwise), replace HTML comments with real content and DELETE the comments,
@@ -333,8 +334,8 @@ C4. **Commit.**
      the failing heading is `ticket_link`, re-fill the Ticket section so the
      body names the ticket id; if it is `unrendered_placeholder` or
      `leftover_template_comment`, delete the surviving placeholder/HTML
-     comment in `pr-body.md`, then re-run `check`. Cap the retry at a small
-     bounded number of attempts (up to 2 re-fills) — this is a tight
+     comment in `pr-body.md` (rewrite it whole through `acs.py write`), then re-run
+     `check`. Cap the retry at a small bounded number of attempts (up to 2 re-fills) — this is a tight
      fix-and-recheck loop around one deterministic call, NOT a new
      plan/execute/verify iteration. If `check` still fails after the bounded
      retries, STOP: do NOT call `gh pr create`/`gh pr edit`; surface a
@@ -417,8 +418,8 @@ C4. **Commit.**
    PR discoverable from the issue and vice versa — the bidirectional
    cross-reference (AC-3) holds from both directions.
 
-Write the publish report `steps/create-pr/iter-<n>/publish.json`
-(`references/publish.md` shows its shape: the mode, the confirmed plan's path
+Write the publish report `steps/create-pr/iter-<n>/publish.json` through `acs.py write`
+(as in Finish; `references/publish.md` shows its shape: the mode, the confirmed plan's path
 and the commits made, commands run with outcomes, pushed SHA, PR
 number/url/base, sync result, problems hit, the pre-open self-check's
 pass/fail result and, on retry, how many attempts were used, plus the
@@ -534,10 +535,11 @@ confirmed is on disk; the next session resumes it rather than asking again.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/create-pr/result.json` per the result-document
-   contract in INTERNALS.md:
+1. Write `steps/create-pr/result.json` through `acs.py write` (never the Write tool) per the
+   result-document contract in INTERNALS.md:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-pr/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "3 commits on task/SHOP-123-bulk-import; PR #42 ready for review",
@@ -558,6 +560,7 @@ MANDATORY final step — never skipped, also on failure:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    Canonical `states` key — EXACT name and shape, the /acs:merge-pr gate reads

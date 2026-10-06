@@ -337,6 +337,13 @@ Durable state is split in two: the **documents a human reads or reviews** are
 committed in your repo, one folder per phase, and the **run ledger** — and the
 ticket itself — stays in the gitignored workspace (and your tracker)
 ([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)).
+Skills and agents write those state files through `acs.py write`, never
+Claude Code's `Write` tool, so a session in a Claude Code worktree — refused
+`Write` on the main checkout, where the workspace is — can record its steps
+([ADR-0136](../../docs/architecture/adr/0136-state-is-written-through-acs-write.md)).
+Under the Bash sandbox, accept the `sandbox.filesystem.allowWrite` rule
+`/acs:setup` offers for the workspace's absolute path; it goes to the main
+checkout's `.claude/settings.local.json`.
 
 ```text
 <repo>/docs/product/features/<feature>/analysis/         # Discovery: the feature's living analysis (a folder)

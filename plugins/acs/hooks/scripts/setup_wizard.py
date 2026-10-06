@@ -630,6 +630,10 @@ def apply(cwd, answers, dry_run=False):
                      else "Claude Code permission rules already in %s" % permissions["path"])
         if permissions["added"] and perms == "team":
             staged.append(os.path.join(".claude", "settings.json"))
+        sandbox = permissions["sandbox"]  # machine-specific: never staged (ADR-0136)
+        changes.note(bool(sandbox["added"]), "added the sandbox write rule for %s to %s"
+                     % (sandbox["rule"], sandbox["path"]) if sandbox["added"]
+                     else "sandbox write rule already in %s" % sandbox["path"])
 
     settings, _sources = lib.load_settings(cwd)
     errors = list(changes.errors)

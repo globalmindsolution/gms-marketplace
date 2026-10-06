@@ -447,6 +447,31 @@ matching section here, and merge to `main` — the Release workflow tags
   Approve a design with `/acs:set-doc-status approved <feature>` — the reviewer's
   pass no longer stands in for the team's sign-off.
 
+- **State files are written through `acs.py write`, never the Write tool**
+  (ADR-0136), so a pipeline runs in a Claude Code worktree session. Such a
+  session (`claude --worktree`, `EnterWorktree`, an isolated subagent) is
+  refused the `Write` and `Edit` tools on any path in the main checkout, and
+  the workspace is there — so a pipeline started in a worktree could not
+  record a step. The workspace does not move: it stays at
+  `<main-checkout>/.acs/state-machine`, one folder at the main checkout's root
+  for every worktree. Now no skill or agent writes a state file with `Write`
+  or `Edit`: the new `acs.py write <path> [--append] [--run R]` takes the
+  content on stdin (through a quoted heredoc), writes it atomically, creates
+  parent folders, prints `{"ok", "path", "bytes", "appended", "total_bytes"}`,
+  and refuses with exit 2 any path outside the workspace root (`..` or a
+  symlink) and the machine-owned ledgers that have their own verbs
+  (`run.json`, `steps/<skill>/state.json`, `lock.json`, the indexes,
+  `sessions/`, `filemap.json`). A relative path resolves against the run
+  directory (`--run`, else the checkout's current run, which `acs.py context`
+  now reports as `run_id`/`run_dir`). Survey and judge agents lose `Write`
+  from their `tools:` allowlist; write roles still write repo files with
+  `Write`/`Edit`. Under the Bash sandbox, `/acs:setup` now offers, with its
+  permission rules, `sandbox.filesystem.allowWrite` for the workspace's
+  absolute path, merged into the main checkout's `.claude/settings.local.json`
+  (never the committed `.claude/settings.json`); `setup detect` reports it as
+  `sandbox_rule`.
+  **Migration:** none — no state moves and no stored path changes.
+
 ### Removed
 
 - **⚠️ BREAKING: the session-handoff skill is gone; `/acs:handoff` is now a

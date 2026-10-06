@@ -18,7 +18,9 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acs_lib import schemasubset  # noqa: E402
+from skill_text import acs_writes  # noqa: E402
 
 
 def finish_example(skill):
@@ -29,7 +31,9 @@ def finish_example(skill):
     start = text.find("## Finish")
     if start < 0:
         return None
-    for block in re.findall(r"```json\n(.*?)\n\s*```", text[start:], re.S):
+    blocks = [body for _path, body in acs_writes(text[start:])]
+    blocks += re.findall(r"```json\n(.*?)\n\s*```", text[start:], re.S)
+    for block in blocks:
         try:
             doc = json.loads(re.sub(r"(?m)^ {3}", "", block))
         except ValueError:

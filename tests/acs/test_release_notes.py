@@ -119,6 +119,10 @@ def make_repo(root, changelog_text=CHANGELOG_TEMPLATE, marketplace=None, plugin=
         if with_origin:
             bare = root + "-origin.git"
             _run(["git", "init", "-q", "--bare", bare], os.path.dirname(root))
+            # A push runs `git gc --auto` in the receiving repo, which newer git
+            # detaches; it can still be writing a lock file into the bare repo
+            # while TemporaryDirectory removes it ("Directory not empty").
+            _run(["git", "config", "receive.autogc", "false"], bare)
             _run(["git", "remote", "add", "origin", bare], root)
             _run(["git", "push", "-q", "-u", "origin", base_branch], root)
     return root

@@ -75,7 +75,8 @@ worktree by `tests/acs/test_acs_lib_state_locks.py`'s
 `TestWorktreeSharedStateRoot` — the derived state root and repo-partition id
 are identical from the main checkout and a linked worktree, while
 `checkout_id` still differs between them, so concurrent locks from either
-checkout land in the same partition). The `require_workspace=False` leg
+checkout land in the same partition; `tests/acs/test_state_root_and_write.py`
+adds a nested `.claude/worktrees/<name>` worktree and a subdirectory). The `require_workspace=False` leg
 (today exercised only by settings-shape validation callers in the test
 suite — no shipped hook passes it) never calls `default_state_root` at all
 and always returns `None`.

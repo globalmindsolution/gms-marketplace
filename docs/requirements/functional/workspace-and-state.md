@@ -11,7 +11,7 @@ below belongs to exactly one of them
 | **Where** | one folder per phase, keyed by the run's feature: Discovery `<prd_dir>/features/<feature>/`, Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, Development `<development_dir>/<feature>/<ticket-id or run-id>/` | `<workspace>/<repo>/` — the ticket partition `<ticket-id>/` and the run partition `runs/<run-id>/` |
 | **Holds** | the human-facing documents: the feature's living analysis, an `analysis/` folder (Discovery, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); `tech-design.md` (a legacy `design.md` still read, [ADR-0135](../../architecture/adr/0135-create-tech-design.md)), `api-contract.md` (Design); a Development run's `analysis/` folder, `plan.md`, `test-cases.md` (Development) | the ticket (`ticket.json`) and its clarification ledger; the run ledger: `run.json`, `requirements.md`, `subject/` (`sources.json` and the copied documents), `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, a ticketless run's `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
 | **Versioned** | yes — written uncommitted by the skills, committed by `/create-pr` (ADR-0127), reviewed in the PR | no — gitignored |
-| **Written by** | the coordinators of the skills that own each document | hooks, the `acs.py` CLIs and the skills' own subagents |
+| **Written by** | the coordinators of the skills that own each document | hooks and the `acs.py` CLIs; the skills' coordinators and subagents through `acs.py write`, never the `Write` tool |
 
 `<prd_dir>` is the repo's PRD directory (found as `/acs:create-prd` finds the
 PRD, default `docs/product`), `<architecture_dir>` the repo's architecture
@@ -59,6 +59,33 @@ document, so a ticket started before ADR-0128 keeps its documents
   no longer needed. Only a write creates the folder: a hook that only looks
   for state writes nothing, so a repo that never runs acs gets no folder
   ([ADR-0105](../../architecture/adr/0105-acs-runs-without-setup.md)).
+- The workspace MUST be writable from a Claude Code worktree session.
+  Such a session is refused the `Write`, `Edit` and `NotebookEdit` tools on
+  any path in the main checkout, where the workspace is, so **no skill or
+  agent writes a state file with the `Write` or `Edit` tool**: every state
+  write goes through `acs.py write <path> [--append] [--run R]`, which runs
+  from the session's own worktree, reads the content from stdin, writes it
+  atomically (a temporary file, then a rename) and creates parent folders.
+  `<path>` is absolute inside the workspace root, or relative to the run
+  folder (`--run`, default the checkout's current run, which `acs.py
+  context` reports as `run_id`/`run_dir`). A path outside the workspace
+  root — by `..` or through a symlink — MUST be refused with exit 2 and
+  nothing written, and so MUST a machine-owned ledger that has its own verb
+  (`run.json`, `steps/<skill>/state.json`, `lock.json`, the indexes,
+  `sessions/`, `active-agents/`, any `filemap.json`); a write prints
+  `{"ok": true, "path": …, "bytes": …, "appended": …, "total_bytes": …}`.
+  A coordinator hands its agents the absolute run folder, so an agent in an
+  isolated worktree with no current run of its own still writes the right
+  place. Repo files (code, tests, documents in the checkout) are still
+  written with `Write`/`Edit` by the write roles
+  ([ADR-0136](../../architecture/adr/0136-state-is-written-through-acs-write.md)).
+- Under the Bash sandbox, which lets Bash write only the working directory,
+  `$TMPDIR` and its `sandbox.filesystem.allowWrite` paths, the workspace is
+  writable from a worktree only with an `allowWrite` entry naming its
+  absolute path. `/acs:setup` offers that entry and writes it to the main
+  checkout's `.claude/settings.local.json`
+  ([skills.md](skills.md#setup-optional)). The workspace never moves for
+  it: there is nothing to migrate.
 - The workspace MUST be partitioned **by consumer repo, then by ticket
   and by run**: a ticket and its clarification ledger live under
   `<workspace>/<repo>/<ticket-id>/`, and every pipeline artifact of a run —

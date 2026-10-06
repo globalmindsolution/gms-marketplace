@@ -25,8 +25,10 @@ REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SKILL_DIR = os.path.join(PLUGIN, "skills", "create-pr")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from acs_lib import commit_plan  # noqa: E402
+from skill_text import result_example  # noqa: E402
 
 
 def read(*parts):
@@ -185,9 +187,9 @@ class WhatIsRecordedIsWhatTheCliPrints(unittest.TestCase):
 
     def _finish_states(self):
         body = skill()
-        block = re.search(r"```json\n(\s*\{\s*\"status\": \"completed\".*?)```", body, re.S)
+        block = result_example(body)
         self.assertIsNotNone(block, "the Finish result-document example")
-        return json.loads(block.group(1))["states"]
+        return json.loads(block)["states"]
 
     def test_states_pr_stays_first_and_commits_follow(self):
         states = self._finish_states()

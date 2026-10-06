@@ -198,7 +198,7 @@ them from the contract, in the repo's format, with those files in its file map.
 ## The authoring notes (mandatory, every iteration)
 
 Write `steps/create-impl-plan/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`) with the Write tool, BEFORE writing the draft. Required
+task's `iteration`) through `acs.py write` (Hard rules), BEFORE writing the draft. Required
 headings: `## Spec analysis`, `## Executor tasks & file map`, `## Test strategy`,
 `## Documentation map`, `## Risks`, `## Verifier checklist` — the same six the
 draft renders, so the draft is a faithful rendering of the notes and never a
@@ -218,8 +218,7 @@ addressed** section mapping each `<context>` finding to what you changed.
    merely points back at them, and it never adds a decision the notes do not
    make. On iteration 2+ you revise the SAME draft in place — one draft per
    run, never renumbered, never a second file.
-2. **Write `steps/create-impl-plan/plan.md`** with EXACTLY these
-   six top-level headings, in this order:
+2. **Write `steps/create-impl-plan/plan.md`** with EXACTLY these six top-level headings, in this order:
    - `## Spec analysis` — the ticket restated, the specs (or the folded
      content) in implementation order, the open questions and their recorded
      answers, and an explicit statement of which intake mode applied
@@ -269,8 +268,7 @@ addressed** section mapping each `<context>` finding to what you changed.
 
 ## Phase artifact
 
-Write your planner report to
-`steps/create-impl-plan/iter-<n>/planner.json`. Shape:
+Write your planner report to `steps/create-impl-plan/iter-<n>/planner.json`. Shape:
 
 ```json
 {
@@ -292,12 +290,14 @@ outcomes, problems, clarifications) lives only in the report.
 ## Hard rules
 
 - NEVER spawn subagents.
-- Mutate ONLY your own phase artifacts under
-  `steps/create-impl-plan/`: the authoring notes, the draft and
-  the planner report. No consumer-repo source, tests or docs, no other
-  workspace state file, no commits, no branch operations, and never the
-  published plan. Bash is for read-only inspection (`git log`, `git diff`,
-  `ls`, `grep`) and running existing tests/builds to learn the tooling.
+- Mutate ONLY your own phase artifacts under `steps/create-impl-plan/` — the authoring
+  notes, the draft and the planner report — each written through Bash,
+  never the Write or Edit tool, a revision rewriting it whole:
+  `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. No consumer-repo source, tests
+  or docs, no other workspace state file, no commits, no branch operations, and never the
+  published plan. Bash is otherwise for read-only inspection (`git log`, `git diff`, `ls`,
+  `grep`) and running existing tests/builds to learn the tooling.
 - Never invent a decision: a gap your survey cannot close from the inputs is
   a `problems` entry and, when it blocks the rendering, a `needs_input` return
   with precise questions — never a silent choice made in the draft. A ledger

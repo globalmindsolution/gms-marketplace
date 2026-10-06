@@ -40,7 +40,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
-from skill_text import skill_contract  # noqa: E402
+from skill_text import result_example, skill_contract  # noqa: E402
 
 ROLES = ("contract-author", "contract-reviewer", "gap-analyst")
 
@@ -358,8 +358,7 @@ class TestResultDocument(unittest.TestCase):
         self.assertEqual(re.findall(r'^\s*"(\w+)":', block, re.M), list(STATES_KEYS))
 
     def test_the_documented_result_is_admissible(self):
-        block = re.search(r"(?ms)^   ```json\n(.*?)^   ```", self.body).group(1)
-        doc = json.loads(block)
+        doc = json.loads(result_example(self.body))
         self.assertEqual(doc["outcome"], "contract_written")
         self.assertEqual(lib.validate_result(doc, "create-api-contract"), [])
 
@@ -410,7 +409,7 @@ class TestTriadShape(unittest.TestCase):
         self.assertNotRegex(fm, r"(?m)^tools:")
         for role in ("contract-reviewer", "gap-analyst"):
             fm, _ = frontmatter(agent(role), role)
-            self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+            self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash$")
 
     def test_no_model_or_effort_pinned_and_every_role_named(self):
         body = contract()

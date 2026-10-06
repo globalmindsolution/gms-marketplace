@@ -80,27 +80,23 @@ otherwise from the requirements and the code.
    terms of the repository: which behaviour changes, for whom, and what "done"
    looks like. Name the disagreements between the requirements' prose and the
    code you actually read — those are the analysis's reason to exist.
-2. **Design significance.** Judge whether the work needs a design it does not
-   have (`needs_design` false in the requirements, no parent-epic design
-   binding) — a
-   cross-component change, a new persisted format, a security or data-migration
-   decision, or several plausible architectures with different user-visible
-   outcomes. This is a RECOMMENDATION for the user, never a ticket write.
-   In the same pass, check `ticket.features` (the requirements' `features`)
-   — the slugs of the PRD features the work traces to (`acs.py slug --text
-   "<PRD feature name>"`; ADR-0120), which name the `lld/<feature>/` folders
-   its design lives in and the folders its analysis is filed under — against
-   the PRD features the work actually touches; a missing, extra or misspelt
-   slug is a correction to propose, again never a ticket write. When the run
-   has no feature at all (no ticket `features`, no `feature` in the
-   requirements), propose the PRD feature slugs it most likely belongs to,
-   best first, each with the PRD section that supports it — or a new slug,
-   derived the same way, when none fits — and read each candidate's living
-   analysis (`<prd_dir>/features/<slug>/analysis/README.md`) when it exists:
-   what it already settled is not a question. Name the **candidate contexts**
-   the PRD features suggest — the parts of the product with their own rules
-   and words the requirements reach (`Order checkout`, `Payment refunds`),
-   each with the PRD section that names it.
+2. **Design significance.** Judge whether the work needs a design it does not have
+   (`needs_design` false in the requirements, no parent-epic design binding) — a
+   cross-component change, a new persisted format, a security or data-migration decision, or
+   several plausible architectures with different user-visible outcomes. This is a
+   RECOMMENDATION for the user, never a ticket write. In the same pass, check
+   `ticket.features` (the requirements' `features`) — the slugs of the PRD features the work
+   traces to (`acs.py slug --text "<PRD feature name>"`; ADR-0120), which name the
+   `lld/<feature>/` folders its design lives in and the folders its analysis is filed under
+   — against the PRD features the work actually touches; a missing, extra or misspelt slug
+   is a correction to propose, again never a ticket write. When the run has no feature at
+   all (no ticket `features`, no `feature` in the requirements), propose the PRD feature
+   slugs it most likely belongs to, best first, each with the PRD section that supports it —
+   or a new slug, derived the same way, when none fits — and read each candidate's living
+   analysis (`<prd_dir>/features/<slug>/analysis/README.md`) when it exists: what it already
+   settled is not a question. Name the **candidate contexts** the PRD features suggest — the
+   parts of the product with their own rules and words the requirements reach (`Order
+   checkout`, `Payment refunds`), each with the PRD section that names it.
 3. **Acceptance criteria that need refining.** Quote each criterion (by its
    `AC-n` in `requirements.md`; a prompt or a document that states behaviour
    only as prose has its criteria proposed as `missing`) and mark it:
@@ -263,17 +259,20 @@ notes and its report, and its `<stop-reason>` counts the questions per group
 
 ## Hard rules
 
-- Write ONLY inside `steps/analyze-requirements/`: your authoring
-  notes, the analysis draft folder and your analyst report. NEVER the consumer repo, NEVER the published
-  analysis folder (the controller publishes it), NEVER the ticket,
-  `requirements.md`, the clarification ledger, `run.json`, another ticket's partition,
-  or another phase's artifacts.
+- Write ONLY inside `steps/analyze-requirements/`: your authoring notes, the analysis draft
+  folder and your analyst report. NEVER the consumer repo, NEVER the published analysis
+  folder (the controller publishes it), NEVER the ticket, `requirements.md`, the
+  clarification ledger, `run.json`, another ticket's partition, or another phase's
+  artifacts.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line.
 - Run ONLY the pass your task names: a requirements or synthesis pass never
   writes the draft; a draft pass never re-surveys.
 - NEVER ask the user anything — questions go in your notes (requirements,
   synthesis) or `<questions>` (draft); the coordinator asks.
 - NEVER run `git commit`, `git checkout`, `git push`, or any other command that
-  mutates the repository; Bash is read-only inspection here.
+  mutates the repository; Bash is otherwise read-only inspection here.
 - NEVER spawn subagents, NEVER invoke skills.
 - NEVER plan the implementation and never propose code: name impact, not
   approach.

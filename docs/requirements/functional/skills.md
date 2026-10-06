@@ -247,6 +247,17 @@ validated against `settings.schema.json`.
 - The workspace derives silently to `<main-checkout>/.acs/state-machine` —
   no prompt, no required input, and no override (ADR-0086,
   [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
+- When it offers acs's Claude Code permission rules, MUST also offer the
+  Bash sandbox write rule for the workspace —
+  `{"sandbox": {"filesystem": {"allowWrite": ["<absolute main checkout>/.acs/state-machine"]}}}`
+  — so a sandboxed `acs.py write` from a Claude Code worktree session can
+  record state. The path MUST be absolute and name the main checkout's
+  folder, also when setup runs in a linked worktree, and the rule MUST go to
+  the main checkout's `.claude/settings.local.json` — never the committed
+  `.claude/settings.json`, even when the permission rules went to the team
+  file — merged in place (other keys and entries kept, added once, a re-run
+  adds nothing)
+  ([ADR-0136](../../architecture/adr/0136-state-is-written-through-acs-write.md)).
 - MUST NOT ask for a `ticket_prefix`: it defaults to `ACS`, and a repo that
   wants its own sets it by hand.
 - MUST show the three conventions — `formats.branch_name`,
@@ -1542,7 +1553,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   **deterministic plan-approval verdict**: `plan-approval.py` computes
   `acs_lib.plan_approval_eligible` from the plan artifact's own content plus
   `tests.coverage` and is the **sole writer** of
-  `<run>/steps/code/plan-approval.json` — never a subagent's `Write`, never
+  `<run>/steps/code/plan-approval.json` — never a subagent's `acs.py write`, never
   the coordinator's, never an LLM self-assertion. The record carries the
   predicate's inputs, checks, failures and the approved plan's **sha256**, and
   is written **at most once per approved plan digest** (idempotent on resume;

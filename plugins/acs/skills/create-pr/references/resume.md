@@ -28,7 +28,8 @@ continuing:
      commit on the branch and none of its paths is still an uncommitted
      change (`acs.py changes diff --since HEAD --name-only`). Write the
      groups from the first uncommitted one on, unchanged and in order, to
-     `steps/create-pr/iter-<n>/commit-plan.resume.json` (same branch) and run
+     `steps/create-pr/iter-<n>/commit-plan.resume.json` (same branch; through
+     `acs.py write`) and run
      `acs.py pr commit --plan` on that file: it is already on the branch, so
      it only commits. `pr commit` refuses a path that is no longer an
      uncommitted change, which is what keeps a group from being committed

@@ -16,6 +16,11 @@
 > only, `ship.yaml` has no `create-api-contract` step, the plan owes no
 > `api_contract`, and the analysis records no `api_surface`. Every mention of
 > those below describes the v0.5.0 design, not the current one.
+>
+> **Note (2026-10-06).** Since ADR-0136, state files are written through
+> `acs.py write`, never the `Write` tool; where this document has an agent
+> `Write` a state file, read it as that command. The workspace stays at
+> `.acs/state-machine/<repo-id>/`.
 
 This document specifies a from-scratch redesign of acs's **implementation**
 half — the skills `/acs:ship` orchestrates between a settled requirement and an

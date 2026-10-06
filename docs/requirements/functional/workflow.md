@@ -563,7 +563,9 @@ a [ticket handoff](#ticket-handoff).
   rev-parse --git-common-dir`), every linked worktree resolves to the same
   `.acs/state-machine/` tree, so the same ticket pipeline can run inside a
   dedicated git worktree without state colliding with other worktrees
-  (ADR-0086).
+  (ADR-0086) — a Claude Code worktree session included, because state is
+  written through `acs.py write`, never the `Write` tool
+  ([ADR-0136](../../architecture/adr/0136-state-is-written-through-acs-write.md)).
 - **One checkout, one changeset.** No step commits before `/create-pr`
   (ADR-0127), so a run's changes are the working tree's. Two tickets in flight
   in one checkout share that working tree and so one changeset; the run's

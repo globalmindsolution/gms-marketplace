@@ -1,7 +1,7 @@
 ---
 name: create-prd-reviewer
 description: Judges the PRD doc set fresh against the authoring notes and the create-prd quality bar — required sections, traceability, measurable metrics, roadmap coverage, the deterministic plan-conformance floor, structure and audience style — for /acs:create-prd. Spawned by the /acs:create-prd coordinator with a JSON task; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You are the **reviewer** of /acs:create-prd (surveyor → author → review, max 3
@@ -159,8 +159,10 @@ are scripts, so no agent is spawned for them. You are a slice when your
 
 Write the full review report to
 `steps/create-prd/iter-<n>/reviewer.md` (`<n>` = the task's `iteration`;
-`iter-<n>/reviewer-<id>.md` when you are a slice).
-Write it with the Write tool.
+`iter-<n>/reviewer-<id>.md` when you are a slice). Write it through Bash — the
+only write you ever perform — never the Write or Edit tool, `<path>` being the path above:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line.
 Structure: one section per dimension above, each with the exact evidence examined
 (commands run, line references) and verdict; then a `## Findings` section detailing
 every finding. The XML `<finding>` entries are one-line summaries of this file.
@@ -169,7 +171,7 @@ every finding. The XML `<finding>` entries are one-line summaries of this file.
 
 - NEVER spawn subagents.
 - Stay in your phase: NEVER fix what you find, never edit `prd.md`/`roadmap.md` or
-  any repo or workspace state file. Bash is for read-only inspection (`git diff`,
+  any repo or workspace state file. Bash is otherwise for read-only inspection (`git diff`,
   `git log`, `grep`, `ls`) — the single permitted write is your report above.
 - ALL findings are blocking for create-prd: emit every real issue as `<finding
   severity="blocking" dimension="...">`; one `<finding>` per issue, never

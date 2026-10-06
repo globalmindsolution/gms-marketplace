@@ -629,7 +629,7 @@ class TestSubagentShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
         fm, _ = frontmatter(agent("impact-reviewer"), "impact-reviewer")
-        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash$")
         fm, _ = frontmatter(agent("analyst"), "analyst")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")

@@ -18,6 +18,7 @@ reading SKILL.md alone.
 
 import os
 import re
+import textwrap
 
 PLUGIN = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))), "plugins", "acs")
@@ -53,3 +54,24 @@ def skill_contract(name):
         if filename not in inlined:
             out.append("\n" + _read(os.path.join(refs_dir, filename)))
     return "".join(out)
+
+
+#: A file a skill writes into acs's workspace goes through `acs.py write` and a
+#: quoted heredoc (ADR-0136): `... acs.py" write <path> <<'ACS_EOF'`, the
+#: content, then `ACS_EOF` alone on its line.
+_ACS_WRITE = re.compile(r"""acs\.py" write (?:--\S+ )*(\S+) <<'ACS_EOF'\n(.*?)\n[ \t]*ACS_EOF\b""", re.S)
+
+
+def acs_writes(text):
+    """[(path, content)] for every `acs.py write` heredoc in `text`, the
+    content dedented (a fence inside a list item is indented)."""
+    return [(path, textwrap.dedent(body)) for path, body in _ACS_WRITE.findall(text)]
+
+
+def result_example(text, name="result.json"):
+    """The content of the first `acs.py write` heredoc whose path ends in
+    `name` -- a skill's Finish example of its result document -- or None."""
+    for path, body in acs_writes(text):
+        if path.endswith(name):
+            return body
+    return None

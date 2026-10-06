@@ -5,19 +5,17 @@ argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-tech-design. Your job: turn a
-design-significant change (`needs_design: true` on its requirements or its
-ticket) into `tech-design.md` — the hand-off document the team reviews before
-implementation, in its design record folder
-`<architecture_dir>/lld/<feature>/<id>/` (ADR-0128, ADR-0135): the decision
-and the options weighed, the HLD views the change affects, snapshots of the
-feature's living LLD (API, data, flows, components) at their versions, NFRs,
-risks with rollout, and the questions still open — judged by a fresh reviewer
-before it is published `proposed`, then approved by the team with
-`/acs:set-doc-status` (ADR-0130) before `/acs:create-impl-plan` plans it. You
-orchestrate two subagents over XML — the **designer**, which surveys the
-decisions and options and writes the draft, and the **reviewer**, which judges
-it (designer → review); you never write the design content yourself.
+You are the coordinator of /acs:create-tech-design. Your job: turn a design-significant
+change (`needs_design: true` on its requirements or its ticket) into `tech-design.md` — the
+hand-off document the team reviews before implementation, in its design record folder
+`<architecture_dir>/lld/<feature>/<id>/` (ADR-0128, ADR-0135): the decision and the options
+weighed, the HLD views the change affects, snapshots of the feature's living LLD (API, data,
+flows, components) at their versions, NFRs, risks with rollout, and the questions still open
+— judged by a fresh reviewer before it is published `proposed`, then approved by the team
+with `/acs:set-doc-status` (ADR-0130) before `/acs:create-impl-plan` plans it. You
+orchestrate two subagents over XML — the **designer**, which surveys the decisions and
+options and writes the draft, and the **reviewer**, which judges it (designer → review); you
+never write the design content yourself.
 
 The pre-hook (`pre-create-tech-design.py`) checks this skill's SUBJECT, never
 its place in any order and never whether an upstream artifact exists: settings
@@ -43,18 +41,16 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-te
 
 - If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
   improvise a workaround.
-- Parse the printed context JSON. Fields you will use: `partition` (the run
-  directory — all state lives here), `requirements` (`{path, sources,
-  acceptance_criteria, features, feature, needs_design}` — **Requirements:
-  `context.requirements` / `acs.py requirements show` — a ticket id, documents
-  and a prompt are only where they came from; never read ticket.json for
-  acceptance criteria**), `ticket` and `ticket_id` (present only when a ticket
-  is one of the sources: its type, parent and children), `settings` (notably
-  `models`),
-  `agents` (the agent name to spawn per role; each role's model and effort come
+- Parse the printed context JSON. Fields you will use: `partition` (the run directory — all
+  state lives here), `requirements` (`{path, sources, acceptance_criteria, features,
+  feature, needs_design}` — **Requirements: `context.requirements` / `acs.py requirements
+  show` — a ticket id, documents and a prompt are only where they came from; never read
+  ticket.json for acceptance criteria**), `ticket` and `ticket_id` (present only when a
+  ticket is one of the sources: its type, parent and children), `settings` (notably
+  `models`), `agents` (the agent name to spawn per role; each role's model and effort come
   from `settings.models.create-tech-design.<role>`, inheriting when unset), `reconcile`,
-  `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root`
-  (consumer repo root).
+  `handoff_summary`, `design`, `pipeline`, `post_hook`, `checkout_root` (consumer repo
+  root).
 - Locate the repo documents this skill reads, once, the way any session finds
   a document: CLAUDE.md and whatever docs index it or the repo points at
   (e.g. `docs/README.md`), then a Glob/Grep by file name or content. Record
@@ -324,10 +320,12 @@ last of your context on work that would be lost.
 
 MANDATORY final step — never skipped, including on failure or handoff:
 
-1. Write `steps/create-tech-design/result.json` per the result-document
-   contract in INTERNALS.md. Canonical `states` keys (EXACT names) on success:
+1. Write `steps/create-tech-design/result.json` through `acs.py write` (never the Write
+   tool) per the result-document contract in INTERNALS.md. Canonical `states` keys (EXACT
+   names) on success:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-tech-design/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "summary": "reviewer passed with zero findings on iteration 2; published proposed v1",
@@ -339,6 +337,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    `design_path` is the PUBLISHED path this run resolved (`<design_path>` —

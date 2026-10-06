@@ -13,7 +13,7 @@ Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
     context, gate, run, step, result, ticket, pr, tracker, readiness, lock,
-    filemap, guard, verdict, slug, doctor, workflow, artifacts, job.
+    filemap, guard, verdict, slug, doctor, workflow, artifacts, job, write.
   * Delegated — the verbs an existing script already implements: `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
     when called directly; acs.py forwards argv to them and returns their exit
@@ -85,6 +85,7 @@ Usage:
   acs.py handoff send --ticket MAR-1 [--note TEXT | --note-file F] [--attach PATH] [--replace] [--dry-run]
   acs.py handoff receive --ticket MAR-1 [--replace] [--keep-ref]
   acs.py handoff list [--details]
+  acs.py write <path> [--append] [--run R]   (content on stdin; ADR-0136)
 """
 
 import argparse
@@ -121,6 +122,7 @@ import acs_changes_commands  # noqa: E402
 import acs_requirements_commands  # noqa: E402
 import acs_handoff_commands  # noqa: E402
 import acs_docs_commands  # noqa: E402
+import acs_write_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -409,6 +411,7 @@ def build_parser():
     acs_requirements_commands.add_parser(group)
     acs_handoff_commands.add_parser(group)
     acs_docs_commands.add_parser(group)
+    acs_write_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,

@@ -205,24 +205,22 @@ the QA/regression runner, not a doc-consistency participant.
 
 ## The authoring notes (mandatory, every iteration)
 
-Write `steps/create-tech-design/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`; on iteration 1 the scope pass writes `iter-1/authoring-scope.md`
-and a research slice `iter-1/authoring-<id>.md` instead, and the coordinator joins
-them into `iter-1/authoring.md`) with the Write tool, BEFORE writing anything else.
-Use one `## ` heading per section, so the join lands each section once.
-Sections: Analysis; Decisions & candidate options (with trade-offs); NFR checklist;
-Architecture conformance call (with the HLD views and LLD documents to snapshot and
-their versions); Open questions; Risks; Reviewer checklist. Every entry cites the file (and line or heading) you read —
-the reviewer re-opens the citations and judges your output against these
-notes, so an uncited entry is a blocking finding. On iteration ≥ 2 the notes
-carry, additionally, a **Findings addressed** section mapping each `<context>`
-finding to what you changed.
+Write `steps/create-tech-design/iter-<n>/authoring.md` (`<n>` = your task's `iteration`; on
+iteration 1 the scope pass writes `iter-1/authoring-scope.md` and a research slice
+`iter-1/authoring-<id>.md` instead, and the coordinator joins them into
+`iter-1/authoring.md`) through `acs.py write` (Hard rules), BEFORE writing anything else.
+Use one `## ` heading per section, so the join lands each section once. Sections: Analysis;
+Decisions & candidate options (with trade-offs); NFR checklist; Architecture conformance
+call (with the HLD views and LLD documents to snapshot and their versions); Open questions;
+Risks; Reviewer checklist. Every entry cites the file (and line or heading) you read — the
+reviewer re-opens the citations and judges your output against these notes, so an uncited
+entry is a blocking finding. On iteration ≥ 2 the notes carry, additionally, a **Findings
+addressed** section mapping each `<context>` finding to what you changed.
 
 ## Designer report (mandatory)
 
-After producing the artifact, write
-`steps/create-tech-design/iter-<n>/designer.json` (a sliced designer:
-`iter-<n>/designer-<id>.json`, with `<id>` your task's `slice`):
+After producing the artifact, write `steps/create-tech-design/iter-<n>/designer.json` (a
+sliced designer: `iter-<n>/designer-<id>.json`, with `<id>` your task's `slice`):
 
 ```json
 {
@@ -269,13 +267,15 @@ Your FINAL message is ONLY an XML `<result>` valid against
 
 ## Hard rules
 
-- Mutate ONLY inside `steps/create-tech-design/`: your authoring
-  notes (your slice's file when sliced; the draft pass's Synthesis file), the
-  draft (the draft pass only), and your designer report. NEVER
-  the consumer repo, NEVER the published `tech-design.md` in the design record folder
-  (the coordinator publishes it, and the file-map guard denies you a write
-  there), NEVER the requirements document (`requirements.md`), `run.json`, other tickets'
-  partitions, or other phases' artifacts.
+- Mutate ONLY inside `steps/create-tech-design/`: your authoring notes (your slice's file
+  when sliced; the draft pass's Synthesis file), the draft (the draft pass only), and your
+  designer report. NEVER the consumer repo, NEVER the published `tech-design.md` in the
+  design record folder (the coordinator publishes it, and the file-map guard denies you a
+  write there), NEVER the requirements document (`requirements.md`), `run.json`, other
+  tickets' partitions, or other phases' artifacts.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line.
 - NEVER spawn subagents; NEVER invoke skills.
 - Decisions come from the evidence your survey cites and the user's recorded
   answers — invent neither requirements nor preferences.

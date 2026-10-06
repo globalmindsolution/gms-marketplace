@@ -202,7 +202,8 @@ channel and does not skip the loop.
 
 ## The verdict
 
-Write `verdict.json` at the step root (and a copy in `iter-<n>/`). Findings
+Write `verdict.json` at the step root (and a copy in `iter-<n>/`) through `acs.py write`,
+as in Finish. Findings
 carry the fields `/acs:code` needs to act without re-deriving your work:
 
 | Field | Why |
@@ -241,7 +242,14 @@ The gate runs again in full, started again beside that iteration's lenses.
 
 ## Finish
 
+Write `steps/review-code/result.json` (and every other file in the run: `gate.json`,
+`verdict.json`) through Bash, never the Write tool — the workspace sits in the main
+checkout (ADR-0136), where a worktree session's Write is refused:
+
 ```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/review-code/result.json <<'ACS_EOF'
+<the result document>
+ACS_EOF
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-review-code.py" --result-file "<the result.json you just wrote>"
 ```
 

@@ -32,7 +32,7 @@ history:
 - `steps/code/state.json`, `specs/*.md`, and `tech-design.md` when the ticket
   has one;
 - the commit plan `acs.py pr plan-commits` printed, and the confirmed copy you
-  write to `steps/create-pr/iter-<n>/commit-plan.json`;
+  write to `steps/create-pr/iter-<n>/commit-plan.json` (through `acs.py write`);
 - the resolved body template file;
 - the values you settle along the way: the PR title, the
   `base_branch`, the `branch` the plan names, the commits made, and
@@ -106,7 +106,7 @@ C4. **Commit** with `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-pla
    already on origin and current. A failed critical call stops the run before
    the push; the commits stay on the local branch for the re-run.
 2. **Body.** Fill the resolved template into
-   `steps/create-pr/pr-body.md`: replace every placeholder
+   `steps/create-pr/pr-body.md` through `acs.py write` (SKILL.md, Finish): replace every placeholder
    (`{ticket_id}`, `{type}`, `{title}`, `{summary}`, `{external_key}`;
    `{external_key_line}` renders as ` — tracker: <provider> <key>` when
    `ticket.external` is set, empty otherwise); replace the template's HTML comments
@@ -178,7 +178,7 @@ whatever it names — and nothing else beyond what that requires.
 ## The publish report
 
 Write `steps/create-pr/iter-<n>/publish.json` (`<n>` = the run's iteration,
-normally 1):
+normally 1) through `acs.py write`, never the Write tool:
 
 ```json
 {

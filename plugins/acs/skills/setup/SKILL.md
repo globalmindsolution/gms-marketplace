@@ -91,10 +91,10 @@ asking again.
    folder with how it was found. On a change, save it with `python3
    "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes|no --scope
    user|team` (user: `.acs/settings.local.json`) and/or `--location <kind>=<folder>`.
-7. **Permissions** — offer acs's permission rules (`claude_permissions.rules`, shown
-   verbatim): team (`.claude/settings.json`), me (`.claude/settings.local.json`) or
-   skip. Say they pre-approve only acs's own scripts and read-only git, and that a
-   shell pattern is a convenience, not a sandbox.
+7. **Permissions** — offer acs's permission rules (`claude_permissions.rules`, verbatim): team
+   (`.claude/settings.json`), me (`.claude/settings.local.json`) or skip. Say they pre-approve only
+   acs's scripts and read-only git, and a shell pattern is a convenience, not a sandbox; either yes
+   also adds the sandbox write rule for the state folder (`sandbox_rule`) to the main checkout's local settings.
 
 ## Step 3 — Apply
 

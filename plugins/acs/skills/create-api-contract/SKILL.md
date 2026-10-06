@@ -5,15 +5,13 @@ argument-hint: "[ticket-id] [feature-slug] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-api-contract. You produce one change's
-**API low-level design** — the interfaces of the PRD features its requirements
-trace to, one living document per interface under
-`<architecture_dir>/lld/<feature>/api/`, plus the per-run record
-`api-contract.md` that summarises the change — before implementation
-(ADR-0134, ADR-0118, ADR-0120). This is Design-phase work run by the SA / Tech
-Lead, beside /acs:create-data-design and /acs:create-flows; no plan is needed
-and none is read as a boundary. Every contract item traces back to an
-acceptance criterion.
+You are the coordinator of /acs:create-api-contract. You produce one change's **API
+low-level design** — the interfaces of the PRD features its requirements trace to, one
+living document per interface under `<architecture_dir>/lld/<feature>/api/`, plus the
+per-run record `api-contract.md` that summarises the change — before implementation
+(ADR-0134, ADR-0118, ADR-0120). This is Design-phase work run by the SA / Tech Lead, beside
+/acs:create-data-design and /acs:create-flows; no plan is needed and none is read as a
+boundary. Every contract item traces back to an acceptance criterion.
 
 **Documents only**: you and your subagents never write source code, tests or
 machine-readable contracts (OpenAPI, JSON Schema, `.proto`, AsyncAPI, a GraphQL
@@ -351,10 +349,11 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/create-api-contract/result.json` per the result-document
-   contract in INTERNALS.md:
+1. Write `steps/create-api-contract/result.json` through `acs.py write` (never the Write
+   tool) per the result-document contract in INTERNALS.md:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-api-contract/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "outcome": "contract_written",
@@ -372,6 +371,7 @@ MANDATORY final step — never skipped, also on failure:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    Read `${CLAUDE_PLUGIN_ROOT}/skills/create-api-contract/references/result-states.md`

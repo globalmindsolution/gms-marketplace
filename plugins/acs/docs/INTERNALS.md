@@ -504,7 +504,7 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
    the review -> fix cycle is ship.yaml's review-code -> code loop. The three
    inline skills (create-ticket, create-pr, merge-pr) run no loop and spawn no
    subagent.
-4. Write the result document steps/<skill>/result.json
+4. Write the result document steps/<skill>/result.json      # acs.py write, never the Write tool
 5. python3 <post_hook> --result-file <result.json>                    # MANDATORY final step
 ```
 
@@ -660,7 +660,9 @@ after a passing review.
 
 Subagents persist their full work products into the partition — the XML result
 carries references, never the bodies (docs/requirements/functional/reflection.md: subagents write their states,
-findings, error details, and stop reasons into workspace files):
+findings, error details, and stop reasons into workspace files). Every one of
+these files is written through `acs.py write`, never the `Write` tool (see
+"State files: `acs.py write`" under Workspace layout):
 
 | Phase | Artifact (under `steps/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
@@ -726,8 +728,8 @@ as a spawned subagent (no user to approve; under `/ship` the whole step is
 headless — that is what the `needs_input` handoff is for), plugin agents cannot
 set `permissionMode`, and resumability comes from the phase artifacts + gates,
 not from plan-mode state. A survey or judge role's read-only discipline is
-enforced by its tool allowlist and charter instead (Write is permitted solely
-for its own `steps/<skill>/` artifacts); a write role is bounded by the
+enforced by its tool allowlist and charter instead (no `Write` tool; its own
+`steps/<skill>/` artifacts go through `acs.py write`); a write role is bounded by the
 file-map guard and its own charter. A user
 may still wrap a *direct* skill invocation in plan mode for pre-approval —
 that is orthogonal to the pipeline and changes nothing in this contract.
@@ -976,7 +978,8 @@ Conventions:
 - Frontmatter: `name` (`<skill>-<role>`) and `description` (what the role does
   for `/acs:<skill>`, ending "Spawned by the /acs:<skill> coordinator with a
   JSON task; not for direct invocation."). Survey and judge roles carry
-  `tools: Read, Glob, Grep, Bash, Write`; write roles carry
+  `tools: Read, Glob, Grep, Bash` (no `Write`: they write only state, through
+  `acs.py write`, ADR-0136); write roles carry
   `disallowedTools: Agent, Skill`. No `model:` or `effort:` key — the
   *actual* model/effort comes from `settings.json` `models.<skill>.<role>`
   (inheriting where unset). `acs step start` writes
@@ -988,7 +991,8 @@ Conventions:
   carry `phase="<role>"`.
 - Survey and judge roles are read-only with ONE exception: each writes its
   own phase artifacts under `steps/<skill>/` (notes, report — see Phase
-  artifacts above). Only write roles mutate real targets (the repo for /code
+  artifacts above), through `acs.py write` to the absolute path under the
+  task's `partition`. Only write roles mutate real targets (the repo for /code
   and the product-level skills, the workspace artifacts — specs, and the
   document DRAFTS under `steps/<skill>/` — for the rest; a run's document in
   its phase folder is published by the coordinator from the reviewed draft,
@@ -1245,6 +1249,52 @@ so one changeset; use a separate worktree per concurrent ticket.
         authoring-<id>.md  <role>-<id>.json|.md  <role>-<id>-message.xml   # sliced
         verdict.json  lens-<A..E>.md ...
 ```
+
+### How state is written: `acs.py write` (ADR-0136)
+
+**The root does not move.** `repo.default_state_root(cwd)` derives
+`<main-checkout>/.acs/state-machine` from `git rev-parse --is-bare-repository`
+and `--git-common-dir`, and refuses a bare repository and a submodule with a
+`GateError` (ADR-0086, ADR-0102). Every linked worktree, `.claude/worktrees/<name>/`
+included, resolves the same folder at the main checkout's root — never one of
+its own. Two Claude Code rules decide whether a worktree session can write it.
+Worktree isolation refuses the `Write`/`Edit`/`NotebookEdit` tools on any
+main-checkout path, and any Bash call whose working directory is the main
+checkout or that points git at it; a Bash call run from the worktree that
+writes with Python is neither, so `acs.py write` is not stopped. The Bash
+sandbox, when on, lets Bash write only the working directory, `$TMPDIR`, added
+directories and `sandbox.filesystem.allowWrite` paths, and settings path rules
+anchor at the session's working directory; so `/acs:setup` offers an
+`allowWrite` entry naming the folder's **absolute** path (see "Bootstrap"
+below).
+
+**State files: `acs.py write`** (`acs_write_commands.py`). No skill or agent
+writes a state file with the `Write` or `Edit` tool. The one form is
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <path> [--append] [--run R] <<'ACS_EOF'
+…content…
+ACS_EOF
+```
+
+with the delimiter quoted so the content is taken verbatim. stdin is the
+content, byte for byte (a terminal on stdin is refused). An absolute `<path>`
+must resolve, symlinks followed, inside the workspace root; a relative one is
+resolved against the run directory — `--run R`, else this checkout's current
+run (`acs.py context` reports it as `run_id`/`run_dir`; neither → exit 2). A
+coordinator hands its agents the absolute `partition`, and agents write
+absolute paths (`<partition>/<path>`): a subagent in its own worktree has no
+current run. `/acs:review-code`'s lenses and adjudicators, whose tasks carry no
+`partition` and which run in the coordinator's checkout, use the run-relative
+form. Escaping the
+root (`..`, a symlink) and the machine-owned ledgers with verbs of their own —
+`run.json`, `steps/<skill>/state.json`, `lock.json`, `runs-index.json`,
+`tickets-index.json`, `sessions/`, `active-agents/`, any `filemap.json` — are
+refused with exit 2 and nothing written. Parent directories are created; the
+write is a temporary file in the same directory and `os.replace`, `--append`
+included. stdout: `{"ok": true, "path", "bytes", "appended", "total_bytes"}`.
+Repo files are still written with `Write`/`Edit`, by write roles only, inside
+the session's worktree; the file-map guard still judges those.
 
 ### Ticket handoff: the resume set over a hidden ref (ADR-0131)
 
@@ -1910,7 +1960,13 @@ offers acs's Claude Code permission rules (`acs_lib.claude_permissions.RULES`: a
 `hooks/scripts/*.py` and read-only git) for `.claude/settings.json` (team) or the main
 checkout's `.claude/settings.local.json` (me), or skips them — a shell pattern is a
 convenience, not a sandbox; anything that writes (`git add/commit/push`, `gh`) still
-prompts. It sets the ticket
+prompts. With them it offers the Bash sandbox write rule for the workspace,
+`{"sandbox": {"filesystem": {"allowWrite": ["<abs main checkout>/.acs/state-machine"]}}}`
+(ADR-0136): the absolute path of the main checkout's folder, also from a linked
+worktree, always merged into the main checkout's `.claude/settings.local.json` —
+never the team file, even when the permission rules went there — keeping other keys
+and entries, adding the entry once. `setup detect` reports it as `sandbox_rule` and
+`setup apply` returns what it added. It sets the ticket
 prefix and installs the CI gates — the ticket-link check, tests and e2e —
 scaffolds the `models` block, and writes `.claude/launch.json`, the Claude Code
 Desktop app's preview-server config, from a dev server it guesses and the user

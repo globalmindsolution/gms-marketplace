@@ -91,10 +91,10 @@ docs and the code the ticket touches. Record, each entry cited:
 ## The authoring notes (mandatory, every iteration)
 
 The survey pass writes `steps/create-flows/iter-<n>/authoring.md` (a survey slice:
-`iter-<n>/authoring-<id>.md`) with the Write tool BEFORE anything else, one `## ` heading
-per section above plus `## Gaps handled` (write pass) and `## Reviewer checklist`. Every
-entry cites the file and line or heading it rests on — an uncited entry is a blocking
-finding.
+`iter-<n>/authoring-<id>.md`) through `acs.py write` (Hard rules) BEFORE anything else, one
+`## ` heading per section above plus `## Gaps handled` (write pass) and `## Reviewer
+checklist`. Every entry cites the file and line or heading it rests on — an uncited entry is
+a blocking finding.
 
 ## Writing the documents
 
@@ -157,6 +157,9 @@ still written; `failed` — `<errors>` and a `<stop-reason>`, never a substitute
 - Mutate ONLY your `files` (none in a survey pass) and your own artifacts in the
   partition. No source, migration or contract file, nothing under `api/`, `data/` or
   `hld/`, no git commits.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
 - Follow your notes; a deviation is a `failed` result with `<errors>`, not a silent fix.
 
 ## Grounding (anti-hallucination)

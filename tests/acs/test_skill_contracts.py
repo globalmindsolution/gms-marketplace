@@ -24,6 +24,7 @@ import acs_lib as lib  # noqa: E402
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 from acs_case import tracker_body  # noqa: E402
+from skill_text import acs_writes, skill_contract  # noqa: E402
 
 #: One recorded `gh` transcript, shared by the MAR-101/102/103 acceptance
 #: criteria below. MAR-525 moved their mechanism out of prose and into
@@ -329,15 +330,16 @@ class TestAgentContracts(unittest.TestCase):
                 self.assertNotRegex(fm, r"(?m)^effort:")
 
     def test_role_tool_restrictions(self):
-        """Every role that surveys or JUDGES is read-only on the repo (it may
-        Write its own workspace files); only a `write` role mutates the repo.
-        A reviewer that can edit what it is reviewing is not a reviewer."""
+        """Every role that surveys or JUDGES is read-only on the repo: no Write
+        tool at all, since its own workspace files go through `acs.py write`
+        (ADR-0136); only a `write` role mutates the repo. A reviewer that can
+        edit what it is reviewing is not a reviewer."""
         for skill, roles in AGENT_ROLES.items():
             for role in roles:
                 name = "%s-%s" % (skill, role)
                 fm, _ = frontmatter(read(self.agent_path(skill, role)), name)
                 if ROLE_KINDS[role] in ("survey", "judge"):
-                    self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$", name)
+                    self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash$", name)
                 else:
                     self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$", name)
                     self.assertNotRegex(fm, r"(?m)^tools:", name)  # writers keep broad access
@@ -380,11 +382,30 @@ class TestAgentContracts(unittest.TestCase):
                                  "%s-%s missing iter-<n>/%s artifact" % (skill, role, kind))
 
     def test_no_stale_heredoc_claims(self):
-        # the drift this session actually found — keep it dead
+        # the drift this session actually found — keep it dead: no agent
+        # invents a shell-redirect write of its own (`cat > f <<EOF`); the one
+        # heredoc an agent uses is `acs.py write`'s (ADR-0136)
         for path in glob.glob(os.path.join(PLUGIN, "agents", "*.md")):
             body = read(path)
             self.assertNotIn("no Write tool", body, path)
             self.assertNotIn("heredoc", body, path)
+            self.assertNotRegex(body, r"cat\s*>[^\n]*<<", path)
+
+    def test_every_agent_writes_state_through_acs_write(self):
+        """ADR-0136: the workspace lives in the MAIN checkout's
+        .acs/state-machine, where a worktree session's Write/Edit is refused. Every agent writes its own
+        partition files through `acs.py write` (a quoted heredoc), and none
+        is told to use the Write tool for them."""
+        cmd = re.compile(r'`python3 "\$\{CLAUDE_PLUGIN_ROOT\}/hooks/scripts/acs\.py" write '
+                         r"(?:--append )?\S+ <<'ACS_EOF'`")
+        for path in glob.glob(os.path.join(PLUGIN, "agents", "*.md")):
+            body = read(path)
+            name = os.path.basename(path)
+            self.assertRegex(body, cmd, name)
+            self.assertIn("`ACS_EOF` alone on the last line", body, name)
+            self.assertIn("never the Write or Edit tool", body, name)
+            self.assertNotIn("with the Write tool", body, name)
+            self.assertNotIn("Write it with the Write", body, name)
 
     def test_result_is_final_message(self):
         for skill, roles in AGENT_ROLES.items():
@@ -3570,6 +3591,39 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
             schema = json.load(fh)
         for gone in ("formats", "enforcement"):
             self.assertNotIn(gone, schema["properties"])
+
+
+class TestStateWritesGoThroughAcsWrite(unittest.TestCase):
+    """ADR-0136: acs's workspace lives in the MAIN checkout. A session in a
+    worktree is refused any Write/Edit there, so a coordinator writes every
+    workspace file -- its result document first -- through `acs.py write` and
+    a quoted heredoc, never the Write tool."""
+
+    HOOKED = sorted(
+        os.path.basename(p)[len("post-"):-len(".py")]
+        for p in glob.glob(os.path.join(PLUGIN, "hooks", "scripts", "post-*.py")))
+
+    def test_every_hooked_skill_writes_its_result_through_acs_write(self):
+        self.assertIn("code", self.HOOKED)
+        for skill in self.HOOKED:
+            with self.subTest(skill=skill):
+                paths = [path for path, _ in acs_writes(skill_contract(skill))]
+                self.assertIn("steps/%s/result.json" % skill, paths)
+
+    def test_the_finish_examples_are_json_documents(self):
+        for skill in self.HOOKED:
+            for path, body in acs_writes(skill_contract(skill)):
+                if path.endswith("result.json") and body.lstrip().startswith("{"):
+                    with self.subTest(skill=skill):
+                        self.assertIsInstance(json.loads(body), dict)
+
+    def test_no_skill_writes_state_with_the_write_tool(self):
+        for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md"))
+                           + glob.glob(os.path.join(PLUGIN, "skills", "*", "references", "*.md"))):
+            body = read(path)
+            rel = os.path.relpath(path, PLUGIN)
+            self.assertNotIn("with the Write tool", body, rel)
+            self.assertNotIn("rewrite it (Write)", body, rel)
 
 
 if __name__ == "__main__":

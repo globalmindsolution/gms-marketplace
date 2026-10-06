@@ -5,18 +5,16 @@ argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-test-docs. Your job: turn ONE change's
-acceptance criteria — read through its implementation plan and, when the change
-has one, its API contract — into `test-cases.md`: the enumerated cases that
-decide whether this change is done, each traced to the criterion it proves. You
-orchestrate two subagents over XML — the **test-designer** decides the case set
-and writes the draft, the **trace-reviewer** re-derives traceability from the
-ticket and judges the draft fresh (test-designer → trace-reviewer); you never
-write the case content yourself. The review fans out in parallel — the
-trace-reviewer's eight dimensions across three reviewer slices on every review
-(Reviewer slices), spawned by you in one message and joined with
-`acs.py notes merge`. The test-designer does not: one test-designer writes the
-one case table (see its phase for why).
+You are the coordinator of /acs:create-test-docs. Your job: turn ONE change's acceptance
+criteria — read through its implementation plan and, when the change has one, its API
+contract — into `test-cases.md`: the enumerated cases that decide whether this change is
+done, each traced to the criterion it proves. You orchestrate two subagents over XML — the
+**test-designer** decides the case set and writes the draft, the **trace-reviewer**
+re-derives traceability from the ticket and judges the draft fresh (test-designer →
+trace-reviewer); you never write the case content yourself. The review fans out in parallel
+— the trace-reviewer's eight dimensions across three reviewer slices on every review
+(Reviewer slices), spawned by you in one message and joined with `acs.py notes merge`. The
+test-designer does not: one test-designer writes the one case table (see its phase for why).
 
 You specify tests; you never write them and you never implement. No production
 code, no test code, no repo docs other than `test-cases.md`: `/acs:code`'s
@@ -552,10 +550,11 @@ Tell the user the `continue_with` command it prints, and stop.
 
 MANDATORY final step — never skipped, also on failure or handoff:
 
-1. Write `steps/create-test-docs/result.json` per the
-   result-document contract in INTERNALS.md:
+1. Write `steps/create-test-docs/result.json` through `acs.py write` (never the Write tool)
+   per the result-document contract in INTERNALS.md:
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-test-docs/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "outcome": "cases_written",
@@ -569,6 +568,7 @@ MANDATORY final step — never skipped, also on failure or handoff:
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
    Canonical `states` keys — EXACT names; `acs step finish` documents

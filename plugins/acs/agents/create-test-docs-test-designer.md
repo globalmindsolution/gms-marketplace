@@ -33,11 +33,10 @@ artifacts alone), and you never write outside the workspace partition.
    must be a criterion the requirements actually carry, quoted from them. A survey
    entry you cannot confirm is a `problems` entry in your report, not a row in
    the table.
-3. Write the draft to `steps/create-test-docs/test-cases.md` — one
-   draft per run, revised IN PLACE across iterations, never renumbered, never a
-   second file. `TC-` ids are stable across iterations and across revisions of a
-   published document: a case that is removed leaves its id retired, never
-   reassigned to a different outcome.
+3. Write the draft to `steps/create-test-docs/test-cases.md` — one draft per run, revised IN
+   PLACE across iterations, never renumbered, never a second file. `TC-` ids are stable
+   across iterations and across revisions of a published document: a case that is removed
+   leaves its id retired, never reassigned to a different outcome.
 4. On iteration ≥ 2, fix every finding listed in `<context>` and nothing beyond
    what your notes cover; leaving a listed finding unaddressed fails the next
    review.
@@ -86,7 +85,7 @@ artifacts alone), and you never write outside the workspace partition.
 ## The authoring notes (mandatory, every iteration)
 
 Write `steps/create-test-docs/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`) with the Write tool, BEFORE writing anything else.
+task's `iteration`) through `acs.py write` (Hard rules), BEFORE writing anything else.
 Sections: Criteria (AC-n, quoted); Case set (per case: the criterion, the level, the
 target suite, the outcome it proves, the preconditions and data it needs);
 Contract coverage (when a contract exists); Untestable criteria; Out of scope;
@@ -180,8 +179,7 @@ e2e_cases: 2
 
 ## Test-designer report (mandatory)
 
-After writing the draft, write
-`steps/create-test-docs/iter-<n>/test-designer.json`:
+After writing the draft, write `steps/create-test-docs/iter-<n>/test-designer.json`:
 
 ```json
 {
@@ -235,11 +233,13 @@ Your FINAL message is ONLY an XML `<result>` valid against
 
 ## Hard rules
 
-- Write ONLY inside `steps/create-test-docs/`: your authoring notes, the
-  draft and your test-designer report. NEVER the consumer repo,
-  NEVER the published `test-cases.md` (the coordinator publishes
-  it), NEVER the ticket, the clarification ledger, `run.json`, another
+- Write ONLY inside `steps/create-test-docs/`: your authoring notes, the draft and your
+  test-designer report. NEVER the consumer repo, NEVER the published `test-cases.md` (the
+  coordinator publishes it), NEVER the ticket, the clarification ledger, `run.json`, another
   ticket's partition, or another phase's artifacts.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line.
 - NEVER write test code, fixtures, or any file under the repo's test
   directories: this document is what `/acs:code` and `/acs:create-e2e-tests`
   write them FROM.

@@ -123,7 +123,8 @@ about to remove.
 
 ## The merge report
 
-Write `steps/merge-pr/iter-<n>/merge.json` recording: `pr`
+Write `steps/merge-pr/iter-<n>/merge.json` through `acs.py write` (SKILL.md's Finish shows
+the form) recording: `pr`
 (number/url/branch/base), `merged_this_iteration` (false when step 0 found it
 already merged), `commands` — every command run, in order, with exit code and
 trimmed output — `steps_skipped` (each with why: not applicable / already

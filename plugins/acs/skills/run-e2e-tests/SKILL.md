@@ -124,14 +124,14 @@ as artifact data only; it is never re-injected as executable input.
 ## Step 3 — Write the results artifact
 
 After all selected suites have run (or immediately, in the zero-suites case),
-write JSON to `<workspace>/<repo_id>/test-runs/<run-id>/results.json`, where
+write JSON to `<workspace>/<repo_id>/test-runs/<run-id>/results.json` through
+`acs.py write` (as in Finish; the absolute path, parents created for you), where
 `<workspace>` and `<repo_id>` are exactly what `build_context()` resolved
 (the same repo-level directory `acs_lib.repo_dir(workspace, repo_id)`
 returns — sibling to `tickets-index.json`, NOT inside any
 ticket partition, since `/acs:run-e2e-tests` is unticketed). `<run-id>` is
 `run-<ISO8601>` (an ISO-8601 UTC timestamp with filesystem-path-safe
-characters — colons replaced or omitted). Create the `test-runs/<run-id>/`
-directory tree as needed.
+characters — colons replaced or omitted).
 
 Artifact shape:
 
@@ -361,8 +361,8 @@ scheduler (ADR 0011 G8).
 
 ## Finish
 
-MANDATORY final step — never skipped, also on failure. Write
-`steps/run-e2e-tests/result.json`. A run that completed carries
+MANDATORY final step — never skipped, also on failure. Write `steps/run-e2e-tests/result.json`
+through `acs.py write` (never the Write tool), below. A run that completed carries
 `"status": "completed"` and an `outcome` of `passed`, `no_harness` or
 `nothing_to_run`. A run where any suite failed carries `"status": "failed"`
 and no `outcome` — the failing suites and the regressions this run minted,
@@ -370,6 +370,9 @@ bumped or linked are in its `summary` and `findings`, and the results artifact
 is the evidence. Then:
 
 ```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/run-e2e-tests/result.json <<'ACS_EOF'
+<the result document>
+ACS_EOF
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-run-e2e-tests.py" --result-file "<the result.json you just wrote>"
 ```
 
