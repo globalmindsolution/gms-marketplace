@@ -1,7 +1,7 @@
 # Evidence sidecar — state-root-resolution.md
 
 Companion `.evidence.md` file for
-`docs/architecture/lld/flows/state-root-resolution.md`. Relocated
+`docs/architecture/lld/acs/flows/state-root-resolution.md`. Relocated
 code-evidence citation, keyed by the body's existing heading identity ->
 `[path:line]`.
 

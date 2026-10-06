@@ -276,6 +276,67 @@ class ListDocumentsTest(TreeCase):
         self.assertEqual(self.listing(), {"ok": True, "groups": []})
 
 
+class EvidenceSidecarTest(TreeCase):
+    """A `<doc>.evidence.md` sidecar (the architect charter's citations) carries no
+    version block and is not a design document: the lister leaves it out, and a
+    batch move that names it -- a shell glob over a folder does -- skips it rather
+    than refusing every document beside it."""
+
+    def seed_flows(self):
+        doc = self.put("docs/architecture/lld/wishlist/flows/add-item.md",
+                       block(feature="wishlist"))
+        sidecar = self.put("docs/architecture/lld/wishlist/flows/add-item.evidence.md",
+                           "# Evidence\n\n- add-item.md:3 -- src/cart.py:12\n")
+        nested = self.put("docs/architecture/lld/wishlist/flows/add/remove.evidence.md",
+                          "# Evidence\n")
+        return doc, sidecar, nested
+
+    def test_a_sidecar_is_not_listed(self):
+        self.seed_flows()
+        self.put("docs/architecture/hld/context.evidence.md", "# Evidence\n")
+        paths = [d["path"] for g in D.list_documents(self.root)["groups"] for d in g["docs"]]
+        self.assertEqual(paths, ["docs/architecture/lld/wishlist/flows/add-item.md"])
+        self.assertFalse([p for p in paths if p.endswith(".evidence.md")])
+
+    def test_a_listed_batch_moves_without_the_sidecar(self):
+        doc, sidecar, _ = self.seed_flows()
+        listed = [os.path.join(self.root, *d["path"].split("/"))
+                  for g in D.list_documents(self.root)["groups"] for d in g["docs"]]
+        out = D.set_status_many(listed, "approved", by="Ana")
+        self.assertEqual([f["path"] for f in out], [doc])
+        self.assertEqual(D.read(doc)[0]["status"], "approved")
+
+    def test_a_batch_naming_a_sidecar_skips_it_and_moves_the_rest(self):
+        doc, sidecar, nested = self.seed_flows()
+        with open(sidecar, encoding="utf-8") as fh:
+            before = fh.read()
+        out = D.set_status_many([doc, sidecar, nested], "approved", by="Ana")
+        self.assertEqual(D.read(doc)[0]["status"], "approved")
+        with open(sidecar, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), before)   # never given a block
+        by_path = {f["path"]: f for f in out}
+        self.assertEqual(list(by_path), [doc, sidecar, nested])
+        self.assertNotIn("skipped", by_path[doc])
+        for path in (sidecar, nested):
+            self.assertIn("evidence sidecar", by_path[path]["skipped"])
+            self.assertNotIn("status", by_path[path])
+
+    def test_a_refusal_still_names_only_the_documents(self):
+        doc, sidecar, _ = self.seed_flows()
+        bad = self.put("docs/architecture/lld/wishlist/flows/old.md", block("deprecated"))
+        with self.assertRaises(lib.GateError) as ctx:
+            D.set_status_many([doc, sidecar, bad], "approved", by="Ana")
+        message = str(ctx.exception)
+        self.assertIn("refused 1 of 2", message)
+        self.assertNotIn("evidence", message)
+
+    def test_is_sidecar(self):
+        self.assertTrue(D.is_sidecar("lld/a/flows/x.evidence.md"))
+        self.assertTrue(D.is_sidecar("X.EVIDENCE.MD"))
+        self.assertFalse(D.is_sidecar("lld/a/flows/evidence.md"))
+        self.assertFalse(D.is_sidecar("lld/a/flows/x.md"))
+
+
 class DocSetsSharedTest(unittest.TestCase):
 
     def test_commit_plan_uses_the_shared_helper(self):
@@ -353,6 +414,19 @@ class CliTest(AcsWorkspaceCase):
         self.assertIn("nothing was written", out.stderr)
         self.assertIn("b.md: deprecated -> approved", out.stderr)
         self.assertEqual([open(p, encoding="utf-8").read() for p in (good, bad)], before)
+
+    def test_a_globbed_folder_moves_without_its_sidecars(self):
+        doc = self.put("docs/architecture/lld/w/flows/checkout.md", block(feature="w"))
+        sidecar = self.put("docs/architecture/lld/w/flows/checkout.evidence.md", "# Evidence\n")
+        out = self.acs("status", "--set", "approved", "--by", "Ana", doc, sidecar)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        files = json.loads(out.stdout)["files"]
+        self.assertEqual([f["path"] for f in files], [doc, sidecar])
+        self.assertEqual(D.read(doc)[0]["status"], "approved")
+        self.assertIn("skipped", files[1])
+        listed = json.loads(self.acs("list", "--root", self.repo).stdout)
+        self.assertEqual([d["path"] for g in listed["groups"] for d in g["docs"]],
+                         ["docs/architecture/lld/w/flows/checkout.md"])
 
     def test_list_from_the_checkout_and_from_root(self):
         self.put("docs/product/prd.md")

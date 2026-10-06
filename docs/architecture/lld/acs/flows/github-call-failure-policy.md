@@ -1,3 +1,10 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — GitHub call failure policy (criticality classification)
 
 `gh` is acs's **sole** GitHub transport in every environment (ADR-0088; no

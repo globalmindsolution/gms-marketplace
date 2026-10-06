@@ -1,3 +1,10 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — tests-coverage-gate
 
 This repo's own `Tests & coverage` required check (job name defined in

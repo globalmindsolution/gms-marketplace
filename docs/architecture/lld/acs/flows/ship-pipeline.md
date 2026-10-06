@@ -1,3 +1,10 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — /ship pipeline orchestration
 
 `/ship` adds orchestration only, and it adds it by **reading a declaration**:

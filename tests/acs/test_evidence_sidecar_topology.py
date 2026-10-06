@@ -46,7 +46,7 @@ SKIP_DIRS = {".git", "node_modules", "__pycache__", ".claude"}
 CITATION_RE = re.compile(r"(?:[A-Za-z0-9_./-]+\.(?:py|json|sh|xsd)|SKILL\.md):[0-9]+(?:-[0-9]+)?")
 
 RUNTIME_COUPLING_SIDECAR = os.path.join(
-    DOCS_ARCHITECTURE, "lld", "runtime-coupling-inventory.evidence.md")
+    DOCS_ARCHITECTURE, "lld", "acs", "MAR-4", "runtime-coupling-inventory.evidence.md")
 
 # Pinned pre-migration inline counts, re-derived this task via
 #   grep -oE '<CITATION_RE pattern>' <file> | wc -l
@@ -113,10 +113,15 @@ class BodyCleanGlobalTest(unittest.TestCase):
         # contracts.md has 0 in-scope citations both before and after this
         # migration (its only path:line is the out-of-scope ci.yml:197-199)
         # — proves check (a) is genuinely tree-wide, not narrowly scoped to
-        # the 3 touched docs.
-        contracts = os.path.join(DOCS_ARCHITECTURE, "lld", "contracts.md")
-        self.assertTrue(os.path.isfile(contracts))
-        self.assertEqual(CITATION_RE.findall(read(contracts)), [])
+        # the 3 touched docs. contracts.md is one file per interface under
+        # lld/acs/api/ now; each of them passes trivially in its place.
+        api = os.path.join(DOCS_ARCHITECTURE, "lld", "acs", "api")
+        docs = [os.path.join(api, n) for n in sorted(os.listdir(api))
+                if n.endswith(".md") and not evidence_sidecar.is_evidence_sidecar(n)]
+        self.assertEqual(len(docs), 6, docs)
+        for path in docs:
+            with self.subTest(path=path):
+                self.assertEqual(CITATION_RE.findall(read(path)), [])
 
 
 class CoverageNotReducedTest(unittest.TestCase):

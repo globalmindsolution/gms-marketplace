@@ -32,7 +32,7 @@ CLAUDE_MD = os.path.join(REPO_ROOT, "CLAUDE.md")
 WORKSPACE_AND_STATE = os.path.join(REPO_ROOT, "docs", "requirements", "functional",
                                    "workspace-and-state.md")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
-CONTRACTS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+CONTRACTS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api", "cli.md")
 
 LINK = "(%s)" % ADR_NAME
 ROOT = "<main-checkout>/.acs/state-machine"

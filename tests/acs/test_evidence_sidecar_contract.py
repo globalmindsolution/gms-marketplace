@@ -1,7 +1,8 @@
 """MAR-152 spec 01 — `.evidence.md` sidecar convention (contract layer).
 
 Prose-contract tests over the 6 producer/verifier charters +
-`docs/architecture/lld/contracts.md` that wire the `.evidence.md` sidecar
+`docs/architecture/lld/contracts.md` (now one file per interface under
+`docs/architecture/lld/acs/api/`) that wire the `.evidence.md` sidecar
 convention: create-requirements and create-architecture's executors write
 body + companion sidecar (clause anchor -> code-evidence citation list, no
 inline `path:line`); their verifiers actively check grounding (body-grep-to-0,
@@ -31,7 +32,9 @@ DOCS_SYNC_EXECUTOR = os.path.join(AGENTS, "docs-sync-doc-updater.md")
 #: review, so the judge that guards the routing is the drift-reviewer paired
 #: with the doc-updater that performs it.
 DOCS_SYNC_VERIFIER = os.path.join(AGENTS, "docs-sync-drift-reviewer.md")
-CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+#: contracts.md is one file per interface under lld/acs/api/ now; the
+#: contract the old file carried is all of them together (sidecars excluded).
+API_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api")
 
 SIDECAR_TOKEN_RE = re.compile(r"(?i)\.evidence\.md")
 
@@ -200,7 +203,9 @@ class ContractsMdSidecarNoteTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(CONTRACTS_MD)
+        cls.body = "\n".join(
+            read(os.path.join(API_DIR, n)) for n in sorted(os.listdir(API_DIR))
+            if n.endswith(".md") and not SIDECAR_TOKEN_RE.search(n))
 
     def test_requirements_paragraph_mentions_evidence_sidecar(self):
         self.assertRegex(self.body, SIDECAR_TOKEN_RE)

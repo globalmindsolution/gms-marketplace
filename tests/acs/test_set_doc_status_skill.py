@@ -35,8 +35,10 @@ PRD_REVIEWER = os.path.join(PLUGIN, "agents", "create-prd-reviewer.md")
 EXECUTE = os.path.join(PLUGIN, "skills", "code", "references", "execute.md")
 IMPLEMENTER = os.path.join(PLUGIN, "agents", "code-implementer.md")
 sys.path.insert(0, SCRIPTS)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import acs_lib  # noqa: E402
+from skill_text import skill_contract  # noqa: E402
 
 
 def read(path):
@@ -161,9 +163,13 @@ class SetDocStatusSkillTest(unittest.TestCase):
 
 
 class CreatePrdVersioningTest(unittest.TestCase):
+    """Read as create-prd's contract: the Versions steps moved to
+    `references/versions.md` and the floor to `references/review-slices.md`,
+    each inlined where SKILL.md points at it."""
 
     def test_the_coordinator_inits_new_and_bumps_changed(self):
-        body = read(PRD_SKILL)
+        body = skill_contract("create-prd")
+        self.assertIn("### Versions — after every author result", read(PRD_SKILL))
         self.assertIn("### Versions — after every author result", body)
         self.assertIn('design init --status proposed "<file>"', body)
         self.assertIn('acs.py design bump "<file>"', body)
@@ -171,7 +177,7 @@ class CreatePrdVersioningTest(unittest.TestCase):
         self.assertIn("one run is one version", norm(body))
 
     def test_design_check_is_in_the_floor(self):
-        body = read(PRD_SKILL)
+        body = skill_contract("create-prd")
         floor = body[body.index("**The floor, in the reviewer's own commands**"):
                      body.index("**Pass rule for sliced reviewers:**")]
         self.assertIn('acs.py" design check "<prd>" "<roadmap>"', floor)

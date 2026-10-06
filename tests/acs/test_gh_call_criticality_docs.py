@@ -25,10 +25,10 @@ C4_CONTEXT = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-context.
 C4_CONTAINER = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
 C4_COMPONENT = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md")
 FLOW_DOC = os.path.join(
-    REPO_ROOT, "docs", "architecture", "lld", "flows", "github-call-failure-policy.md"
+    REPO_ROOT, "docs", "architecture", "lld", "acs", "flows", "github-call-failure-policy.md"
 )
 TICKET_LIFECYCLE = os.path.join(
-    REPO_ROOT, "docs", "architecture", "lld", "flows", "ticket-lifecycle.md"
+    REPO_ROOT, "docs", "architecture", "lld", "acs", "flows", "ticket-lifecycle.md"
 )
 SECURITY = os.path.join(REPO_ROOT, "docs", "requirements", "non-functional", "security.md")
 ADR_0088 = os.path.join(
@@ -143,7 +143,7 @@ class C4ComponentDocsTest(unittest.TestCase):
 
 
 class FailurePolicyFlowDocTest(unittest.TestCase):
-    """docs/architecture/lld/flows/github-call-failure-policy.md (new)."""
+    """docs/architecture/lld/acs/flows/github-call-failure-policy.md (new)."""
 
     def test_failure_policy_flow_doc_exists_and_is_a_sequence_diagram(self):
         self.assertTrue(os.path.isfile(FLOW_DOC), "%s must exist" % FLOW_DOC)

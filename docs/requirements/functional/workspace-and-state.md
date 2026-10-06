@@ -102,7 +102,7 @@ document, so a ticket started before ADR-0128 keeps its documents
   workspace (named by a retired `workspace_path` key) MUST use the manual
   migrator: `migrate_workspace.py --from <old-workspace-root> --to
   <repo>/.acs/state-machine --repo-root <repo-root> [--dry-run]` (contract in
-  [contracts.md](../../architecture/lld/contracts.md)). The migrator
+  [cli.md](../../architecture/lld/acs/api/cli.md)). The migrator
   preflights — refusing to run while a `.lock` is held or an `in_progress`
   run exists anywhere under the old workspace's partition tree — then
   copies the repo's partition tree, verifies the copy, and only then

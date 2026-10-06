@@ -1,10 +1,17 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — State-root resolution
 
 Every gated skill run resolves its workspace partition root through
 `build_context` -> `validate_settings` in `acs_lib/gates.py`. When
 `require_workspace` is `True` (the default for every pre-hook),
 `validate_settings` always derives it via the `default_state_root(cwd)`
-helper — no setting overrides it ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+helper — no setting overrides it ([ADR-0102](../../../adr/0102-documents-are-found-not-configured.md)).
 `default_state_root` walks git plumbing directly
 (`_git`) rather than reusing `main_repo_root`, because `main_repo_root`
 cannot itself distinguish a bare or submodule checkout from a normal one; it

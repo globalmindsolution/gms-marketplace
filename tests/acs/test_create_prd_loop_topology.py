@@ -28,8 +28,18 @@ PRD_SURVEYOR = os.path.join(AGENTS, "create-prd-surveyor.md")
 PRD_AUTHOR = os.path.join(AGENTS, "create-prd-author.md")
 PRD_REVIEWER = os.path.join(AGENTS, "create-prd-reviewer.md")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import acs_lib  # noqa: E402
+from skill_text import skill_contract  # noqa: E402
+
+
+def contract():
+    """create-prd's SKILL.md with its references inlined at their pointers:
+    progressive disclosure moved the resume, fan-out, survey-slice, versions
+    and review-slice procedure into `references/`, and a pin on what the
+    skill SAYS must not care which file says it."""
+    return skill_contract("create-prd")
 
 
 def read(path):
@@ -68,7 +78,7 @@ class TopologyTest(unittest.TestCase):
                 os.path.join(AGENTS, "create-prd-%s.md" % stale)), stale)
 
     def test_the_prose_spawns_the_three_roles_and_no_planner(self):
-        body = read(PRD_SKILL)
+        body = contract()
         for role in ("surveyor", "author", "reviewer"):
             self.assertIn("acs:create-prd-%s" % role, body)
             self.assertIn('phase="%s"' % role, body)
@@ -79,12 +89,12 @@ class TopologyTest(unittest.TestCase):
         self.assertNotIn('phase="plan"', body)
 
     def test_the_prose_names_the_loop(self):
-        self.assertRegex(norm(read(PRD_SKILL)), r"(?i)surveyor → author → review")
+        self.assertRegex(norm(contract()), r"(?i)surveyor → author → review")
 
     def test_no_unnegated_replan_instruction(self):
         negating = re.compile(r"(?i)never|no |not|without|instead of")
-        for m in re.finditer(r"(?i)re-?plan\w*", read(PRD_SKILL)):
-            window = read(PRD_SKILL)[max(0, m.start() - 60):m.end() + 60]
+        for m in re.finditer(r"(?i)re-?plan\w*", contract()):
+            window = contract()[max(0, m.start() - 60):m.end() + 60]
             self.assertRegex(window, negating,
                              "un-negated 're-plan' instruction found: %r" % window)
 
@@ -93,7 +103,7 @@ class SurveyAuthorReviewLoopTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PRD_SKILL)
+        cls.body = contract()
         cls.norm = norm(cls.body)
 
     def test_cap_is_three_author_review_rounds(self):
@@ -152,7 +162,7 @@ class SurveyAuthorReviewLoopTest(unittest.TestCase):
 class ReviewerIndependenceUnchangedTest(unittest.TestCase):
 
     def test_skill_review_phase_keeps_artifact_only_independence_clause(self):
-        body_norm = norm(read(PRD_SKILL))
+        body_norm = norm(contract())
         self.assertIn("with ONLY artifact references", body_norm)
         self.assertIn("never the author's reasoning", body_norm)
         self.assertIn("repo_root", body_norm)
@@ -184,7 +194,7 @@ class ParallelFanOutTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PRD_SKILL)
+        cls.body = contract()
         cls.norm = norm(cls.body)
 
     def test_fan_out_spawns_in_one_message_and_joins_deterministically(self):
@@ -307,7 +317,7 @@ class TicketlessDeliveryTest(unittest.TestCase):
             self.assertIn("`partition` (the absolute run-partition path)", body, path)
 
     def test_the_skill_leaves_the_documents_uncommitted(self):
-        body = norm(read(PRD_SKILL))
+        body = norm(contract())
         delivery = norm(section(read(PRD_SKILL), "## Delivery", "## User interaction"))
         self.assertIn("no branch, no commit, no push, no PR", delivery)
         self.assertIn("`states.files`", delivery)

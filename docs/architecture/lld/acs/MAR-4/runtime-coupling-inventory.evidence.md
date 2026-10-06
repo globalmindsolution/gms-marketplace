@@ -1,7 +1,7 @@
 # Evidence sidecar — runtime-coupling-inventory.md
 
 Companion `.evidence.md` file for
-`docs/architecture/lld/runtime-coupling-inventory.md` (Decision B / ADR
+`docs/architecture/lld/acs/MAR-4/runtime-coupling-inventory.md` (Decision B / ADR
 0064). Relocated code-evidence citations, keyed by the body's existing
 row/section identity (reused stable anchor, per C-1) -> `[path:line, ...]`.
 The human body carries the bare source-file names only; this file is the

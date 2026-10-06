@@ -67,15 +67,11 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
      <greenfield|brownfield|amend> --repo-root <repo_root> --clarifications
      <partition>/clarifications.json --prd <prd> --roadmap
      <roadmap> [--added-heading "<heading>" ...]`. It
-     independently and deterministically re-checks three families: the notes'
-     `## Code evidence` citations (family `code-evidence`; brownfield/amend
-     only — N/A in greenfield, never a block there), the notes' `## Answer
-     fidelity` anchors against every `answered`/`assumed`
-     `clarifications.json` entry (family `answer-fidelity`; active every
-     mode), and the notes' `## Roadmap milestones` headings against
-     `roadmap.md` (family `roadmap-outline`; both directions in
-     greenfield/brownfield, the reverse direction scoped to the
-     `--added-heading` values in amend mode).
+     independently and deterministically re-checks three families —
+     `code-evidence` (brownfield/amend only — N/A in greenfield, never a block
+     there), `answer-fidelity` and `roadmap-outline` — over the notes' three
+     corroboration sections. What each family checks, and the sections'
+     grammars: `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/authoring-notes.md`.
    - Every stderr `source:line: [rule] message` finding becomes one `<finding
      severity="blocking" dimension="Plan conformance">`; exit 2 (a usage
      error, or an unreadable notes/clarifications/prd/roadmap input) is itself
@@ -132,11 +128,9 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 The coordinator runs the review as two parallel slices over disjoint
 dimensions — `substance` (2, 3, 4, 5, 7, 11) and `delta` (6, 8, 9) — and runs
-the deterministic floor itself beside them: dimension 1's heading check,
-dimension 7's `prd_conformance_check.py` and dimension 10's `structure_lint.py`
-are scripts, so no agent is spawned for them. You are a slice when your
-`<task>` carries `slice="<id>"` and `<constraint name="dimensions">` (e.g.
-`6, 8, 9`). Then:
+the deterministic floor (dimensions 1, 7 and 10's scripts) itself beside them.
+You are a slice when your `<task>` carries `slice="<id>"` and
+`<constraint name="dimensions">` (e.g. `6, 8, 9`). Then:
 
 - **Run ONLY the listed dimensions** — "run ALL of them" above means all of
   yours. Grounding policing (below) applies in every slice regardless.

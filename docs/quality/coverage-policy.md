@@ -13,7 +13,7 @@ The gate is **repo-wide**: `.acs/settings.json`'s `tests.unit.command` ends in
 `python3 -m coverage report --fail-under=$ACS_COVERAGE`
 (`.acs/settings.json:48`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
-[`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
+[`../architecture/lld/acs/flows/tests-coverage-gate.md`](../architecture/lld/acs/flows/tests-coverage-gate.md)
 for its sequence diagram. Repo-wide TOTAL is **94%** (10782 statements,
 598 missed, measured 2026-09-17) — above the 90 floor. It read 95% (10845 /
 581) a day earlier; ADR-0095 deleted more covered code than uncovered, so the

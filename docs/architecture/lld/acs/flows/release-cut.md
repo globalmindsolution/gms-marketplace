@@ -1,3 +1,10 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — cut-release
 
 A developer runs `/acs:release <version>`; the coordinator probes idempotency

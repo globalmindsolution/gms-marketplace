@@ -1,7 +1,7 @@
 """MAR-119 spec 03 — conformance-chain, docs, and CHANGELOG sweep.
 
 Prose-contract tests over the five conformance-chain locations
-(`docs/architecture/lld/contracts.md`, `docs/architecture/hld/overview.md`,
+(`docs/architecture/lld/acs/api/settings.md`, `docs/architecture/hld/overview.md`,
 `docs/requirements/non-functional/quality-gates.md` (the SIX_NODE chain
 lives in the moved "PRD at the top" Core-principles row, MAR-145),
 `docs/requirements/functional/workflow.md`,
@@ -36,7 +36,10 @@ SIX_NODE = ("PRD → architecture → principles → standards → "
 EIGHT_NODE = ("PRD → architecture → principles → standards → "
               "design → code → verify → release")
 
-CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+# lld/contracts.md is one file per interface under lld/acs/api/ now; the
+# conformance chain and the Settings section are api/settings.md.
+API_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api")
+CONTRACTS_MD = os.path.join(API_DIR, "settings.md")
 HLD_OVERVIEW_MD = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "overview.md")
 REQ_OVERVIEW_MD = os.path.join(REPO_ROOT, "docs", "requirements",
                                 "non-functional", "quality-gates.md")
@@ -44,7 +47,7 @@ WORKFLOW_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "wor
 DOCS_README_MD = os.path.join(REPO_ROOT, "docs", "README.md")
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 REFLECTION_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
-FLOWS_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows")
+FLOWS_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "flows")
 
 FIVE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD, DOCS_README_MD]
 SEVEN_NODE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD]
@@ -52,8 +55,12 @@ SEVEN_NODE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD]
 BASELINE_FLOWS = {
     "hook-gated-skill-run.md",
     "ship-pipeline.md",
+    "state-ticket.md",
     "ticket-lifecycle.md",
 }
+# state-ticket.md is not an addition: it is ticket-lifecycle.md's status
+# stateDiagram, split into its own file when this repo's LLD moved to the
+# per-feature layout (lld/acs/flows/). The baseline's flows are the same.
 # tabp-screening-state-write.md and tabp-usage-read.md were in this baseline
 # until the tabp plugin was removed; a flow doc for a plugin the repo no
 # longer ships is not a flow. This guardrail is about accidental ADDITIONS,
@@ -168,7 +175,9 @@ class ContractsMdSettingsKeysTest(unittest.TestCase):
     section says documents are found rather than configured."""
 
     def test_principles_and_standards_path_keys_absent(self):
-        body = read(CONTRACTS_MD)
+        # The whole of what contracts.md held: every interface document.
+        body = "\n".join(read(os.path.join(API_DIR, n)) for n in sorted(os.listdir(API_DIR))
+                         if n.endswith(".md") and not evidence_sidecar.is_evidence_sidecar(n))
         self.assertNotIn("principles_path", body,
                          "contracts.md must not list the removed "
                          "principles_path key (ADR-0102)")

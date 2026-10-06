@@ -547,6 +547,16 @@ matching section here, and merge to `main` — the Release workflow tags
   where you ran `/acs:create-ticket split <id>`; the oversize-split question in
   `/acs:create-impl-plan` now points there too. Existing tickets, partitions and
   tracker issues need nothing; the refusing flags go in the next release.
+- **Shorter create-prd and create-ticket, same behaviour.** Both `SKILL.md` files
+  are now under 400 lines. `/acs:create-prd` moves resuming, the spawn and
+  fan-out rules, survey slices, the version front matter and the reviewer
+  slices into `references/*.md`. `/acs:create-ticket` moves remote import,
+  resuming, the headless confirmation arm and the detail of Steps 3-5 into
+  `references/*.md`. Each moved block leaves a one-line pointer saying when to
+  read it. The three corroboration grammars of create-prd's authoring notes now
+  live in one `references/authoring-notes.md`, which the surveyor, author and
+  reviewer read, so the surveyor and reviewer agents are shorter too.
+  **Migration:** none.
 
 ### Removed
 
@@ -613,6 +623,17 @@ matching section here, and merge to `main` — the Release workflow tags
   snapshot now leaves such repositories out, `handoff receive` drops any gitlink a
   package carries, and an embedded repository with no commit no longer breaks the
   snapshot. **Migration:** none.
+- **`/acs:setup`'s suggested pipeline names `/acs:breakdown-ticket`.** The
+  pipeline in its next steps stopped at `/acs:create-tech-design`, so it skipped
+  the step that mints an epic's children (ADR-0138). It now runs
+  `/acs:create-tech-design` → `/acs:breakdown-ticket`, then the delivery steps.
+  **Migration:** none.
+- **Evidence sidecars are no longer treated as design documents.** A
+  `<doc>.evidence.md` sidecar inside `lld/<feature>/` (the architect charter writes
+  them) was listed by `acs.py design list` as a document with no front matter, and a
+  bulk `acs.py design status` that named one (a shell glob over a folder does)
+  refused the whole batch. The lister now leaves sidecars out, and `design status`
+  reports each one `skipped` and moves the documents beside it. **Migration:** none.
 
 ## [0.5.0] - 2026-09-30
 

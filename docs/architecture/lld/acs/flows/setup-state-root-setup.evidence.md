@@ -1,7 +1,7 @@
 # Evidence sidecar — setup-state-root-setup.md
 
 Companion `.evidence.md` file for
-`docs/architecture/lld/flows/setup-state-root-setup.md`. Relocated
+`docs/architecture/lld/acs/flows/setup-state-root-setup.md`. Relocated
 code-evidence citations, keyed by the body's own step identity ->
 `[path:line]`.
 

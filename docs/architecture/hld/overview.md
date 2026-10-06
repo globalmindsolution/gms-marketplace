@@ -82,5 +82,6 @@ is published today:
 - `data-model.md` — workspace state entities (ER).
 - `deployment.md` — distribution & runtime topology.
 - `tech-stack.md` — languages, formats, conventions.
-- `../lld/flows/*.md` — sequence diagrams for the key runtime flows.
-- `../lld/contracts.md` — interface contracts between components.
+- [`../lld/README.md`](../lld/README.md) — the LLD, one folder per PRD feature: for acs,
+  `../lld/acs/flows/*.md` (sequence and state diagrams for the key runtime flows) and
+  `../lld/acs/api/*.md` (interface contracts between components, one file per interface).

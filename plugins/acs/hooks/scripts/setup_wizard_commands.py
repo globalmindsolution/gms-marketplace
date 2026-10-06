@@ -41,10 +41,12 @@ def render_protect(slug, branch, contexts):
 #: The phases before the delivery workflow takes over, in order: the PRD, the
 #: architecture, the ticket, then the Design skills in the Design phase's
 #: order (ADR-0134 moved create-api-contract here out of ship.yaml; ADR-0135's
-#: create-tech-design closes it, snapshotting what the other three wrote).
+#: create-tech-design closes it, snapshotting what the other three wrote), then
+#: breakdown-ticket, which mints an epic's children once its tech design is
+#: settled (ADR-0138).
 PIPELINE_ORDER = ("create-prd", "create-architecture", "create-ticket",
                   "create-api-contract", "create-data-design", "create-flows",
-                  "create-tech-design")
+                  "create-tech-design", "breakdown-ticket")
 
 #: A greenfield repo's scaffold is ordinary ticket work: ticket it, then ship it.
 GREENFIELD_SCAFFOLD_STEP = ('/acs:create-ticket "Scaffold the repository per the '

@@ -57,8 +57,9 @@ LIVE_DOCS = (
     "docs/requirements/functional/usage.md",
     "docs/requirements/functional/reflection.md",
     "docs/requirements/functional/workspace-and-state.md",
-    "docs/architecture/lld/flows/ship-pipeline.md",
-    "docs/architecture/lld/flows/ticket-lifecycle.md",
+    "docs/architecture/lld/acs/flows/ship-pipeline.md",
+    "docs/architecture/lld/acs/flows/state-ticket.md",
+    "docs/architecture/lld/acs/flows/ticket-lifecycle.md",
 )
 
 

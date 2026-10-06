@@ -1,3 +1,10 @@
+---
+status: "implemented"
+version: 1
+tickets: []
+feature: "acs"
+---
+
 # Flow — Hook-gated skill run
 
 The core runtime flow: every hooked skill, direct invocation. (Under `/ship`
@@ -145,7 +152,7 @@ or blocks, in its own fail-open `try/except` so a write failure can never turn
 into a blocked gate, and `SS` spends that evidence once to record whether the
 run was gated. Neither step measures usage: `POST` records no token count and
 no dollar figure, and nothing reads a transcript
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+([ADR 0104](../../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
 
 **File-map guard denials (MAR-578).** The `PreToolUse` write-tool guard is not
 a participant in this diagram at all — it runs per write tool call while a
@@ -215,7 +222,7 @@ It never checks that an upstream artifact exists (ADR 0109): each skill reads
 what it finds and falls back to the run's subject. A repo document is not
 checked either: the PRD `/acs:create-architecture` reads (and works without,
 from the subject) is found by the skill itself at Start, since no setting
-says where it lives ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+says where it lives ([ADR-0102](../../../adr/0102-documents-are-found-not-configured.md)).
 
 No gate refuses a skill for a predecessor's POSITION: `_require_completed`
 is deleted. The one gate that reads another step's status is
