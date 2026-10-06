@@ -284,6 +284,87 @@ class ChangesetTest(GitRepoCase):
         self.assertEqual(C.render(self.root, baseline["base_sha"], tree, [], "patch"), "")
 
 
+class EmbeddedRepoTest(GitRepoCase):
+    """A repository inside the checkout -- Claude Code's own worktrees live at
+    `<repo>/.claude/worktrees/<name>/` -- is never the run's change: `git add -A`
+    would stage it as a gitlink (mode 160000) the user never committed."""
+
+    def gitlinks(self, tree):
+        return [line for line in git(self.root, "ls-tree", "-r", tree).splitlines()
+                if line.startswith("160000 ")]
+
+    def listed(self, tree, root=None):
+        return git(root or self.root, "ls-tree", "-r", "--name-only", "-z",
+                   tree).split("\0")[:-1]
+
+    def embedded(self, rel):
+        sub = os.path.join(self.root, rel)
+        os.makedirs(sub)
+        git(sub, "init", "-q", "-b", "master")
+        git(sub, "config", "user.email", "t@example.com")
+        git(sub, "config", "user.name", "T")
+        write(sub, "inner.txt", "inner\n")
+        git(sub, "add", "-A")
+        git(sub, "commit", "-qm", "inner")
+        return sub
+
+    def test_a_nested_worktree_is_not_in_the_main_checkouts_snapshot_or_changeset(self):
+        git(self.root, "worktree", "add", "-q", "-b", "feat", ".claude/worktrees/feat")
+        write(self.root, "c.txt")
+        tree = C.snapshot(self.root)
+        self.assertEqual(self.gitlinks(tree), [])
+        self.assertFalse([p for p in self.listed(tree) if p.startswith(".claude/")])
+        self.assertEqual(self.paths(C.changeset(self.root, since="HEAD")["files"]), ["c.txt"])
+
+    def test_a_plain_embedded_repo_is_left_out(self):
+        self.embedded("sub")
+        write(self.root, "c.txt")
+        tree = C.snapshot(self.root)
+        self.assertEqual(self.gitlinks(tree), [])
+        self.assertEqual(self.paths(C.changeset(self.root, since="HEAD")["files"]), ["c.txt"])
+
+    def test_an_embedded_repo_with_no_commit_does_not_break_the_snapshot(self):
+        sub = os.path.join(self.root, "empty-sub")
+        os.makedirs(sub)
+        git(sub, "init", "-q")
+        write(sub, "f.txt")
+        write(self.root, "c.txt")
+        tree = C.snapshot(self.root)
+        self.assertEqual(sorted(self.listed(tree)), [".gitignore", "a.txt", "b.txt", "c.txt"])
+
+    def test_an_embedded_repo_staged_in_the_real_index_is_dropped_there_only(self):
+        self.embedded("sub")
+        git(self.root, "add", "sub")
+        staged = git(self.root, "ls-files", "-s", "sub")
+        self.assertTrue(staged.startswith("160000 "), staged)
+        self.assertEqual(self.gitlinks(C.snapshot(self.root)), [])
+        self.assertEqual(git(self.root, "ls-files", "-s", "sub"), staged)
+
+    def test_a_gitlink_committed_in_head_stays(self):
+        sub = self.embedded("sub")
+        git(self.root, "add", "sub")
+        git(self.root, "commit", "-qm", "track sub as a gitlink")
+        head_tree = git(self.root, "rev-parse", "HEAD^{tree}").strip()
+        self.assertEqual(C.snapshot(self.root), head_tree)
+        write(sub, "inner.txt", "moved on\n")
+        git(sub, "commit", "-qam", "inner moves")
+        tree = C.snapshot(self.root)
+        self.assertEqual(len(self.gitlinks(tree)), 1)
+        self.assertIn(git(sub, "rev-parse", "HEAD").strip(), self.gitlinks(tree)[0])
+        self.assertEqual(C.changeset(self.root, since="HEAD")["files"],
+                         [{"path": "sub", "status": "modified"}])
+
+    def test_the_snapshot_inside_the_nested_worktree_is_that_worktrees_own_files(self):
+        git(self.root, "worktree", "add", "-q", "-b", "feat", ".claude/worktrees/feat")
+        wt = os.path.join(self.root, ".claude", "worktrees", "feat")
+        write(wt, "feature.py", "f = 1\n")
+        write(self.root, "main-only.txt")
+        tree = C.snapshot(wt)
+        self.assertEqual(sorted(self.listed(tree, wt)),
+                         [".gitignore", "a.txt", "b.txt", "feature.py"])
+        self.assertEqual(self.paths(C.changeset(wt, since="HEAD")["files"]), ["feature.py"])
+
+
 class ChangesCliTest(AcsWorkspaceCase):
     """`acs.py changes ...` and the baseline `step start` records."""
 

@@ -381,6 +381,26 @@ class LeftBehindTest(TwoClonesCase):
         self.assertFalse(os.path.exists(os.path.join(self.bob, "scratch.txt")))
         self.assertTrue(os.path.exists(os.path.join(self.bob, "pkg", "new.py")))
 
+    def test_a_worktree_nested_in_the_checkout_is_never_packaged(self):
+        # Claude Code puts its worktrees at <repo>/.claude/worktrees/<name>/,
+        # inside the checkout. `git add -A` would stage one as a gitlink, and
+        # the receiver's `git apply` would then create a bogus submodule entry.
+        self.seed_counters(self.alice, 5)
+        ticket = self.new_ticket(self.alice)
+        self.walk(self.alice, ticket)
+        git(self.alice, "worktree", "add", "-q", "-b", "feat", ".claude/worktrees/feat")
+        write(self.alice, "pkg/new.py", "print('ticket work')\n")
+        sent = self.ok(self.alice, "handoff", "send", "--ticket", ticket, "--note", "n")
+        self.assertEqual([c["path"] for c in sent["work_changes"]], ["pkg/new.py"])
+        self.assertEqual(sent["left_behind"], [])
+        listing = git(self.alice, "ls-tree", "-r", sent["commit"])
+        self.assertNotIn("160000 ", listing)
+        self.assertNotIn(".claude/worktrees", listing)
+        self.ok(self.bob, "handoff", "receive", ticket)
+        self.assertNotIn("160000 ", git(self.bob, "ls-files", "-s"))
+        self.assertFalse(os.path.exists(os.path.join(self.bob, ".claude")))
+        self.assertTrue(os.path.exists(os.path.join(self.bob, "pkg", "new.py")))
+
 
 class RefusalTest(TwoClonesCase):
 
@@ -538,6 +558,28 @@ class NoCollateralDamageTest(TwoClonesCase):
 
 
 class UnitTest(TwoClonesCase):
+
+    def test_a_received_patch_never_adds_a_gitlink(self):
+        # A package an older acs sent can still carry a nested worktree's
+        # gitlink; the merge drops it the way the sender's snapshot now does.
+        env = dict(os.environ, GIT_INDEX_FILE=os.path.join(self.tmp, "gitlink-index"))
+        subprocess.run(["git", "read-tree", "HEAD"], cwd=self.bob, env=env, check=True)
+        head = git(self.bob, "rev-parse", "HEAD").strip()
+        subprocess.run(["git", "update-index", "--add", "--cacheinfo",
+                        "160000,%s,.claude/worktrees/feat" % head], cwd=self.bob, env=env,
+                       check=True)
+        write(self.bob, "keep.py", "k = 1\n")
+        subprocess.run(["git", "add", "keep.py"], cwd=self.bob, env=env, check=True)
+        work = subprocess.run(["git", "write-tree"], cwd=self.bob, env=env, check=True,
+                              capture_output=True, text=True).stdout.strip()
+        os.remove(os.path.join(self.bob, "keep.py"))
+        patch = thr.work_patch(self.bob, "HEAD", work)
+        self.assertIn(b"Subproject commit", patch)
+        merged, conflicts = thr.merge_patch(self.bob, patch)
+        self.assertEqual(conflicts, [])
+        listing = git(self.bob, "ls-tree", "-r", merged)
+        self.assertNotIn("160000 ", listing)
+        self.assertIn("\tkeep.py", listing)
 
     def test_counters_are_raised_never_lowered(self):
         rpath = self.rpath(self.bob)

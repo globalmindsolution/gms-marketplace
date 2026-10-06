@@ -20,13 +20,12 @@ follow the repo's style. Tracker, merge strategy, coverage target and test
 suites have working defaults, edited in `.acs/settings.json` against
 `${CLAUDE_PLUGIN_ROOT}/schemas/settings.schema.json`, not asked about.
 
-**Your job is the conversation.** Every write — the settings, the ignore
-entries, the workspace, the CI copies — is performed by the commands below.
-You ask, you explain the trade-off, you record the answer; you never hand-write
-a `.gitignore` line or a JSON dict. Settings go to the project file
-`.acs/settings.json` (committed: they are the team's). Unknown keys in an
-existing file are legal and preserved, and a value equal to its default is never
-written.
+**Your job is the conversation.** Every write — the settings, the ignore entries,
+the workspace, the CI copies — is performed by the commands below. You ask, you
+explain the trade-off, you record the answer; you never hand-write a `.gitignore`
+line or a JSON dict. Settings go to the project file `.acs/settings.json`
+(committed: they are the team's). Unknown keys in an existing file are legal and
+preserved, and a value equal to its default is never written.
 
 ## Step 1 — Look before you ask
 
@@ -34,20 +33,19 @@ written.
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup detect
 ```
 
-Read the JSON: the settings already in the project file (`scopes`), the
-resolved `workspace`, whether the ignore entries are in place (`ignored`) and
-whether a broad rule is swallowing files CI must read
-(`swallowed_by_a_broad_rule`), the `toolchain` and `missing_tools`, plausible
-test commands (`test_command_candidates`), which CI installs are already
-present (`ci`), retired settings keys still sitting in a settings file
-(`retired_keys`), the design-document catalog and current choice (`design`),
-the preview-server config `.claude/launch.json` (`launch`:
-whether it exists, its configuration names, `problems`, and `candidates` — a
-guessed dev server when there is none), and the git facts — `default_branch` is the branch to
-protect (null when it cannot be told; never guess it from `current_branch`).
-No git repository → STOP. `missing_tools` non-empty → name each gap and its
-install hint now; nothing here blocks on it. **`retired_keys` non-empty** →
-name each key and the file it is in, and say it is ignored.
+Read the JSON: the settings already in the project file (`scopes`), the resolved
+`workspace`, whether the ignore entries are in place (`ignored`) and whether a broad
+rule is swallowing files CI must read (`swallowed_by_a_broad_rule`), the `toolchain` and
+`missing_tools`, plausible test commands (`test_command_candidates`), which CI installs
+are already present (`ci`), retired settings keys still sitting in a settings file
+(`retired_keys`), the design-document catalog and current choice (`design`), the
+preview-server config `.claude/launch.json` (`launch`: whether it exists, its
+configuration names, `problems`, and `candidates` — a guessed dev server when there is
+none), and the git facts — `default_branch` is the branch to protect (null when it
+cannot be told; never guess it from `current_branch`). No git repository → STOP.
+`missing_tools` non-empty → name each gap and its install hint now; nothing here blocks
+on it. **`retired_keys` non-empty** → name each key and the file it is in, and say it is
+ignored.
 
 **A project settings file or an installed CI gate means this is a re-run** —
 `scopes.project.exists` is true, or any `ci` entry has its `workflow` or
@@ -93,13 +91,17 @@ asking again.
    folder with how it was found. On a change, save it with `python3
    "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" docs decide --share yes|no --scope
    user|team` (user: `.acs/settings.local.json`) and/or `--location <kind>=<folder>`.
+7. **Permissions** — offer acs's permission rules (`claude_permissions.rules`, shown
+   verbatim): team (`.claude/settings.json`), me (`.claude/settings.local.json`) or
+   skip. Say they pre-approve only acs's own scripts and read-only git, and that a
+   shell pattern is a convenience, not a sandbox.
 
 ## Step 3 — Apply
 
-Pass the answers on stdin — never as a file in the repo, where it would be
-left behind untracked. They carry only what the user chose — `settings` (e.g. `ticket_prefix`,
-`tests`), `ci` (any of `conventions`, `tests`, `e2e`) and `launch`
-(`{"configurations": [...]}` from Step 2 item 4):
+Pass the answers on stdin — never as a file in the repo, where it would be left
+behind untracked. They carry only what the user chose — `settings` (e.g. `ticket_prefix`,
+`tests`), `ci` (any of `conventions`, `tests`, `e2e`), `launch` (`{"configurations":
+[...]}`, item 4) and `claude_permissions` (`team`, `user` or `skip`, item 7):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup apply --answers - <<'JSON'
@@ -111,18 +113,17 @@ JSON
 
 `--dry-run` reports what would change and writes nothing.
 
-**Read the result.** `changed` vs `unchanged` is the point: on a re-run most
-lines land in `unchanged`, which is how you show the run was safe. `defaulted`
-lists answers that equal the built-in default and were therefore not written (or
-removed from the file, when an earlier run had written them). `warnings` is what
-you relay but must not fix for them — a conflicting `!.acs/` negation, or a broad
-rule swallowing `.acs/settings.json`, is their configuration to decide (an `env`
-name that looks like a secret is warned about too). `launch` reports the
-configurations `added` and `kept`; a launch.json with comments is refused, since a
-rewrite would drop them, so tell the user what to add by hand. `errors`
-non-empty means apply refused and **wrote nothing** — an answer that does not
-validate, or a gate missing the command it runs: say why, settle the answer
-with the user, and apply again.
+**Read the result.** `changed` vs `unchanged` is the point: on a re-run most lines land
+in `unchanged`, which is how you show the run was safe. `defaulted` lists answers that
+equal the built-in default and were therefore not written (or removed from the file,
+when an earlier run had written them). `warnings` is what you relay but must not fix for
+them — a conflicting `!.acs/` negation, or a broad rule swallowing `.acs/settings.json`,
+is their configuration to decide (an `env` name that looks like a secret is warned about
+too). `launch` reports the configurations `added` and `kept`; a launch.json with
+comments is refused, since a rewrite would drop them, so tell the user what to add by
+hand; `claude_permissions` names the rules `added` and the file. `errors` non-empty
+means apply refused and **wrote nothing** — an answer that does not validate, or a gate
+missing the command it runs: say why, settle the answer with the user, and apply again.
 `stage_for_commit` lists what to stage (never commit unless asked);
 `required_check_contexts` names the checks for branch protection.
 
@@ -139,8 +140,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/setup_wizard.py" commands \
   --cwd . --slug <owner/repo> --branch <default-branch> --context "<each context>"
 ```
 
-`--branch` is `detect`'s `default_branch`; when that is null, ask which branch
-to protect.
+`--branch` is `detect`'s `default_branch`; when that is null, ask which branch to protect.
 
 `protect` is one call extending one `contexts` array; `labels` creates `ACS`
 and `acs-exempt` and is harmless when they exist. Do not hand-write either:
@@ -165,19 +165,19 @@ reference. Both are written for you; neither survives being deleted by hand.
 
 ## Step 5 — Summary and next steps
 
-Print a table of each setting you touched (ticket prefix, unit-test command, models,
-run documents, doc folders), its value, and where it landed (`.acs/settings.json`, or "default — not written"). The next steps come from
-`commands` — run it now (`--cwd .` is enough) if Step 4 did not: `next_steps`
-carries the greenfield/brownfield call, the pipeline read from `ship.yaml` and
-the solo-maintainer caveat, so you report them rather than re-deriving them.
+Print a table of each setting you touched (ticket prefix, unit-test command, models, run
+documents, doc folders, permission rules), its value, and where it landed
+(`.acs/settings.json`, or "default — not written"). The next steps come from `commands`
+— run it now (`--cwd .` is enough) if Step 4 did not: `next_steps` carries the
+greenfield/brownfield call, the pipeline read from `ship.yaml` and the solo-maintainer
+caveat, so you report them rather than re-deriving them.
 
-Repeat any unmet toolchain install hint, and confirm the workflow is ready:
-Design is `/acs:create-prd` → `/acs:create-architecture` →
-`/acs:create-ticket`, then `/acs:create-tech-design` → `/acs:code` is not one fixed
-chain: `/acs:create-tech-design` runs only for a ticket flagged `needs_design`, and
-the Build/Test/Ship order is declared in `workflows/ship.yaml` (`acs.py
-workflow show` prints it) and walked by `/acs:ship <ticket-id>` to the PR, then
-`/acs:merge-pr <id>`.
+Repeat any unmet toolchain install hint, and confirm the workflow is ready: Design is
+`/acs:create-prd` → `/acs:create-architecture` → `/acs:create-ticket`, then
+`/acs:create-tech-design` → `/acs:code` is not one fixed chain: `/acs:create-tech-design` runs
+only for a ticket flagged `needs_design`, and the Build/Test/Ship order is declared in
+`workflows/ship.yaml` (`acs.py workflow show` prints it) and walked by `/acs:ship
+<ticket-id>` to the PR, then `/acs:merge-pr <id>`.
 
 ## Completion report (normative)
 
@@ -191,7 +191,7 @@ empty; replace the Ticket line with **Repo** (no ticket at init time):
 
 - **Repo**: <repo> (<greenfield|brownfield>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: toolchain preflight outcome (tools present / still missing with the install hint); settings written, per key (or "defaults"); models scaffolded (yes / no); design types (defaults / the custom choice); run documents (shared / kept local, whose default) and doc folders; retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined)
+- **Results**: toolchain preflight outcome (tools present / still missing with the install hint); settings written, per key (or "defaults"); models scaffolded (yes / no); design types (defaults / the custom choice); run documents (shared / kept local, whose default) and doc folders; retired keys found (none / named, ignored); workspace created/verified; CI convention enforcement outcome (installed / refreshed / declined), tests gate outcome, e2e gate outcome (skipped — e2e not configured / installed / declined), labels, branch protection (configured / printed-for-admin / declined), permission rules (team / me / skipped)
 - **Findings**: <open findings, or "none">
 - **Artifacts**: <files written or staged>
 - **Metrics**: <wall time>

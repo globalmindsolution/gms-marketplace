@@ -27,7 +27,7 @@ import subprocess
 import tempfile
 
 from ._common import GateError, _ensure_state_root_ignored, now_iso, read_json, write_json
-from .changes import _run_git, empty_tree, head_sha, name_status
+from .changes import _run_git, drop_new_gitlinks, empty_tree, head_sha, name_status
 from .repo import repo_dir, repo_guard, ticket_dir
 from . import run as run_mod
 from . import sessions
@@ -83,14 +83,17 @@ def merge_patch(root, patch):
     """Apply `patch` with a 3-way fallback to a TEMPORARY index built from
     HEAD. Returns (merged tree id, []) when it applies, (None, conflicting
     paths) when it does not. The checkout, its index and HEAD are never
-    touched -- this is both the dry run and the merge itself."""
+    touched -- this is both the dry run and the merge itself. A gitlink HEAD
+    does not track (a nested worktree an older sender packaged) is dropped."""
     tmpdir = tempfile.mkdtemp(prefix="acs-receive-")
     try:
         env = {"GIT_INDEX_FILE": os.path.join(tmpdir, "index")}
-        _run_git(root, ["read-tree", "HEAD"] if head_sha(root) else ["read-tree", "--empty"],
+        has_head = head_sha(root)
+        _run_git(root, ["read-tree", "HEAD"] if has_head else ["read-tree", "--empty"],
                  env=env)
         proc = _apply_cached(root, patch, env)
         if proc.returncode == 0:
+            drop_new_gitlinks(root, env, "HEAD" if has_head else None)
             return _run_git(root, ["write-tree"], env=env).stdout.decode().strip(), []
         raw = _run_git(root, ["ls-files", "-u", "-z"], env=env).stdout
         paths = sorted({rec.split("\t", 1)[1] for rec in

@@ -1173,6 +1173,11 @@ tree, so reading it takes three pieces in `acs_lib/changes.py`:
   `GIT_INDEX_FILE` so the real index and the tree are untouched. The verdict's
   `reviewed_sha` holds one; `/acs:code` asks `acs changes diff --since
   <reviewed_sha>` what changed after the review.
+  An embedded repository the user never committed — a Claude Code worktree at
+  `.claude/worktrees/<name>/`, a stray `git init` — is never part of it: untracked
+  embedded repos are excluded from the `add`, and any gitlink the base tree does not
+  hold is dropped from the temporary index (`changes.drop_new_gitlinks`, also run by
+  `handoff receive` after `git apply --cached`). A submodule already in `HEAD` stays.
 - **Changeset** — `acs changes diff`: `<since>` → a fresh snapshot, the
   baseline's dirty paths excluded unless they changed again. It replaces every
   `git diff <default>...HEAD` / `git log <branch>` read; a scope check snapshots
@@ -1899,7 +1904,13 @@ what makes the arm reachable for a real ticket rather than only for a fixture.
 `setup/SKILL.md` was 1,003 lines, most of them mechanics. Since MAR-526 the
 skill asks and explains; `setup_wizard.py` writes, reached as two commands:
 
-Setup is optional (ADR-0105): no skill needs it first. It sets the ticket
+Setup is optional (ADR-0105): no skill needs it first. It also ignores `.claude/worktrees/`
+(where Claude Code puts the worktrees it creates) beside acs's own ignore entries, and
+offers acs's Claude Code permission rules (`acs_lib.claude_permissions.RULES`: acs's own
+`hooks/scripts/*.py` and read-only git) for `.claude/settings.json` (team) or the main
+checkout's `.claude/settings.local.json` (me), or skips them — a shell pattern is a
+convenience, not a sandbox; anything that writes (`git add/commit/push`, `gh`) still
+prompts. It sets the ticket
 prefix and installs the CI gates — the ticket-link check, tests and e2e —
 scaffolds the `models` block, and writes `.claude/launch.json`, the Claude Code
 Desktop app's preview-server config, from a dev server it guesses and the user

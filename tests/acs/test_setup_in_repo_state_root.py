@@ -152,7 +152,7 @@ class Mar4InitStateRootCase(unittest.TestCase):
             fh.write(".acs/\n")
         out = self._apply(cwd)
         with open(os.path.join(cwd, ".gitignore"), encoding="utf-8") as fh:
-            self.assertEqual(fh.read(), ".acs/\n")
+            self.assertEqual(fh.read(), ".acs/\n.claude/worktrees/\n")
         self.assertTrue(any("already ignored" in line for line in out["unchanged"]))
 
     def test_a_broad_rule_swallowing_ci_files_is_warned_about_not_fixed(self):
