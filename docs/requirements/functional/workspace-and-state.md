@@ -150,6 +150,12 @@ Every run, ticket or not, carries its requirements in the workspace
   types cited by their run copy) and `## Refined` — written only by `acs.py
   requirements refine`, from `/acs:analyze-requirements`, into
   `<run>/requirements-refined.json`.
+- `<run>/requirements.md` MUST also carry a `## References` section — each
+  document's title, kind, path and link — rendered from the same function as
+  the step-start context's `references`, so the two cannot drift
+  ([ADR-0140](../../architecture/adr/0140-tickets-link-their-documents.md)):
+  the documents the standard layout holds for the run's ticket, or for its
+  features on a ticketless run.
 - A later step invoked with new sources MUST add them (deduplicated by hash,
   ticket or text) and regenerate; a source is never silently replaced.
 
@@ -327,6 +333,7 @@ Key fields written by `/acs:create-ticket` and maintained by hooks:
 | `parent` | string\|null | Parent epic id; null for roots |
 | `children` | string[] | Child ticket ids (epics only) |
 | `features` | string[] | The PRD feature slugs the ticket traces to (ADR-0120); a child minted with `new-ticket.py --parent` (by `/acs:breakdown-ticket`) inherits its parent's unless `--features` is given (ADR-0138) |
+| `references` | object[] | Optional: the documents found for the ticket in the standard layout (ADR-0140), each `{kind, path, title, status, version, published, url}` (`kind` and `path` required); `url` is `null` while the document is pending — not on the remote default branch yet. Written by `acs.py ticket references --write` and `acs.py tracker refresh`; derived again at read time, so a ticket without it still gets `context.references`; a synced ticket's `external` also keeps the issue's web address as `url` (`record-external.py --url`) |
 | `external` | object\|null | Remote tracker mapping (`provider`/`key`) |
 | `docs_only` | boolean | True when the change is docs/comments only; default false |
 | `due_date` | string\|null | Optional delivery target date, ISO-8601 `YYYY-MM-DD`; `null` = no deadline set (MAR-15) |

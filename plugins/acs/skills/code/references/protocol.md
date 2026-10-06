@@ -48,6 +48,7 @@ Parse the printed context JSON. Fields you will use:
   never read ticket.json for acceptance criteria.** The implementation must
   satisfy every criterion in `requirements.path` (the run's `requirements.md`).
   `ticket` is present only when a ticket is one of the sources.
+- `references` — **References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 - `partition` — absolute path of the run directory. Read `plan.md` (see Plan
   input resolution), `test-cases.md` and `api-contract.md` when they exist —
   `acs.py artifacts show` reports each (`<development_dir>/<feature>/<id>/` for

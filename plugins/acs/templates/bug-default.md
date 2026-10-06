@@ -40,6 +40,12 @@
 - [ ] A regression test reproduces the bug — it fails before the fix and passes after it.
 - [ ] ...
 
+## References
+
+<!-- Filled by acs, never by hand: links to this ticket's documents in the repo's standard layout (ADR-0140). Leave the two markers below as they are. -->
+<!-- acs:references -->
+<!-- /acs:references -->
+
 ## Notes
 
 <!-- Workarounds, related tickets, PRD trace, open points resolved during analysis. -->

@@ -173,15 +173,10 @@ def default_branch(cwd):
     out. `detect` used to report `git symbolic-ref HEAD` under this name, so
     setup run from a feature branch rendered a protection call for the feature
     branch. The remote's HEAD decides; failing that, a `main` or `master` that
-    exists; failing that, None, and the skill asks rather than guesses."""
-    ref = _git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd)
-    if ref:
-        return ref.split("/", 1)[1] if "/" in ref else ref
-    for name in ("main", "master"):
-        for candidate in ("refs/remotes/origin/%s" % name, "refs/heads/%s" % name):
-            if _git(["rev-parse", "--verify", "--quiet", candidate], cwd):
-                return name
-    return None
+    exists; failing that, None, and the skill asks rather than guesses. One
+    helper answers it for every caller (`acs_lib.doc_links.default_branch`,
+    ADR-0140)."""
+    return lib.doc_links.default_branch(cwd)
 
 
 def detect(cwd):

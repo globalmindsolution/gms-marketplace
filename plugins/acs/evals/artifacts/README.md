@@ -6,7 +6,7 @@ them up.
 
 | Case | Asserts | From |
 |---|---|---|
-| `create-ticket-artifacts` | /acs:create-ticket mints a schema-complete task and indexes it | behavioural s02 |
+| `create-ticket-artifacts` | /acs:create-ticket mints a schema-complete task, records its references (ADR-0140) and indexes it | behavioural s02 |
 | `resume-and-verify` | a fresh /acs:code session told only the ticket id finds and implements the seeded spec | behavioural s03 |
 
 ```bash

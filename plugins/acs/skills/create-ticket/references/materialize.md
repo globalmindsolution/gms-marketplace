@@ -52,8 +52,15 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    (`${CLAUDE_PLUGIN_ROOT}/templates/<name>.md` — `epic-default`,
    `story-default`, `task-default`, `bug-default`; a repo's own
    `<repo>/.acs/templates/<name>.md` of the same name replaces it) with every
-   section filled and the HTML comments deleted. Apply the user's confirmed
-   revisions to it so the description and `acceptance_criteria` agree.
+   section filled and the HTML comments deleted — except the `## References`
+   marker pair. Apply the user's confirmed revisions to it so the description
+   and `acceptance_criteria` agree.
+
+   **The `## References` section is required** (ADR-0140): the heading with its
+   `<!-- acs:references -->` and `<!-- /acs:references -->` markers and nothing
+   you wrote between them, before `## Notes`. Missing — a repo template older
+   than this, or a draft that dropped it — add it back there, empty; filled by
+   hand — empty it. Code fills it (step 3b, and the tracker in step 5).
 
    Every description template carries an `acs-ticket: {ticket_id}` line in
    its `## Notes` section — the rendered text is byte-identical across the
@@ -81,6 +88,17 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    the draft's `prd_trace`, `flags`, `open_questions`, `assumptions` and an
    epic's `breakdown_outline` are not ticket fields — `prd_trace` goes to the
    result document, the rest to the materialize report.
+3b. **Record the ticket's references** — every document the standard layout
+   holds for its features (the PRD section, the feature analysis, the HLD and
+   LLD views, design records, development docs), stored on the ticket:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket references --ticket <id> --write
+   ```
+
+   Read the printed `references` back for the completion report (published
+   entries with their link, the rest `pending: not on <default> yet`). An empty
+   list is fine (no PRD, no feature docs yet): it is recorded, not an error.
 4. **No children.** A creation run mints none, an epic's included. Its
    breakdown outline stays in the description's `## Notes`, for
    `/acs:breakdown-ticket <id>` to read.
@@ -98,7 +116,10 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
      `external` is already non-null** (an import, or a resumed run that already
      synced it): re-creating its issue would be a duplicate.
    - Imported tickets: keep `external` as pulled; NEVER create a remote
-     duplicate. If your local title/description changed AND the remote also
+     duplicate. The issue already exists, so give it its `## References`
+     section with `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" tracker
+     refresh --ticket <id>` instead of a sync — **non-critical**: a failure is
+     one `info` finding with the replayable command, never a failed run. If your local title/description changed AND the remote also
      changed since the pull, do not pick a side: ask the user which version
      wins, stating both (SKILL.md's User interaction; a non-interactive run
      returns the `needs_input` handoff with that question), then continue.
@@ -115,7 +136,9 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
        It applies the exclusion rules itself and posts each partition's
        `tracker-body.md` as the issue body — **write that file first**, from
-       the ticket's rendered description, for every ticket in the batch. The
+       the ticket's rendered description, for every ticket in the batch; the
+       command fills its `## References` block with fresh links (it fetches
+       `origin/<default>` first) before the issue is created. The
        body is what the issue is made of, so a partition without one is not
        synced at all: the command reports that ticket under `failed` with an
        `error` finding naming the missing path, and never creates a bodiless
@@ -128,8 +151,8 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
        the `project_fields` object per synced ticket.
    - Write `external` into the synced ticket's own `ticket.json` via `python3
      "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-external.py" --ticket
-     <ticket-id> --provider <provider> --key <key>` once per successfully
-     synced ticket. A failed `gh` call for any one ticket in the set
+     <ticket-id> --provider <provider> --key <key> --url <url>` (the `key` and
+     `url` of its `synced` entry) once per successfully synced ticket. A failed `gh` call for any one ticket in the set
      is **critical (per ticket), soft (per batch)**: it produces an
      **error**-severity finding naming that ticket's id, the verbatim
      error, and the canonical hint from `acs_lib.gh_failure_hint`,

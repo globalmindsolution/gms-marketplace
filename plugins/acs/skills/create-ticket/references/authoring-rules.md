@@ -18,6 +18,10 @@ coordinator and reads each file itself:
   its `README.md`, then only the context files the request touches);
 - the clarification ledger entries in `<context>` (`C-<n>`: the user's answers
   and recorded assumptions — binding);
+- the documents found for the request's features in the standard layout
+  (`<context name="references">`: the JSON `acs.py ticket references` printed —
+  each entry's `kind`, `path`, `title`, `status` and, once it is on the default
+  branch, `url`). Read the ones the request touches before drafting;
 - the type's description template (`<constraint name="template">`: the built-in
   `${CLAUDE_PLUGIN_ROOT}/templates/<type>-default.md`, or the repo's own
   `.acs/templates/<type>-default.md` that replaces it);
@@ -49,6 +53,19 @@ coordinator and reads each file itself:
   (ADR-0120); `[]` when it traces to none. Never coin a slug for a feature the
   PRD does not have.
 
+## References — cite the documents that exist, never invent one
+
+- Cite the relevant entries of `<context name="references">` where the
+  description uses them (the analysis a criterion comes from, the design or API
+  contract the work follows): by its `url` when the entry has one, else by its
+  `path`. Cite only documents in that list or named by the requirements; a
+  document you think should exist but is not listed is an `open_questions` entry.
+- Leave the template's `## References` section exactly as it is: the
+  `<!-- acs:references -->` and `<!-- /acs:references -->` markers with nothing
+  between them. Code fills that block with every document's link
+  (`acs.py ticket references --write`, then `tracker sync` or `tracker refresh`)
+  — never write a link list there yourself, and never delete the markers.
+
 ## Grounding — no invented facts
 
 Every fact in the draft — a path, a module, a version, a persona, a number, a
@@ -75,7 +92,7 @@ needs to ask the user:
 |---|---|
 | `type` | your type: `epic`, `story`, `task` or `bug` |
 | `title` | an epic's prefixed `[EPIC] `; any other type's as given |
-| `description` | the template, every section filled, the HTML comments deleted, its `acs-ticket: <ticket-id>` line kept |
+| `description` | the template, every section filled, the HTML comments deleted except the `## References` marker pair (left untouched), its `acs-ticket: <ticket-id>` line kept |
 | `acceptance_criteria` | the criteria, as an array of strings |
 | `priority` | `critical`, `high`, `medium` or `low` |
 | `story_points` | an integer, or `null` |

@@ -92,6 +92,7 @@ Parse the printed context JSON. Fields you will use:
   **Requirements: `context.requirements` /
   `acs.py requirements show` — a ticket id, documents and a prompt are only where they came from;
   never read ticket.json for acceptance criteria.**
+- `references` — **References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 - `ticket_id`, `ticket` — the ticket, when the invocation named one (`null`
   otherwise): its `type`, `docs_only`, `features`, `parent` and `external`. It
   is a container and a tracker, not the source of the requirements.

@@ -30,6 +30,7 @@ it always did. In dependency order:
   doc_layout     the phase folders a run's documents live in (prd/lld/development dirs)
   run_docs       one run's documents: where each is read from and written to
   doc_share      shared or kept local, and whether a docs folder still needs an answer (ADR-0132)
+  doc_links      a ticket's links to its feature's documents, and its ## References block (ADR-0140)
   claude_permissions  the Claude Code permission rules /acs:setup offers (opt-in)
   team_handoff   member -> member ticket handoff over refs/acs/handoff/<ID> (ADR-0131);
                  team_handoff_receive is its receiving half (reached via acs_handoff_commands).
@@ -91,7 +92,7 @@ from .lock import (LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,  # noqa: F401
     lock_audit_path, lock_is_stale, lock_staleness, read_lock, release_lock)
 
 from . import tickets as tickets_module  # noqa: F401
-from .tickets import (allocate_ticket_id, check_bug_fields, load_ticket,  # noqa: F401
+from .tickets import (allocate_ticket_id, check_bug_fields, check_references, load_ticket,  # noqa: F401
     new_ticket_doc, parse_features, save_ticket, update_index)
 
 from .setup_helpers import (TOOLCHAIN, _BARE_INT_RE,
@@ -210,7 +211,7 @@ from .step import state_path, state_path as step_state_path  # noqa: F401
 from . import notes  # noqa: F401,E402
 from .notes import merge_files as merge_notes, merge_texts, split_sections  # noqa: F401
 
-from . import doc_layout, requirements, run_docs, doc_share  # noqa: F401,E402
+from . import doc_layout, requirements, run_docs, doc_share, doc_links  # noqa: F401,E402
 from .gates import record_requirements  # noqa: F401,E402
 
 from . import artifacts  # noqa: F401,E402

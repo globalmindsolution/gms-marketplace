@@ -37,12 +37,13 @@ erDiagram
         string parent FK "epic id or null"
         array children
         enum status "open|in_progress|in_review|done"
-        json external "tracker mapping or null"
+        json external "tracker mapping (provider, key, url since ADR-0140) or null"
         string assignee
         number story_points
         bool docs_only
         string due_date "ISO-8601 date or null (NEW, MAR-8 Child 3)"
         array features "PRD feature slugs (ADR-0120); a child inherits its parent's (ADR-0138)"
+        array references "optional: the documents found for it in the standard layout, each kind, path, title, status, version, published and url (ADR-0140)"
         enum severity "bug only: critical|high|medium|low, separate from priority (ADR-0138)"
         string reproduction "bug only: steps to reproduce (ADR-0138)"
         string expected "bug only (ADR-0138)"

@@ -44,6 +44,7 @@ This records the step `in_progress` and tells you the run, the iteration and
 whether a previous verdict exists. **Requirements: `context.requirements` /
 `acs.py requirements show` — a ticket id, documents and a prompt are only where
 they came from; never read ticket.json for acceptance criteria.**
+**References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 `requirements.path` (the run's `requirements.md`) is lens A's input, and `acs.py
 artifacts show` reports the run's `plan.md`, `test-cases.md` (Development
 folder), `api-contract.md` and `tech-design.md` (design records under

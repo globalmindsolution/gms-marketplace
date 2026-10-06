@@ -452,6 +452,9 @@ def render(rdir, ctx, doc, recorded, refined=None):
         lines += ["## Documents", ""]
         for entry in documents:
             lines += _document_section(entry, ctx)
+    from .doc_links import default_branch
+    lines += render_references(run_references(ctx, rdir, doc, recorded, refined),
+                               default_branch(ctx.get("checkout_root")))
     if refined:
         lines += ["## Refined", "",
                   "_Recorded by `acs.py requirements refine` at %s._"
@@ -467,6 +470,55 @@ def render(rdir, ctx, doc, recorded, refined=None):
             lines += _criteria_lines(refined["acceptance_criteria"])
         lines.append("")
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def run_references(ctx, rdir, doc=None, recorded=None, refined=None):
+    """The documents this run's subject has in the standard layout (ADR-0140):
+    each ticket source's references (`doc_links.references_for_ticket`), else
+    -- a ticketless run -- its refined features' (`references_for_features`),
+    else []. Local only: no fetch. The Start context's `references` and
+    requirements.md's `## References` both come from here, so they cannot
+    disagree."""
+    from . import doc_links
+    doc = doc if doc is not None else (load_run(rdir) or {})
+    if recorded is None:
+        recorded = load_sources(rdir) or [dict(s, ref=s.get("ticket_id"))
+                                          for s in sources_of(doc.get("subject"))]
+    refs = []
+    try:
+        tickets = [t for _id, _d, t in _tickets(ctx, recorded) if t]
+        for ticket in tickets:
+            refs += doc_links.references_for_ticket(ctx, ticket)
+        if not tickets:
+            refined = load_refined(rdir) if refined is None else refined
+            features = list(refined.get("features") or [])
+            if refined.get("feature") and refined["feature"] not in features:
+                features.insert(0, refined["feature"])
+            if features:
+                refs = doc_links.references_for_features(ctx, features)
+    except (GateError, OSError):
+        return []
+    return doc_links.dedupe(refs)
+
+
+def render_references(refs, default_branch=None):
+    """requirements.md's `## References` lines: title, kind, path, and the
+    link when the document is on the default branch."""
+    lines = ["## References", ""]
+    if not refs:
+        return lines + ["_No documents for this run's features in the repo yet._", ""]
+    for ref in refs:
+        title = ref.get("title") or ref.get("path")
+        where = "`%s`" % ref.get("path")
+        if ref.get("url"):
+            lines.append("- [%s](%s) — %s — %s" % (title, ref["url"], ref.get("kind"), where))
+        elif ref.get("published"):
+            lines.append("- %s — %s — %s" % (title, ref.get("kind"), where))
+        else:
+            lines.append("- %s — %s — %s — pending: not on %s yet" % (
+                title, ref.get("kind"), where,
+                "`%s`" % default_branch if default_branch else "the default branch"))
+    return lines + [""]
 
 
 def _write_requirements(rdir, ctx, doc, recorded):
@@ -626,5 +678,6 @@ def summary(rdir, ctx, doc=None):
 
 __all__ = ["parse_sources", "primary_subject", "subject_from_text", "sources_of",
            "check_tickets", "materialise", "add_sources", "refine", "summary",
+           "run_references", "render_references",
            "run_feature", "run_phase", "prd_dir", "architecture_dir", "development_dir",
            "feature_dir", "feature_analysis_path", "doc_layout"]

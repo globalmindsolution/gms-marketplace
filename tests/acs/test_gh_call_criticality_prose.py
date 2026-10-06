@@ -90,7 +90,10 @@ HYBRID_TOKENS = {
 # Rows 8-9 (create-ticket) / 6-12 (create-pr): plain metadata/best-effort
 # reads and writes.
 NONCRITICAL_TOKENS = {
-    "create-ticket": ["gh label list", "gh project item-add"],
+    # `acs.py tracker refresh` rewrites only an issue's `## References` block
+    # (ADR-0140): best-effort, so a failure is a finding, never a stop.
+    "create-ticket": ["gh label list", "gh project item-add", "acs.py tracker refresh"],
+    "merge-pr": ["acs.py tracker refresh --pending"],
     "create-pr": [
         "gh pr ready",
         "gh pr view",

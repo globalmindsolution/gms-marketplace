@@ -5,7 +5,8 @@ description: >-
   table names three child slices, with the breakdown confirmed up front in the
   request. The skill should mint exactly the three confirmed children through
   new-ticket.py --parent, each tracing the epic as its parent, inheriting its
-  features and carrying its confirmed acceptance criteria, leave the epic's
+  features and carrying its confirmed acceptance criteria and its references
+  (the epic's tech design among them, ADR-0140), leave the epic's
   own record untouched apart from its children list, and close its
   breakdown-ticket step -- in one confirmation, without asking anything or
   allocating a new id.
@@ -13,8 +14,8 @@ expected_outcome: >-
   EVAL-1's ticket.json lists children EVAL-2, EVAL-3, EVAL-4 and is still the
   epic titled Order tracking; exactly three child tickets were minted in the
   workspace (no ticket file enters the repo), each with parent EVAL-1, no
-  design flag, the features ["order-tracking"] and a non-empty
-  acceptance-criteria list; the breakdown-ticket step state records completed.
+  design flag, the features ["order-tracking"], a non-empty
+  acceptance-criteria list and references naming the epic's tech design; the breakdown-ticket step state records completed.
 tags: [behaviour]
 max_turns: 100
 timeout_seconds: 1800

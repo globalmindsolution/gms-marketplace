@@ -240,6 +240,42 @@ matching section here, and merge to `main` — the Release workflow tags
   named for the bug, the first test of the first slice.
 - **A child ticket inherits its parent's `features`** (ADR-0138).
   `new-ticket.py --parent` copies them unless `--features` is given.
+- **Tickets link their documents** (ADR-0140). Every ticket has a
+  `## References` section listing every document the repo holds for its
+  features, found from the standard layout with no selection step: the PRD
+  feature section (with its heading anchor), the feature's living analysis,
+  `hld/overview.md` and the HLD views that name the feature, the living LLD
+  (`api`, `data`, `flows`, `components`), the tech design and API contract of
+  the ticket and of its parent epic, and the ticket's development `analysis/`,
+  `plan.md` and `test-cases.md`. Each link points at the document on the
+  remote default branch (`https://<host>/<owner>/<repo>/blob/<default>/<path>`;
+  GitLab and Bitbucket URL forms too), so it is clickable in the tracker and
+  never 404s; a document not on `origin/<default>` yet is listed as *pending*,
+  with its path and no link. All four ticket templates carry the section, with
+  `<!-- acs:references -->` markers that code fills. `/acs:create-ticket` hands
+  the list to its type author, shows it in the confirmation and stores it;
+  `/acs:breakdown-ticket` stores each child's and now writes each child's
+  `tracker-body.md` before the sync, which a child was missing; `tracker sync`
+  puts the block in every new issue. Skills read the same list from the
+  step-start `context.references` and `requirements.md`'s new
+  `## References`, instead of searching the repo. It is derived at read time,
+  so tickets created before this change get it too. **Migration:** none.
+- **`acs.py ticket references`** (ADR-0140): `(--ticket ID | --features a,b
+  [--parent ID]) [--fetch] [--write] [--render]` prints the list with
+  `default_branch`, `web_base` (`null` with `web_base_reason: "no-web-remote"`
+  on a host acs cannot link to) and `remote_checked`; `--write` stores
+  `references` on the ticket (a new optional `ticket.json` field), `--render`
+  adds the markdown block as `block`.
+- **`acs.py tracker refresh (--ticket ID | --pending) [--dry-run]`**
+  (ADR-0140): recomputes a synced ticket's references and, when the rendered
+  block changed, rewrites only the `## References` marker block of its GitHub
+  issue (`gh issue view`, then `gh issue edit --body-file`); a ticket on the
+  `local` tracker is stored and skipped. `--pending` covers every open synced
+  ticket that still lists a pending document;
+  `/acs:merge-pr` runs it after a merge, best-effort. A failure is
+  non-critical (ADR-0088): one finding, never a stop.
+- **`record-external.py --url`** (ADR-0140) keeps the issue URL a sync returns
+  as `external.url`.
 
 ### Changed
 

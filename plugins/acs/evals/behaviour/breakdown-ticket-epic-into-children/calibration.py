@@ -4,8 +4,9 @@ IDEAL does what /acs:breakdown-ticket does on an epic, through the plugin's own
 writers: `acs step start --step breakdown-ticket --ticket EVAL-1` (no
 --allocate), new-ticket.py --parent EVAL-1 for each confirmed child (the
 epic's features inherited, no --features), the confirmed acceptance criteria
-written into each child through `acs.py ticket save`, then result.json and the
-post-hook."""
+written into each child through `acs.py ticket save`, each child's references
+recorded with `acs.py ticket references --ticket <child> --write` (ADR-0140),
+then result.json and the post-hook."""
 
 import json
 import os
@@ -33,7 +34,7 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _mint(ws, children, with_criteria=True, features=None):
+def _mint(ws, children, with_criteria=True, features=None, with_references=True):
     ids = []
     for title, ttype, points, criteria in children:
         narrowed = "" if features is None else ' --features "%s"' % features
@@ -46,6 +47,9 @@ def _mint(ws, children, with_criteria=True, features=None):
             saved = ws.acs("ticket", "save", "--ticket", tid, "--from", "-",
                            stdin=json.dumps({"acceptance_criteria": criteria}))
             assert saved.returncode == 0, saved.stderr
+        if with_references:
+            found = ws.acs("ticket", "references", "--ticket", tid, "--write")
+            assert found.returncode == 0, found.stderr
     return ids
 
 
@@ -77,6 +81,12 @@ def _allocated_first(ws):
     _mint(ws, CHILDREN)
 
 
+def _no_references(ws):
+    """Minted the three children but never recorded their references."""
+    _start(ws)
+    _finish(ws, _mint(ws, CHILDREN, with_references=False))
+
+
 def _features_dropped(ws):
     """Minted the children with no feature, losing the epic's."""
     _start(ws)
@@ -95,4 +105,5 @@ BAD = {
     "allocated a new id before minting": _allocated_first,
     "minted an unconfirmed fourth child": _extra_child,
     "children lost the epic's features": _features_dropped,
+    "children minted without their references": _no_references,
 }

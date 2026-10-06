@@ -35,6 +35,17 @@ import subprocess
 from ._common import read_json  # noqa: F401  (re-exported for callers' convenience)
 from .repo import gh_failure_hint
 
+#: Each gh-driven flow's failure class under ADR-0088, by its `acs.py` command.
+#: The skills' "GitHub call failure policy" prose and the docs' criticality
+#: tables quote these; this is the one place the class is decided.
+GH_FLOW_CRITICALITY = {
+    "pr metadata fill": "non-critical",
+    "tracker sync": "critical per ticket, soft per batch",
+    # Rewrites only the `## References` marker block of an existing issue
+    # (ADR-0140): a failure leaves a stale list, never a broken ticket.
+    "tracker refresh": "non-critical",
+}
+
 #: The Status option a PR moves to, in preference order (case-insensitive).
 PR_STATUS_OPTIONS = ("In Review", "Review")
 #: The Status option a freshly synced ticket moves to.

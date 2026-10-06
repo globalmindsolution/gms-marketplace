@@ -310,7 +310,7 @@ class TemplateTest(unittest.TestCase):
         self.assertEqual(headings, ["Summary", "Steps to reproduce", "Expected behaviour",
                                     "Actual behaviour",
                                     "Environment", "Severity", "Suspected area",
-                                    "Acceptance criteria", "Notes"])
+                                    "Acceptance criteria", "References", "Notes"])
         self.assertRegex(body, r"(?i)regression test reproduces the bug.{0,40}fails before "
                                r"the fix.{0,20}passes after")
         tail = {}

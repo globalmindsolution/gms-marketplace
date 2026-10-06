@@ -43,6 +43,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step breakdown
 - Parse the context JSON. Bind: `partition`, `ticket_id`, `ticket`,
   `requirements`, `settings`, `reconcile`, `handoff_summary`, `checkout_root`,
   `post_hook`.
+- `references` — **References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.**
 - **The mode follows the parent's type.** `epic` → **fan-out**: mint its
   children; the epic's own record is not re-analyzed or rewritten — only its
   `children` grow. `story` or `task` → **split**: the ticket is converted to an
@@ -194,14 +195,29 @@ out impossible to write as confirmed, stop and say so (Finish, failure path).
    The ticket lives in the workspace and the tracker only, never in the repo
    (ADR-0128). Never hand-edit `ticket.json`, `counters.json`,
    `tickets-index.json` or `run.json`; never allocate an id yourself.
-4. **Re-read the parent**: its `children` must list every minted id.
+4. **Record each child's references** (ADR-0140) — the documents the standard
+   layout holds for its features, the parent epic's design records included
+   (the layout finds them from `parent`; nothing to pass):
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket references --ticket <child-id> --write
+   ```
+
+   Then **re-read the parent**: its `children` must list every minted id.
 5. **Tracker sync** — only when `settings.tracker.provider` is `github` (skip on
    `local`). Open `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/tracker-sync.md`
    and follow it — the one tracker-sync procedure both skills share. The sync set
-   is the children minted in step 2: the parent's `external` is already set, so
-   the exclusion rule there keeps its issue from being re-created; on a split,
-   the parent's remote issue is **updated** to the Epic type with links to its
-   children. A failed `gh issue create` is critical per ticket and soft per batch:
+   is the children minted in step 2. **Write each child's body first** —
+   `tracker sync` refuses a partition without one: `acs.py write
+   <child partition>/tracker-body.md` (the `partition` new-ticket.py printed) with
+   the child's description, its criteria as a `## Acceptance criteria` checklist,
+   an empty `## References` section (`<!-- acs:references -->` then
+   `<!-- /acs:references -->`, which the sync fills) and a last line
+   `acs-ticket: <child-id>`. The parent's `external` is already set, so the
+   exclusion rule keeps its issue from being re-created; refresh its References
+   block instead with `acs.py tracker refresh --ticket <id>` (non-critical: an
+   `info` finding on failure). On a split, the parent's remote issue is
+   **updated** to the Epic type with links to its children. A failed `gh issue create` is critical per ticket and soft per batch:
    an `error` finding naming that child, `replayable: false`, and the batch
    continues (`gh` is the only transport, ADR-0088).
 6. **Write the materialize report** to
@@ -305,7 +321,7 @@ invocations:
 
 - **Ticket**: <id> — <title> (<type>; converted from <story|task> when split)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: children minted (id, title, type, points), inherited or narrowed features, the coverage of the parent's criteria, the design status (a warning when not approved), tracker keys when synced
+- **Results**: children minted (id, title, type, points), inherited or narrowed features, the coverage of the parent's criteria, each child's references (pending ones marked), the design status (a warning when not approved), tracker keys when synced
 - **Findings**: <open findings / flagged criteria kept / assumptions, or "none">
 - **Artifacts**: <partition files>
 - **Metrics**: children <n> · <wall time>
