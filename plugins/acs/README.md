@@ -17,10 +17,9 @@ documents, a prompt, or a mix; no skill requires a ticket), the human-facing
 documents live in your repo one folder per phase — a feature's analysis
 beside the PRD, design records under `lld/<feature>/`, plans and test cases
 under `docs/development/<feature>/` — and all durable run state (the ticket
-included) lives in your repo's
-shared git directory, `.git/acs/state-machine`, which git never tracks — so
-runs are resumable, tickets can ship in parallel across git worktrees
-(Claude Code's own worktree sessions and its Bash sandbox included), and the
+included) lives in a
+gitignored `.acs/state-machine` folder inside your repo — so runs
+are resumable, tickets can ship in parallel across git worktrees, and the
 coordinator never depends on conversation history between steps.
 
 ## Requirements
@@ -52,10 +51,8 @@ degradations (hooks ungated, `CLAUDE_PLUGIN_ROOT` must be exported).
 ## Quick start
 
 No setup is required: acs runs in any repo on its defaults. Tickets are
-`ACS-1`, `ACS-2`, …, and the workspace is `.git/acs/state-machine` in your
-repo's shared git directory — there is no path to pick. State an older acs
-kept in `.acs/state-machine` is moved there on the first acs call, leaving a
-`.acs/state-machine.MOVED` note; nothing to run. Run `/acs:setup` only
+`ACS-1`, `ACS-2`, …, and the workspace is the gitignored `.acs/state-machine`
+folder in the main checkout — there is no path to pick. Run `/acs:setup` only
 to change a convention or install the CI gates:
 
 ```text
@@ -338,13 +335,15 @@ report breaks it and derives the counts it records from the report itself.
 
 Durable state is split in two: the **documents a human reads or reviews** are
 committed in your repo, one folder per phase, and the **run ledger** — and the
-ticket itself — stays in the workspace in your repo's git directory, never
-tracked (and your tracker)
-([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md),
-[ADR-0136](../../docs/architecture/adr/0136-state-in-the-git-common-dir.md)).
+ticket itself — stays in the gitignored workspace (and your tracker)
+([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)).
 Skills and agents write those state files through `acs.py write`, never
-Claude Code's `Write` tool, so a session in a worktree or under the Bash
-sandbox can record its steps.
+Claude Code's `Write` tool, so a session in a Claude Code worktree — refused
+`Write` on the main checkout, where the workspace is — can record its steps
+([ADR-0136](../../docs/architecture/adr/0136-state-is-written-through-acs-write.md)).
+Under the Bash sandbox, accept the `sandbox.filesystem.allowWrite` rule
+`/acs:setup` offers for the workspace's absolute path; it goes to the main
+checkout's `.claude/settings.local.json`.
 
 ```text
 <repo>/docs/product/features/<feature>/analysis/         # Discovery: the feature's living analysis (a folder)
@@ -354,7 +353,7 @@ sandbox can record its steps.
                                                           #   <id> = the ticket id, else the run id
 <repo>/docs/tickets/<ticket-id>/                          # LEGACY: still read, never written
 
-<workspace>/<repo-id>/                  # <workspace> = <git-common-dir>/acs/state-machine; repo-id from git remote: owner-name
+<workspace>/<repo-id>/                  # repo-id from git remote: owner-name
   tickets-index.json  runs-index.json  counters.json
   sessions/<checkout-id>/               # one directory per worktree
     pointer.json                        # the run and step this checkout is on
@@ -456,8 +455,7 @@ conventions (`docs/product/`, `docs/architecture/`, `docs/architecture/adr/`,
 …), and files a run's documents one folder per phase (ADR-0128) — asking you
 first before it creates a phase folder, and recording your answer under
 `docs` (ADR-0132). No key locates the workspace: it is always
-`.git/acs/state-machine` in the repo's shared git directory
-([ADR-0136](../../docs/architecture/adr/0136-state-in-the-git-common-dir.md)).
+`.acs/state-machine` in the main checkout.
 
 Full reference: [docs/requirements/functional/configuration.md](../../docs/requirements/functional/configuration.md)
 (all keys, placeholder vocabulary, description templates, tracker mapping)
@@ -472,17 +470,14 @@ The settings shape changed (`test_coverage_percent`, `suites` and the top-level 
 
 If this repo's state still lives in an external workspace outside the repo
 (from before the in-repo workspace shipped), acs no longer reads it — the
-workspace is always `.git/acs/state-machine` in the repo's shared git
-directory (ADR-0102, ADR-0136) — so move it across once:
+workspace is always `.acs/state-machine` in the main checkout (ADR-0102) — so
+move it across once:
 
 ```text
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/migrate_workspace.py" \
-  --from <old-workspace-root> --to <repo>/.git/acs/state-machine \
+  --from <old-workspace-root> --to <repo>/.acs/state-machine \
   --repo-root <repo-root>
 ```
-
-State in the checkout's own `.acs/state-machine` (where acs kept it before
-ADR-0136) needs none of this: acs moves it on its first call.
 
 The migrator preflights (refuses if a `.lock` is held or a run is
 `in_progress`), copies the repo's partition tree, verifies the copy, then

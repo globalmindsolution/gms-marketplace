@@ -58,8 +58,6 @@ import acs_lib as lib  # noqa: E402
 #: on purpose: a broad `.acs/` glob would swallow settings.json and .acs/ci/,
 #: which CI has to read. `.claude/worktrees/` is where Claude Code puts its
 #: worktrees -- inside the checkout, where `git add -A` would stage a gitlink.
-#: `.acs/state-machine/` is the LEGACY workspace (ADR-0136 moved it into the git
-#: dir); a clone that has not migrated yet still needs it ignored, so it stays.
 IGNORE_ENTRIES = (".acs/settings.local.json", ".acs/state-machine/", ".claude/worktrees/")
 
 #: Paths a broad ignore rule must NOT swallow. Warned about, never fixed for
@@ -113,15 +111,13 @@ def plugin_templates():
     return os.path.join(lib.plugin_root(), "templates")
 
 
-def resolve_workspace(settings, cwd, migrate=True):
+def resolve_workspace(settings, cwd):
     """The state root, resolved exactly as validate_settings does:
     `default_state_root`, always (no setting relocates it -- ADR-0102).
     Returned with the error rather than raising, so `detect` can report a
-    repo layout acs cannot anchor to instead of crashing on it. `detect`
-    passes migrate=False: it writes nothing, so it does not move a legacy
-    root either (ADR-0136) -- apply, and every hook, does."""
+    repo layout acs cannot anchor to instead of crashing on it."""
     try:
-        return lib.default_state_root(cwd, migrate=migrate), None
+        return lib.default_state_root(cwd), None
     except lib.GateError as exc:
         return None, str(exc)
 
@@ -199,7 +195,7 @@ def detect(cwd):
     settings_root = lib.main_repo_root(cwd) or root
     repo_id = lib.repo_partition_id(cwd)
     settings, sources = lib.load_settings(cwd)
-    workspace, workspace_error = resolve_workspace(settings, cwd, migrate=False)
+    workspace, workspace_error = resolve_workspace(settings, cwd)
     return {
         # Computed, not hardcoded. It used to be a literal True on every path,
         # so `ok` meant "apply succeeded" for one command and nothing at all
@@ -634,6 +630,10 @@ def apply(cwd, answers, dry_run=False):
                      else "Claude Code permission rules already in %s" % permissions["path"])
         if permissions["added"] and perms == "team":
             staged.append(os.path.join(".claude", "settings.json"))
+        sandbox = permissions["sandbox"]  # machine-specific: never staged (ADR-0136)
+        changes.note(bool(sandbox["added"]), "added the sandbox write rule for %s to %s"
+                     % (sandbox["rule"], sandbox["path"]) if sandbox["added"]
+                     else "sandbox write rule already in %s" % sandbox["path"])
 
     settings, _sources = lib.load_settings(cwd)
     errors = list(changes.errors)

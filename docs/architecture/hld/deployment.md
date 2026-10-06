@@ -56,7 +56,11 @@ Key facts:
   --git-common-dir`) so every linked worktree resolves to the same physical
   partition, with partitions keyed by repo identity derived from the git
   remote. No setting overrides it ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)); acs must be
-  run from a regular git checkout.
+  run from a regular git checkout. Skills and agents write it through
+  `acs.py write`, never the `Write` tool, so a Claude Code worktree session
+  can record its steps; under the Bash sandbox it needs the `allowWrite`
+  rule `/acs:setup` offers
+  ([ADR-0136](../adr/0136-state-is-written-through-acs-write.md)).
 - **No server-side anything**: the plugins are files; all execution happens in
   the user's Claude Code session and shell. Tracker/PR access goes
   through the user's authenticated CLIs.

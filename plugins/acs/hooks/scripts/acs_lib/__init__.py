@@ -70,9 +70,6 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     sessions_dir, ticket_dir,
     ticket_id_from_text)  # noqa: F401)  # noqa: F401
 
-from . import state_root  # noqa: F401,E402
-from .state_root import state_root_report  # noqa: F401,E402
-
 from .hostgates import (GATE_EVIDENCE_MAX_AGE_SECONDS, HOOK_ENFORCEMENTS,
     accepted_gate_evidence, consume_gate_evidence,
     gate_evidence, gate_evidence_path, gate_notice,

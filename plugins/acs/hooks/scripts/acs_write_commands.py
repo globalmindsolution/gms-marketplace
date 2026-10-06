@@ -1,11 +1,13 @@
 """acs_write_commands -- `acs.py write`: the one way a skill or an agent writes state (ADR-0136).
 
-The workspace lives in `<git-common-dir>/acs/state-machine`. From a worktree
-session Claude Code refuses an Edit/Write aimed at the main checkout, and the
-Bash sandbox lets Bash write the main repo's shared `.git` directory but not the
-main checkout -- so the Write tool can no longer reach a state file, while a
-Bash call to this CLI can. Every result.json, iteration note, draft, report and
-run-local document goes through here:
+The workspace is `<main-checkout>/.acs/state-machine` -- one folder every
+linked worktree resolves to. From a worktree session Claude Code refuses an
+Edit/Write aimed at the main checkout, so the Write tool cannot reach a state
+file, while this CLI -- Python run from the worktree -- can. (With the Bash
+sandbox on, Bash may write the folder only through the absolute
+`sandbox.filesystem.allowWrite` rule /acs:setup offers for the main checkout's
+`.claude/settings.local.json`.) Every result.json, iteration note, draft, report
+and run-local document goes through here:
 
     python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <path> [--append] [--run R] <<'ACS_EOF'
     ...content...
@@ -16,7 +18,8 @@ run-local document goes through here:
 the root -- a `..` escape, a symlinked directory or file -- is refused with
 exit 2 and nothing is written, and so are the machine-owned ledgers, which
 have verbs of their own. The write is atomic: a temp file in the target's
-directory, then `os.replace`.
+directory, then `os.replace`; and like every state write it gives the root its
+`*` ignore file first, so the folder never shows up as untracked files.
 """
 
 import os
@@ -25,6 +28,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
+from acs_lib._common import _ensure_state_root_ignored  # noqa: E402
 from acs_cli import context_or_die, die, emit  # noqa: E402
 
 COMMAND = "write"
@@ -118,6 +122,7 @@ def atomic_write(target, data, append=False):
     read-modify-write: parallel adjudicators appending to one file would
     otherwise each read the same old content and the last replace would drop
     the others' lines."""
+    _ensure_state_root_ignored(target)
     parent = os.path.dirname(target)
     os.makedirs(parent, exist_ok=True)
     guard = ".%s.write.guard" % os.path.basename(target)

@@ -262,10 +262,11 @@ them for ordering or safety guarantees.
 ## Cross-cutting rules
 
 - **State files are written through `acs.py write`, never the Write tool
-  (ADR-0136).** The workspace is `<git-common-dir>/acs/state-machine`, outside
-  the working tree: a Claude Code session in a worktree is refused a `Write`
-  or `Edit` there, while the Bash sandbox lets Bash write the shared git
-  directory from any linked worktree. Every
+  (ADR-0136).** The workspace is `<main-checkout>/.acs/state-machine`, one
+  folder at the main checkout's root for every worktree: a Claude Code session
+  in a worktree is refused a `Write` or `Edit` there, while a Bash call to
+  `acs.py` run from the worktree writes it with Python (under the Bash
+  sandbox, once the `allowWrite` rule `/acs:setup` offers is in place). Every
   state file a skill or agent writes — `result.json`, `ticket.json`, a
   clarification ledger, `iter-<n>/` notes, reports, verdicts and JSON
   reports, drafts, handoff notes, documents kept local under

@@ -71,13 +71,9 @@ READ_ONLY_STEPS = ("review-code", "run-e2e-tests", "audit-design", "audit-securi
 _TEST_SEGMENTS = {"test", "tests", "__tests__", "spec"}
 _TEST_NAME = re.compile(r"(^test_.+\.[^.]+$)|(.+_test\.[^.]+$)|(.+\.(spec|test)\.[^.]+$)")
 _DOC_EXTENSIONS = (".md", ".mmd")
-#: acs's workspace before ADR-0136, inside the main checkout (ADR-0086):
-#: gitignored state, and where a LOCAL run document was kept (ADR-0132). A clone
-#: that has not migrated yet still has it, so it is still never claimed.
+#: acs's workspace inside the main checkout (ADR-0086): gitignored state, and
+#: where a LOCAL run document is kept (ADR-0132). Never claimed for a commit.
 _STATE_ROOT = ".acs/state-machine"
-#: The git dir -- where the workspace lives now (ADR-0136,
-#: `<git-common-dir>/acs/state-machine`). Never a commit's.
-_GIT_DIR = ".git"
 _DOC_DIRS = {"docs", "doc"}
 _SLICE_REPORT = re.compile(r"^(?:implementer|execute)(?:-([A-Za-z0-9_][A-Za-z0-9_-]{0,39}))?\.json$")
 
@@ -102,7 +98,7 @@ def is_doc_path(path):
 
 def _in_state_root(rel):
     """Is this repo-relative path acs's own workspace (never committed)?"""
-    return any(rel == root or rel.startswith(root + "/") for root in (_STATE_ROOT, _GIT_DIR))
+    return rel == _STATE_ROOT or rel.startswith(_STATE_ROOT + "/")
 
 
 def _rel(root, path):

@@ -10,7 +10,7 @@ below belongs to exactly one of them
 |---|----------------|---------------------|
 | **Where** | one folder per phase, keyed by the run's feature: Discovery `<prd_dir>/features/<feature>/`, Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`, Development `<development_dir>/<feature>/<ticket-id or run-id>/` | `<workspace>/<repo>/` — the ticket partition `<ticket-id>/` and the run partition `runs/<run-id>/` |
 | **Holds** | the human-facing documents: the feature's living analysis, an `analysis/` folder (Discovery, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); `tech-design.md` (a legacy `design.md` still read, [ADR-0135](../../architecture/adr/0135-create-tech-design.md)), `api-contract.md` (Design); a Development run's `analysis/` folder, `plan.md`, `test-cases.md` (Development) | the ticket (`ticket.json`) and its clarification ledger; the run ledger: `run.json`, `requirements.md`, `subject/` (`sources.json` and the copied documents), `steps/<skill>/state.json`, each step's `result.json` and `iter-<n>/` audit trail, verdicts, `lock.json`, `lock-events.jsonl`, a ticketless run's `clarifications.json`, `agents/`, and the repo-level `tickets-index.json` / `runs-index.json` / `counters.json` / `sessions/` |
-| **Versioned** | yes — written uncommitted by the skills, committed by `/create-pr` (ADR-0127), reviewed in the PR | no — it lives under the git directory (ADR-0136) |
+| **Versioned** | yes — written uncommitted by the skills, committed by `/create-pr` (ADR-0127), reviewed in the PR | no — gitignored |
 | **Written by** | the coordinators of the skills that own each document | hooks and the `acs.py` CLIs; the skills' coordinators and subagents through `acs.py write`, never the `Write` tool |
 
 `<prd_dir>` is the repo's PRD directory (found as `/acs:create-prd` finds the
@@ -41,55 +41,51 @@ document, so a ticket started before ADR-0128 keeps its documents
 
 - The workspace is the single home for all pipeline **run state**. **All
   skills and hooks MUST read and write their state files in the workspace
-  folder**, which is always `<git-common-dir>/acs/state-machine` — in an
-  ordinary clone `<main-checkout>/.git/acs/state-machine` — and no setting
-  locates it ([configuration.md](configuration.md),
-  [ADR-0136](../../architecture/adr/0136-state-in-the-git-common-dir.md)).
+  folder**, which is always `<main-checkout>/.acs/state-machine` — no
+  setting locates it ([configuration.md](configuration.md)).
 - The workspace MUST be resolvable to the **same physical location from
   every worktree of a repo** — that is the actual invariant, enabling
   **parallel tasks** (a worktree per ticket without state colliding or
-  polluting the repo). It is achieved by deriving the folder from
-  `git rev-parse --git-common-dir`, which every linked worktree — a Claude
-  Code worktree under `.claude/worktrees/<name>/` included — shares with the
-  main checkout, with no override (see ADR-0086,
-  [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md),
-  ADR-0136); a layout that cannot resolve a main checkout (bare repo,
-  submodule) is refused — acs must be run from a regular git checkout.
-- The workspace MUST be writable from a Claude Code worktree session and
-  under the Bash sandbox. Both refuse writes into the main checkout from a
-  linked worktree; the sandbox allows the shared git directory, which is why
-  the workspace lives there. **No skill or agent writes a state file with the
-  `Write` or `Edit` tool**: every state write goes through
-  `acs.py write <path> [--append] [--run R]`, which reads the content from
-  stdin, writes it atomically (a temporary file, then a rename) and creates
-  parent folders. `<path>` is absolute inside the workspace root, or relative
-  to the run folder (`--run`, default the checkout's current run). A path
-  outside the workspace root — by `..` or through a symlink — MUST be refused
-  with exit 2 and nothing written, and so MUST a machine-owned ledger that has
-  its own verb (`run.json`, `steps/<skill>/state.json`, `lock.json`, the
-  indexes, `sessions/`, `active-agents/`, any `filemap.json`); a write prints
-  `{"ok": true, "path": …, "bytes": …, "appended": …, "total_bytes": …}`. A
-  coordinator hands its agents the absolute run folder, so an agent in an
-  isolated worktree with no current run of its own still writes the right
-  place. Repo files (code, tests, documents in the checkout) are still written
-  with `Write`/`Edit` by the write roles.
-- The workspace is never versioned: git tracks nothing under its own
-  directory, so it never shows up in `git status` and `git clean -fdx` never
-  removes it. The `.acs/state-machine/` entry in the root `.gitignore` and
-  `info/exclude` stays for a clone whose state has not moved yet. Only a write
-  creates the folder: a hook that only looks for state writes nothing, so a
-  repo that never runs acs gets no folder
+  polluting the repo). It is achieved via the in-repo,
+  main-checkout-anchored `.acs/state-machine` folder (gitignored, resolved
+  from `git rev-parse --git-common-dir`), with no override (see ADR-0086,
+  [ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)); a layout
+  that cannot resolve a main checkout (bare repo, submodule) is refused —
+  acs must be run from a regular git checkout.
+- The workspace MUST ignore itself: the first state write under
+  `.acs/state-machine/` creates `.acs/state-machine/.gitignore` containing
+  `*`, so the workspace never shows up in `git status` whether or not the
+  repo's root `.gitignore` names it. The root entries `/acs:setup` adds are
+  no longer needed. Only a write creates the folder: a hook that only looks
+  for state writes nothing, so a repo that never runs acs gets no folder
   ([ADR-0105](../../architecture/adr/0105-acs-runs-without-setup.md)).
-- State left at the pre-ADR-0136 location `<main-checkout>/.acs/state-machine`
-  MUST move on its own: when that folder exists and the new one does not, the
-  first acs call moves it (a rename, or a copy through a staging folder
-  across filesystems) under an `O_EXCL` guard, and leaves a one-line
-  `.acs/state-machine.MOVED` note naming the new path; re-running is a no-op,
-  and a move interrupted part-way is finished by the next call. Every absolute
-  path a JSON state file recorded under the old folder is rewritten to the new
-  one, so stored paths keep resolving. When both folders exist the new one is
-  used, and `acs.py doctor` reports the leftover old one
-  (`state_root.legacy_leftover`).
+- The workspace MUST be writable from a Claude Code worktree session.
+  Such a session is refused the `Write`, `Edit` and `NotebookEdit` tools on
+  any path in the main checkout, where the workspace is, so **no skill or
+  agent writes a state file with the `Write` or `Edit` tool**: every state
+  write goes through `acs.py write <path> [--append] [--run R]`, which runs
+  from the session's own worktree, reads the content from stdin, writes it
+  atomically (a temporary file, then a rename) and creates parent folders.
+  `<path>` is absolute inside the workspace root, or relative to the run
+  folder (`--run`, default the checkout's current run, which `acs.py
+  context` reports as `run_id`/`run_dir`). A path outside the workspace
+  root — by `..` or through a symlink — MUST be refused with exit 2 and
+  nothing written, and so MUST a machine-owned ledger that has its own verb
+  (`run.json`, `steps/<skill>/state.json`, `lock.json`, the indexes,
+  `sessions/`, `active-agents/`, any `filemap.json`); a write prints
+  `{"ok": true, "path": …, "bytes": …, "appended": …, "total_bytes": …}`.
+  A coordinator hands its agents the absolute run folder, so an agent in an
+  isolated worktree with no current run of its own still writes the right
+  place. Repo files (code, tests, documents in the checkout) are still
+  written with `Write`/`Edit` by the write roles
+  ([ADR-0136](../../architecture/adr/0136-state-is-written-through-acs-write.md)).
+- Under the Bash sandbox, which lets Bash write only the working directory,
+  `$TMPDIR` and its `sandbox.filesystem.allowWrite` paths, the workspace is
+  writable from a worktree only with an `allowWrite` entry naming its
+  absolute path. `/acs:setup` offers that entry and writes it to the main
+  checkout's `.claude/settings.local.json`
+  ([skills.md](skills.md#setup-optional)). The workspace never moves for
+  it: there is nothing to migrate.
 - The workspace MUST be partitioned **by consumer repo, then by ticket
   and by run**: a ticket and its clarification ledger live under
   `<workspace>/<repo>/<ticket-id>/`, and every pipeline artifact of a run —
@@ -105,15 +101,15 @@ document, so a ticket started before ADR-0128 keeps its documents
 - A repo owner moving state that an older acs kept in an external
   workspace (named by a retired `workspace_path` key) MUST use the manual
   migrator: `migrate_workspace.py --from <old-workspace-root> --to
-  <repo>/.git/acs/state-machine --repo-root <repo-root> [--dry-run]` (contract in
+  <repo>/.acs/state-machine --repo-root <repo-root> [--dry-run]` (contract in
   [contracts.md](../../architecture/lld/contracts.md)). The migrator
   preflights — refusing to run while a `.lock` is held or an `in_progress`
   run exists anywhere under the old workspace's partition tree — then
   copies the repo's partition tree, verifies the copy, and only then
   removes the old tree; it is idempotent, so re-running after an
   interruption is safe.
-- No setting points at the old location: every run resolves the workspace
-  under the git directory, so the old tree is no longer read once the migration succeeds.
+- No setting points at the old location: every run resolves the in-repo
+  workspace, so the old tree is no longer read once the migration succeeds.
   A leftover key for it in `.acs/settings.local.json` is a retired key —
   ignored, and safe to delete.
 
@@ -190,10 +186,10 @@ and, inside it, one per ticket or run):
 └── docs/tickets/SHOP-90/               # LEGACY: read when a phase folder has no such file; never written
 ```
 
-The workspace (under the git directory, never versioned; the run ledger):
+The workspace (gitignored, the run ledger):
 
 ```
-<workspace>/                            # <git-common-dir>/acs/state-machine (ADR-0136)
+<workspace>/
 └── acme-shop/                          # one partition per consumer repo
     ├── tickets-index.json              # all tickets: id, type, status, parent/children
     ├── runs-index.json                 # all runs: id, workflow, subject, status, started/ended

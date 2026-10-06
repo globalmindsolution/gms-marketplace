@@ -17,10 +17,10 @@
 > `api_contract`, and the analysis records no `api_surface`. Every mention of
 > those below describes the v0.5.0 design, not the current one.
 >
-> **Note (2026-10-05).** ADR-0136 moved the workspace this document places at
-> `.acs/state-machine/<repo-id>/` to `<git-common-dir>/acs/state-machine/<repo-id>/`,
-> and state files are written through `acs.py write`, never the `Write` tool.
-> The layout below the root is unchanged.
+> **Note (2026-10-06).** Since ADR-0136, state files are written through
+> `acs.py write`, never the `Write` tool; where this document has an agent
+> `Write` a state file, read it as that command. The workspace stays at
+> `.acs/state-machine/<repo-id>/`.
 
 This document specifies a from-scratch redesign of acs's **implementation**
 half — the skills `/acs:ship` orchestrates between a settled requirement and an

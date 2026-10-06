@@ -353,8 +353,7 @@ REWORDED_BY_ADR_0102 = {
         # /setup still derives the workspace silently, with no prompt and no
         # required input; the optional override is what went.
         'workspace_path` derives silently to `<main-checkout>/.acs/state-machine`':
-            # ADR-0136 moved the workspace into the git common directory.
-            "- The workspace derives silently to `<git-common-dir>/acs/state-machine` —",
+            "- The workspace derives silently to `<main-checkout>/.acs/state-machine` —",
         'no prompt, no required input; an explicit':
             "no prompt, no required input, and no override (ADR-0086,",
         # The PRD is still create-architecture's primary input and still
@@ -366,8 +365,7 @@ REWORDED_BY_ADR_0102 = {
     },
     'configuration.md': {
         '`/setup` no longer requires `workspace_path`: when unset, it derives':
-            # ADR-0136 moved the workspace into the git common directory.
-            "- `/setup` derives the workspace (`<git-common-dir>/acs/state-machine`) —",
+            "- `/setup` derives the workspace (`<main-checkout>/.acs/state-machine`) —",
         '| Project (local) | `<repo>/.acs/settings.local.json` | **gitignored** | Machine-specific keys — notably `workspace_path`. |':
             "| Project (local) | `<repo>/.acs/settings.local.json` | **gitignored** | "
             "Machine-specific overrides of any key. |",
@@ -403,9 +401,8 @@ REWORDED_BY_ADR_0102 = {
             "`/create-ticket` reads it as the area's current behavior and flags "
             "contradictions. |",
         '| `workspace_path` | string (absolute path) | derived (`<main-checkout>/.acs/state-machine`)':
-            # ADR-0136 moved the workspace into the git common directory.
             "hooks read/write ticket state — is always "
-            "`<git-common-dir>/acs/state-machine`,",
+            "`<main-checkout>/.acs/state-machine`,",
     },
 }
 

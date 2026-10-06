@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/settings.schema.json",
   "title": "acs settings.json",
-  "description": "Optional acs configuration: every key has a default, so a repo needs no file at all (ADR-0105); /acs:setup writes the conventions a team changes. Scopes: ~/.acs/settings.json (user), <repo>/.acs/settings.json (project, committed), <repo>/.acs/settings.local.json (machine-specific, gitignored). Per-key merge: local -> project -> user. Unknown keys are tolerated for forward compatibility. No key locates a document or the workspace: skills find the repo's docs through CLAUDE.md and the repo itself, and the workspace is always <git-common-dir>/acs/state-machine (ADR-0102, ADR-0136).",
+  "description": "Optional acs configuration: every key has a default, so a repo needs no file at all (ADR-0105); /acs:setup writes the conventions a team changes. Scopes: ~/.acs/settings.json (user), <repo>/.acs/settings.json (project, committed), <repo>/.acs/settings.local.json (machine-specific, gitignored). Per-key merge: local -> project -> user. Unknown keys are tolerated for forward compatibility. No key locates a document or the workspace: skills find the repo's docs through CLAUDE.md and the repo itself, and the workspace is always <main-checkout>/.acs/state-machine (ADR-0102).",
   "type": "object",
   "properties": {
     "ticket_prefix": {

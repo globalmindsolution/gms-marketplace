@@ -239,8 +239,7 @@ class RefusalTest(WizardCase):
         self.assertEqual(out["required_check_contexts"], [])
         self.assertEqual(out["changed"], [])
         for path in ((".acs", "settings.json"), (".gitignore",),
-                     (".github", "workflows"), (".acs", "ci"), (".acs", "state-machine"),
-                     (".git", "acs")):
+                     (".github", "workflows"), (".acs", "ci"), (".acs", "state-machine")):
             self.assertFalse(os.path.exists(os.path.join(self.repo, *path)), path)
 
     def test_a_tests_gate_without_a_command_is_refused_and_nothing_is_written(self):
@@ -414,10 +413,19 @@ class ClaudePermissionsTest(WizardCase):
     def allow(self, name):
         return json.loads(self.read(".claude", name))["permissions"]["allow"]
 
+    def allow_write(self):
+        doc = json.loads(self.read(".claude", "settings.local.json"))
+        return doc["sandbox"]["filesystem"]["allowWrite"]
+
+    def state_root(self):
+        return os.path.join(self.repo, ".acs", "state-machine")
+
     def test_detect_offers_the_rules_verbatim(self):
         out = setup_wizard.detect(self.repo)["claude_permissions"]
         self.assertEqual(out["rules"], list(lib.claude_permissions.RULES))
         self.assertEqual(out["team"]["present"], [])
+        self.assertEqual(out["sandbox_rule"]["path"], self.state_root())
+        self.assertFalse(out["sandbox_rule"]["present"])
 
     def test_no_answer_or_skip_writes_no_claude_file(self):
         for answers in (self.answers(), self.answers(claude_permissions="skip")):
@@ -432,15 +440,24 @@ class ClaudePermissionsTest(WizardCase):
         self.assertEqual(self.allow("settings.json"), list(lib.claude_permissions.RULES))
         self.assertEqual(out["claude_permissions"]["added"], list(lib.claude_permissions.RULES))
         self.assertIn(os.path.join(".claude", "settings.json"), out["stage_for_commit"])
-        self.assertNotIn(".claude/settings.local.json", self.read(".gitignore"))
+        # The sandbox write rule is machine-specific: the local file, ignored
+        # and never staged, even when the team chose the shared file.
+        self.assertEqual(self.allow_write(), [self.state_root()])
+        self.assertNotIn("sandbox", json.loads(self.read(".claude", "settings.json")))
+        self.assertIn(".claude/settings.local.json", self.read(".gitignore").splitlines())
+        self.assertNotIn(os.path.join(".claude", "settings.local.json"), out["stage_for_commit"])
+        self.assertTrue([c for c in out["changed"] if "sandbox write rule" in c], out["changed"])
         again = self.apply(self.answers(claude_permissions="team"))
         self.assertEqual(again["claude_permissions"]["added"], [])
+        self.assertEqual(again["claude_permissions"]["sandbox"]["added"], [])
         self.assertNotIn(os.path.join(".claude", "settings.json"), again["stage_for_commit"])
 
     def test_user_writes_the_local_file_and_ignores_it_in_both_layers(self):
         out = self.apply(self.answers(claude_permissions="user"))
         self.assertTrue(out["ok"], out["errors"])
         self.assertEqual(self.allow("settings.local.json"), list(lib.claude_permissions.RULES))
+        self.assertEqual(self.allow_write(), [self.state_root()])
+        self.assertEqual(out["claude_permissions"]["sandbox"]["added"], [self.state_root()])
         self.assertNotIn(os.path.join(".claude", "settings.local.json"), out["stage_for_commit"])
         self.assertIn(".claude/settings.local.json", self.read(".gitignore").splitlines())
         self.assertIn(".claude/settings.local.json",
@@ -457,6 +474,8 @@ class ClaudePermissionsTest(WizardCase):
         out = self.apply(self.answers(claude_permissions="team"), dry_run=True)
         self.assertEqual(out["claude_permissions"]["added"], list(lib.claude_permissions.RULES))
         self.assertTrue([c for c in out["changed"] if "permission rules" in c], out["changed"])
+        self.assertEqual(out["claude_permissions"]["sandbox"]["added"], [self.state_root()])
+        self.assertTrue([c for c in out["changed"] if "sandbox write rule" in c], out["changed"])
         self.assertFalse(os.path.exists(os.path.join(self.repo, ".claude")))
 
     def test_an_unknown_answer_is_refused_and_nothing_is_written(self):
@@ -531,8 +550,7 @@ class WorkspaceTest(WizardCase):
 
     def test_the_partition_is_created_at_the_resolved_root(self):
         out = self.apply()
-        self.assertEqual(out["workspace"],
-                         os.path.join(self.repo, ".git", "acs", "state-machine"))
+        self.assertEqual(out["workspace"], os.path.join(self.repo, ".acs", "state-machine"))
         self.assertTrue(os.path.isdir(os.path.join(out["workspace"], "acme-shop")))
 
     def test_a_re_run_reports_it_as_already_there(self):
@@ -543,7 +561,7 @@ class WorkspaceTest(WizardCase):
     def test_the_in_repo_default_is_used_when_no_override_is_given(self):
         self.apply({"scope": "project", "settings": {"ticket_prefix": "SHOP"}})
         self.assertTrue(os.path.isdir(
-            os.path.join(self.repo, ".git", "acs", "state-machine", "acme-shop")))
+            os.path.join(self.repo, ".acs", "state-machine", "acme-shop")))
 
 
 class NextStepsTest(WizardCase):

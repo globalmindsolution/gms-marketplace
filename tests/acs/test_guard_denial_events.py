@@ -180,9 +180,9 @@ class RecordedDenialTest(GuardEventsCase):
         self.assertEqual(self.events()[-1]["target"], "src/elsewhere.py")
 
     def test_a_control_input_records_repo_relative(self):
-        """A control input lives in the WORKSPACE, which in a main checkout is
-        its .git/acs/state-machine (ADR-0136), so it records repo-relative like
-        any other target under the checkout."""
+        """A control input lives in the WORKSPACE, which is always the main
+        checkout's .acs/state-machine (ADR-0102), so it records repo-relative
+        like any other target under the checkout."""
         self.declare("src/a.py")
         self.spawn_writer()
         record = lib.agent_record_path(self.rdir_path, "a-1")

@@ -343,7 +343,7 @@ Illustrative shape:
   judge role's read-only discipline is enforced by its tool allowlist (read
   tools and Bash, no `Write`: its own phase artifacts go through
   `acs.py write`, like every state file —
-  [ADR-0136](../../architecture/adr/0136-state-in-the-git-common-dir.md)); write roles may not spawn
+  [ADR-0136](../../architecture/adr/0136-state-is-written-through-acs-write.md)); write roles may not spawn
   agents or invoke skills, and their writes are bounded by the file-map
   guard, which is armed while any write role runs.
 - The coordinator MUST persist each role's output (authoring notes,

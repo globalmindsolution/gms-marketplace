@@ -451,12 +451,21 @@ def cmd_doctor(args):
     required_missing = lib.missing_tools(settings, kinds=("required",), rows=rows)
     # `ok` is the verdict the module contract tells callers to read, so it must
     # answer "is the toolchain usable?" — not be a constant.
-    # Where state lives, and whether a pre-ADR-0136 folder is still sitting in
-    # the main checkout beside it: informational, never part of `ok`.
+    # Where state lives (the main checkout's .acs/state-machine, from any
+    # worktree): informational, never part of `ok`.
     emit({"ok": not required_missing, "context": ctx is not None,
           "toolchain": rows, "missing": missing,
           "missing_required": required_missing,
-          "state_root": lib.state_root_report(os.getcwd())})
+          "state_root": state_root_report(os.getcwd())})
+
+
+def state_root_report(cwd):
+    """{"path", "error"}: the workspace root this checkout resolves to, or why
+    there is none (a bare repo, a submodule, no git)."""
+    try:
+        return {"path": lib.default_state_root(cwd), "error": None}
+    except lib.GateError as exc:
+        return {"path": None, "error": str(exc)}
 
 
 # ---------------------------------------------------------------------------

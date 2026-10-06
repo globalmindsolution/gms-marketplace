@@ -57,6 +57,9 @@ sequenceDiagram
     end
     Init->>FS: resolve state root - default_state_root cwd
     Init->>FS: mkdir the resolved state root, then check it is writable
+    opt the user accepted acs's Claude Code permission rules, for me or for the team
+        Init->>FS: merge sandbox.filesystem.allowWrite - absolute main-checkout state root - into the main checkout's .claude/settings.local.json
+    end
 ```
 
 Both gitignore-coverage warnings above are non-fatal: `/acs:setup` warns
@@ -65,3 +68,12 @@ pre-existing broad `.acs/` ignore is the user's own configuration to fix, not
 something init itself can safely resolve. Moving state that an older acs kept
 in an external workspace is not part of setup: `migrate_workspace.py` does it
 by hand ([workspace-and-state.md](../../../requirements/functional/workspace-and-state.md)).
+
+The sandbox write rule ([ADR-0136](../../adr/0136-state-is-written-through-acs-write.md))
+lets a sandboxed `acs.py write` from a Claude Code worktree session reach the
+state root, which stays in the main checkout. It is the state root's absolute
+path — settings path rules anchor at the session's working directory — so it
+is machine-specific and always goes to the main checkout's
+`.claude/settings.local.json`, even when the permission rules went to the
+committed `.claude/settings.json`; the merge keeps every other key and entry
+and adds the entry once. `setup detect` reports it as `sandbox_rule`.

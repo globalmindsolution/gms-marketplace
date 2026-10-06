@@ -139,7 +139,7 @@ def validate_tests(tests):
 def validate_settings(settings, cwd, require_workspace=True):
     """Shared baseline validation used by every pre-hook. Raises GateError.
 
-    The workspace is always <git-common-dir>/acs/state-machine (ADR-0136). No
+    The workspace is always <main-checkout>/.acs/state-machine (ADR-0086). No
     setting locates it, and none locates a document either (ADR-0102): a skill
     finds the repo's docs the way any session does, through CLAUDE.md and the
     repo itself."""

@@ -392,8 +392,8 @@ class TestAgentContracts(unittest.TestCase):
             self.assertNotRegex(body, r"cat\s*>[^\n]*<<", path)
 
     def test_every_agent_writes_state_through_acs_write(self):
-        """ADR-0136: the workspace lives in the git common dir, where a
-        worktree session's Write/Edit is refused. Every agent writes its own
+        """ADR-0136: the workspace lives in the MAIN checkout's
+        .acs/state-machine, where a worktree session's Write/Edit is refused. Every agent writes its own
         partition files through `acs.py write` (a quoted heredoc), and none
         is told to use the Write tool for them."""
         cmd = re.compile(r'`python3 "\$\{CLAUDE_PLUGIN_ROOT\}/hooks/scripts/acs\.py" write '
@@ -3594,7 +3594,7 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
 
 
 class TestStateWritesGoThroughAcsWrite(unittest.TestCase):
-    """ADR-0136: acs's workspace lives in the git common dir. A session in a
+    """ADR-0136: acs's workspace lives in the MAIN checkout. A session in a
     worktree is refused any Write/Edit there, so a coordinator writes every
     workspace file -- its result document first -- through `acs.py write` and
     a quoted heredoc, never the Write tool."""

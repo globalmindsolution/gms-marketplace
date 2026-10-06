@@ -1126,8 +1126,8 @@ Durable state is split by AUDIENCE. The documents a human reads or reviews live
 in the consumer repo and are committed with the change — a run's own documents
 only when the repo shares them (ADR-0132, see "Shared or kept local" below);
 the run ledger — every
-fact a hook or a walk reads — and the ticket itself stay in the workspace,
-`<git-common-dir>/acs/state-machine` (and the tracker). A run's documents live **one folder per phase**,
+fact a hook or a walk reads — and the ticket itself stay in the gitignored
+workspace (and the tracker). A run's documents live **one folder per phase**,
 keyed by the run's feature (ADR-0128):
 
 | Phase | Folder | Documents |
@@ -1221,7 +1221,7 @@ so one changeset; use a separate worktree per concurrent ticket.
 <checkout>/<development_dir>/<feature>/<id>/                   # Development: analysis/  plan.md  test-cases.md
 <checkout>/docs/tickets/<ticket-id>/                           # LEGACY, read-only fallback (doc_layout.LEGACY_TICKETS_PATH)
 
-<workspace>/<repo-id>/                  # <workspace> = <git-common-dir>/acs/state-machine; repo-id from git remote: owner-name
+<workspace>/<repo-id>/                  # repo-id from git remote: owner-name
   tickets-index.json  counters.json
   runs-index.json                       # every run: id, workflow, subject (+ sources), status
   sessions/<checkout-id>/               # ONE directory per checkout, not five files
@@ -1250,40 +1250,23 @@ so one changeset; use a separate worktree per concurrent ticket.
         verdict.json  lens-<A..E>.md ...
 ```
 
-### Where the workspace is, and how state is written (ADR-0136)
+### How state is written: `acs.py write` (ADR-0136)
 
-**The root.** `repo.default_state_root(cwd)` derives
-`<git-common-dir>/acs/state-machine` — `<main-checkout>/.git/acs/state-machine`
-in an ordinary clone — from `git rev-parse --is-bare-repository` and
-`--git-common-dir`, and refuses a bare repository, a submodule and a layout
-whose common directory is not a `.git` directory with a `GateError`, exactly as
-ADR-0086's derivation did. Every linked worktree, `.claude/worktrees/<name>/`
-included, shares the common directory, so every checkout of a repo resolves the
-same tree. It is the one location both of Claude Code's rules let a worktree
-session write: a session in a worktree is refused any `Write`/`Edit`/
-`NotebookEdit` aimed at the main checkout and any Bash run there, and the Bash
-sandbox lets Bash write the working directory, `$TMPDIR` and, from a linked
-worktree, the shared `.git` directory (not `.git/hooks/` or `.git/config`).
-Git never tracks anything under its own directory and `git clean -fdx` never
-reaches it. `.acs/settings.json` and `.acs/settings.local.json` stay in the
-checkout, and setup still writes the `.acs/state-machine/` ignore entry for a
-clone that has not migrated yet.
-
-**The migration** (`acs_lib/state_root.py`). The first derivation after an
-upgrade finds `<main-checkout>/.acs/state-machine` with no new root and moves
-it: `os.rename`, or — across devices, or where the rename is refused — a copy
-into `<git-common-dir>/acs/.state-machine.migrating` renamed into place before
-the old tree is removed. The move holds the `O_EXCL` guard
-`<git-common-dir>/acs/.migrate.guard`, so two hooks deriving at once cannot
-both move; a staging directory an interrupted move left behind is finished on
-the next call. Every string in every `*.json` under the moved tree that names
-the old root, or a path below it, is rewritten to the same place under the new
-root (`rewrite_stored_paths`), so the runs index, `run.json`, session pointers,
-`subject/sources.json`, locks and handoff manifests keep resolving. A one-line
-`<main-checkout>/.acs/state-machine.MOVED` names the new path. Both roots
-present: the new one is used and the old one left alone; `acs.py doctor`
-reports it as `state_root: {path, legacy, legacy_leftover, message}`. A move that cannot
-complete raises a `GateError` naming both paths, and the hook exits 2.
+**The root does not move.** `repo.default_state_root(cwd)` derives
+`<main-checkout>/.acs/state-machine` from `git rev-parse --is-bare-repository`
+and `--git-common-dir`, and refuses a bare repository and a submodule with a
+`GateError` (ADR-0086, ADR-0102). Every linked worktree, `.claude/worktrees/<name>/`
+included, resolves the same folder at the main checkout's root — never one of
+its own. Two Claude Code rules decide whether a worktree session can write it.
+Worktree isolation refuses the `Write`/`Edit`/`NotebookEdit` tools on any
+main-checkout path, and any Bash call whose working directory is the main
+checkout or that points git at it; a Bash call run from the worktree that
+writes with Python is neither, so `acs.py write` is not stopped. The Bash
+sandbox, when on, lets Bash write only the working directory, `$TMPDIR`, added
+directories and `sandbox.filesystem.allowWrite` paths, and settings path rules
+anchor at the session's working directory; so `/acs:setup` offers an
+`allowWrite` entry naming the folder's **absolute** path (see "Bootstrap"
+below).
 
 **State files: `acs.py write`** (`acs_write_commands.py`). No skill or agent
 writes a state file with the `Write` or `Edit` tool. The one form is
@@ -1977,7 +1960,13 @@ offers acs's Claude Code permission rules (`acs_lib.claude_permissions.RULES`: a
 `hooks/scripts/*.py` and read-only git) for `.claude/settings.json` (team) or the main
 checkout's `.claude/settings.local.json` (me), or skips them — a shell pattern is a
 convenience, not a sandbox; anything that writes (`git add/commit/push`, `gh`) still
-prompts. It sets the ticket
+prompts. With them it offers the Bash sandbox write rule for the workspace,
+`{"sandbox": {"filesystem": {"allowWrite": ["<abs main checkout>/.acs/state-machine"]}}}`
+(ADR-0136): the absolute path of the main checkout's folder, also from a linked
+worktree, always merged into the main checkout's `.claude/settings.local.json` —
+never the team file, even when the permission rules went there — keeping other keys
+and entries, adding the entry once. `setup detect` reports it as `sandbox_rule` and
+`setup apply` returns what it added. It sets the ticket
 prefix and installs the CI gates — the ticket-link check, tests and e2e —
 scaffolds the `models` block, and writes `.claude/launch.json`, the Claude Code
 Desktop app's preview-server config, from a dev server it guesses and the user
@@ -2035,7 +2024,7 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   No key locates the workspace (ADR-0102): a run's documents live one folder per phase
   (ADR-0128 — see "Workspace layout"; a legacy `docs/tickets/<ID>/` is only
   read), the workspace at
-  `<git-common-dir>/acs/state-machine` (ADR-0136), and a skill finds every other repo
+  `<main-checkout>/.acs/state-machine`, and a skill finds every other repo
   document through `CLAUDE.md` and the repo itself, creating a missing one at
   its `docs/` convention — the machine-readable API contract files `/acs:code`
   makes from an approved contract (ADR-0134) go where the repo keeps them. The

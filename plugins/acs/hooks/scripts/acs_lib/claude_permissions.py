@@ -13,6 +13,16 @@ writes: `git add/commit/push` and `gh` keep prompting by design. A shell
 pattern is a convenience, not a sandbox -- `*` matches any text, spaces
 included -- and the skill says so when it offers the rules.
 
+With either answer it also writes the Bash sandbox write rule for acs's state
+folder -- `{"sandbox": {"filesystem": {"allowWrite": ["<abs main
+checkout>/.acs/state-machine"]}}}` -- to the main checkout's
+`.claude/settings.local.json`, never the team file (ADR-0136). A worktree
+session's Bash sandbox writes only its working directory, $TMPDIR, added dirs
+and `allowWrite` paths, and the state folder sits in the MAIN checkout, which
+every worktree resolves to. Settings path rules anchor at the session's own
+working directory, so the rule must be absolute -- which makes it
+machine-specific, hence the local file.
+
 Both files are written at the MAIN checkout, the root /acs:setup writes every
 other file to: Claude Code saves a linked worktree's approvals in the main
 checkout's `settings.local.json`. A merge keeps every other key and rule, adds
@@ -61,10 +71,22 @@ def paths(root):
     return {scope: os.path.join(base, *rel.split("/")) for scope, rel in FILES.items()}
 
 
+#: Where the sandbox write rule lives inside a settings document.
+SANDBOX_KEYS = ("sandbox", "filesystem", "allowWrite")
+
+
+def sandbox_rule(root):
+    """The absolute path the sandbox rule allows: the MAIN checkout's
+    `.acs/state-machine`, the folder `default_state_root` derives from any
+    worktree of the repo."""
+    return os.path.join(_base(root), ".acs", "state-machine")
+
+
 def ignore_entries(scope):
     """The ignore entries an answer needs: the user's local file is machine-
-    specific, so it is ignored the way `.acs/settings.local.json` is."""
-    return (FILES["user"],) if scope == "user" else ()
+    specific, so it is ignored the way `.acs/settings.local.json` is -- and
+    both answers write it, since the sandbox rule always goes there."""
+    return (FILES["user"],) if scope in ("team", "user") else ()
 
 
 def _ignored(rel, cwd):
@@ -75,11 +97,31 @@ def _ignored(rel, cwd):
         return False
 
 
+def _nested_list(path, doc, keys):
+    """The list at `keys` in `doc` ([] when absent); GateError when a level on
+    the way is not what a merge needs."""
+    node = doc
+    for i, key in enumerate(keys):
+        last = i == len(keys) - 1
+        node = node.get(key, [] if last else {})
+        if not isinstance(node, list if last else dict):
+            raise GateError("%s: `%s` is not %s" % (path, ".".join(keys[:i + 1]),
+                                                     "a list" if last else "an object"))
+    return node
+
+
+def _set_nested(doc, keys, value):
+    node = doc
+    for key in keys[:-1]:
+        node = node.setdefault(key, {})
+    node[keys[-1]] = value
+
+
 def _load(path):
-    """(document, allow list) of a settings file; ({}, []) when absent.
-    GateError when it cannot be merged into without losing something."""
+    """The document of a settings file; {} when absent. GateError when it
+    cannot be merged into without losing something."""
     if not os.path.exists(path):
-        return {}, []
+        return {}
     try:
         with open(path, encoding="utf-8") as fh:
             doc = json.load(fh)
@@ -88,30 +130,33 @@ def _load(path):
                         % (path, exc))
     if not isinstance(doc, dict):
         raise GateError("%s is not a JSON object" % path)
-    perms = doc.get("permissions", {})
-    if not isinstance(perms, dict):
-        raise GateError("%s: `permissions` is not an object" % path)
-    allow = perms.get("allow", [])
-    if not isinstance(allow, list):
-        raise GateError("%s: `permissions.allow` is not a list" % path)
-    return doc, allow
+    _nested_list(path, doc, ("permissions", "allow"))
+    _nested_list(path, doc, SANDBOX_KEYS)
+    return doc
 
 
 def detect(root):
     """What the setup question needs: the rules, verbatim, and per scope the
     file's path, whether it exists, which rules it already carries and which it
-    lacks, and an `error` when it could not be read."""
+    lacks, and an `error` when it could not be read; and `sandbox_rule`, the
+    state folder's absolute path, the local file it goes to and whether it is
+    already there."""
     out = {"rules": list(RULES)}
     for scope, path in paths(root).items():
         try:
-            _doc, allow = _load(path)
-            error = None
+            allow, error = _nested_list(path, _load(path), ("permissions", "allow")), None
         except GateError as exc:
             allow, error = [], str(exc)
         out[scope] = {"path": path, "exists": os.path.exists(path), "error": error,
                       "present": [r for r in RULES if r in allow],
                       "missing": [r for r in RULES if r not in allow]}
     out["user"]["ignored"] = _ignored(FILES["user"], _base(root))
+    rule, local = sandbox_rule(root), paths(root)["user"]
+    try:
+        present, error = rule in _nested_list(local, _load(local), SANDBOX_KEYS), None
+    except GateError as exc:
+        present, error = False, str(exc)
+    out["sandbox_rule"] = {"path": rule, "file": local, "present": present, "error": error}
     return out
 
 
@@ -122,28 +167,40 @@ def errors(root, scope):
     if scope == "skip":
         return []
     try:
-        _load(paths(root)[scope])
+        for path in sorted({paths(root)[scope], paths(root)["user"]}):
+            _load(path)
     except GateError as exc:
         return [str(exc)]
     return []
 
 
+def _merge(path, keys, items, dry_run):
+    """Append the `items` missing from the list at `keys` in `path`'s document;
+    returns those added. Writes only when something was added."""
+    doc = _load(path)
+    current = _nested_list(path, doc, keys)
+    added = [item for item in items if item not in current]
+    if added and not dry_run:
+        _set_nested(doc, keys, list(current) + added)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+    return added
+
+
 def apply(root, scope, dry_run=False):
-    """Merge the missing rules into `permissions.allow` of the scope's file
-    (created when absent, JSON with 2-space indent). Returns {"scope", "path",
-    "added"}; `added` is empty, and nothing is written, when all are there."""
+    """Merge the missing rules into `permissions.allow` of the scope's file and
+    the sandbox rule into `sandbox.filesystem.allowWrite` of the main
+    checkout's local file (each created when absent, JSON with 2-space indent).
+    Returns {"scope", "path", "added", "sandbox": {"path", "rule", "added"}};
+    an `added` is empty, and nothing is written for it, when all is there."""
     problems = errors(root, scope)
     if problems or scope == "skip":
         if problems:
             raise GateError(problems[0])
-        return {"scope": scope, "path": None, "added": []}
-    path = paths(root)[scope]
-    doc, allow = _load(path)
-    added = [rule for rule in RULES if rule not in allow]
-    if added and not dry_run:
-        perms = doc.setdefault("permissions", {})
-        perms["allow"] = list(allow) + added
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
-    return {"scope": scope, "path": path, "added": added}
+        return {"scope": scope, "path": None, "added": [], "sandbox": None}
+    path, local, rule = paths(root)[scope], paths(root)["user"], sandbox_rule(root)
+    added = _merge(path, ("permissions", "allow"), RULES, dry_run)
+    sandbox_added = _merge(local, SANDBOX_KEYS, (rule,), dry_run)
+    return {"scope": scope, "path": path, "added": added,
+            "sandbox": {"path": local, "rule": rule, "added": sandbox_added}}
