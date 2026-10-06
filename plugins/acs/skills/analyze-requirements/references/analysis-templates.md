@@ -199,7 +199,7 @@ writer — `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <path>
 <<'ACS_EOF'`, the file's content, then `ACS_EOF` alone on the last line; an
 in-place revision reads the file and writes it whole again the same way —
 never through the Write or Edit tool. The draft lives in acs's workspace,
-in the git directory (ADR-0136), where a session in a worktree is refused
+in the main checkout (ADR-0136), where a session in a worktree is refused
 any Write/Edit; and the runtime also refuses a subagent's Write/Edit of a
 file named like a report ("Subagents should return findings as text, not
 write report files"), so each attempt would be a turn lost before the same

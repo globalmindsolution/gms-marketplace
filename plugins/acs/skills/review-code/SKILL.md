@@ -243,8 +243,8 @@ The gate runs again in full, started again beside that iteration's lenses.
 ## Finish
 
 Write `steps/review-code/result.json` (and every other file in the run: `gate.json`,
-`verdict.json`) through Bash, never the Write tool — the workspace sits in the git
-directory (ADR-0136), where a worktree session's Write is refused:
+`verdict.json`) through Bash, never the Write tool — the workspace sits in the main
+checkout (ADR-0136), where a worktree session's Write is refused:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/review-code/result.json <<'ACS_EOF'
