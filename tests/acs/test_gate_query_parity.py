@@ -127,7 +127,7 @@ class GateQueryParityTest(GateQueryCase):
         self.assertIn(
             "ticket %s is an epic — epics are never implemented directly; run "
             "/acs:create-tech-design %s first if the epic has no design yet, then break it "
-            "down into child tickets with /acs:create-ticket %s (epic fan-out), then "
+            "down into child tickets with /acs:breakdown-ticket %s, then "
             "run /acs:code on a child." % (epic, epic, epic), out.stderr)
         self.assertNotIn("no plan for this run", out.stderr,
                          "no input gate: a skill falls back to the subject on its own")
@@ -135,13 +135,24 @@ class GateQueryParityTest(GateQueryCase):
                                                   "exit_code": 2})
 
     def test_gate_matches_the_hook_for_merge_pr_and_create_design(self):
-        """The two non-step gates answer the same way through either door."""
+        """The non-step gates answer the same way through either door."""
         ticket = self.new_ticket("Add user login", "task")
         for skill in ("merge-pr", "create-tech-design"):
             with self.subTest(skill=skill):
                 out = self.assert_parity(skill, ticket)
                 self.assertEqual(out.returncode, 2, out.stderr)
                 self.assertIn("acs pre-%s: blocked" % skill, out.stderr)
+
+    def test_gate_matches_the_hook_for_breakdown_ticket(self):
+        """ADR-0138: breakdown-ticket's subject gate, through either door --
+        a bug refused, an epic let through."""
+        bug = self.new_ticket("Cart doubles a line", "bug")
+        out = self.assert_parity("breakdown-ticket", bug)
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("is a bug", out.stderr)
+        epic = self.new_ticket("Checkout revamp", "epic")
+        out = self.assert_parity("breakdown-ticket", epic)
+        self.assertEqual(out.returncode, 0, out.stderr)
 
     def test_a_design_skill_opens_on_an_epic_through_either_door(self):
         """ADR-0134: create-api-contract is a Design skill like

@@ -94,7 +94,7 @@ the repo has none; this skill does not create one.
 
 **Epics** (ticket runs only). An epic's criteria belong to its children, and the gate refuses an
 epic here; should one reach you anyway (`ticket.type == "epic"`), STOP and tell
-the user to fan the epic out with `/acs:create-ticket <id>` and run
+the user to break the epic down with `/acs:breakdown-ticket <id>` and run
 `/acs:create-test-docs` on a child. Do not write cases against an epic.
 
 ## Working tree — the test cases are a repo file

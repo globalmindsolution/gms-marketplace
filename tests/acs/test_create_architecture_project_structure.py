@@ -240,7 +240,9 @@ class ScopeGuardTest(unittest.TestCase):
     create-flows added, 26->28 skills, 27->33 agent files, nine->eleven
     authoring skills; ADR-0134: create-api-contract's gap analyst added,
     33->34 agent files; ADR-0137: docs-sync's gap analyst added, 34->35
-    agent files) — these
+    agent files; ADR-0138: breakdown-ticket added and create-ticket's four
+    type authors and reviewer, 29->30 skills, 35->40 agent files, eleven->
+    twelve authoring loops) — these
     assertions track the current epic state, not a frozen MAR-120
     snapshot."""
 
@@ -258,8 +260,8 @@ class ScopeGuardTest(unittest.TestCase):
         overview = read(os.path.join(DOCS, "architecture", "hld", "overview.md"))
         hook_flow = read(
             os.path.join(DOCS, "architecture", "lld", "flows", "hook-gated-skill-run.md"))
-        self.assertIn("eleven authoring skills", overview)
-        self.assertIn("eleven authoring skills", hook_flow)
+        self.assertIn("twelve authoring skills", overview)
+        self.assertIn("twelve authoring skills", hook_flow)
 
     def test_no_project_structure_doc_hand_authored(self):
         self.assertFalse(

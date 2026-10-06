@@ -31,6 +31,7 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-audit-security.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-review-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-run-e2e-tests.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-breakdown-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-api-contract.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-architecture.py
@@ -50,6 +51,7 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-audit-security.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-review-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-run-e2e-tests.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-breakdown-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-api-contract.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-architecture.py

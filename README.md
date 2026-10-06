@@ -188,11 +188,12 @@ The marketplace currently ships one plugin:
   through product definition (PRD), architecture, ticketing, design (the
   API contract, data and flows of each feature among it), requirements
   analysis, an implementation plan and test cases, TDD implementation, a five-lens code review, end-to-end tests, doc
-  sync, pull request, and merge. Twenty-five skills (`/acs:setup`,
+  sync, pull request, and merge. Thirty skills (`/acs:setup`,
   `/acs:ship`, `/acs:code`, …), each an independent skill that spawns only
   the subagents its own work needs — a surveyor, author and reviewer for the
-  PRD; a planner and plan reviewer for the plan; implementers for the code;
-  none for the mechanical steps that open a ticket, a PR or a merge.
+  PRD; one author per ticket type and a reviewer for a ticket; a planner and
+  plan reviewer for the plan; implementers for the code; none for the
+  mechanical steps that break a ticket into children, open a PR or merge one.
 
   The human-facing documents of a change (`tech-design.md`, `plan.md`,
   `test-cases.md`, …) live in the consumer repo's docs tree, one folder per

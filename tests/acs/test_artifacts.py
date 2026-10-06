@@ -42,7 +42,7 @@ TICKET = "SHOP-1"
 REPO_ID = "acme-shop"
 #: The description templates /acs:create-ticket builds every ticket body from.
 TEMPLATES_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
-DESCRIPTION_TEMPLATES = ("task-default", "story-default", "epic-default")
+DESCRIPTION_TEMPLATES = ("task-default", "story-default", "epic-default", "bug-default")
 
 
 def read_text(path):
@@ -289,6 +289,9 @@ class TestDeriveStatus(ArtifactsCase):
         cases = [
             ("no ledger", [], "open"),
             ("create-ticket alone", [("create-ticket", "completed")], "open"),
+            # ADR-0138: breaking a ticket down mints its children; it starts no work.
+            ("breakdown-ticket alone", [("create-ticket", "completed"),
+                                        ("breakdown-ticket", "completed")], "open"),
             ("a skip alone", [("create-ticket", "completed"), ("create-test-docs", "skipped")], "open"),
             ("design started", [("create-tech-design", "in_progress")], "in_progress"),
             ("code in progress", [("create-ticket", "completed"), ("code", "in_progress")], "in_progress"),

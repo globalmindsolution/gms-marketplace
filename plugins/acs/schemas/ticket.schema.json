@@ -8,7 +8,7 @@
   "properties": {
     "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
     "title": {"type": "string", "minLength": 1},
-    "type": {"enum": ["epic", "story", "task"]},
+    "type": {"enum": ["epic", "story", "task", "bug"]},
     "description": {"type": "string"},
     "acceptance_criteria": {"type": "array", "items": {"type": "string"}},
     "priority": {"enum": ["critical", "high", "medium", "low"]},
@@ -41,7 +41,7 @@
     },
     "story_points": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
     "needs_design": {
-      "description": "Always true for epics (stated, not asked); always false for stories and tasks — never offered or confirmed (MAR-76).",
+      "description": "Always true for epics (stated, not asked); always false for stories, tasks and bugs — never offered or confirmed (MAR-76).",
       "type": "boolean"
     },
     "docs_only": {
@@ -63,6 +63,20 @@
       "items": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
       "uniqueItems": true,
       "default": []
+    },
+    "severity": {
+      "description": "A bug's severity -- how bad the defect is, separate from priority (how soon it is fixed). Bug tickets only (ADR-0138); optional.",
+      "enum": ["critical", "high", "medium", "low"]
+    },
+    "reproduction": {
+      "description": "A bug's steps to reproduce, as markdown (numbered, from a clean state). Bug tickets only (ADR-0138); optional.",
+      "type": "string"
+    },
+    "expected": {"description": "What should happen. Bug tickets only (ADR-0138); optional.", "type": "string"},
+    "actual": {"description": "What happens instead. Bug tickets only (ADR-0138); optional.", "type": "string"},
+    "environment": {
+      "description": "Where the bug was seen: version or commit, OS, runtime, configuration. Bug tickets only (ADR-0138); optional.",
+      "type": "string"
     },
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"}

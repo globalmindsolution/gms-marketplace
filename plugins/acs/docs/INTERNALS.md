@@ -12,14 +12,14 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 29 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 35 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 30 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 40 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `breakdown-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 20 pre + 20 post |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 20 pre + 20 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
-| Templates | `plugins/acs/templates/*.md` | 7 (4 description templates — `pr-default`, `epic/story/task-default` — plus `design-default` and the two audit-report templates, `audit-design-report` and `audit-security-report`, whose sections the audits' post-hook checks; ADR-0123) |
+| Templates | `plugins/acs/templates/*.md` | 8 (5 description templates — `pr-default`, `epic/story/task/bug-default` — plus `design-default` and the two audit-report templates, `audit-design-report` and `audit-security-report`, whose sections the audits' post-hook checks; ADR-0123) |
 
 Skills are invoked namespaced: `/acs:setup`, `/acs:ship`, `/acs:create-ticket`, …
 (The requirements docs write `/setup`, `/ship`, … — same skills, plugin-namespaced
@@ -33,7 +33,7 @@ onto the plugin hooks API like this:
 1. **Pre-hooks — deterministic, enforced.** `hooks.json` registers a
    `PreToolUse` hook matching the `Skill` tool. `dispatch.py pre` extracts the
    skill name from the tool input (handling the `acs:` namespace), no-ops
-   (exit 0) for anything that is not one of the nineteen hooked skills, and
+   (exit 0) for anything that is not one of the twenty hooked skills, and
    otherwise runs that skill's gate from `acs_lib.gates` **in-process** (the
    `pre-<skill>.py` wrappers exist for tests and `acs.py gate`, not for the
    hook path).
@@ -502,8 +502,8 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
      - iteration 3 still failing -> stop; final status "failed", findings recorded
    /acs:code runs no loop of its own: its implementers run once per step, and
    the review -> fix cycle is ship.yaml's review-code -> code loop. The three
-   inline skills (create-ticket, create-pr, merge-pr) run no loop and spawn no
-   subagent.
+   inline skills (breakdown-ticket, create-pr, merge-pr) run no loop and spawn
+   no subagent; create-ticket runs at most two iterations (ADR-0138).
 4. Write the result document steps/<skill>/result.json      # acs.py write, never the Write tool
 5. python3 <post_hook> --result-file <result.json>                    # MANDATORY final step
 ```
@@ -703,8 +703,8 @@ files nothing; and since the schema reads an *absent* `iteration` as `1`, a
 subagent must echo its task's `iteration` — one that omits it on iteration 3 is
 claiming to be iteration 1, and the hook says so on stderr rather than guessing
 at a counter it cannot see. The coordinator still writes the snapshot itself for
-work it performs **inline** (`/acs:create-ticket`, `/acs:create-pr`,
-`/acs:merge-pr`), where no subagent runs and therefore no SubagentStop fires.
+work it performs **inline** (`/acs:breakdown-ticket`, `/acs:create-pr`,
+`/acs:merge-pr`, and `/acs:create-ticket`'s materialisation), where no subagent runs and therefore no SubagentStop fires.
 
 **Every statement in a phase artifact must be grounded**: decisions and
 analysis cite the file (path + line/section) they are based on; claims about
@@ -757,15 +757,16 @@ pipeline end.
 
 **The `iterations` element.** A skill that runs no reflection loop omits it
 entirely rather than reporting a fraction of a loop it never ran. That is a
-property, not a list: it covers the inline apply-work skills (`create-ticket`,
+property, not a list: it covers the inline apply-work skills (`breakdown-ticket`,
 `create-pr`, `merge-pr`), the read-only audits — `audit-design`, whose gap
 analysts survey and nothing is written for a judge to judge, and
 `audit-security`, whose adjudicators rule once on each auditor's candidate
 findings with no writer between them — the unhooked utilities
 (`setup`, `update`, `test`, `release`, `set-doc-status`, `handoff`), and the orchestrator that drives other skills'
 loops without running one of its own (`ship`). The
-eleven skills that run a write → judge loop over their own subagents
-report it, with a constant `<cap>` of **3**. `/acs:code` reports the
+twelve skills that run a write → judge loop over their own subagents
+report it, with a constant `<cap>` of **3** (`create-ticket`'s is **2**,
+ADR-0138). `/acs:code` reports the
 iteration of ship.yaml's review-code → code loop it is on, whose ceiling is
 that loop's `max_iterations`, the same on every delivery path.
 
@@ -843,6 +844,7 @@ every other key below is persisted verbatim from the result document:
 | create-prd | `prd` `{path}`, `files: [...]` (the PRD and roadmap, left uncommitted for `/acs:create-pr`) |
 | create-architecture | `architecture` `{path, hld:[...]}`, `files: [...]` (every HLD path written, left uncommitted) |
 | create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
+| breakdown-ticket | `ticket_id`, `type` (always `epic` after the run), `converted_from` (`story`/`task` when a split converted the ticket, else `null`), `children: [ids]` (the parent's full list), `minted: [ids]` (this run's), `design_status` (the tech design's status, or `null`) — ADR-0138 |
 | create-tech-design | `design_path` (the published `tech-design.md` — the run's Design folder `lld/<feature>/<id>/`, or the partition when there is no checkout), `decision` (one line) |
 | create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — left as uncommitted changes for `/acs:create-pr`), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |
 | create-flows | `feature: [...]`, `files: [...]` (as create-data-design's), `types: [...]`, `gaps` `{undocumented, unimplemented, drifted}`, `flows` (int), `state_machines` (int) |
@@ -930,7 +932,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-35 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 35 reachable —
+40 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 40 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -965,7 +967,8 @@ setting.
 | `docs-sync` | `doc-updater` (write — one per doc area: `requirements`, `architecture`, `lld`, `adr`, `general`) · `gap-analyst` (survey — one per run feature, in the same message as the doc-updaters in iteration 1; ADR-0137) · `drift-reviewer` (judge — three slices over seven dimensions) |
 | `audit-design` | `gap-analyst` (survey — one per top-level code area); read-only, no writer and no judge (ADR-0122) |
 | `audit-security` | `auditor` (survey — one per category: `code` per code area, `secrets-config`, `dependencies`, `threat-model`) · `adjudicator` (judge — one per candidate finding, prompted to refute it); read-only, no writer (ADR-0123) |
-| `create-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from `skills/<skill>/references/` (`materialize.md`, `publish.md`, `merge.md`) |
+| `create-ticket` | `epic-author` · `story-author` · `task-author` · `bug-author` (write — ONE per run, for the type the coordinator chose; each writes only the draft `steps/create-ticket/iter-<n>/draft.json` and `draft.md` through `acs.py write`, reading the shared `references/authoring-rules.md`, and never mints a ticket or touches the tracker) · `reviewer` (judge — concrete, testable acceptance criteria, PRD trace and `features`, the type's completeness, sizing honesty, no invented facts); at most two iterations, then the coordinator confirms and materialises inline from `references/materialize.md` (ADR-0138) |
+| `breakdown-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from its SKILL.md and `skills/<skill>/references/` (create-pr's `publish.md`, merge-pr's `merge.md`) |
 
 The surveyor runs on iteration 1 only and freezes its notes; the author
 writes from them. The lifecycle hooks do not track `review-code`'s lenses and
@@ -1541,6 +1544,31 @@ ledger) and in the tracker. Nothing renders a `ticket.md`.
   last `## Clarifications`, the last `## Acceptance criteria` before it, the
   first `## Description` before that), so a description holding its own `## `
   headings survives.
+- **Four types, and the fields a bug adds** (ADR-0138). `TICKET_TYPES` is
+  `epic`, `story`, `task` and `bug` — the same enum in `ticket.schema.json`,
+  `tickets-index.schema.json` and `new-ticket.py --type`, with one
+  description template each (`templates/<type>-default.md`,
+  `conventions.TICKET_TEMPLATES`) and one GitHub Project `Type` option each
+  (`TYPE_OPTIONS`: `Epic`, `Story`, `Task`, `Bug`; a Project with no `Bug`
+  option gets the usual "option missing" finding). A bug may carry five
+  optional strings, `acs_lib.BUG_FIELDS` — `severity` (`BUG_SEVERITIES`:
+  `critical`, `high`, `medium`, `low`; separate from `priority`),
+  `reproduction`, `expected`, `actual` and `environment` — which
+  `/acs:create-ticket`'s bug author proposes and `new-ticket.py --severity …
+  --reproduction …` or `acs.py ticket save` writes. Both validate them, and
+  both refuse a bug field on a ticket that is not a bug (exit 2); an older
+  `ticket.json` without them still validates. `ticket.md`'s front matter
+  orders them `… type, priority, severity, parent, … due_date, reproduction,
+  expected, actual, environment, created_at, updated_at`. A bug runs like a
+  story: only an `epic` is refused by `/acs:code`'s and
+  `/acs:analyze-requirements`' gates, and its branch is `bug/<ID>-<slug>`.
+- **A child inherits its parent's `features`.** `new-ticket.py --parent <epic>`
+  copies the parent's `features` onto the child unless `--features` is given
+  (`--features ""` traces it to none), and reports `features_inherited`. It
+  still refuses a parent that is not an epic: `/acs:breakdown-ticket`
+  converts a story or task it splits into an epic first — `acs.py ticket
+  save` with `{"type": "epic", "needs_design": true}`, same id — then mints
+  its children (ADR-0138).
 - **`acs.py artifacts migrate` is retired** (ADR-0128): tickets are no longer
   stored in the docs tree, so it reports and writes nothing.
 - **The run's documents are a control input.** `acs_lib/filemap.py` denies a
@@ -1885,7 +1913,8 @@ at two levers, with an escalation between them:
    PR-size rubric to the type decision: a story/task should yield one
    reviewable PR — rule of thumb ~≤400 changed lines, one concern, ≤~7
    acceptance criteria, grounded in the codebase survey. Above the bar →
-   epic with children cut at PR-sized, independently shippable seams.
+   epic with children cut at PR-sized, independently shippable seams, which
+   `/acs:breakdown-ticket <id>` proposes and mints (ADR-0138).
 2. **Spec sizing (controls execution units).** Each spec is one coherent
    slice sized for a single /code implementer pass; the spec count is a size
    *signal*, never a release valve.
@@ -1905,7 +1934,7 @@ at two levers, with an escalation between them:
    `/create-ticket`'s upfront PR-size rubric, before any decomposition
    exists; lever 2, this plan-time signal, once the actual decomposition is
    known. On a "split" answer, the planning run terminates with a recorded
-   `failed` status and a `/acs:create-ticket split <id>` next step instead
+   `failed` status and a `/acs:breakdown-ticket <id>` next step instead
    of continuing silently.
 
 The numbers are deliberate rules of thumb for the authors' judgment, not
@@ -1923,7 +1952,7 @@ commands:
 | Command | Performs | Policy |
 |---|---|---|
 | `acs.py pr metadata fill --pr N` | create-pr step 6a: assignee, the ticket-type label alongside `ACS`, CODEOWNERS reviewers minus the author, the Project item, Status, and Priority / Story Points / Parent | **non-critical throughout** — the PR already exists, so every failure is one `info` finding carrying the command, and the next sub-step still runs |
-| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch: issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed `gh issue create` is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
+| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch (and `/acs:breakdown-ticket`'s, through the same `references/tracker-sync.md`): issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed `gh issue create` is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
 
 Both resolve Project fields the same way: **the board's own spelling wins.** A
 field is matched case-insensitively against a fixed table of accepted names

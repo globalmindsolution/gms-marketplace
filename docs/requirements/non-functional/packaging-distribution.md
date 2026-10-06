@@ -13,7 +13,7 @@ unchanged).
 - acs MUST bundle, per standard Claude Code plugin layout:
   - **Skills** (slash commands): `/setup`, `/ship`, `/handoff`, `/update`,
     `/release`, `/create-prd`, `/create-architecture`,
-    `/create-ticket`, `/create-tech-design`, `/create-data-design`,
+    `/create-ticket`, `/breakdown-ticket`, `/create-tech-design`, `/create-data-design`,
     `/create-flows`, `/analyze-requirements`,
     `/create-impl-plan`, `/create-api-contract`, `/create-test-docs`,
     `/code`, `/review-code`, `/create-e2e-tests`, `/docs-sync`,
@@ -23,8 +23,10 @@ unchanged).
     `workflows/ship.yaml` the delivery order is declared in (ADR-0089 as
     superseded by ADR-0096).
   - **Subagents**, one agent file per role a skill's own logic needs, named
-    `<skill>-<role>` for the work it does (ADR-0109): the eleven
+    `<skill>-<role>` for the work it does (ADR-0109): the twelve
     **authoring skills** each bundle a write role and a judge role —
+    `create-ticket` (four type authors — epic-author, story-author,
+    task-author, bug-author — and a reviewer; ADR-0138),
     `analyze-requirements` (plus an impact analyst: impact-analyst, analyst,
     impact-reviewer), `create-prd` (plus a surveyor: surveyor, author,
     reviewer),
@@ -40,15 +42,15 @@ unchanged).
     (ADR-0089) and its review to `review-code`, which bundles a lens and an
     adjudicator; the read-only `audit-design` bundles one gap analyst
     (ADR-0122) and the read-only `audit-security` an auditor and an
-    adjudicator (ADR-0123); the three **apply-work skills** (`create-ticket`,
+    adjudicator (ADR-0123); the three **apply-work skills** (`breakdown-ticket`,
     `create-pr`, `merge-pr`) run inline and bundle no subagent.
-    35 agent files exist on disk and 35 are reachable (29 for the eleven
+    40 agent files exist on disk and 40 are reachable (34 for the twelve
     authoring skills + 1 for `code` + 2 for
     `review-code` + 1 for `audit-design` + 2 for `audit-security`): every file name
     resolves to a shipped skill and a role in `acs_lib.skills.ROLE_KINDS`,
     so none is orphaned. See
     [../functional/reflection.md](../functional/reflection.md).
-  - **Hooks**: a pre and post hook per hooked skill (nineteen of each),
+  - **Hooks**: a pre and post hook per hooked skill (twenty of each),
     implemented as Python scripts (e.g. `pre-code.py`, `post-code.py`).
 
 ## Distribution & versioning

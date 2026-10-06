@@ -129,9 +129,15 @@ class AgentConventionTest(unittest.TestCase):
 
     def test_mechanical_skills_own_no_agents(self):
         """A dispatcher, and a skill whose work is a sequence of commands
-        (create-ticket, create-pr, merge-pr), runs inline."""
-        for skill in ("ship", "create-ticket", "create-pr", "merge-pr"):
+        (breakdown-ticket, create-pr, merge-pr), runs inline. create-ticket
+        left this list with ADR-0138: one type author drafts, a reviewer judges."""
+        for skill in ("ship", "breakdown-ticket", "create-pr", "merge-pr"):
             self.assertEqual(K.agent_roles_of(skill), [], skill)
+
+    def test_create_ticket_owns_four_type_authors_and_a_reviewer(self):
+        self.assertEqual(sorted(K.agent_roles_of("create-ticket")),
+                         ["bug-author", "epic-author", "reviewer",
+                          "story-author", "task-author"])
 
 
 if __name__ == "__main__":

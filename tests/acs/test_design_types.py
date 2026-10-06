@@ -229,10 +229,16 @@ class SkillsUseTheFieldTest(unittest.TestCase):
             return " ".join(fh.read().split())
 
     def test_create_ticket_proposes_and_writes_features(self):
-        body = self.body("create-ticket", "SKILL.md")
-        self.assertIn("`features`: the slugs of the PRD features", body)
-        self.assertIn("acs.py slug --text", body)
-        self.assertIn("--features", self.body("create-ticket", "references", "materialize.md"))
+        """ADR-0138: the type author proposes them by the shared authoring
+        rules, the coordinator writes them, and a breakdown's children inherit
+        them unless narrowed with --features."""
+        rules = self.body("create-ticket", "references", "authoring-rules.md")
+        self.assertIn("`features` are the slugs of those PRD features", rules)
+        self.assertIn('acs.py" slug --text', rules)
+        self.assertIn("`features` (the confirmed PRD feature slugs",
+                      self.body("create-ticket", "references", "materialize.md"))
+        self.assertIn("--features <slugs>` only to narrow them",
+                      self.body("breakdown-ticket", "SKILL.md"))
 
     def test_analyze_requirements_confirms_them_through_ticket_save(self):
         body = self.body("analyze-requirements", "SKILL.md")

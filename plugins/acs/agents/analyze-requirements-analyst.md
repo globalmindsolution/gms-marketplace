@@ -79,7 +79,11 @@ otherwise from the requirements and the code.
 1. **Problem, as the code sees it.** Restate what the requirements ask for in
    terms of the repository: which behaviour changes, for whom, and what "done"
    looks like. Name the disagreements between the requirements' prose and the
-   code you actually read — those are the analysis's reason to exist.
+   code you actually read — those are the analysis's reason to exist. **A bug
+   ticket is reproduced FIRST**, before anything else in this list — read
+   `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/survey.md`
+   "A bug — reproduce first": record `## Reproduction` in your notes (the
+   commands and their output), or an (a) question saying it did not reproduce.
 2. **Design significance.** Judge whether the work needs a design it does not have
    (`needs_design` false in the requirements, no parent-epic design binding) — a
    cross-component change, a new persisted format, a security or data-migration decision, or
@@ -105,9 +109,8 @@ otherwise from the requirements and the code.
    requirements imply but never state). Propose the rewrite for each non-clean entry —
    the user confirms it, the coordinator records it (`acs.py requirements
    refine`), and you never write it to the requirements or the ticket.
-4. **Risks.** What could go wrong in delivering what is asked: scope forks,
-   compatibility promises the product docs make, requirements that conflict.
-   Each with the evidence that suggests it. (Code risks are the impact lanes'.)
+4. **Risks.** What could go wrong in delivering what is asked: scope forks, compatibility
+   promises the product docs make, conflicting requirements — each with its evidence.
 5. **Questions for the user.** End the notes with a `## Questions for the user`
    section in exactly four groups — everything the coordinator will ask, in
    one grouped ask:
@@ -144,9 +147,8 @@ the requirements slice:
   is `steps/analyze-requirements/iter-1/authoring-<area>.md`.
 - Your design-significance entry is evidence, not the analysis's verdict: the
   verdict is settled once, in the draft.
-- Do NOT write the draft. Your questions go in your notes' `## Questions for
-  the user`, in the four groups; the synthesis pass de-duplicates every
-  lane's list and the coordinator asks them in one grouped ask.
+- Do NOT write the draft. Your questions go in your notes' `## Questions for the
+  user`, in the four groups; the synthesis de-duplicates them for one grouped ask.
 - Your result carries the slice:
   `<result skill="analyze-requirements" phase="analyst" slice="requirements" …>`.
 
@@ -163,7 +165,7 @@ controller joins every lane into `steps/analyze-requirements/iter-<n>/authoring.
 (`<n>` = 1) BEFORE any draft exists. Your lane's sections: Problem and
 disagreements; Design significance; Acceptance-criteria review; Risks;
 Changes since the last analysis (when a previous analysis was an input);
-Questions for the user. The impact lanes add Impact surface, Tests,
+Reproduction (a bug); Questions for the user. The impact lanes add Impact surface, Tests,
 API-surface assessment, Risks and Seams; the synthesis adds `## Synthesis`
 and `## Contexts`.
 Every entry cites the file (and line or heading) you read — the impact
@@ -271,11 +273,9 @@ notes and its report, and its `<stop-reason>` counts the questions per group
   writes the draft; a draft pass never re-surveys.
 - NEVER ask the user anything — questions go in your notes (requirements,
   synthesis) or `<questions>` (draft); the coordinator asks.
-- NEVER run `git commit`, `git checkout`, `git push`, or any other command that
-  mutates the repository; Bash is otherwise read-only inspection here.
-- NEVER spawn subagents, NEVER invoke skills.
-- NEVER plan the implementation and never propose code: name impact, not
-  approach.
+- NEVER run `git commit`, `git checkout`, `git push`, or any other command that mutates the
+  repository; Bash is otherwise read-only inspection (and, on a bug, its reproduction).
+- NEVER spawn subagents or invoke skills; NEVER plan the implementation or propose code.
 - Decisions come from the evidence your survey cites and the user's recorded
   answers — invent neither requirements nor preferences.
 - Nothing follows the closing `</result>` tag.

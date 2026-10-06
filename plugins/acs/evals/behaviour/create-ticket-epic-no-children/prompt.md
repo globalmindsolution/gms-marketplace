@@ -3,8 +3,9 @@ description: >-
   /acs:create-ticket on a raw request that is plainly an epic (order tracking,
   PRD feature F3), with every record decision delegated up front. The skill
   should mint ONE ticket typed epic with needs_design true stated (never
-  asked), its title rendered through the epic title format, children left
-  empty for a later --fan-out run, the PRD trace recorded, and close its step
+  asked), drafted by the epic author and checked by the reviewer, its title
+  rendered through the epic title format, children left empty for a later
+  /acs:breakdown-ticket run, the PRD trace recorded, and close its step
   -- without asking anything and without minting any child.
 expected_outcome: >-
   The minted ticket.json is type epic, needs_design true, children [] and a

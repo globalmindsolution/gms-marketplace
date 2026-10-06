@@ -115,26 +115,28 @@ them from the contract, in the repo's format, with those files in its file map.
    the split seams in this plan artifact — carried into
    `steps/create-impl-plan/plan.md`, the draft the coordinator
    publishes as the ticket's `plan.md` and the evidence
-   `/acs:create-ticket split` reads — and surface a `<question>` alongside
+   `/acs:breakdown-ticket` reads — and surface a `<question>` alongside
    the Spec-simplicity gate's, reusing the identical "surface, never block,
    continue planning" contract (ADR 0038). This is a new trigger on an
    existing seam, not a new mechanism: the signal itself never blocks — only
    the user's answer to split may end the run.
 3. **Test strategy per spec — tests first.** Name the failing tests to write
    before any implementation (derived from the spec's Test plan, or from the
-   ticket's acceptance criteria under the fold). Every
-   `acceptance_criteria` entry maps to at least one named test. State the
-   repo's test and coverage tooling and the exact commands to run them. The
-   test modules you name are named by the component/behavior under test, never
-   by a ticket id; the originating ticket reference lives in the module
-   docstring. Discover the tooling from the repo itself (package manifests, CI
-   config, Makefile, etc.) and run the existing suite once via Bash to confirm
-   the baseline is green and the commands are right. State how
-   `coverage_target` will be measured. When `<constraints>` carries
+   ticket's acceptance criteria under the fold). Every `acceptance_criteria`
+   entry maps to at least one named test. State the repo's test and coverage
+   tooling and the exact commands to run them. Test modules are named by the
+   component/behavior under test, never by a ticket id; the originating ticket
+   reference lives in the module docstring. Discover the tooling from the repo
+   itself (package manifests, CI config, Makefile, etc.) and run the existing
+   suite once via Bash to confirm the baseline is green and the commands are
+   right. State how `coverage_target` will be measured. **A `bug` ticket:** the
+   FIRST test of the FIRST slice is a failing reproduction test named for the
+   bug's behaviour (`test_reset_link_expired_before_email_arrives`, never the
+   ticket id), built from the analysis's reproduction: it fails before the fix,
+   passes after it (`references/plan-shape.md` "A bug"). When `<constraints>` carries
    `docs_only=true`: plan NO new tests and no coverage measurement — plan the
    single full-suite run that proves the change breaks nothing; if any spec
-   requires touching executable code, flag the contradiction as a question
-   instead of planning around it.
+   requires touching executable code, flag the contradiction as a question.
    When `test-cases.md` already exists for this ticket (a re-plan after
    `/acs:create-test-docs`), name the `TC-n` ids each planned test covers
    rather than inventing a parallel case list.
@@ -231,9 +233,9 @@ addressed** section mapping each `<context>` finding to what you changed.
    - `## Test strategy` — per task: the failing tests to write first, named by
      the component/behavior under test, never by a ticket id; the repo's test
      and coverage commands verbatim; how `coverage_target` is measured. Every
-     acceptance criterion appears here against at least one test. Under
-     `docs_only=true` plan no new tests — plan the single full-suite run and
-     record the target as "n/a — docs_only".
+     acceptance criterion appears here against at least one test; a bug's
+     reproduction test leads. Under `docs_only=true` plan no new tests — plan
+     the single full-suite run and record the target as "n/a — docs_only".
    - `## Documentation map` — the `docs/product/prd.md` / `docs/product/roadmap.md`
      factual assessment, plus each Boy-scout drift item and E1-E4 doc-graph
      gap your survey found, verbatim, with its citation.
@@ -262,9 +264,8 @@ addressed** section mapping each `<context>` finding to what you changed.
 5. **Never publish.** The published `plan.md` — in the change's Development
    folder, or the run's `local/` folder when run documents are kept local
    (ADR-0132), or the partition — is written by the coordinator alone, from your draft's
-   bytes. The file-map write guard denies any running `write`-kind agent — you
-   included — a write to the published plan, and for good reason: the plan
-   is the control input an implementer is checked against. Write the draft, nothing else.
+   bytes; the file-map guard denies you a write to it (the plan is the control
+   input an implementer is checked against). Write the draft, nothing else.
 
 ## Phase artifact
 
@@ -284,8 +285,7 @@ Write your planner report to `steps/create-impl-plan/iter-<n>/planner.json`. Sha
 }
 ```
 
-The XML result references this file and the draft; full detail (commands,
-outcomes, problems, clarifications) lives only in the report.
+The XML result references this file and the draft; full detail lives only in the report.
 
 ## Hard rules
 

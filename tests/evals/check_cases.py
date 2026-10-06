@@ -305,7 +305,7 @@ class CoverageTest(unittest.TestCase):
     #: Skills added by the docs-set fold, which must expect themselves rather
     #: than the entry point that used to answer for them. The fold's other
     #: skill, create-docs, was removed by ADR-0124.
-    NEW_CASES = {"docs-sync"}
+    NEW_CASES = {"docs-sync", "breakdown-ticket"}
 
     #: Shipped skills with no routing case, each for a stated reason. Empty,
     #: and it should stay empty.

@@ -524,8 +524,32 @@ REWORDED_BY_ADR_0135 = {
     },
 }
 
+#: ADR-0138: `bug` is a fourth ticket type, and /acs:breakdown-ticket takes
+#: over /create-ticket's split (and --fan-out) modes. The obligations are
+#: unchanged: create-ticket still types every ticket and sizes it to one PR;
+#: an oversized ticket is still split (now by breakdown-ticket, keeping its
+#: id); the plan's oversize answer still routes to the split, user-confirmed;
+#: ticket.json's `type` row names the fourth type.
+REWORDED_BY_ADR_0138 = {
+    'skills.md': {
+        '- MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,':
+            '- A **story or task** being split is first converted to an **epic that keeps',
+        '- MUST create a ticket with a type of **epic**, **story**, or **task**.':
+            '- MUST create a ticket with a type of **epic**, **story**, **task** or',
+        '- MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400':
+            '- MUST size stories/tasks/bugs to **one reviewable PR** (rule of thumb ~<=400',
+        '`/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept':
+            '`/breakdown-ticket <id>` (user-confirmed); the user MAY explicitly accept',
+    },
+    'workspace-and-state.md': {
+        '| `type` | `"epic"\\|"story"\\|"task"` | |':
+            '| `type` | `"epic"\\|"story"\\|"task"\\|"bug"` |',
+    },
+}
+
 REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103,
-                    REWORDED_BY_ADR_0109, REWORDED_BY_ADR_0128, REWORDED_BY_ADR_0135)
+                    REWORDED_BY_ADR_0109, REWORDED_BY_ADR_0128, REWORDED_BY_ADR_0135,
+                    REWORDED_BY_ADR_0138)
 
 
 def _retired():

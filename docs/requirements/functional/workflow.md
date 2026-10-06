@@ -69,14 +69,15 @@ inside a parallel group (a loop that re-entered half a group would leave the
 other half's work neither kept nor redone) — and never what a skill needs. An
 out-of-order override validates, and its steps run on their fallbacks.
 
-`/create-ticket`, `/create-tech-design`, `/create-api-contract`, `/create-data-design`
+`/create-ticket`, `/breakdown-ticket`, `/create-tech-design`, `/create-api-contract`, `/create-data-design`
 and `/create-flows` are **design** work that runs before `/ship`; `/merge-pr` is **ship** work a
 human drives after review.
 
 | Step (`ship.yaml`) | Phase | Purpose (summary) |
 |--------------------|-------|-------------------|
-| — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. Runs before `/ship`. |
-| — `/create-tech-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`, `status: proposed` until approved with `/set-doc-status`): decision & options, the HLD views affected, snapshots of the feature's API, data, flows and components documents, NFRs, risks, open questions ([ADR-0135](../../architecture/adr/0135-create-tech-design.md)). For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
+| — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, **task** or **bug**, drafted by one author for that type and checked by a reviewer before you confirm it ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). Runs before `/ship`. |
+| — `/breakdown-ticket` | design | Break an epic — or a story or task too large for one PR, converted to an epic that keeps its id — into PR-sized children, proposed in one confirmation and minted with the parent's `features` ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). Runs before `/ship`, after the epic's tech design. |
+| — `/create-tech-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`, `status: proposed` until approved with `/set-doc-status`): decision & options, the HLD views affected, snapshots of the feature's API, data, flows and components documents, NFRs, risks, open questions ([ADR-0135](../../architecture/adr/0135-create-tech-design.md)). For an **epic**, the step that follows is `/acs:breakdown-ticket <epic-id>` (ADR-0138), not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
 | — `/create-data-design` | design | Write the ticket's data low-level design under `lld/<feature>/data/` — logical ERD and physical schema with a migration outline, for the enabled `design.lld_types` only; documents only. Runs before `/ship`, on any ticket that adds or changes persisted data ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
 | — `/create-api-contract` | design | Design the interfaces a feature or a change adds or changes under `lld/<feature>/api/` — one living, versioned file per interface (a REST resource, a CLI command group, an event topic, a gRPC service), each endpoint, command or message traced to an acceptance criterion — plus the run's `api-contract.md` record linking them; documents only, never the repo's OpenAPI, JSON Schema, proto or AsyncAPI files, which `/code` makes from plan items. Runs before `/ship`, before the plan, on any ticket (an epic included), feature or prompt ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)). |
 | — `/create-flows` | design | Write the ticket's behaviour low-level design under `lld/<feature>/flows/` (and `components/` when enabled) — one file per flow and one per entity state machine; documents only. Runs before `/ship` ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
@@ -106,7 +107,7 @@ and an unconfigured e2e suite is an evidenced no-op that
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
     T -->|needs design, epic| D[/create-tech-design/]
-    D -->|epic: after design| FO[/create-ticket --fan-out/]
+    D -->|epic: after design| FO[/breakdown-ticket/]
     FO -->|per child| A
     D -->|child inherits the design| A
     T -->|otherwise| A[/analyze-requirements/]
@@ -238,8 +239,9 @@ requirements.
 existing ticket**. It takes a **ticket id only**: a non-id argument MUST be
 refused with a pointer at the design phase ("ship takes a ticket id; run
 /acs:create-ticket \"<prompt>\" and then /acs:ship <id>"), and an epic id
-with the design-and-fan-out pointer — an epic's own ticket is never
-implemented.
+with the design-and-breakdown pointer (`/acs:create-tech-design <id>`, then
+`/acs:breakdown-ticket <id>`) — an epic's own ticket is never implemented. A
+`bug` ships like a story (ADR-0138).
 
 `/ship` MUST NOT hard-code the order. It is a **loop over
 `acs.py run next`**:
@@ -349,17 +351,22 @@ branch name. See [hooks.md](hooks.md) and
 
 ## Epic fan-out
 
-An epic's own **creation** run MUST NOT propose a child breakdown and MUST
-end with `children: []` — no children are minted at epic-creation time. Two
-of `/create-ticket`'s modes mint children, and neither is the epic's own
-creation run: a later `/acs:create-ticket <epic-id> --fan-out` run, invoked
-**after** the epic's `/create-tech-design` has completed, and a split/restructure
-run, which mints children at the recorded seams (see
-[skills.md](skills.md)). The `--fan-out` run mints children only (it does
-not repeat the epic's own Steps 1-3); the proposed breakdown is derived from
-the epic's `tech-design.md` slice/seam content when a design exists, and is
-presented and user-confirmed at the same Step-2 confirmation gate before any
-child is minted. Each child ticket:
+An epic's own **creation** run MUST NOT mint children and MUST end with
+`children: []` — no children are minted at epic-creation time; its draft
+carries a candidate breakdown *outline* only, and
+the run points at `/acs:create-tech-design <id>` (when `needs_design`) and then
+`/acs:breakdown-ticket <id>`. Children are minted by **`/acs:breakdown-ticket`**
+([ADR-0138](../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md);
+it replaced `/acs:create-ticket <epic-id> --fan-out` and `/acs:create-ticket
+split <id>`, which now refuse with a pointer to it), run **after** the epic's
+tech design — it warns, without blocking, when that design is not yet
+`approved` — or on an oversized story or task, which it first converts to an
+epic that keeps its id (see [skills.md](skills.md)). The breakdown is derived
+from the tech design's seams when one exists (else from the ticket's
+description and acceptance criteria, and any oversize seams the plan
+recorded), and every proposed child — title, type `story`/`task`/`bug`,
+acceptance criteria, the parent's `features` unless narrowed — is presented in
+ONE grouped confirmation before any child is minted. Each child ticket:
 
 - gets its own `<ticket-id>` and its own workspace partition;
 - runs its own pipeline (`/code` → … → `/merge-pr`) independently —
@@ -378,7 +385,7 @@ Done.
 ## Inside each step: Reflection
 
 Each skill spawns only the subagents its own logic needs, each named for
-the work it does (ADR-0109). The eleven **authoring** skills MUST
+the work it does (ADR-0109). The twelve **authoring** skills MUST
 internally run a **write → judge** cycle with a dedicated subagent per role
 (e.g. `docs-sync-doc-updater`, `docs-sync-drift-reviewer`); `create-prd`
 adds a read-only `surveyor` that runs on iteration 1 only and freezes the
@@ -390,7 +397,7 @@ removed the TRIVIAL/SMALL fork on which the coordinator authored it itself).
 `/acs:code` has **no plan of its own** — its plan phase became
 `/create-impl-plan` — and spawns `code-implementer`s against that approved
 plan; its review is `/acs:review-code`, a step of its own.
-The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
+The three **apply-work** skills (`breakdown-ticket`, `create-pr`, `merge-pr`)
 run **inline** instead — the coordinator runs the steps from its
 `references/` and spawns no subagent in any lane. The coordinator
 orchestrates its subagents and communicates with them in a task/result
@@ -675,7 +682,7 @@ ticket:
    have no harness to run against. The CI gates come from `/setup`.
 5. **`/create-ticket`** — typically an MVP **epic** derived from the PRD
    roadmap, created childless; its `/create-tech-design` then runs; then
-   `/acs:create-ticket <epic-id> --fan-out` mints the child stories/tasks
+   `/acs:breakdown-ticket <epic-id>` mints the child stories, tasks and bugs
    ([Epic fan-out](#epic-fan-out)).
 6. **`/ship`** each child through the pipeline; **`/merge-pr`** after your
    own review.

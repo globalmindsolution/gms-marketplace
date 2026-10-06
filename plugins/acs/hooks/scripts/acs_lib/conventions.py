@@ -42,9 +42,10 @@ DESIGN_TEMPLATE = "design-default"
 #: The report each Audit skill writes (ADR-0123); acs_lib.audit_report checks it.
 AUDIT_TEMPLATES = {"audit-design": "audit-design-report",
                    "audit-security": "audit-security-report"}
-TICKET_TEMPLATES = {"epic": "epic-default", "story": "story-default", "task": "task-default"}
+TICKET_TEMPLATES = {"epic": "epic-default", "story": "story-default", "task": "task-default",
+                    "bug": "bug-default"}
 
-#: An epic's title is tagged; a story's and a task's is the title as given.
+#: An epic's title is tagged; a story's, a task's and a bug's is the title as given.
 TICKET_TITLE_PREFIX = {"epic": "[EPIC] "}
 
 

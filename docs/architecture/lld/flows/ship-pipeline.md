@@ -95,9 +95,9 @@ design docs, per plan slice its tests then its code, `docs-sync`'s updates,
 the e2e suites), shows it as a preview the developer confirms or edits, then
 `acs.py pr commit` creates the ticket branch when needed and commits each group
 by pathspec before the push. A changed file no step recorded is left out and
-listed; a file that was dirty at the baseline is never swept in. Epic fan-out — its own `--fan-out` invocation, run
+listed; a file that was dirty at the baseline is never swept in. Epic fan-out — `/acs:breakdown-ticket <epic-id>`, run
 once after the epic's design is approved, never part of the epic's creation
-run — mints the children, and each child's implementation walk above then
+run (ADR-0138) — mints the children, and each child's implementation walk above then
 runs independently (parallel worktrees supported — and needed when two run at
 once, since nothing is committed before `create-pr`).
 
@@ -114,7 +114,7 @@ sequenceDiagram
     participant CT as create-ticket
     participant CD as create-tech-design
     participant SDS as set-doc-status
-    participant FO as create-ticket fan-out mode
+    participant FO as breakdown-ticket
 
     Dev->>CT: acs create-ticket, type epic
     CT-->>Dev: epic created, children empty
@@ -122,14 +122,14 @@ sequenceDiagram
     CD-->>Dev: tech-design.md reviewed, status proposed
     Dev->>SDS: acs set-doc-status approved feature
     SDS-->>Dev: tech-design.md approved, approver recorded
-    Dev->>FO: acs create-ticket EPIC-id --fan-out
-    FO-->>Dev: children minted per the design's seams, Step-2 gate reused
+    Dev->>FO: acs breakdown-ticket EPIC-id
+    FO-->>Dev: children proposed in one confirmation, then minted with the epic's features
     note over Dev: planning pipeline stops here, implementation is a separate pipeline per child
 ```
 
 The epic path in one sentence: `create-ticket` (epic, `children: []`) →
 `create-tech-design` → `set-doc-status approved` (the team's sign-off on the
-hand-off, ADR-0135) → `create-ticket <epic-id> --fan-out` → STOP; implementation
+hand-off, ADR-0135) → `breakdown-ticket <epic-id>` (ADR-0138) → STOP; implementation
 is the separate, per-child pipeline diagrammed above. Each child runs in a
 worktree of its own when two are in flight at once: one checkout has one
 working tree, and so one changeset.

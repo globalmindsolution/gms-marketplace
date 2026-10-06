@@ -1,9 +1,9 @@
 """Calibration plays for create-ticket-epic-no-children.
 
-IDEAL does what /acs:create-ticket's coordinator does, inline, through the
-plugin's own writers: `acs step start --allocate` (the mandatory first
-action), Step 3's rewrite of ticket.json through `acs.py ticket save`, then
-result.json and the post-hook."""
+IDEAL does what /acs:create-ticket's coordinator does, through the plugin's
+own writers: `acs step start --allocate` (the mandatory first action), the
+epic author and the reviewer spawned (Step 1b), Step 3's rewrite of
+ticket.json through `acs.py ticket save`, then result.json and the post-hook."""
 
 import json
 import os
@@ -33,7 +33,7 @@ def _save(ws, **fields):
 
 
 def _finish(ws, ttype="epic", needs_design=True, children=()):
-    result = {"status": "completed", "summary": "epic created; children deferred to --fan-out",
+    result = {"status": "completed", "summary": "epic created; children deferred to /acs:breakdown-ticket",
               "states": {"ticket_id": "EVAL-1", "type": ttype, "needs_design": needs_design,
                          "children": list(children),
                          "prd_trace": {"feature": "F3 Order tracking (P1, roadmap Q1)",
@@ -50,8 +50,16 @@ EPIC = {"title": "[EPIC] Order tracking", "type": "epic", "needs_design": True, 
                                 "A shopper is emailed on every order status change"]}
 
 
+def _drafted(ws, author="epic-author"):
+    ws.called("Agent", subagent_type="acs:create-ticket-" + author,
+              prompt='<task skill="create-ticket" phase="%s" ticket-id="EVAL-1" iteration="1">' % author)
+    ws.called("Agent", subagent_type="acs:create-ticket-reviewer",
+              prompt='<task skill="create-ticket" phase="reviewer" ticket-id="EVAL-1" iteration="1">')
+
+
 def IDEAL(ws):
     _start(ws)
+    _drafted(ws)
     _save(ws, **EPIC)
     _finish(ws)
 
@@ -73,6 +81,7 @@ def _minted_children(ws):
 def _typed_story(ws):
     """Treated the epic as one story and left needs_design false."""
     _start(ws)
+    _drafted(ws, "story-author")
     _save(ws, **dict(EPIC, title="Order tracking", type="story", needs_design=False))
     _finish(ws, ttype="story", needs_design=False)
 

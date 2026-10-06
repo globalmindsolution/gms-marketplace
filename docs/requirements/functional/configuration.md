@@ -170,6 +170,7 @@ markdown templates** shipped with the plugin:
 | `epic-default` | `/create-ticket` | Goal, Scope, Children, Success criteria |
 | `story-default` | `/create-ticket` | User story, Acceptance criteria, Notes |
 | `task-default` | `/create-ticket` | Description, Definition of done, Notes |
+| `bug-default` | `/create-ticket` | Summary, Steps to reproduce, Expected behaviour, Actual behaviour, Environment, Severity, Suspected area, Acceptance criteria (the first: a regression test reproduces the bug and passes after the fix), Notes |
 
 Resolution rule: a template value matching a built-in name uses the plugin's
 template; any other value is resolved as a **file path** —

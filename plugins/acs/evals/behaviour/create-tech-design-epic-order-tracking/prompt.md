@@ -5,15 +5,15 @@ description: >-
   hand-off the team reviews before any child is planned: tech-design.md
   published `proposed` with the six sections filled and at least two weighed
   options (carrier webhooks versus polling), its Risks' Rollout & migration
-  laying out the child slices the epic will fan out into -- without minting
+  laying out the child slices the epic will be broken down into -- without minting
   any child -- the step closed, and the reply naming the epic's next step,
-  approval and then /acs:create-ticket EVAL-1 (fan-out), not /acs:code.
+  approval and then /acs:breakdown-ticket EVAL-1, not /acs:code.
 expected_outcome: >-
   docs/architecture/lld/order-tracking/EVAL-1/tech-design.md exists with the six
   headings in order, two or more #### options under ### Options considered,
   and a ### Rollout & migration naming the child slices; no EVAL-2 exists; the
   step's state.json records completed; the final reply names
-  /acs:create-ticket EVAL-1.
+  /acs:breakdown-ticket EVAL-1.
 tags: [behaviour]
 max_turns: 120
 timeout_seconds: 1800

@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Twenty-nine skills in total. There is no registry file listing them: a skill is
+Thirty skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
 writes, or which group it belongs to, because nothing needs to: each skill
@@ -39,7 +39,10 @@ The groups below are a reader's aid, not a structure the code knows about
 - **Utility** — `/acs:setup`, `/acs:update`, `/acs:release`, `/acs:handoff`
   (hands a ticket to a teammate on another machine,
   [ADR-0131](../../architecture/adr/0131-ticket-handoff-between-members.md)),
-  `/acs:create-ticket`, `/acs:set-doc-status` (approves and moves the status
+  `/acs:create-ticket`, `/acs:breakdown-ticket` (breaks an epic, or a story or
+  task too large for one PR, into PR-sized children,
+  [ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)),
+  `/acs:set-doc-status` (approves and moves the status
   of the Discovery and Design documents,
   [ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)). A ticket is one container of requirements, cut when
   the work needs one — after a feature's analysis, again after a design — not
@@ -64,11 +67,12 @@ Development steps run in is declared in
 **every skill MUST be runnable on its own** — a skill MUST NOT refuse to run
 because another skill has not run ([hooks.md](hooks.md)).
 
-Nineteen of the twenty-nine are **hooked** (a pre-hook and a post-hook
+Twenty of the thirty are **hooked** (a pre-hook and a post-hook
 each): both Discovery skills, all five Design skills, the other eight
 Development steps (`/create-impl-plan`, `/create-test-docs`, `/code`,
 `/review-code`, `/docs-sync`, `/create-e2e-tests`, `/run-e2e-tests`,
-`/create-pr`) and `/merge-pr`, both Audit skills and `/create-ticket`. Six (`/setup`, `/ship`,
+`/create-pr`) and `/merge-pr`, both Audit skills, `/create-ticket` and
+`/breakdown-ticket`. Six (`/setup`, `/ship`,
 `/handoff`, `/update`, `/acs:release`, `/acs:set-doc-status`) are unhooked and take no position in a
 run. The remaining four are `/acs:code`'s delivery-path legs, gated as `code`
 itself. `/run-e2e-tests` is a hooked step like any other; the `/acs:test`
@@ -83,8 +87,11 @@ Every **workflow** skill MUST:
   (ADR-0109; [reflection.md](reflection.md)): a `survey` role that reads
   and records notes and questions, a `write` role that produces the
   deliverable, a `judge` role that re-derives and judges it fresh. The
-  eleven **authoring skills** run a write → judge Reflection cycle over
-  their own roles — `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
+  twelve **authoring skills** run a write → judge Reflection cycle over
+  their own roles — `create-ticket` (one of epic-author, story-author,
+  task-author or bug-author per run, then reviewer — at most two iterations,
+  [ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)),
+  `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
   `create-prd` (surveyor, author, reviewer),
   `create-architecture` (architect, gap-analyst, reviewer), `create-tech-design` (designer,
   reviewer), `create-data-design` (designer, gap-analyst, reviewer),
@@ -95,7 +102,7 @@ Every **workflow** skill MUST:
   gap-analyst, drift-reviewer). No skill has
   a plan phase before its writer (ADR-0092). `code` spawns implementers only —
   its review is `/review-code`, which runs lenses and adjudicators. Three
-  **apply-work skills** (create-pr, merge-pr, create-ticket) run **inline**
+  **apply-work skills** (create-pr, merge-pr, breakdown-ticket) run **inline**
   per MAR-55 invariant (b): the coordinator performs the apply-work directly
   from its `references/` and spawns no subagent, on every delivery path.
   `/acs:audit-design` is read-only and runs no write → judge cycle: it spawns
@@ -305,7 +312,9 @@ command.
 - `/ship <ticket-id>` takes a **ticket id only**. A non-id argument MUST be
   refused with a pointer at the Design phase ("ship takes a ticket id; run
   /acs:create-ticket \"<prompt>\" and then /acs:ship <id>"); an epic id MUST
-  be refused with the design-and-fan-out pointer. There is no
+  be refused with the design-and-breakdown pointer (`/acs:create-tech-design
+  <id>` when it has no design, then `/acs:breakdown-ticket <id>`). A `bug`
+  ships like a story (ADR-0138). There is no
   create-a-ticket-from-a-prompt entry path.
 - `/ship` MUST NOT hard-code the step order. It MUST derive every step from
   the resolved workflow file — `<repo>/.acs/workflows/ship.yaml` when the
@@ -889,26 +898,55 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   ([ADR-0120](../../architecture/adr/0120-design-document-catalog-and-ticket-features.md)).
 - MUST interact with the user to resolve ambiguities before finalizing
   (clarifying questions).
-- **AC/DoD substantiveness gate (standing behavior, MAR-157):** Step 1 flags
-  any proposed `acceptance_criteria` entry that is not concrete/testable
-  (vague satisfaction-claim boilerplate with no observable outcome, e.g.
-  "works correctly"), for both root tickets and epic child fan-out. Step 2
-  surfaces every flagged entry to the user; the ticket does not finalize with
-  a flagged entry unless the user explicitly confirms it anyway. No new subagent
-  is introduced — the check is inline coordinator judgment folded into the
-  existing Step 1/Step 2 flow.
-- MUST create a ticket with a type of **epic**, **story**, or **task**.
+- **AC/DoD substantiveness gate (standing behavior, MAR-157):** an
+  `acceptance_criteria` entry that is not concrete/testable (vague
+  satisfaction-claim boilerplate with no observable outcome, e.g. "works
+  correctly") is a finding of the draft's reviewer (below), and any entry
+  still flagged when the draft reaches the confirmation is surfaced to the
+  user; the ticket does not finalize with a flagged entry unless the user
+  explicitly confirms it anyway. No new subagent is introduced for this check:
+  it is one of the reviewer's dimensions, and in `/breakdown-ticket` the
+  coordinator applies it to every proposed child (ADR-0138).
+- MUST create a ticket with a type of **epic**, **story**, **task** or
+  **bug** ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)).
+- **Drafting: one type author, then a reviewer (ADR-0138).** The coordinator
+  parses the input, applies the sizing rubric that picks the type and asks
+  every question in one grouped ask; between the type decision and the
+  confirmation it spawns ONE author for the chosen type —
+  `create-ticket-epic-author`, `create-ticket-story-author`,
+  `create-ticket-task-author` or `create-ticket-bug-author` (write roles that
+  write only the draft `steps/create-ticket/iter-<n>/draft.json` and
+  `draft.md` through `acs.py write`, and never mint a ticket or touch the
+  tracker) — then `create-ticket-reviewer` (judge), which checks that the
+  acceptance criteria are concrete and testable, the PRD trace and
+  `features`, the type's own completeness, an honest size and that no fact
+  is invented. At most two iterations; the user confirms the reviewed draft.
+  The rules every type shares — acceptance-criteria quality, PRD tracing,
+  features, grounding — live once, in
+  `skills/create-ticket/references/authoring-rules.md`; each author carries
+  only its own type's template and rules:
+  - **epic** — problem and outcome, scope in and out, success metrics, a
+    `needs_design` recommendation and a candidate breakdown *outline* only;
+  - **story** — the user-facing value (As a / I want / so that, or an
+    equivalent) and acceptance criteria in Given/When/Then;
+  - **task** — the technical outcome and a done-when checklist, no user story;
+  - **bug** — steps to reproduce, expected vs actual behaviour, the
+    environment or version, a `severity` (`critical`, `high`, `medium` or
+    `low`, separate from `priority`), the suspected area with citations, and
+    an acceptance criterion that a regression test reproduces the bug and
+    passes after the fix.
 - When the ticket type is **epic**, its own creation run mints no children
-  and ends with `children: []`; `/create-ticket <epic-id> --fan-out`, run
-  after the epic's design is approved, mints them — the breakdown is
-  derived from the design's slice/seam content when present and
-  user-confirmed at the same Step-2 gate. Each child gets its own
-  `<ticket-id>` and runs its own pipeline. The epic's status is
-  auto-managed: **In Progress** when work starts on any child, **Done**
-  when all children are merged (see
+  and ends with `children: []` and *Next: `/create-tech-design <id>` (when
+  `needs_design`) → `/breakdown-ticket <id>`*; `/breakdown-ticket` mints the
+  children (below). Each child gets its own `<ticket-id>` and runs its own
+  pipeline. The epic's status is auto-managed: **In Progress** when work
+  starts on any child, **Done** when all children are merged (see
   [workflow.md](workflow.md#epic-fan-out)).
+- `/create-ticket <epic-id> --fan-out` and `/create-ticket split <id>` MUST
+  refuse, naming `/acs:breakdown-ticket`, which does what both did (kept for
+  one release after ADR-0138).
 - Ticket title and description MUST follow the per-type ticket formats
-  configured in `settings.json` — epic, story, and task each have their own
+  configured in `settings.json` — epic, story, task and bug each have their own
   title/description format ([configuration.md](configuration.md)).
 - Tickets are **local-first**: the ticket JSON in the workspace is the local
   source of truth. Optionally, based on the `tracker` config in
@@ -920,10 +958,10 @@ Purpose: turn a raw user prompt into a well-formed ticket.
     transport, which handles authentication itself.
 - MUST persist the ticket (and its `<ticket-id>`) into the workspace; the
   `<ticket-id>` names the workspace partition for the whole pipeline.
-- Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
-  directly from `references/materialize.md` and spawns no subagent. Correctness is gated by
-  schema validation and the user-confirmation gate (`docs_only`, and the
-  child breakdown in a `--fan-out` run), not an in-skill reviewer.
+- Materialisation stays inline (MAR-55 invariant (b)): after the user
+  confirms the reviewed draft, the coordinator runs the apply-work directly
+  from `references/materialize.md` (`new-ticket.py`, `acs.py ticket save`)
+  and tracker sync; the authors and the reviewer never mint a ticket.
 - Ticket ids use the **per-repo prefix + sequence** (e.g. `SHOP-123`); the
   per-repo counter lives in `<workspace>/<repo>/counters.json`. The
   **first** allocation for a `(repo_id, prefix)` partition is fail-closed —
@@ -937,7 +975,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   the normal analysis/clarification on the imported description — imports get
   the same clarification, typing, PRD trace, and `needs_design` decision as a
   local request (`needs_design` is set only when the imported ticket is an
-  epic; story/task imports are always `false`). From there the ticket ships
+  epic; story/task/bug imports are always `false`). From there the ticket ships
   like any local one.
 - Two-way sync runs **on demand** (triggered explicitly by the user or a
   skill); scheduled background sync routines are a later enhancement.
@@ -947,8 +985,11 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   criteria, priority, parent epic, children, status, external mapping,
   assignee, story points, needs-design flag, docs-only flag**. Parent/child links are stored
   in **both directions** (epic lists `children`; each child stores `parent`).
+  Optional bug fields, schema-validated strings: **`severity`**
+  (`critical`/`high`/`medium`/`low`), **`reproduction`**, **`expected`**,
+  **`actual`**, **`environment`** (ADR-0138).
 - MUST set **`needs_design`**, epic-only: always `true` for epics (stated,
-  not asked); always `false` for stories and tasks, never offered or
+  not asked); always `false` for stories, tasks and bugs, never offered or
   confirmed ([workflow.md](workflow.md)).
 - MUST set **`docs_only`** during analysis (coordinator-recommended, user-confirmed,
   default `false`): `true` only when the change touches no executable code or
@@ -963,15 +1004,11 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   code. `ticket.json` therefore carries no `size`, `stakes` or `lane` field,
   and a ticket that still has them from an older build is read as if it did
   not (`docs/architecture/adr/0095-static-delivery-path-routing.md`).
-- MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400
+- MUST size stories/tasks/bugs to **one reviewable PR** (rule of thumb ~<=400
   changed lines, one concern, grounded in a codebase survey); above the bar the
-  coordinator recommends an epic with children cut at PR-sized, independently
-  shippable seams.
-- MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,
-  invoked directly with a split request): the ticket becomes an epic
-  **keeping its id**, description, and PRD trace; children are minted at the
-  recorded seams; downstream work already present requires user confirmation
-  first.
+  coordinator recommends an epic, whose children `/breakdown-ticket` cuts at
+  PR-sized, independently shippable seams. Splitting an existing oversized
+  ticket is `/breakdown-ticket <id>` too.
 - **GitHub-native reconciliation (standing behavior, MAR-75):** on GitHub
   tracker sync (Step 5) the synced issue carries the acs ticket id on its body
   (`acs-ticket: {ticket_id}`, rendered by the type description templates) and
@@ -981,13 +1018,13 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   not define is surfaced, not silently skipped. `local` (unsynced) tickets are
   unaffected.
 - **Fan-out tracker sync (standing behavior, MAR-84):** the tracker-sync set
-  Step 5 syncs is the root ticket (unless it is an import) plus **every child
-  minted during epic fan-out** (Step 4) — no fanned-out child is left
-  unsynced — **EXCLUDING any ticket whose `external` is already non-null**,
-  so a `--fan-out` (or split/restructure) run syncs only the newly minted
-  children and never re-creates the already-synced root's remote issue as a
-  duplicate; a split run's already-synced root has its remote issue
-  **updated** instead. Product-flow delivery tickets ("Product definition
+  is the root ticket (unless it is an import) plus **every child minted by
+  `/breakdown-ticket`** — no minted child is left unsynced — **EXCLUDING any
+  ticket whose `external` is already non-null**, so a breakdown run syncs
+  only the newly minted children and never re-creates the already-synced
+  root's remote issue as a duplicate; a split's already-synced root has its
+  remote issue **updated** instead. Both skills sync through the one
+  tracker-sync reference. Product-flow delivery tickets ("Product definition
   (PRD)", "Product architecture doc set" — minted before ADR-0127, none since)
   are excluded from this set and always stay unsynced. A sync failure for any one ticket in the set is
   surfaced (never silently swallowed) and does not abort the rest of the
@@ -1003,6 +1040,53 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   GitHub-native reconciliation bullet above); a `null` ticket value for a
   defined field is skipped silently as expected data, mirroring the
   null-assignee rule.
+
+## 1a. `/breakdown-ticket` (utility)
+
+Purpose: break one container of work too large for one PR — an epic, or an
+oversized story or task — into PR-sized child tickets
+([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)).
+It absorbs what `/create-ticket <epic-id> --fan-out` and `/create-ticket
+split <id>` did.
+
+- MUST take a ticket id — the epic, story or task it breaks down; documents or
+  a prompt beside it join the run's requirements (ADR-0128). The pre-hook
+  (`gate_breakdown_ticket`) refuses when no ticket resolves, its partition is
+  missing or archived, the ticket is `done`, or it is a `bug` — a defect is
+  fixed in one PR; a related bug or task is a new `/create-ticket`.
+- MUST read, before proposing anything: the ticket and the run's
+  requirements; the feature analysis (its `README.md` and the bounded
+  contexts the ticket touches, ADR-0133); the tech design (`acs.py
+  artifacts show design` → `tech-design.md`, a legacy `design.md` still
+  read, ADR-0135) — deriving the children from its LLD snapshots, the HLD
+  views it affects and its rollout order when present, else from the
+  ticket's description and acceptance criteria; and, when the run has one,
+  the plan's oversize-split signal and the seams it recorded (ADR-0069).
+- MUST warn — never block — when an epic's tech design is absent or not
+  `approved` (`/set-doc-status approved <feature>`), and go on only with the
+  user's go-ahead.
+- MUST propose every child in ONE grouped confirmation: title, type
+  (`story`, `task` or `bug`), concrete and testable acceptance criteria,
+  `features` (the parent's unless narrowed), `needs_design: false`, and a
+  size from create-ticket's PR-size rubric. Nothing is minted before the
+  user confirms or edits the breakdown.
+- MUST mint the confirmed children with `new-ticket.py --parent <id>` — which
+  copies the parent's `features` unless `--features` is given — save each
+  child's acceptance criteria with `acs.py ticket save`, and sync them to the
+  tracker through create-ticket's tracker-sync reference (one copy, shared),
+  excluding any ticket already synced.
+- A **story or task** being split is first converted to an **epic that keeps
+  its id**, description and PRD trace; downstream work already present on it
+  requires the user's confirmation first. `new-ticket.py --parent` still
+  refuses a parent that is not an epic, so the conversion always comes first.
+- Runs **inline**: no subagent, with its own pre- and post-hook (mirroring
+  `/create-ticket`'s). It never writes a document into the repo.
+- Records `ticket_id`, `type` (always `epic` after the run), `converted_from`
+  (the type a split converted, else `null`), `children` (the parent's full
+  list), `minted` (this run's children) and `design_status` (the tech
+  design's status, or `null` when there is none).
+- Ends with the standard completion report; *Next:* each child's own
+  pipeline (`/ship <child-id>`).
 
 ## 2. `/create-tech-design` *(conditional)*
 
@@ -1280,8 +1364,13 @@ user, and say plainly whether they are ready to plan. It works in two phases
   and the documents it was given), the PRD / requirements / architecture doc
   sets, the codebase, the clarification ledger and the previously published
   analysis, each read when present. Pre-hook check: the subject resolves.
-  Brake: an **epic** ticket is refused (epics are designed and fanned out,
-  never implemented).
+  Brake: an **epic** ticket is refused (epics are designed and broken down
+  with `/acs:breakdown-ticket`, never implemented).
+- On a **bug** ticket MUST **reproduce first**: the analysis records the
+  reproduction it ran (the steps, the command and what it showed against the
+  ticket's `expected` and `actual`) or, when it could not reproduce the bug,
+  says so as an open question — never a silent pass
+  ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)).
 - MUST run three stages, in order (2026-09-27):
   1. **Impact — survey the codebase.** The survey MUST be separate from the
      DRAFT pass and runs as parallel lanes the controller names (ADR-0114):
@@ -1521,7 +1610,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
 - MUST escalate an **oversized ticket** instead of producing a monster plan:
   when an honest decomposition exceeds ~4 executor tasks (or the surface
   clearly exceeds a reviewable diff), stop, record the split seams, and route
-  to `/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept
+  to `/breakdown-ticket <id>` (user-confirmed); the user MAY explicitly accept
   one large PR, recorded as a clarification. Implemented as a two-lever
   control after ADR 0066 (ADR 0069): `/create-ticket`'s upfront PR-size rubric
   fires before any decomposition exists; a non-blocking, plan-time oversize
@@ -1529,8 +1618,12 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   known, reusing the plan-simplicity gate's "surface, never block" contract to
   raise the same question through the clarification ledger. On a "split"
   answer the step ends `"failed"` with a `summary` naming the split, runs
-  its mandatory Finish steps, and points at `/acs:create-ticket split <id> per
-  steps/create-impl-plan/plan.md`.
+  its mandatory Finish steps, and points at `/acs:breakdown-ticket <id>`, which
+  reads the seams recorded in `steps/create-impl-plan/plan.md` (ADR-0138).
+- MUST, for a **bug** ticket, make the first test of the first slice a
+  failing **reproduction test** named for the bug, which proves the defect
+  before any fix and passes after it; the plan reviewer checks it
+  ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)).
 - **Plan-artifact naming (MAR-70; MAR-70 resume fallback retired by
   MAR-73).** The plan artifact is a single per-run
   `<run>/steps/create-impl-plan/plan.md`, authored by
@@ -1640,7 +1733,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   without one is refused with a pointer at `/acs:create-impl-plan <id>`), and
   that the subject ticket's own `type` is not `epic`: an epic is refused
   outright with a `GateError` directing the user to `/acs:create-tech-design` (if
-  the epic has no design yet), then `/acs:create-ticket <id> --fan-out`, then
+  the epic has no design yet), then `/acs:breakdown-ticket <id>`, then
   `/acs:code` on a child. The epic brake is unconditional and runs for every
   implementation step, not only this one.
 - Subagents: `code-implementer` and nothing else. `/code` ships **no planner**

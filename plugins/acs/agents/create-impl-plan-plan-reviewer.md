@@ -90,7 +90,8 @@ findings:
    no `suite` job (the coordinator says the repo has none), say so. A command that does not exist, or a coverage
    target that contradicts `coverage_target`, is a finding. Tests-first
    ordering must be explicit: the plan says which failing test is written
-   before which implementation.
+   before which implementation. On a `bug` ticket the FIRST test of the FIRST
+   slice is a failing reproduction test named for the bug — else a finding.
 6. **Design and architecture conformance** — when `tech-design.md` applies, the
    approach the draft describes realizes it; when it does not, say so with the
    citation. A tech design that is not `approved` is a note, never a finding. When the API contract is in `<inputs>`, the draft implements its

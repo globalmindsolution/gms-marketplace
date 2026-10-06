@@ -13,7 +13,7 @@ run: the entry point invokes each leg as a genuine Skill-tool call, so the
 user types.
 
 The diagram below shows the **reflection loop** (write → judge), which is
-how the eleven authoring skills run (`create-prd`, `create-architecture`,
+how the twelve authoring skills run (`create-prd`, `create-ticket`, `create-architecture`,
 `create-tech-design`, `create-api-contract`, `create-data-design`, `create-flows`, `docs-sync`, `analyze-requirements`, `create-impl-plan`,
 `create-test-docs`, `create-e2e-tests`). Each skill spawns its own roles, named for its
 work (ADR 0109): an optional **survey** role (`create-prd-surveyor`,
@@ -32,11 +32,11 @@ every run: the MAR-72/ADR 0074 fork on which the coordinator wrote it itself
 went with the lanes (ADR 0095). `/acs:code` runs no loop of its own: its
 legs spawn `code-implementer`s against the approved plan, and the review is
 `/acs:review-code`, a step of its own. The three **apply-work skills**
-(`create-ticket`, `create-pr`, `merge-pr`) run **inline** instead: the
+(`breakdown-ticket`, `create-pr`, `merge-pr`) run **inline** instead: the
 coordinator performs the steps from its `references/` and spawns **no
 subagent** in any lane — their correctness is gated upstream by
 `/acs:review-code` (`create-pr`, `merge-pr`) or by the schema plus the
-user-confirmation gate (`create-ticket`). On the standard and complex paths,
+user-confirmation gate (`breakdown-ticket`). On the standard and complex paths,
 `plan-approval.py` records a deterministic plan-approval verdict over the
 approved plan (MAR-73, slice 3 of MAR-69). `/acs:review-code`'s
 plan-conformance lens reads that record itself — never a coordinator-relayed

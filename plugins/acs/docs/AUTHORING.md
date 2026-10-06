@@ -177,7 +177,12 @@ skill"; what a SKILL.md must say is:
    different from the writer; if its checks read like the writer's survey, it
    will rubber-stamp. A mechanical sequence of commands that nothing
    independent reviews needs no subagent at all: the coordinator runs it
-   inline from `references/` (`create-ticket`, `create-pr`, `merge-pr`).
+   inline from `references/` (`breakdown-ticket`, `create-pr`, `merge-pr`).
+   When the write differs by the kind of thing written, make one write role
+   per kind and spawn only the one the coordinator chose, with the rules they
+   share in ONE `references/` file each of them reads — `create-ticket`'s
+   epic, story, task and bug authors over `references/authoring-rules.md`,
+   judged by one `reviewer` (ADR-0138).
 2. **Spell out the I/O contract.** Input: an XML `<task skill="<skill>"
    phase="<role>" …>` (objective, file `<inputs>`, constraints,
    prior-iteration findings in `<context>`). The phase is the role. Output:

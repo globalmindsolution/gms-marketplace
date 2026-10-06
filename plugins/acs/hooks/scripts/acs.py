@@ -224,7 +224,7 @@ def build_parser():
                              "under, unless --ticket (or an --args value that IS an "
                              "id) names a live partition to resume")
     sstart.add_argument("--title", help="the minted ticket's title")
-    sstart.add_argument("--type", dest="ttype", default="task",
+    sstart.add_argument("--type", dest="ttype", default="task", choices=lib.TICKET_TYPES,
                         help="the minted ticket's type (create-ticket only)")
     sstart.add_argument("--seed-next", dest="seed_next", type=int,
                         help="repair the id counter for a newly minted ticket "

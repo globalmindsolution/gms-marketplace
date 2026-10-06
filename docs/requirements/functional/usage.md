@@ -75,9 +75,9 @@ What happens (you are asked clarifying questions along the way):
 1. `/create-ticket` — analyzes the prompt against the PRD, codebase, and
    docs; creates epic `SHOP-4` with **no children** (`children: []`). Its
    `/create-tech-design` runs next (approve its `tech-design.md` with
-   `/set-doc-status approved <feature>`); then `/acs:create-ticket SHOP-4 --fan-out`
-   mints children `SHOP-5`, `SHOP-6` from the design's slices (you confirm
-   the breakdown). Epic flips to **In Progress** when work starts.
+   `/set-doc-status approved <feature>`); then `/acs:breakdown-ticket SHOP-4`
+   mints children `SHOP-5`, `SHOP-6` from the design's seams (you confirm
+   the breakdown in one step; each child inherits the epic's features). Epic flips to **In Progress** when work starts.
 2. Per child: `/create-tech-design` (or the child inherits the epic's design) →
    `/code` (TDD against 90% coverage, verifier review loop
    ≤3 iterations, docs + architecture updated) → `/docs-sync` → `/create-pr`.
@@ -96,7 +96,8 @@ Then, per PR, after your own review:
 Every step is invocable on its own; hooks enforce the order:
 
 ```text
-/create-ticket Fix flaky checkout total rounding     # → SHOP-7 (task)
+/create-ticket Fix flaky checkout total rounding     # → SHOP-7 (bug: reproduction,
+                                                       #   expected vs actual, severity)
 /code SHOP-7                                          # TDD + review loop
                                                        #   (self-authors specs/ since none exist)
 /docs-sync SHOP-7

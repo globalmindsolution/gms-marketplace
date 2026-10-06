@@ -69,6 +69,12 @@ ROLE_KINDS = {
     "implementer": "write",
     "test-writer": "write",
     "doc-updater": "write",
+    # create-ticket's draft authors, one per ticket type (ADR-0138): each
+    # writes only the draft, never mints a ticket or touches the tracker
+    "epic-author": "write",
+    "story-author": "write",
+    "task-author": "write",
+    "bug-author": "write",
     # judge -- read-only, re-derives and judges fresh
     "reviewer": "judge",
     "impact-reviewer": "judge",

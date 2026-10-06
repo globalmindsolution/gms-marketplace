@@ -4,7 +4,7 @@
 # and one epic, EVAL-1 "Order tracking", minted through new-ticket.py (epics
 # default to needs_design true, so the gate opens) and given its epic-level
 # acceptance criteria through `acs.py ticket save`. No branch, no ticket docs
-# folder, no children: the design runs before the fan-out.
+# folder, no children: the design runs before the breakdown.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"

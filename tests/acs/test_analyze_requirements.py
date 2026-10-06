@@ -252,9 +252,9 @@ class TestIndependence(unittest.TestCase):
         self.assertFalse(hasattr(lib.stepgate, "check_inputs"))
         self.assertIn("Nothing\nupstream is required", self.body)
 
-    def test_the_epic_refusal_points_at_design_then_fan_out_then_a_child(self):
+    def test_the_epic_refusal_points_at_design_then_breakdown_then_a_child(self):
         self.assertIn("/acs:create-tech-design <id>", self.body)
-        self.assertIn("/acs:create-ticket <id>", self.body)
+        self.assertIn("/acs:breakdown-ticket <id>", self.body)
         self.assertRegex(self.body, r"/acs:analyze-requirements` on a child")
 
 

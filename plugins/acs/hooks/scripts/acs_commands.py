@@ -149,7 +149,12 @@ def cmd_ticket_save(args):
     Refuses to write a delivery path: it is judged once, by
     `/acs:create-impl-plan`, and recorded in the plan's own `## Contract`
     block (ADR-0095). A ticket field holding a second copy is how one run ends
-    up on two rigors."""
+    up on two rigors.
+
+    Refuses a merged document `check_bug_fields` refuses (ADR-0138). A story or
+    task patched to `{"type": "epic", "needs_design": true}` is
+    /acs:breakdown-ticket's split conversion: the id, description, priority and
+    features are kept, and `new-ticket.py --parent` then accepts it."""
     ticket_id, tdir, ctx = partition_or_die("ticket save", args.ticket)
     current = load_ticket_or_die("ticket save", tdir, ticket_id)
     incoming = read_json_arg("ticket save", args.source)
@@ -168,6 +173,12 @@ def cmd_ticket_save(args):
 
     updated = dict(current)
     updated.update(incoming)
+    try:
+        # The merged document, before anything is written: a type acs does not
+        # know, or a bug's fields on another type or out of shape (ADR-0138).
+        lib.check_bug_fields(updated)
+    except lib.GateError as exc:
+        die("ticket save", str(exc))
     lib.save_ticket(tdir, updated)
     lib.update_index(ctx["workspace"], ctx["repo_id"], updated)
     emit({"ok": True, "ticket_id": ticket_id, "indexed": True,

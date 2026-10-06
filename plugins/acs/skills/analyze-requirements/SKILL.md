@@ -207,7 +207,8 @@ requirements ASK and one impact lane per code area what code they TOUCH, in
 parallel, and the notes end with a `## Questions for the user` in four groups
 (a)–(d) — the whole of what Stage 2 takes to the user. Read
 `${CLAUDE_PLUGIN_ROOT}/skills/analyze-requirements/references/survey.md` (What the survey
-records) before you spawn the lanes — what each lane records, and each group.
+records) before you spawn the lanes — what each lane records, and each group. A
+`bug` ticket is **reproduced first** ("A bug — reproduce first" there).
 
 **Reuse the previous analysis.** When `<previous_analysis>` exists — and on a
 Development run, `<feature_analysis>` — name it in every lane's `<inputs>`:

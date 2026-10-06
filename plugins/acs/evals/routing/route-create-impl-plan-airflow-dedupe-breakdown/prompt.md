@@ -1,10 +1,10 @@
 ---
 description: >-
-  An indirect request in the skill's domain, phrased the way a user in the
-  middle of the work would say it, with the context it needs stated in the
-  prompt. Never names the skill.
+  Borrows the vocabulary of /acs:breakdown-ticket on purpose -- it asks to break a ticket into pieces --
+  while the request still belongs to this skill. It tests that the
+  description, not a keyword, decides the route. Never names the skill.
 expected_outcome: Routes to acs:create-impl-plan.
-tags: [routing, description]
+tags: [routing, description, confusable]
 max_turns: 1
 allowed_tools: [Skill]
 ---

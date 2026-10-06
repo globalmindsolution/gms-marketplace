@@ -95,7 +95,7 @@ _PROJECT_RESPONSES = {
 # create-design; ADR-0134 moved create-api-contract among them; ADR-0135
 # renamed create-design to create-tech-design.
 HOOKED_SKILLS = ["create-prd", "create-architecture", "create-ticket",
-                 "create-tech-design", "create-api-contract", "create-data-design",
+                 "breakdown-ticket", "create-tech-design", "create-api-contract", "create-data-design",
                  "create-flows", "analyze-requirements", "create-impl-plan",
                  "create-test-docs", "code",
                  "review-code", "run-e2e-tests",
@@ -125,6 +125,10 @@ ROLE_KINDS = dict(lib.ROLE_KINDS)
 #: (create-ticket, create-pr, merge-pr) owns none and runs inline.
 EXPECTED_AGENTS = {
     "analyze-requirements": ["analyst", "impact-analyst", "impact-reviewer"],
+    # ADR-0138: one draft author per ticket type, and a judge over the draft.
+    # breakdown-ticket owns none -- it runs inline, like the fan-out it absorbed.
+    "create-ticket": ["bug-author", "epic-author", "reviewer", "story-author",
+                      "task-author"],
     "create-prd": ["surveyor", "author", "reviewer"],
     "create-architecture": ["architect", "gap-analyst", "reviewer"],
     # ADR-0135: renamed from create-design, its judge from design-reviewer.
@@ -737,17 +741,15 @@ class TestApplyTierInline(unittest.TestCase):
             "MAR-157 AC-2: Step 2 must state the ticket does not finalize "
             "with a flagged entry absent explicit user confirmation")
 
-    def test_create_ticket_names_no_subagent_token(self):
-        """AC-3 [create-ticket, defense-in-depth]: no create-ticket-<x>
-        agent token appears anywhere in SKILL.md (MAR-157). The one it used
-        to allow, -executor, went when the skill stopped spawning a subagent
-        and its charter became `references/materialize.md`."""
+    def test_create_ticket_names_only_its_own_agents(self):
+        """AC-3 [create-ticket, defense-in-depth]: the only create-ticket-<x>
+        agent tokens SKILL.md carries are the five roles it owns (ADR-0138) --
+        never a planner, executor or verifier."""
         body = read(self.skill_path("create-ticket"))
-        tokens = set(re.findall(r"create-ticket-[a-z]+", body))
+        tokens = set(re.findall(r"create-ticket-([a-z]+(?:-[a-z]+)?)", body))
         self.assertEqual(
-            tokens, set(),
-            "MAR-157 AC-3: SKILL.md must carry no create-ticket-<x> agent "
-            "token, found: %r" % (tokens,))
+            tokens, {"epic-author", "story-author", "task-author", "bug-author", "reviewer"},
+            "SKILL.md must name only its own five roles, found: %r" % (tokens,))
 
     # ------------------------------------------------------------------ Group 2
     # AC-2: no plan->execute->verify triad instruction in any apply-work SKILL.md.
@@ -771,9 +773,29 @@ class TestApplyTierInline(unittest.TestCase):
 
     #: The charter each apply skill's coordinator follows inline -- the file
     #: its executor agent used to be.
-    APPLY_REFERENCES = {"create-ticket": "materialize.md",
-                        "create-pr": "publish.md",
+    #: create-ticket left this set with ADR-0138: it spawns one type author and
+    #: a reviewer, and still materializes inline from `references/materialize.md`
+    #: (pinned below). breakdown-ticket is inline too, with no reference of its
+    #: own: tests/acs/test_breakdown_ticket.py pins it.
+    APPLY_REFERENCES = {"create-pr": "publish.md",
                         "merge-pr": "merge.md"}
+
+    def test_create_ticket_spawns_one_type_author_then_the_reviewer(self):
+        """ADR-0138: the draft is written by the chosen type's author and judged
+        by the reviewer; materialization stays the coordinator's, inline."""
+        body = read(self.skill_path("create-ticket"))
+        for role in ("epic-author", "story-author", "task-author", "bug-author", "reviewer"):
+            self.assertIn("`context.agents.%s`" % role, body, role)
+            self.assertTrue(os.path.isfile(os.path.join(
+                PLUGIN, "agents", "create-ticket-%s.md" % role)), role)
+        self.assertIn("ONE author per run", body)
+        self.assertIn("At most **2 iterations**", body)
+        self.assertIn("references/materialize.md", body)
+        self.assertRegex(body, r"(?i)\binline\b")
+        ref = read(os.path.join(PLUGIN, "skills", "create-ticket", "references",
+                                "materialize.md"))
+        for wire in ("<task", "<result", "FINAL message", "share no memory"):
+            self.assertNotIn(wire, ref)
 
     def test_apply_skills_spawn_no_subagent_and_follow_their_reference(self):
         """AC-1, tightened: planner, verifier AND executor counts are zero --
@@ -3274,10 +3296,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **29 agents**", body,
+        self.assertIn("— **34 agents**", body,
                       "c4-component.md must count the reflection-loop "
                       "skills' agents (ADR-0109/ADR-0122/ADR-0123/ADR-0124/ADR-0126/"
-                      "ADR-0134/ADR-0137: 29 = 35 files less code's implementer, review-code's two "
+                      "ADR-0134/ADR-0137/ADR-0138: 34 = 40 files less code's implementer, review-code's two "
                       "roles, audit-design's gap analyst and audit-security's "
                       "auditor and adjudicator)")
         self.assertNotIn("8 active triads (24 agents)", body,
@@ -3290,10 +3312,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **29 agents**")
+        triad_idx = body.index("— **34 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("35 agent files, all reachable", window,
-                      "c4-component.md must read '35 agent files, all reachable' "
+        self.assertIn("40 agent files, all reachable", window,
+                      "c4-component.md must read '40 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3398,7 +3420,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **29 agents**", body,
+        self.assertIn("— **34 agents**", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143/MAR-160)")
@@ -3412,10 +3434,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **29 agents**")
+        triad_idx = body.index("— **34 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("35 agent files, all reachable", window,
-                      "c4-component.md must advance to '35 agent files, all reachable' "
+        self.assertIn("40 agent files, all reachable", window,
+                      "c4-component.md must advance to '40 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,

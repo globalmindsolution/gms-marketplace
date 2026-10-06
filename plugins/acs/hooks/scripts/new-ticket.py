@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
 """new-ticket.py — allocate a ticket id and create its workspace partition.
 
-Used by the /create-ticket executor (epic children fan-out, remote imports) and
-anywhere else a ticket must be minted. Maintains both directions of the
-epic <-> child link and the repo-level tickets-index.json.
+Used by /acs:create-ticket (a new ticket, remote imports), /acs:breakdown-ticket
+(a parent's children) and anywhere else a ticket must be minted. Maintains both
+directions of the epic <-> child link and the repo-level tickets-index.json.
 
 Usage:
   new-ticket.py --title "Wishlist API" --type story [--parent SHOP-122]
                 [--description "..."] [--priority high] [--needs-design true]
                 [--external github:123] [--assignee jane] [--story-points 3]
+                [--features wishlist,checkout]
+  new-ticket.py --title "Cart doubles a line" --type bug [--severity high]
+                [--reproduction "1. ..."] [--expected "..."] [--actual "..."]
+                [--environment "v0.5.0, Firefox 140"]
 
-Prints {"ticket_id": ..., "partition": ..., "ticket_document": ...} on
-success. `ticket_document` is the file the ticket was written to:
+A child minted with `--parent` traces to its parent's PRD features unless
+`--features` says otherwise (`--features ""` = none) (ADR-0138). The parent must
+be an epic; /acs:breakdown-ticket converts a story or task it splits into one
+first (`acs.py ticket save`, type epic), so the id is kept. The bug flags apply
+to `--type bug` only.
+
+Prints {"ticket_id": ..., "partition": ..., "ticket_document": ...,
+"features": [...], "features_inherited": true|false} on success. `ticket_document` is the file the ticket was written to:
 `<partition>/ticket.json` in the workspace. Since ADR-0128 a ticket lives only
 in the workspace and the tracker -- nothing is written into the consumer
 repo's docs tree (no `docs/tickets/<ID>/ticket.md`), so minting a ticket
@@ -45,7 +55,16 @@ def main():
     parser.add_argument("--due-date", dest="due_date",
                         help="Optional delivery target date, ISO-8601 YYYY-MM-DD.")
     parser.add_argument("--features",
-                        help="PRD features it traces to, as comma-separated slugs (ADR-0120).")
+                        help="PRD features it traces to, as comma-separated slugs (ADR-0120). "
+                             "Omitted with --parent: the parent's features (ADR-0138); "
+                             "\"\" = none.")
+    # A bug's report (ADR-0138): --type bug only, each optional.
+    parser.add_argument("--severity", choices=lib.BUG_SEVERITIES,
+                        help="a bug's severity, separate from --priority")
+    parser.add_argument("--reproduction", help="a bug's steps to reproduce (markdown)")
+    parser.add_argument("--expected", help="what a bug's steps should produce")
+    parser.add_argument("--actual", help="what they produce instead")
+    parser.add_argument("--environment", help="where the bug was seen (version, OS, runtime)")
     parser.add_argument("--seed-next", dest="seed_next", type=int,
                         help="Confirm or repair the ticket-id reconciliation floor: "
                              "mint <PREFIX>-<n> and record it as the confirmed floor.")
@@ -62,6 +81,13 @@ def main():
         features = lib.parse_features(args.features)
     except lib.GateError as exc:
         sys.stderr.write("acs new-ticket: --%s\n" % exc)
+        sys.exit(2)
+
+    bug = {field: getattr(args, field) for field in lib.BUG_FIELDS
+           if getattr(args, field) is not None}
+    if bug and args.ttype != "bug":
+        sys.stderr.write("acs new-ticket: %s only apply to --type bug, not --type %s\n"
+                         % (", ".join("--" + f for f in bug), args.ttype))
         sys.exit(2)
 
     if args.seed_next is not None and args.seed_next < 1:
@@ -97,6 +123,13 @@ def main():
         if parent_ticket.get("type") != "epic":
             sys.stderr.write("acs new-ticket: parent %s is a %s, not an epic\n" % (args.parent, parent_ticket.get("type")))
             sys.exit(2)
+
+    # A child traces to its parent's PRD features unless the caller narrowed
+    # them (ADR-0138): a child that silently traced to nothing would drop out
+    # of every feature's LLD. An explicit --features, even "", is the answer.
+    inherited = args.features is None and bool(parent_ticket and parent_ticket.get("features"))
+    if inherited:
+        features = list(parent_ticket["features"])
 
     repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
     try:
@@ -134,6 +167,7 @@ def main():
         docs_only=args.docs_only == "true",
         due_date=args.due_date,
         features=features,
+        **bug
     )
     lib.save_ticket(tdir, ticket)
     # Where the ticket landed: its partition's ticket.json, never the repo's
@@ -168,7 +202,8 @@ def main():
         lib.update_index(workspace, repo_id, parent_ticket)
 
     print(json.dumps({"ticket_id": ticket_id, "partition": tdir,
-                      "ticket_document": document}, indent=2))
+                      "ticket_document": document, "features": features,
+                      "features_inherited": inherited}, indent=2))
 
 
 if __name__ == "__main__":

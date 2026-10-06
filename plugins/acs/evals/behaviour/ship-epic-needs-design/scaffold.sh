@@ -5,8 +5,8 @@
 #
 # "Epics are never shipped." Every implementation step's pre-hook carries the
 # epic brake, so ship's first step (analyze-requirements) is refused with the
-# whole Design-phase path: /acs:create-tech-design EVAL-1, then /acs:create-ticket
-# EVAL-1 --fan-out, then /acs:ship <child-id> per child. ship surfaces that
+# whole Design-phase path: /acs:create-tech-design EVAL-1, then
+# /acs:breakdown-ticket EVAL-1, then /acs:ship <child-id> per child. ship surfaces that
 # pointer verbatim and STOPS -- it does not run the design, mint children, or
 # implement anything on the epic itself.
 set -euo pipefail

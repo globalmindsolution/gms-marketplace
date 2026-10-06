@@ -152,6 +152,28 @@
         "effort": "high"
       }
     },
+    "create-ticket": {
+      "bug-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "epic-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "story-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "task-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      }
+    },
     "docs-sync": {
       "doc-updater": {
         "model": "claude-sonnet-5-5",

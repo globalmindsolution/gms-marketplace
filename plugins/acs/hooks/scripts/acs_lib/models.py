@@ -43,6 +43,9 @@ _RECOMMENDED = {
     "author": (SONNET, "medium"), "contract-author": (SONNET, "medium"),
     "test-designer": (SONNET, "medium"), "doc-updater": (SONNET, "medium"),
     "test-writer": (SONNET, "medium"),
+    # create-ticket's typed draft authors (ADR-0138), reviewed before the user sees them
+    "epic-author": (SONNET, "medium"), "story-author": (SONNET, "medium"),
+    "task-author": (SONNET, "medium"), "bug-author": (SONNET, "medium"),
     "implementer": (SONNET, "medium"),
     # judge: re-derives fresh, and is the gate before approval
     "reviewer": (OPUS, "high"), "plan-reviewer": (OPUS, "high"),
