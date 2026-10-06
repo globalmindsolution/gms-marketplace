@@ -38,7 +38,7 @@ git add -A
 git commit -qm "HTTP front with /health"
 
 ACS_FEATURES=customer-listing
-acs_ticket "Serve the customer listing over HTTP" task false \
+acs_ticket "Serve the customer listing over HTTP" task \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."
 
 python3 - <<'PY'

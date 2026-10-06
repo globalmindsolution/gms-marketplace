@@ -273,11 +273,11 @@ PLAYS = {
             ws.skill("setup"), ws.setup_apply({}, ["conventions"]))},
     ),
     "create-ticket-artifacts": (
-        lambda ws: _ticket(ws, needs_design=False),
+        lambda ws: _ticket(ws),
         {"started the skill and wrote nothing": _placeholder_only,
-         "re-litigated needs_design": lambda ws: _ticket(ws, needs_design=True),
+         "wrote a retired design flag (ADR-0139)": lambda ws: _ticket(ws, needs_design=True),
          "hand-wrote the ticket without the skill": lambda ws: (
-             ws.write(TICKET, '{"id": "EVAL-1", "type": "task", "needs_design": false}\n'),
+             ws.write(TICKET, '{"id": "EVAL-1", "type": "task"}\n'),
              ws.write(".acs/state-machine/example-shop/tickets-index.json", '{"EVAL-1": {}}\n'))},
     ),
     "resume-and-verify": (

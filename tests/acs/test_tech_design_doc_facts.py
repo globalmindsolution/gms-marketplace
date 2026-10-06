@@ -75,7 +75,8 @@ class Adr0135RecordTest(unittest.TestCase):
     def test_adr_is_accepted_dated_and_amends_0118_and_0130(self):
         body = _read(ADR_0135)
         self.assertTrue(body.startswith("# 0135 — "))
-        self.assertIn("**Status**: Accepted · **Date**: 2026-10-05", body)
+        # Accepted, possibly amended later (ADR-0139 amends its brake).
+        self.assertRegex(body, r"\*\*Status\*\*: Accepted( — amended by [^\n]*)? · \*\*Date\*\*: 2026-10-05")
         amends = body[body.index("**Amends**"):body.index("## Context")]
         self.assertIn("(0118-discovery-design-development-phases.md)", amends)
         self.assertIn("(0130-prd-versions-and-set-doc-status.md)", amends)
@@ -95,8 +96,7 @@ class Adr0135RecordTest(unittest.TestCase):
         index = _read(ADR_README)
         row = [l for l in index.splitlines() if l.startswith("| [0135](0135-create-tech-design.md)")]
         self.assertEqual(len(row), 1, "ADR index must carry exactly one 0135 row")
-        self.assertTrue(row[0].rstrip().endswith("| Accepted |"))
-        self.assertIn("(amends 0118, 0130)", row[0])
+        self.assertRegex(row[0].rstrip(), r"\(amends 0118, 0130\) \| Accepted( — amended by [^|]*)? \|$")
         for num in ("0118", "0130"):
             line = [l for l in index.splitlines() if l.startswith("| [%s]" % num)][0]
             self.assertIn("[0135](0135-create-tech-design.md)", line.rsplit("|", 2)[1])

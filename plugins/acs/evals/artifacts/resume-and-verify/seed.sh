@@ -57,7 +57,7 @@ printf '{"next": 1, "reconciled": true, "seed_source": "explicit-user", "seeded_
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .acs/state-machine/example-shop/counters.json
 
 python3 "$SCRIPTS/new-ticket.py" --title "Add a /health endpoint returning ok" \
-  --type task --needs-design false > /dev/null
+  --type task > /dev/null
 
 T=.acs/state-machine/example-shop/EVAL-1
 mkdir -p "$T/specs"

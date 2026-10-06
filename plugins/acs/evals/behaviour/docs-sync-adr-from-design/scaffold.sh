@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /acs:docs-sync on an ADR-worthy change: EVAL-1 (needs_design true) moves the
+# /acs:docs-sync on an ADR-worthy change: EVAL-1 (with a tech design) moves the
 # customer listing from a hard-coded empty list onto a SQLite store through
 # the stdlib sqlite3 module. Its approved tech design
 # (docs/architecture/lld/customer-listing/EVAL-1/tech-design.md, published
@@ -68,7 +68,7 @@ git add -A
 git commit -qm "ADRs 0001 and 0002"
 
 ACS_FEATURES=customer-listing
-acs_ticket "Store customers in SQLite" task true \
+acs_ticket "Store customers in SQLite" task \
   "Back list_customers with a SQLite store instead of a hard-coded empty list."
 
 # /acs:create-tech-design's published tech design, approved, uncommitted.

@@ -882,9 +882,11 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-ticket]: Finish must name states.ticket_id key")
         self.assertIn("type", create_ticket_body,
                       "AC-4 [create-ticket]: Finish must name states.type key")
-        self.assertIn("needs_design", create_ticket_body,
-                      "AC-4 [create-ticket]: Finish must name states.needs_design key "
-                      "(also a confirmation-gate token)")
+        # ADR-0139: a ticket carries no design flag, so neither the Finish
+        # states nor the confirmation gate name one.
+        self.assertNotIn("needs_design", create_ticket_body,
+                         "ADR-0139 [create-ticket]: no states.needs_design key, no design "
+                         "flag at the confirmation gate")
         self.assertIn("children", create_ticket_body,
                       "AC-4 [create-ticket]: Finish must name states.children key")
         self.assertIn("prd_trace", create_ticket_body,

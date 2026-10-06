@@ -1,2 +1,2 @@
-PASS if, like the reference, the run mints one task ticket through /acs:create-ticket with a real title, a description and at least one acceptance criterion for the /health endpoint, needs_design false, indexed in the repo's ticket index, without asking the user anything.
-FAIL if the ticket keeps its placeholder title, has no acceptance criteria, is typed as a story or epic, flips needs_design, is written by hand instead of through the skill, or the run stops to ask a question.
+PASS if, like the reference, the run mints one task ticket through /acs:create-ticket with a real title, a description and at least one acceptance criterion for the /health endpoint, no design flag, indexed in the repo's ticket index, without asking the user anything.
+FAIL if the ticket keeps its placeholder title, has no acceptance criteria, is typed as a story or epic, records a needs_design flag, is written by hand instead of through the skill, or the run stops to ask a question.

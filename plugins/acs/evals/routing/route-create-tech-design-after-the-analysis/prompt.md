@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-TKT-86's impact and acceptance criteria are already analyzed, and it came out design-significant with needs_design set. Now weigh the options for its retry queue and settle on one design for approval.
+TKT-86's impact and acceptance criteria are already analyzed, and the retry queue is too big a decision to leave to the plan. Now weigh the options for it and settle on one design for approval.

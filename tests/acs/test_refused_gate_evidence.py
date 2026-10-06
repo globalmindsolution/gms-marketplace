@@ -35,8 +35,8 @@ class RefusedGateEvidenceTest(AcsWorkspaceCase):
                                                       lib.checkout_id(self.repo)))
 
     def test_refused_evidence_is_never_accepted(self):
-        story = self.new_ticket("Wishlist API", "story")
-        out = self.pre("create-tech-design", story)
+        # No ticket, document, prompt or current run: no requirements to design from.
+        out = self.pre("create-tech-design")
         self.assertEqual(out.returncode, 2, out.stderr)
         verdict = self.verdict("create-tech-design")
         self.assertFalse(verdict["gated"])
@@ -102,11 +102,14 @@ class StepStartAppliesTheBrakesTest(AcsWorkspaceCase):
         self.assertEqual(out.returncode, 2, out.stdout)
         self.assertIn("no PR reference recorded", out.stderr)
 
-    def test_create_tech_design_needs_the_flag(self):
+    def test_create_tech_design_needs_requirements_not_a_flag(self):
+        """ADR-0139: any story opens it; only no requirements at all is refused."""
         story = self.new_ticket("Wishlist API", "story")
         out = self.step_start("--step", "create-tech-design", "--ticket", story)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        out = self.step_start("--step", "create-tech-design", "--ticket", "SHOP-404")
         self.assertEqual(out.returncode, 2, out.stdout)
-        self.assertIn("needs_design", out.stderr)
+        self.assertIn("SHOP-404", out.stderr)
 
 
 if __name__ == "__main__":

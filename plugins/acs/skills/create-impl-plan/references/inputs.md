@@ -19,7 +19,7 @@ inline a file body):
    README first, then only the context files the plan touches; a legacy single
    `analysis.md` is read whole. Absent is not an error: plan from the
    requirements and the codebase instead, and say so in the plan.
-3. `<design_doc>` when `design.required` — the tech design
+3. `<design_doc>` when `design.exists` — the tech design
    (`tech-design.md`, a legacy `design.md`), the decided architecture the
    plan must realize; its status goes in the report.
 4. `<partition>/specs/*.md` when present (sorted `01-`, `02-`, ... — that is

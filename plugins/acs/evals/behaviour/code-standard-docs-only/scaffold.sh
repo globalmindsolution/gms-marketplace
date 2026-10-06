@@ -23,7 +23,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 ACS_FEATURES=customer-listing
-acs_ticket "Document the customer listing API" story false \
+acs_ticket "Document the customer listing API" story \
   "Merchants integrating with shop cannot find what GET /customers accepts or returns."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"docs_only": true, "acceptance_criteria": ["docs/api/customers.md documents GET /customers: the offset and limit parameters, the default of 20 per page, and the response shape", "the README links to docs/api/customers.md", "the CHANGELOG has an Unreleased entry for the new page"]}' \

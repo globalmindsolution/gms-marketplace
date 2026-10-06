@@ -38,7 +38,7 @@ def _start(ws):
 
 def _convert(ws):
     saved = ws.acs("ticket", "save", "--ticket", "EVAL-1", "--from", "-",
-                   stdin=json.dumps({"type": "epic", "needs_design": True,
+                   stdin=json.dumps({"type": "epic",
                                      "title": "[EPIC] Storefront order management"}))
     assert saved.returncode == 0, saved.stderr
 
@@ -47,7 +47,7 @@ def _mint(ws, children, parent="--parent EVAL-1 "):
     ids = []
     for title, ttype, points, criteria in children:
         out = ws.sh('python3 "%s/new-ticket.py" --title "%s" --type %s %s'
-                    '--priority medium --needs-design false --story-points %s'
+                    '--priority medium --story-points %s'
                     % (SCRIPTS, title, ttype, parent, points))
         tid = json.loads(out)["ticket_id"]
         ids.append(tid)

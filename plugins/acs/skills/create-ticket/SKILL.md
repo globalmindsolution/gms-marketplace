@@ -11,8 +11,8 @@ You are the coordinator of /acs:create-ticket. Turn `$ARGUMENTS` (requirements �
 request, a bug report, documents in the repo or attached from outside it, or a mix of
 them — or a remote tracker key) into ONE schema-complete ticket in the workspace
 partition: typed (`epic`, `story`, `task` or `bug`), clarified, traced to the PRD,
-with an epic-only `needs_design` flag (stated, never confirmed, for epics; never
-offered for the other types), and optional tracker sync. Every creation run ends with
+and optionally synced to the tracker. A ticket records no design flag (ADR-0139): a
+design is written when the user asks for one. Every creation run ends with
 `children: []` — an epic's children are minted later by `/acs:breakdown-ticket`.
 
 You keep, inline: parsing the input, the sizing rubric that picks the type, every
@@ -46,7 +46,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-ti
   ticket id with `--fan-out`, or asks to split or restructure an existing ticket
   (`split SHOP-123 per <plan path>`), run nothing and mint nothing: reply that
   the mode moved to `/acs:breakdown-ticket <id>` (ADR-0138), which mints an
-  epic's children after its design and splits an oversized story or task into
+  epic's children and splits an oversized story or task into
   an epic that keeps its id — and stop. Under /acs:ship return
   `<handoff skill="create-ticket" ticket-id="<id>" status="failed">` with that
   pointer as `<next-step>/acs:breakdown-ticket <id></next-step>`.
@@ -144,7 +144,7 @@ should need roughly **≤400 changed lines**, touch **one concern**, and carry
 **≤~7 acceptance criteria**. Estimate the expected diff surface (the
 modules and files the survey turned up) and state it. Above the bar —
 recommend `epic`; its children are cut at PR-sized seams later, by
-`/acs:breakdown-ticket`, after its design. Never propose one mega-story
+`/acs:breakdown-ticket`. Never propose one mega-story
 because decomposition is tedious.
 
 ### Step 1 — Analyze and recommend fields
@@ -180,8 +180,7 @@ check its draft the way the reviewer does:
 - For epics: proposed child story/task breakdown — an OUTLINE only
   (`breakdown_outline`), drafted by the epic author and held to the same
   concreteness/testability judgment; it mints nothing. An epic's own creation
-  run ends with `children: []`; `/acs:breakdown-ticket <id>` mints the children
-  after the epic's design.
+  run ends with `children: []`; `/acs:breakdown-ticket <id>` mints the children.
 
 Ask BEFORE drafting only when the type itself is genuinely open (story or epic?
 a bug or a new feature?) — it picks the author; everything else waits for Step 2.
@@ -258,8 +257,7 @@ overrides:
    does not finalize with a flagged entry unless the user explicitly confirms it
    anyway. A revision is applied to the draft before Step 3 (a substantive one
    re-runs the author within the iteration cap).
-4. **Type and needs_design**: epics are always `needs_design: true` (state it, do
-   not ask). For `docs_only`, present the recommendation and obtain USER CONFIRMATION
+4. **Type and docs_only**: for `docs_only`, present the recommendation and obtain USER CONFIRMATION
    when recommended `true` (it relaxes /acs:code's TDD/coverage gates — never set it
    without explicit user confirmation; when `false`, don't ask). A bug's
    `severity` is shown beside its `priority`; the user may change either.
@@ -325,7 +323,7 @@ MANDATORY final step — never skipped, also on failure:
 
 1. Write `steps/create-ticket/result.json` through `acs.py write` (never the Write tool) per
    the result-document contract in INTERNALS.md. The `states` keys are EXACTLY: `ticket_id`,
-   `type`, `needs_design`, `children`, `prd_trace`. Example:
+   `type`, `children`, `prd_trace`. Example:
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-ticket/result.json <<'ACS_EOF'
@@ -335,7 +333,6 @@ MANDATORY final step — never skipped, also on failure:
      "states": {
        "ticket_id": "SHOP-123",
        "type": "epic",
-       "needs_design": true,
        "children": [],
        "prd_trace": {"feature": "Wishlist (Must-have, roadmap M2)", "divergence": null}
      },
@@ -359,20 +356,20 @@ MANDATORY final step — never skipped, also on failure:
    ```
 
 3. Report. Direct invocation: a compact summary — ticket id, type, title,
-   needs_design, PRD trace, tracker key, a bug's severity — and the next command:
-   for an epic, `/acs:create-tech-design <id>` (it carries `needs_design`) →
+   PRD trace, tracker key, a bug's severity — and the next command:
+   for an epic, `/acs:create-tech-design <id>` (when you want a design) →
    `/acs:breakdown-ticket <id>`; else `/acs:code <id>` (epic children each continue with
-   `/acs:code <child-id>` after the epic's design). Under /acs:ship: return
+   `/acs:code <child-id>`). Under /acs:ship: return
    ONLY the `<handoff>` XML as your final message (validated, summary <= 1 KB):
 
    ```xml
    <handoff skill="create-ticket" ticket-id="SHOP-123" status="completed">
-     <summary>Created epic SHOP-123 "Wishlist" (needs_design=true); draft reviewed on iteration 1; no children yet — break it down with /acs:breakdown-ticket SHOP-123 after its design; traced to PRD feature "Wishlist (Must-have)"; synced to github issue 789.</summary>
+     <summary>Created epic SHOP-123 "Wishlist"; draft reviewed on iteration 1; no children yet — break it down with /acs:breakdown-ticket SHOP-123; traced to PRD feature "Wishlist (Must-have)"; synced to github issue 789.</summary>
      <artifacts>
        <file><partition>/ticket.json</file>
        <file>steps/create-ticket/result.json</file>
      </artifacts>
-     <next-step>/acs:create-tech-design SHOP-123</next-step>
+     <next-step>/acs:breakdown-ticket SHOP-123</next-step>
    </handoff>
    ```
 
@@ -388,9 +385,9 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: ticket id, type, title; `needs_design`; a bug's severity; PRD trace or flagged divergence; reviewer iterations; tracker key when synced; children none (an epic's are minted by `/acs:breakdown-ticket`)
+- **Results**: ticket id, type, title; a bug's severity; PRD trace or flagged divergence; reviewer iterations; tracker key when synced; children none (an epic's are minted by `/acs:breakdown-ticket`)
 - **Findings**: <open findings / clarifications / kept reviewer findings, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/2 · <wall time>
-- **Next**: an epic: `/acs:create-tech-design <id>` (when `needs_design`) → `/acs:breakdown-ticket <id>`, then each child continues with `/acs:ship <child-id>`; a story, task or bug: `/acs:code <id>`
+- **Next**: an epic: /acs:create-tech-design <id> (when you want a design) → /acs:breakdown-ticket <id>, then each child continues with `/acs:ship <child-id>`; a story, task or bug: `/acs:code <id>`
 ```

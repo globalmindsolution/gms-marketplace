@@ -25,7 +25,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 
 ACS_FEATURES=customer-listing
-acs_ticket "Report the customer total" task false \
+acs_ticket "Report the customer total" task \
   "GET /customers also returns the total number of customers, so the admin UI can show page counts."
 
 a=docs/architecture/lld/customer-listing/api

@@ -22,7 +22,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 
 ACS_FEATURES=customer-listing
-acs_ticket "Store customers in SQLite" task false \
+acs_ticket "Store customers in SQLite" task \
   "Back list_customers with a SQLite customers table (id, name) instead of a hard-coded empty list."
 
 d=docs/architecture/lld/customer-listing/data

@@ -16,7 +16,7 @@ acs_repo
 acs_prd
 acs_architecture
 ACS_FEATURES=order-management
-acs_ticket "Storefront order management" story false \
+acs_ticket "Storefront order management" story \
   "Everything a merchant and a shopper need around orders, in one go: card checkout, order history, refunds, a merchant order dashboard, a CSV export for accounting, and email notifications."
 printf '%s' '{"acceptance_criteria": [
   "POST /checkout charges the card through the payments gateway and creates the order",
@@ -36,7 +36,6 @@ cat > docs/development/order-management/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Storefront order management
@@ -78,6 +77,6 @@ The ten criteria on the ticket are confirmed as written.
 
 ## Verdict
 
-Ready for planning; no design needed. The surface spans
+Ready for planning. The surface spans
 five components and ten criteria.
 MD

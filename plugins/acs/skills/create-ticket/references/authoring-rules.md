@@ -80,7 +80,6 @@ needs to ask the user:
 | `priority` | `critical`, `high`, `medium` or `low` |
 | `story_points` | an integer, or `null` |
 | `features` | the slugs, or `[]` |
-| `needs_design` | `true` for an epic, `false` for every other type |
 | `docs_only` | `true` only when the change touches documentation alone (a recommendation; the coordinator confirms it) |
 | `prd_trace` | `{"feature": …, "divergence": …}` |
 | `flags` | `[{"criterion": <1-based index>, "reason": "…"}]` — every criterion you could not make concrete |

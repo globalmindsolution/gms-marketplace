@@ -19,7 +19,7 @@ REQUEST = "The customer listing ignores the page size we ask for."
 
 BUG = {
     "title": "Customer listing ignores a page size above 20",
-    "type": "bug", "priority": "medium", "needs_design": False, "children": [],
+    "type": "bug", "priority": "medium", "children": [],
     "severity": "high",
     "reproduction": "1. Start from a database with 60 customers.\n"
                     "2. Call list_customers(offset=0, limit=50).\n"
@@ -60,7 +60,7 @@ def _save(ws, fields):
 
 def _finish(ws, ttype="bug"):
     result = {"status": "completed", "summary": "bug filed; reviewer passed on iteration 1",
-              "states": {"ticket_id": "EVAL-1", "type": ttype, "needs_design": False,
+              "states": {"ticket_id": "EVAL-1", "type": ttype,
                          "children": [],
                          "prd_trace": {"feature": "F1 Customer listing", "divergence": None}},
               "findings": [], "errors": []}

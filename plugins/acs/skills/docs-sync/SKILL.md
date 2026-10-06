@@ -50,8 +50,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step docs-sync
 - If it exits non-zero: STOP and surface its stderr verbatim to the user. Do
   not improvise a workaround.
 - Parse the printed context JSON. Fields you will use: `partition`,
-  `requirements` (`{path, sources, acceptance_criteria, features, feature,
-  needs_design}` — **Requirements: `context.requirements` / `acs.py
+  `requirements` (`{path, sources, acceptance_criteria, features, feature}` — **Requirements: `context.requirements` / `acs.py
   requirements show` — a ticket id, documents and a prompt are only where they
   came from; never read ticket.json for acceptance criteria**), `ticket` and
   `ticket_id` (present only when a ticket is one of the sources), `settings`,
@@ -103,23 +102,17 @@ subject docs-sync falls back to):
 5. The final review verdict, `steps/review-code/verdict.json` — the
    changeset review `/acs:review-code` recorded (`/acs:code` has no verifier
    of its own).
-6. The ticket's binding design, when `context.design.required` is true
-   (`context.design.source` is `own` for the ticket's own `needs_design`, or
-   `parent` when it inherits its epic's design); absent otherwise. It is NOT
+6. The tech design found for the run, when `context.design.exists` is true
+   (`context.design.source` is `own` for the ticket's or the run's own design,
+   or `parent` when it inherits its epic's); absent otherwise. It is NOT
    under `<partition>` (that is the run directory, whose
    `steps/create-tech-design/tech-design.md` is only create-tech-design's
-   unverified working draft). Resolve the published file with
-   `acs.py artifacts show` — or `--ticket <parent-id>` when the
-   source is `parent` — and read `artifacts["tech-design.md"]`: that is
-   `acs_lib.artifacts.artifact_path`, which returns the first existing copy of
-   the tech design in `<architecture_dir>/lld/<feature>/<that-id>/tech-design.md`
-   (where `/acs:create-tech-design` publishes it), then a legacy `design.md`
-   there or in `docs/tickets/<that-id>/` (read only), then the copy in that
-   ticket's workspace partition (`context.design.dir`, used only when there was
-   no checkout to publish into). On a ticketless run `design.dir` is null (or `design`
-   is absent): read `artifacts["tech-design.md"]` from the run's own
-   `artifacts show` when it reports one. `null` there means no design was published —
-   name it absent. The same call reports `artifacts["api-contract.md"]`: read it
+   unverified working draft). `context.design.dir` is the folder the found
+   file is in — normally `<architecture_dir>/lld/<feature>/<id>/`, where
+   `/acs:create-tech-design` publishes it, else a legacy `docs/tickets/<id>/`
+   or a kept-local copy: read `tech-design.md` there (a legacy `design.md`
+   read only). `exists` false means no design was published — name it
+   absent. `acs.py artifacts show` reports `artifacts["api-contract.md"]`: read it
    and the `<architecture_dir>/lld/<feature>/api/` documents it links as the
    designed surface the repo's API reference and README must agree with.
 

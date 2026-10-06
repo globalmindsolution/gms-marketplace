@@ -76,7 +76,6 @@ FEATURE = "customer-listing"
 
 README = """---
 ready_for_planning: true
-needs_design_recommendation: false
 feature: customer-listing
 ---
 
@@ -112,7 +111,7 @@ Assumptions:
 
 ## Verdict
 
-Ready for planning; no design needed.
+Ready for planning.
 """
 
 CONTEXT = """---
@@ -156,8 +155,7 @@ def _analyze(run):
           'feature does this belong to?" --answer "%s" --source assumption --rationale '
           '"the request changes the customer listing (PRD F1)" > /dev/null' % (SCRIPTS, FEATURE))
     refined = ws.acs("requirements", "refine", "--from", "-",
-                     stdin=json.dumps({"feature": FEATURE, "features": [FEATURE],
-                                       "needs_design": False}))
+                     stdin=json.dumps({"feature": FEATURE, "features": [FEATURE]}))
     assert refined.returncode == 0, refined.stderr
     shown = ws.acs("artifacts", "show")
     assert shown.returncode == 0, shown.stderr

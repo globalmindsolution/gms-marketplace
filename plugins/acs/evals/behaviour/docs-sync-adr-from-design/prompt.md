@@ -1,6 +1,6 @@
 ---
 description: >-
-  A needs_design ticket whose change -- uncommitted on main, as /acs:code
+  A ticket with a tech design whose change -- uncommitted on main, as /acs:code
   leaves it (ADR-0127) -- moves customers onto a SQLite store, with an
   approved design in the ticket's docs folder recording one accepted decision
   under "Decision records", a repo that keeps ADRs in docs/adr/ (0001, 0002),

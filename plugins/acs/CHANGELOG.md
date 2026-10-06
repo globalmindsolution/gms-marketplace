@@ -557,6 +557,34 @@ matching section here, and merge to `main` — the Release workflow tags
   live in one `references/authoring-notes.md`, which the surveyor, author and
   reviewer read, so the surveyor and reviewer agents are shorter too.
   **Migration:** none.
+- **⚠️ BREAKING: tickets carry no design flag; `/acs:create-tech-design` runs
+  when you ask for it** (ADR-0139). `needs_design` is gone from `ticket.json`,
+  the tickets index, `new-ticket.py`, `/acs:create-ticket` (no question, no
+  confirmation, no recommendation from the epic author) and the children
+  `/acs:breakdown-ticket` mints. `/acs:analyze-requirements` no longer judges
+  whether a change needs a design: `needs_design_recommendation` leaves its
+  `README.md` front matter (now `ticket` or `feature`, and
+  `ready_for_planning`), and no design question is asked. A run's requirements
+  carry no `needs_design`, so `context.requirements` and `acs.py requirements
+  show` drop the key. `/acs:create-tech-design` admits any ticket — epic,
+  story, task or bug — a prompt or documents; it refuses only an invocation with
+  no requirements, or a ticket that is missing or archived. A design is found,
+  not required: the step-start context's new `context.design = {exists, dir,
+  source}` names the ticket's own `tech-design.md`, else its parent epic's, and
+  `/acs:create-impl-plan`, `/acs:code`, `/acs:create-test-docs` and
+  `/acs:review-code` read it when it exists and go on without it, silently,
+  when it does not. An epic's run now ends *Next: `/acs:create-tech-design <id>`
+  (when you want a design) → `/acs:breakdown-ticket <id>`*.
+  **Migration:**
+  - `new-ticket.py --needs-design` was removed and exits 2: drop the flag from
+    any script that passes it.
+  - `acs.py requirements refine` refuses a `needs_design` key, naming ADR-0139:
+    drop it from the JSON you pass.
+  - Old tickets, index entries, refined requirements and analyses are fine:
+    one that still carries `needs_design` or `needs_design_recommendation`
+    validates, and the key is ignored. Nothing to rewrite.
+  - Run `/acs:create-tech-design <id>` (or with a prompt or documents) when you
+    want a design; nothing asks for one any more, and nothing refuses one.
 
 ### Removed
 

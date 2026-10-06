@@ -3,15 +3,15 @@
 
 `structure_lint.py` is the deterministic backstop for a doc's SECTIONS; this
 is the one for its FRONT MATTER — the machine-read half of a ticket document.
-Code reads it -- the analysis README's `ready_for_planning` and
-`needs_design_recommendation` (ADR-0133), a design document's version keys
-(ADR-0122) -- so a front matter that is missing, unparseable, or carries the
+Code reads it -- the analysis README's `ready_for_planning` (ADR-0133), a
+design document's version keys (ADR-0122) -- so a front matter that is missing, unparseable, or carries the
 wrong type is a pipeline failure discovered one skill too late. Run this
 before publishing, and the failure surfaces where it can still be fixed.
 
 Only the DECLARED keys are checked: a key the spec does not name is ignored,
 which is what keeps a document written under an older spec valid (an
-analysis published before ADR-0134 still carries `api_surface`).
+analysis published before ADR-0134 still carries `api_surface`, and one
+published before ADR-0139 `needs_design_recommendation`).
 
 The parse is `acs_lib.yamlsubset`, the SAME parser the hooks use, so "it
 parses here" means "it parses there": a block this checker accepts cannot be

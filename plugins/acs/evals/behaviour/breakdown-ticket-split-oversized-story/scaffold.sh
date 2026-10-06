@@ -19,7 +19,7 @@ acs_repo
 acs_prd
 acs_architecture
 ACS_FEATURES=order-management
-acs_ticket "Storefront order management" story false \
+acs_ticket "Storefront order management" story \
   "Everything a merchant and a shopper need around orders, in one go: card checkout, refunds and a CSV export for accounting."
 printf '%s' '{"acceptance_criteria": [
   "POST /checkout charges the card through the payments gateway and creates the order",

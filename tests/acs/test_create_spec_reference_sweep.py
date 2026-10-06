@@ -91,9 +91,10 @@ PROVENANCE_SUBSTRINGS = [
 # ADR-0135 renamed the skill create-tech-design and put the team's approval
 # and the plan between it and /acs:code, so the sites that route a non-epic
 # ticket onward now name /acs:create-impl-plan (then /acs:code) -- still
-# never create-spec.
+# never create-spec. ADR-0139 took the design flag off tickets: the
+# description's first site now routes work built without a design.
 CREATE_DESIGN_ROUTING_PHRASES = [
-    "tickets without the flag skip straight to /acs:code.",
+    "work the user wants built without one goes straight to /acs:code.",
     "approved by the team with `/acs:set-doc-status` (ADR-0130) before `/acs:create-impl-plan` plans it.",
     "INHERIT this design via cross-partition read in their /acs:code; never",
     "the /acs:code gate stays closed until it succeeds.",
@@ -269,13 +270,14 @@ class Rule1CreateTicketNextLineBothOccurrencesTest(unittest.TestCase):
     corrects only one occurrence must fail this assertion."""
 
     def test_next_line_both_occurrences_route_to_code(self):
-        """ADR-0138 rewrote the line: an epic goes through its design and
-        /acs:breakdown-ticket, every other type straight to /acs:code --
-        still never create-spec."""
+        """ADR-0138 rewrote the line: an epic goes through
+        /acs:breakdown-ticket (its design first, when the user wants one --
+        ADR-0139), every other type straight to /acs:code -- still never
+        create-spec."""
         body_norm = norm(read(CREATE_TICKET_SKILL))
         self.assertRegex(body_norm, phrase_re(
-            "**Next**: an epic: `/acs:create-tech-design <id>` (when "
-            "`needs_design`) → `/acs:breakdown-ticket <id>`, then each child "
+            "**Next**: an epic: /acs:create-tech-design <id> (when you want a "
+            "design) → /acs:breakdown-ticket <id>, then each child "
             "continues with `/acs:ship <child-id>`; a story, task or bug: "
             "`/acs:code <id>`"))
 
@@ -300,7 +302,7 @@ class Rule1RemainingSitesTest(unittest.TestCase):
         self.assertRegex(body_norm, phrase_re(
             "`/acs:code <id>` (epic children each continue with"))
         self.assertRegex(body_norm, phrase_re(
-            "`/acs:code <child-id>` after the epic's design). "
+            "`/acs:code <child-id>`). "
             "Under /acs:ship: return"))
 
     def test_create_design_designer_inherit_phrase(self):

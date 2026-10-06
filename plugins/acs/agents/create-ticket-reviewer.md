@@ -38,7 +38,6 @@ findings. Read `authoring-rules.md` first: it is the standard the draft is held 
    description fills every template section (no HTML comment left, the
    `acs-ticket:` line kept):
    - epic: problem and outcome, scope in AND out, measurable success metrics, a
-     design recommendation under `## Design`, `needs_design: true`, a
      `breakdown_outline` — and NO child acceptance criteria, ids or points;
      title prefixed `[EPIC] `;
    - story: the user value (As a / I want / so that, or an equivalent naming the

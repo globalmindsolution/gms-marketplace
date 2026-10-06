@@ -141,22 +141,22 @@ MD
   git add -A && git commit -qm "Architecture docs"
 }
 
-# acs_ticket TITLE TYPE [NEEDS_DESIGN] [DESCRIPTION] [FEATURES]: mint a ticket
-# through the plugin's own CLI; prints nothing. Ids run EVAL-1, EVAL-2, ... in
-# call order. FEATURES (comma-separated PRD feature slugs; default
+# acs_ticket TITLE TYPE [DESCRIPTION] [FEATURES]: mint a ticket through the
+# plugin's own CLI; prints nothing. A ticket carries no design flag (ADR-0139).
+# Ids run EVAL-1, EVAL-2, ... in call order. FEATURES (comma-separated PRD feature slugs; default
 # $ACS_FEATURES, which a scaffold sets before the call) is what files the
 # ticket's documents (ADR-0128): the Development docs under
 # docs/development/<feature>/EVAL-<n>/, the design records under
 # docs/architecture/lld/<feature>/EVAL-<n>/. No ticket file enters the repo.
 acs_ticket() {
-  local title="$1" type="$2" needs_design="${3:-false}" description="${4:-}"
-  local features="${5:-${ACS_FEATURES:-}}"
+  local title="$1" type="$2" description="${3:-}"
+  local features="${4:-${ACS_FEATURES:-}}"
   local extra=()
   if [ -n "$features" ]; then
     extra=(--features "$features")
   fi
   python3 "$ACS_SCRIPTS/new-ticket.py" --title "$title" --type "$type" \
-    --needs-design "$needs_design" --description "$description" "${extra[@]+"${extra[@]}"}" > /dev/null
+    --description "$description" "${extra[@]+"${extra[@]}"}" > /dev/null
 }
 
 # acs_api_contract_customers: the API contract /acs:create-api-contract

@@ -21,7 +21,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 ACS_FEATURES=customer-listing
-acs_ticket "Search customers by name" story false \
+acs_ticket "Search customers by name" story \
   "Merchants with hundreds of customers need to find one by name without paging."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["search_customers(customers, \"ali\") returns every customer whose name contains ali, case-insensitively", "a blank query raises ValueError", "the README documents GET /customers/search?q="]}' \

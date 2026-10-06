@@ -17,7 +17,7 @@ printf '{\n  "ticket_prefix": "EVAL",\n  "docs": {"share_run_documents": false}\
 git add -A && git commit -qm "acs: keep run documents local"
 acs_prd
 acs_architecture
-acs_ticket "Cursor pagination for GET /customers" story false \
+acs_ticket "Cursor pagination for GET /customers" story \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
 printf '%s' '{"features": ["customer-listing"], "acceptance_criteria": [
   "GET /customers accepts an optional cursor query parameter and returns the page of customers that follows it",

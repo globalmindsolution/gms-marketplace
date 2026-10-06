@@ -139,7 +139,7 @@ def _minted_children(ws):
     """Designed, then fanned the epic out itself."""
     IDEAL(ws)
     ws.sh('python3 "%s/new-ticket.py" --title "Carrier status webhooks" --type story '
-          '--parent EVAL-1 --needs-design false > /dev/null' % SCRIPTS)
+          '--parent EVAL-1 > /dev/null' % SCRIPTS)
 
 
 def _story_style(ws):

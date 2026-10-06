@@ -107,7 +107,7 @@ python3 "$ACS_SCRIPTS/acs.py" design init --status implemented --feature custome
 git add -A && git commit -qm "Architecture docs"
 
 ACS_FEATURES=customer-listing
-acs_ticket "Cursor pagination for GET /customers" story false \
+acs_ticket "Cursor pagination for GET /customers" story \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
 printf '%s' '{"acceptance_criteria": [
   "GET /customers accepts an optional cursor query parameter and returns the page of customers that follows it",
@@ -121,7 +121,6 @@ cat > $D/README.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Cursor pagination for GET /customers

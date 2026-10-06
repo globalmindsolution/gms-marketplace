@@ -1,6 +1,6 @@
 ---
-status: "implemented"
-version: 1
+status: "proposed"
+version: 2
 tickets: []
 feature: "acs"
 ---
@@ -215,8 +215,9 @@ is still the block. What it evaluates is now only:
 - a small set of **safety brakes** — the partition `.lock`, the epic refusal,
   `/acs:code`'s plan-approval brake on the standard and complex paths,
   `/acs:create-pr`'s `verifier_passed` brake (narrowed to a run that HAS a
-  recorded `/acs:review-code` step), `/acs:create-tech-design`'s `needs_design`
-  brake, and `/acs:merge-pr`'s recorded-PR requirement.
+  recorded `/acs:review-code` step), and `/acs:merge-pr`'s recorded-PR
+  requirement. `/acs:create-tech-design` has no brake of its own: it refuses
+  only an invocation with no requirements, and reads no design flag (ADR 0139).
 
 It never checks that an upstream artifact exists (ADR 0109): each skill reads
 what it finds and falls back to the run's subject. A repo document is not

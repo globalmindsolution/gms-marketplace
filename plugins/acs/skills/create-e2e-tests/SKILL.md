@@ -94,8 +94,7 @@ so in the report.
 
 Parse the printed context JSON. Fields you will use:
 
-- `requirements` — `{path, sources, acceptance_criteria, features, feature,
-  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+- `requirements` — `{path, sources, acceptance_criteria, features, feature}`. **Requirements: `context.requirements` / `acs.py requirements
   show` — a ticket id, documents and a prompt are only where they came from;
   never read ticket.json for acceptance criteria.**
 - `ticket_id`, `ticket` — present only when a ticket is one of the sources;

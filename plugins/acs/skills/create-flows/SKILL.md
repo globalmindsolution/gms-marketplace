@@ -34,7 +34,7 @@ the run's requirements.
 If it exits non-zero: stop immediately and surface its stderr to the user
 verbatim. Otherwise parse the context JSON; the fields you need: `partition`,
 `run_id`, `requirements` (`{path, sources, acceptance_criteria, features,
-feature, needs_design}` — **Requirements: `context.requirements` / `acs.py
+feature}` — **Requirements: `context.requirements` / `acs.py
 requirements show` — a ticket id, documents and a prompt are only where they
 came from; never read ticket.json for acceptance criteria**), `ticket` and
 `ticket_id` (present only when a ticket is one of the sources), `settings` (`design.lld_types`,

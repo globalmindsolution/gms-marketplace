@@ -55,8 +55,7 @@ cases derived from criteria alone are a legitimate (thinner) deliverable.
 
 Parse the printed context JSON. Fields you will use:
 
-- `requirements` — `{path, sources, acceptance_criteria, features, feature,
-  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+- `requirements` — `{path, sources, acceptance_criteria, features, feature}`. **Requirements: `context.requirements` / `acs.py requirements
   show` — a ticket id, documents and a prompt are only where they came from;
   never read ticket.json for acceptance criteria.** Its `acceptance_criteria`
   are the spine of this document: every one of them must end up traced.
@@ -67,14 +66,12 @@ Parse the printed context JSON. Fields you will use:
   here too.
 - `checkout_root` — the consumer repo root; every suite and module a case names
   is repo-relative to it.
-- `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
-  ticket whose design applies and its basename is that ticket's id. When
-  `design.required`, resolve the design document with `acs.py artifacts show
-  --ticket <that id>` (`artifacts["tech-design.md"]` — its tech design in
-  `<architecture_dir>/lld/<feature>/<that id>/` or the partition, falling
-  back to a legacy `design.md` there or in `docs/tickets/<that id>/`)
-  and read it for the behaviour the design already settled. Call it
-  `<design_doc>`.
+- `design` — `{exists, dir, source}`: the tech design found for the run —
+  its own (`source` `"own"`), else its parent epic's (`"parent"`). `design.dir`
+  is the folder the found file is in. When `design.exists`, read
+  `tech-design.md` there (a legacy `design.md` when that is what it holds)
+  for the behaviour the design already settled. Call it `<design_doc>`. With none, derive the cases from the
+  requirements and the plan alone — no advisory.
 - `settings` — you need `tests` (the named suites a case's target may
   name — every key except `coverage` — including the `e2e` suite).
 - `agents` — the agent name to spawn per role; the test-designer's and the
@@ -206,7 +203,7 @@ Read these yourself and name them by path in the test-designer's `<inputs>`
    cover the area you trace; a legacy single `analysis.md` is read whole — and
    the feature's living analysis (`feature_analysis`) when one exists, for the
    feature-level behaviour the cases must not contradict.
-5. `<design_doc>` when `design.required`.
+5. `<design_doc>` when `design.exists`.
 6. The repo's test strategy and coverage policy under
    `<checkout_root>/<quality_dir>/` when the repo has one — it decides what
    belongs at unit level versus integration versus e2e in THIS repo, and this

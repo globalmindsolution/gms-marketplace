@@ -15,7 +15,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_local_origin
 
-acs_ticket "Cap the customer page size at 100" task false \
+acs_ticket "Cap the customer page size at 100" task \
   "list_customers must clamp limit to at most 100."
 acs_branch task/EVAL-1-cap-the-customer-page-size-at-100
 

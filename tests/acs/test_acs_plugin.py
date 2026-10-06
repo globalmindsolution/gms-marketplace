@@ -575,12 +575,9 @@ class TestRecordExternal(AcsWorkspaceCase):
         the parent epic's own ticket.json is untouched by those writes."""
         epic = self.new_ticket("Wishlist", "epic")
         children = [
-            self.new_ticket("Wishlist API", "story", "--parent", epic,
-                            "--needs-design", "false"),
-            self.new_ticket("Wishlist UI", "story", "--parent", epic,
-                            "--needs-design", "false"),
-            self.new_ticket("Wishlist notifications", "task", "--parent", epic,
-                            "--needs-design", "false"),
+            self.new_ticket("Wishlist API", "story", "--parent", epic),
+            self.new_ticket("Wishlist UI", "story", "--parent", epic),
+            self.new_ticket("Wishlist notifications", "task", "--parent", epic),
         ]
         epic_json = os.path.join(self.tdir(epic), "ticket.json")
         epic_stat_before = os.stat(epic_json)

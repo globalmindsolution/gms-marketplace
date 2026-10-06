@@ -25,8 +25,7 @@ paraphrase of them. Before writing anything, re-read:
   ledger (`clarify.py list`);
 - the settings you need: `tracker_provider` (`local`|`github`) and whether
   tracker sync is on;
-- the confirmed decisions: the final type, `needs_design` (`true` for epics —
-  stated, never user-confirmed; otherwise `false`, never offered), `docs_only`,
+- the confirmed decisions: the final type, `docs_only`,
   the due date, a confirmed PRD divergence, and any conflict resolutions.
 
 ## GitHub call failure policy, as it applies here
@@ -74,8 +73,7 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    epic's own — `/acs:breakdown-ticket` fills it later; the retired Step 4
    `--fan-out` never runs here), `external` (the
    import mapping, the step-5 sync result, or null), `assignee` (or null),
-   `story_points` (or null), `needs_design` (`true` for epics, `false`
-   otherwise — never user-confirmed), `docs_only` (the confirmed value,
+   `story_points` (or null), `docs_only` (the confirmed value,
    default false), `due_date` (ISO-8601 date string or null), `features`
    (the confirmed PRD feature slugs; omit when none), and on a bug its
    `severity`, `reproduction`, `expected`, `actual` and `environment`
@@ -85,10 +83,10 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    result document, the rest to the materialize report.
 4. **No children.** A creation run mints none, an epic's included. Its
    breakdown outline stays in the description's `## Notes`, for
-   `/acs:breakdown-ticket <id>` to read after the design.
-   An epic ends with `children: []`; once its tech design is settled
-   (`/acs:create-tech-design <id>`, approved with `/acs:set-doc-status`),
-   `/acs:breakdown-ticket <id>` proposes its children in one confirmation,
+   `/acs:breakdown-ticket <id>` to read.
+   An epic ends with `children: []`; `/acs:breakdown-ticket <id>` (after
+   `/acs:create-tech-design <id>` when the user wants a design first)
+   proposes its children in one confirmation,
    mints them with `new-ticket.py --parent`, and syncs them. The same skill
    splits an oversized story or task into an epic that keeps its id.
 5. **Tracker sync** — only when `settings.tracker.provider` is `github`;

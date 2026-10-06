@@ -15,7 +15,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 python3 "$ACS_SCRIPTS/new-ticket.py" --title "Document how to run the tests" --type task \
-  --needs-design false --docs-only true \
+  --docs-only true \
   --description "New contributors cannot find how to run the test suite. Add a Running the tests section to CONTRIBUTING.md." > /dev/null
 printf '%s' '{"acceptance_criteria": [
   "CONTRIBUTING.md has a Running the tests section naming the pytest command and the 90% coverage floor"

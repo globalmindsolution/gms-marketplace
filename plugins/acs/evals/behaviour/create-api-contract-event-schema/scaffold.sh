@@ -156,7 +156,7 @@ python3 "$ACS_SCRIPTS/acs.py" design init --status implemented --feature order-t
 git add -A && git commit -qm "Architecture docs"
 
 ACS_FEATURES=order-tracking
-acs_ticket "Publish order.shipped when an order ships" story false \
+acs_ticket "Publish order.shipped when an order ships" story \
   "Other services (the warehouse, email, analytics) need to know when an order ships. Publish an order.shipped event on the shop event bus, alongside the existing order.created."
 printf '%s' '{"acceptance_criteria": [
   "When an order is marked shipped, an order.shipped event is published carrying the order id, the carrier and the tracking number",
@@ -170,7 +170,6 @@ cat > $D/README.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Publish order.shipped when an order ships

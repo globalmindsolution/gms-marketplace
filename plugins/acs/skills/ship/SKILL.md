@@ -274,8 +274,8 @@ nothing about being blocked tells you the other session is actually gone.
 
 Epics are never shipped. The epic brake refuses every implementation step on
 an epic, printing the whole Design-phase path: settle the epic's tech design
-with `/acs:create-tech-design <epic-id>` (approved with `/acs:set-doc-status`),
-break it down into child tickets with `/acs:breakdown-ticket <epic-id>`, then
+with `/acs:create-tech-design <epic-id>` if it has none yet and you want one
+(approved with `/acs:set-doc-status`), break it down into child tickets with `/acs:breakdown-ticket <epic-id>`, then
 run `/acs:ship <child-id>` for each child you want shipped, one run at a time
 (parallel children belong in separate worktrees and sessions). Surface that
 pointer verbatim and stop.

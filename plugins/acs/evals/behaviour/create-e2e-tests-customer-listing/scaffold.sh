@@ -92,7 +92,7 @@ git add -A
 git commit -qm "HTTP front with /health and its e2e harness"
 
 ACS_FEATURES=customer-listing
-acs_ticket "Serve the customer listing over HTTP" task false \
+acs_ticket "Serve the customer listing over HTTP" task \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."
 slug="$(python3 "$ACS_SCRIPTS/acs.py" slug --text "Serve the customer listing over HTTP" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["slug"])')"

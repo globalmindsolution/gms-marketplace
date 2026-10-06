@@ -5,4 +5,4 @@ pattern: '"id"\s*:\s*"EVAL-1"[\s\S]*"type"\s*:\s*"task"'
 ---
 
 The ticket honours the configured prefix and records the type it was told.
-`needs_design` is graded separately so a failure names which field moved.
+The absent design flag is graded separately so a failure names which field moved.

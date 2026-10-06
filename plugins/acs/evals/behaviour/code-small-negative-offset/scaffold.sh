@@ -18,7 +18,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 ACS_FEATURES=customer-listing
-acs_ticket "Reject a negative page offset" task false \
+acs_ticket "Reject a negative page offset" task \
   "list_customers(offset=-3) silently returns a page instead of refusing the offset."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers(offset=-1) raises ValueError", "list_customers(offset=0) still returns the first page"]}' \

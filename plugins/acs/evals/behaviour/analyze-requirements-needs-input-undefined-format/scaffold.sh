@@ -12,7 +12,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
-acs_ticket "Customer export for finance" story false \
+acs_ticket "Customer export for finance" story \
   "Finance wants to export our customers so they can reconcile them in their accounting system."
 printf '%s' '{"features": ["customer-listing"], "acceptance_criteria": [
   "Finance can download an export of every customer",

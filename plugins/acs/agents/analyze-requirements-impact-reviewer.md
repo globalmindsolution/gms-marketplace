@@ -45,8 +45,7 @@ defect — it is the wrong pipeline.
    `## Refined` now reads — and, on a ticket run, the ticket's
    `acceptance_criteria` as the ticket file now reads (re-read both; the
    coordinator records them in Stage 2 through `acs.py requirements refine`,
-   which also amends the ticket), a confirmed `needs_design` is `true` there,
-   and a confirmed `features` correction is the ticket's `features` list — a
+   which also amends the ticket), and a confirmed `features` correction is the ticket's `features` list — a
    confirmed criterion the refined requirements (or the ticket) do not carry,
    or carry differently, is a finding. The front matter's `ticket` or
    `feature` names the run's ticket or the feature recorded in the
@@ -63,9 +62,10 @@ defect — it is the wrong pipeline.
    sends the change to `/acs:create-api-contract` for nothing, the second skips
    the interface design it needs. There is no `api_surface` front-matter key
    (ADR-0134); its presence in a new draft is a `front-matter` finding.
-4. `front-matter` — the README's three keys are present with the right types
+4. `front-matter` — the README's two keys are present with the right types
    and agree with the sections beneath them (`ready_for_planning` with
-   `## Verdict`, `needs_design_recommendation` with the design discussion);
+   `## Verdict`); a `needs_design_recommendation` key, or any judgment of
+   whether a design is needed, is a finding (ADR-0139);
    each context file's `context` equals its file name. Re-run the
    deterministic checks yourself (below) and quote their output.
 5. `structure` — the README's six required headings and each context file's
@@ -84,8 +84,8 @@ defect — it is the wrong pipeline.
    requirements lane and the impact analysts' code lanes, joined) surveyed: every
    impact-surface entry in the notes is a row of exactly one context file's
    impact map (or its omission is recorded in the notes), the context files
-   are the notes' `## Contexts`, the API-surface and
-   design-significance verdicts agree between notes and front matter, every
+   are the notes' `## Contexts`, the API-surface verdict agrees between the
+   notes and the README, every
    open question in the notes is a ledger entry, and every entry in the notes
    cites a file you can open and that says what the entry claims. Missing
    notes are a blocking finding on their own — a draft with no survey behind
@@ -111,7 +111,7 @@ defect — it is the wrong pipeline.
 ls -la <draft>
 
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/front_matter_check.py" \
-  --require "ticket: str; ready_for_planning: bool; needs_design_recommendation: bool" \
+  --require "ticket: str; ready_for_planning: bool" \
   --ticket SHOP-123 <draft>/README.md
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py" \
   --sections "Scope and summary; Contexts; Refined acceptance criteria; Cross-cutting risks and decisions; Questions and assumptions; Verdict" \

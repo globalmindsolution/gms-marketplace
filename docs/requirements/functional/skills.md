@@ -925,8 +925,9 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   features, grounding — live once, in
   `skills/create-ticket/references/authoring-rules.md`; each author carries
   only its own type's template and rules:
-  - **epic** — problem and outcome, scope in and out, success metrics, a
-    `needs_design` recommendation and a candidate breakdown *outline* only;
+  - **epic** — problem and outcome, scope in and out, success metrics and a
+    candidate breakdown *outline* only — no design recommendation
+    ([ADR-0139](../../architecture/adr/0139-tickets-carry-no-design-flag.md));
   - **story** — the user-facing value (As a / I want / so that, or an
     equivalent) and acceptance criteria in Given/When/Then;
   - **task** — the technical outcome and a done-when checklist, no user story;
@@ -937,7 +938,7 @@ Purpose: turn a raw user prompt into a well-formed ticket.
     passes after the fix.
 - When the ticket type is **epic**, its own creation run mints no children
   and ends with `children: []` and *Next: `/create-tech-design <id>` (when
-  `needs_design`) → `/breakdown-ticket <id>`*; `/breakdown-ticket` mints the
+  you want a design) → `/breakdown-ticket <id>`*; `/breakdown-ticket` mints the
   children (below). Each child gets its own `<ticket-id>` and runs its own
   pipeline. The epic's status is auto-managed: **In Progress** when work
   starts on any child, **Done** when all children are merged (see
@@ -973,24 +974,25 @@ Purpose: turn a raw user prompt into a well-formed ticket.
   (e.g. `PROJ-456`) pulls the issue from the configured tracker, creates the
   local ticket with a fresh local id and the external mapping, and then runs
   the normal analysis/clarification on the imported description — imports get
-  the same clarification, typing, PRD trace, and `needs_design` decision as a
-  local request (`needs_design` is set only when the imported ticket is an
-  epic; story/task/bug imports are always `false`). From there the ticket ships
-  like any local one.
+  the same clarification, typing and PRD trace as a local request. From there
+  the ticket ships like any local one.
 - Two-way sync runs **on demand** (triggered explicitly by the user or a
   skill); scheduled background sync routines are a later enhancement.
 - Sync conflicts (both the local and the remote ticket changed) are resolved
   by **asking the user** which side wins.
 - Ticket schema — required fields: **title, type, description, acceptance
   criteria, priority, parent epic, children, status, external mapping,
-  assignee, story points, needs-design flag, docs-only flag**. Parent/child links are stored
+  assignee, story points, docs-only flag**. A ticket carries no design flag
+  (ADR-0139): an older `ticket.json` with `needs_design` still validates and
+  the key is ignored. Parent/child links are stored
   in **both directions** (epic lists `children`; each child stores `parent`).
   Optional bug fields, schema-validated strings: **`severity`**
   (`critical`/`high`/`medium`/`low`), **`reproduction`**, **`expected`**,
   **`actual`**, **`environment`** (ADR-0138).
-- MUST set **`needs_design`**, epic-only: always `true` for epics (stated,
-  not asked); always `false` for stories, tasks and bugs, never offered or
-  confirmed ([workflow.md](workflow.md)).
+- MUST NOT ask about, record or recommend a design: whether a change gets a
+  tech design is the user's call, made by running `/create-tech-design`
+  ([workflow.md](workflow.md)). `new-ticket.py --needs-design` no longer
+  exists (exit 2).
 - MUST set **`docs_only`** during analysis (coordinator-recommended, user-confirmed,
   default `false`): `true` only when the change touches no executable code or
   tests. The flag relaxes `/code`'s tests-first and coverage hard-fail — the
@@ -1067,7 +1069,7 @@ split <id>` did.
   user's go-ahead.
 - MUST propose every child in ONE grouped confirmation: title, type
   (`story`, `task` or `bug`), concrete and testable acceptance criteria,
-  `features` (the parent's unless narrowed), `needs_design: false`, and a
+  `features` (the parent's unless narrowed) and a
   size from create-ticket's PR-size rubric. Nothing is minted before the
   user confirms or edits the breakdown.
 - MUST mint the confirmed children with `new-ticket.py --parent <id>` — which
@@ -1090,19 +1092,26 @@ split <id>` did.
 
 ## 2. `/create-tech-design` *(conditional)*
 
-Purpose: settle the system design before implementation is specified — for
-tickets where the change is architecturally significant — and hand it to the
-team for review before implementation starts
+Purpose: settle the system design before implementation is specified —
+whenever the user asks for one — and hand it to the team for review before
+implementation starts
 ([ADR-0135](../../architecture/adr/0135-create-tech-design.md); the skill was
 `/create-design` until then, and no alias keeps the old name).
 
-- Runs only when the run's requirements carry **`needs_design: true`** —
-  refined by `/analyze-requirements`, else the ticket's flag (set for epics
-  only; stories/tasks are always `false` and skip straight to `/code`, unless
-  they inherit a parent epic's design). A ticketless run with no recorded
-  `needs_design` runs it when the user invoked the skill with requirements:
-  the invocation is the ask (ADR-0128). The gate is `gate_create_tech_design`
-  in `SUBJECT_GATES`; epics are allowed.
+- Runs **when the user invokes it**, on any ticket — epic, story, task or
+  bug — a prompt, documents or the current run: the invocation is the ask
+  ([ADR-0139](../../architecture/adr/0139-tickets-carry-no-design-flag.md)).
+  No ticket or requirement carries a design flag, and nothing in the pipeline
+  asks for a design. The gate is `gate_create_tech_design` in
+  `SUBJECT_GATES`; it refuses only an invocation with no requirements at all
+  (no ticket, document or prompt and no current run) and what resolving the
+  ticket refuses (no partition, a corrupt `ticket.json`, a done and archived
+  ticket).
+- Its document is **found, not required**: the step-start context carries
+  `context.design = {exists, dir, source}` — the ticket's own tech design,
+  else its parent epic's — and `/create-impl-plan`, `/code`,
+  `/create-test-docs` and `/review-code` read it when it exists and proceed
+  without one, with no advisory, when it does not.
 - MUST analyze the requirements, the feature's living analysis, the
   codebase, and existing docs; MUST evaluate
   **multiple options with trade-offs** and interact with the user on the
@@ -1385,8 +1394,8 @@ user, and say plainly whether they are ready to plan. It works in two phases
      The notes MUST end with `## Questions for the user` in four groups:
      (a) open questions the code and docs cannot answer, (b) conventional
      defaults phrased "Assumed: <default> — confirm or correct",
-     (c) proposed refined acceptance criteria, (d) a needs_design
-     recommendation and any `features` correction (ADR-0120). Researchable facts are never questions. A survey sliced
+     (c) proposed refined acceptance criteria, (d) any `features` correction
+     (ADR-0120). Nothing is asked or recommended about a design (ADR-0139). Researchable facts are never questions. A survey sliced
      by repo area MUST be reconciled, after `acs.py notes merge` and before
      any question is asked, by one SYNTHESIS pass (`slice="synthesis"`) that
      records `## Synthesis`, turns an unsettled contradiction into a
@@ -1397,7 +1406,7 @@ user, and say plainly whether they are ready to plan. It works in two phases
      question from all four groups MUST be asked in ONE grouped
      AskUserQuestion, conventional defaults included, as confirmations. Each
      answer is its own `clarify.py add` entry. Confirmed refined criteria,
-     a confirmed `needs_design`, the features and the feature MUST be
+     the features and the feature MUST be
      recorded through `acs.py requirements refine` — the run's
      `## Refined` requirements, and also a PATCH of the ticket when the run
      has one — so every later skill plans from the clarified requirements; a rejected proposal is recorded and not applied. At
@@ -1406,7 +1415,7 @@ user, and say plainly whether they are ready to plan. It works in two phases
      Only when the user is unreachable (a non-interactive run with no answers
      relayed) is a conventional default recorded `--source assumption` with
      a rationale, stated in `## Assumptions`, with `ready_for_planning: true`
-     kept; unanswered criterion and needs_design proposals stay open ledger
+     kept; unanswered criterion proposals stay open ledger
      entries and the ticket's own criteria are left as written.
   3. **Store — write, review and publish for reuse.** One un-sliced DRAFT pass
      (`pass` = `draft`) writes the analysis from the reconciled notes and the
@@ -1419,8 +1428,8 @@ user, and say plainly whether they are ready to plan. It works in two phases
   never one long file, even when the change touches a single context
   ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)):
   - `README.md`, the entry (never `index.md`), with front matter
-    `{ticket | feature, ready_for_planning, needs_design_recommendation}`
-    (plus ADR-0122's `status`, `version`, `tickets` on a Discovery analysis)
+    `{ticket | feature, ready_for_planning}` (a `needs_design_recommendation`
+    left by an older analysis is ignored, ADR-0139) (plus ADR-0122's `status`, `version`, `tickets` on a Discovery analysis)
     and the headings, in order: `## Scope and summary`, `## Contexts`,
     `## Refined acceptance criteria`, `## Cross-cutting risks and decisions`,
     `## Questions and assumptions`, `## Verdict`. `## Contexts` is a table
@@ -1710,7 +1719,7 @@ are stated here because `/code`'s execute phase anchors on their outputs:
   `/acs:docs-sync`. This is **not** the full ADR-0012 design-time
   step: living-requirements edges and ADR edges are explicitly
   not covered by it and remain the responsibility of
-  `/acs:create-tech-design`'s full step (for `needs_design: true` tickets)
+  `/acs:create-tech-design`'s full step (for a change the user ran it on)
   and `/acs:docs-sync`'s diff-grounded re-derivation.
 - `/code` MUST NOT branch, stage or commit: implementers leave their files
   uncommitted and list them in their reports' `files_changed`; the run

@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Our tech lead won't let TKT-57, the real-time collaborative editing epic, go to planning until someone compares CRDTs, operational transforms and document locking. It is flagged as needing a design and none exists, so do that comparison and record the chosen approach.
+Our tech lead won't let TKT-57, the real-time collaborative editing epic, go to planning until someone compares CRDTs, operational transforms and document locking. No design exists yet, so do that comparison and record the chosen approach.

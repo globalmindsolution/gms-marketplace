@@ -41,6 +41,5 @@ them as answered, don't ask me anything:
   exception.
 - Emails go through a transactional email provider we have not chosen yet;
   treat it as an outbound HTTP API.
-- Yes, this needs a design before anyone builds it — record that, but don't
-  start the design. The spec's acceptance criteria stand as written; if you
-  propose refinements, record them as proposals rather than applying them.
+- The spec's acceptance criteria stand as written; if you propose
+  refinements, record them as proposals rather than applying them.

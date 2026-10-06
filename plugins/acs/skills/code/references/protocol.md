@@ -43,8 +43,7 @@ Parse the printed context JSON. Fields you will use:
 
 - `run_id`, `subject` — what this run is about. A subject is a **ticket, a
   prompt or a document** (§3.11), or a mix of them (`subject.sources`).
-- `requirements` — `{path, sources, acceptance_criteria, features, feature,
-  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+- `requirements` — `{path, sources, acceptance_criteria, features, feature}`. **Requirements: `context.requirements` / `acs.py requirements
   show` — a ticket id, documents and a prompt are only where they came from;
   never read ticket.json for acceptance criteria.** The implementation must
   satisfy every criterion in `requirements.path` (the run's `requirements.md`).
@@ -74,7 +73,9 @@ Parse the printed context JSON. Fields you will use:
   (`acs_lib.verdict_path(partition, "review-code", n - 1)`); `acs.py verdict
   show --iteration <n-1>` prints that copy validated. Then see
   **On iteration 2+** in your leg's SKILL.md.
-- `design` — `{required, dir, source}` when a design document applies.
+- `design` — `{exists, dir, source}`: the tech design found for the run (its
+  own, else its parent epic's, ADR-0139). When `design.exists`, the plan was
+  judged against it; when not, the plan is the whole contract — no advisory.
 - `settings` — you need `tests.e2e` when set. The repo's standards set and `tests.coverage` are
   the **reviewer's** inputs, not yours.
 - `agents` — the agent name to spawn per role; the implementer's model and

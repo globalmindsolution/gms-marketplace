@@ -39,8 +39,7 @@ and the codebase, whether `/acs:ship` invoked this skill or a user did).
 
 Parse the printed context JSON. Fields you will use:
 
-- `requirements` — `{path, sources, acceptance_criteria, features, feature,
-  needs_design}`. **Requirements: `context.requirements` / `acs.py requirements
+- `requirements` — `{path, sources, acceptance_criteria, features, feature}`. **Requirements: `context.requirements` / `acs.py requirements
   show` — a ticket id, documents and a prompt are only where they came from;
   never read ticket.json for acceptance criteria.** `requirements.path` is the
   run's `requirements.md` (a ticket's criteria numbered `AC-1…`, the prompt
@@ -48,26 +47,24 @@ Parse the printed context JSON. Fields you will use:
   `/acs:analyze-requirements` wrote). The plan must satisfy every criterion in
   it.
 - `ticket_id`, `ticket` — present only when a ticket is one of the sources:
-  the tracker container (`type`, `size`, `stakes`, `docs_only`, `external`).
+  the tracker container (`type`, `docs_only`, `parent`, `external`; no size,
+  stakes or design flag — the plan's `delivery_path` classifies the work).
   Both are null on a prompt or document run.
 - `partition` — absolute path of the run directory
   (`<workspace>/<repo-id>/runs/<run-id>/`). Phase artifacts go in
   `steps/create-impl-plan/`; the run ledger stays here too.
-- `design` — `{required, dir, source}`. `design.dir` is the PARTITION of the
-  ticket whose design applies (`source` is `"own"` or `"parent"` — child
-  tickets plan against the parent epic's design); its basename is that
-  ticket's id. When `design.required` is true, resolve the design document
-  with `acs.py artifacts show --ticket <that id>` and read
-  `artifacts["tech-design.md"]` — the tech design in
-  `<architecture_dir>/lld/<feature>/<that id>/`, or the partition; it falls
-  back to a legacy `design.md` (that folder, `docs/tickets/<that id>/`, the
-  partition), read only. On a ticketless run
-  `design` is absent, or `{required, dir: null, source: "requirements"}` once
-  analyze-requirements refined `needs_design`: read the run's own
-  `artifacts["tech-design.md"]` when it reports one. Call it `<design_doc>`; the plan is judged
+- `design` — `{exists, dir, source}`: the tech design that applies, FOUND,
+  never required (ADR-0139) — the run's or ticket's own (`source` `"own"`),
+  else the parent epic's (`"parent"`, the epic `ticket.parent` names: child
+  tickets plan against it). `design.dir` is the folder the found file is in
+  (normally `<architecture_dir>/lld/<feature>/<id>/`). When `design.exists`,
+  read `tech-design.md` there (a legacy `design.md` when that is what it
+  holds, read only). Call it `<design_doc>`; the plan is judged
   against it. Read its status — `acs.py design check <design_doc>` — and
   state it in the report: not `approved` (or `implemented`) is a warning
-  ("planned against an unapproved tech design"), never a refusal.
+  ("planned against an unapproved tech design"), never a refusal. When
+  `design.exists` is false, plan from the requirements alone and say nothing
+  about a design.
 - `settings` — you need `tests.coverage` (the coverage target the plan
   states) and `tests.e2e` when set.
 - `agents` — the agent name to spawn per role; the planner's and the plan

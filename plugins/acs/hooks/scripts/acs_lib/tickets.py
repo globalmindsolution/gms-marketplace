@@ -59,7 +59,6 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
         "external": kw.get("external"),
         "assignee": kw.get("assignee"),
         "story_points": kw.get("story_points"),
-        "needs_design": kw.get("needs_design", ttype == "epic"),
         "docs_only": kw.get("docs_only", False),
         "due_date": kw.get("due_date"),
         "created_at": now_iso(),
@@ -159,11 +158,13 @@ def update_index(workspace, repo_id, ticket, archived=None):
             "status": ticket.get("status"),
             "parent": ticket.get("parent"),
             "children": ticket.get("children", []),
-            "needs_design": ticket.get("needs_design"),
             "external": ticket.get("external"),
             "due_date": ticket.get("due_date"),
             "updated_at": now_iso(),
         })
+        # Tickets carry no design flag (ADR-0139): a row written before it
+        # sheds the key the next time it is indexed.
+        entry.pop("needs_design", None)
         if "features" in ticket:
             entry["features"] = list(ticket.get("features") or [])
         if archived is not None:

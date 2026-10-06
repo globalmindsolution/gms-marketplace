@@ -69,7 +69,7 @@ no branch.
 If `acs step start` exits non-zero: stop immediately and surface its stderr to the
 user verbatim. Otherwise parse the printed context JSON; the fields you need:
 `partition`, `run_id`, `requirements` (`{path, sources, acceptance_criteria,
-features, feature, needs_design}` — **Requirements: `context.requirements` /
+features, feature}` — **Requirements: `context.requirements` /
 `acs.py requirements show` — a ticket id, documents and a prompt are only where
 they came from; never read ticket.json for acceptance criteria**; its `path`,
 the run's `requirements.md`, goes to every architect task in `<inputs>`), `settings` (`design.hld_types` — the HLD types this repo

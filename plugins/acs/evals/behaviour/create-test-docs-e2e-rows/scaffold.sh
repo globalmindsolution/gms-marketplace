@@ -77,7 +77,7 @@ printf '__pycache__/\n' >> .gitignore
 git add -A
 git commit -qm "HTTP front with /health and its e2e harness"
 ACS_FEATURES=customer-listing
-acs_ticket "Serve the customer listing over HTTP" task false \
+acs_ticket "Serve the customer listing over HTTP" task \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit, so the storefront can page through customers."
 printf '%s' '{"acceptance_criteria": [
   "An HTTP GET /customers against the running WSGI app returns 200 with a JSON body listing customers, 20 per page by default",

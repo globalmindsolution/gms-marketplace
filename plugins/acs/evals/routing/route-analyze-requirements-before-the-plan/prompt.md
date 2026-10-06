@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-TKT-9 is still vague, so hold off on any implementation plan. First restate what it asks for, map its impact, list the risks and assumptions, and say whether it needs a design.
+TKT-9 is still vague, so hold off on any implementation plan. First restate what it asks for, map its impact, list the risks and assumptions, and pin down its acceptance criteria.

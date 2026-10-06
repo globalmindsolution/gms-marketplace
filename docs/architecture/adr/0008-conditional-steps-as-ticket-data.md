@@ -1,6 +1,6 @@
 # 0008 — Conditional steps are ticket data, never invocation options
 
-**Status**: Accepted · **Date**: 2026-06-13
+**Status**: Accepted — amended by [0139](0139-tickets-carry-no-design-flag.md) (`needs_design` is no longer a ticket flag; `/acs:create-tech-design` runs when the user asks) · **Date**: 2026-06-13
 
 ## Context
 

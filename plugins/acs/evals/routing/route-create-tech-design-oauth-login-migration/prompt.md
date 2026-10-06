@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-TKT-64 moves login from session cookies to OAuth tokens and was marked needs_design when it was ticketed. Before any implementation is specified, study the current auth flow, set out the options and write up the design for approval.
+TKT-64 moves login from session cookies to OAuth tokens, and I want the team to agree on how before anyone builds it. Before any implementation is specified, study the current auth flow, set out the options and write up the design for approval.

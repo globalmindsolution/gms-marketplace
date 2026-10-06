@@ -27,7 +27,6 @@ FEATURE = "bulk-import"
 DRAFT = """---
 ticket: {tid}
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — {tid}: Bulk import

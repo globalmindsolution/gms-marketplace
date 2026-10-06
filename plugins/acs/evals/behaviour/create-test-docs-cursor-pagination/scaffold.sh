@@ -24,7 +24,7 @@ acs_repo
 acs_prd
 acs_architecture
 ACS_FEATURES=customer-listing
-acs_ticket "Cursor pagination for GET /customers" story false \
+acs_ticket "Cursor pagination for GET /customers" story \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
 printf '%s' '{"acceptance_criteria": [
   "GET /customers accepts an optional cursor query parameter and returns the page of customers that follows it",
@@ -37,7 +37,6 @@ cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Cursor pagination for GET /customers
@@ -78,7 +77,7 @@ The three criteria on the ticket are confirmed as written.
 
 ## Verdict
 
-Ready for planning; no design needed.
+Ready for planning.
 MD
 cat > docs/development/customer-listing/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Cursor pagination for GET /customers

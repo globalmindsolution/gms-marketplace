@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-It's too early for an implementation plan on TKT-79: it is flagged as needing a design and has none. Decide how tenant isolation should work, row-level versus schema-per-tenant, and get that approved first.
+It's too early for an implementation plan on TKT-79: it has no design yet. Decide how tenant isolation should work, row-level versus schema-per-tenant, and get that approved first.

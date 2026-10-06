@@ -7,7 +7,7 @@ directions of the epic <-> child link and the repo-level tickets-index.json.
 
 Usage:
   new-ticket.py --title "Wishlist API" --type story [--parent SHOP-122]
-                [--description "..."] [--priority high] [--needs-design true]
+                [--description "..."] [--priority high]
                 [--external github:123] [--assignee jane] [--story-points 3]
                 [--features wishlist,checkout]
   new-ticket.py --title "Cart doubles a line" --type bug [--severity high]
@@ -45,8 +45,6 @@ def main():
     parser.add_argument("--description", default="")
     parser.add_argument("--priority", default="medium", choices=lib.PRIORITIES)
     parser.add_argument("--parent", help="parent epic ticket id")
-    parser.add_argument("--needs-design", dest="needs_design", choices=["true", "false"],
-                        help="override the needs_design flag (epics default to true)")
     parser.add_argument("--docs-only", dest="docs_only", choices=["true", "false"], default="false",
                         help="user-confirmed docs-only flag (relaxes /code TDD/coverage gates)")
     parser.add_argument("--external", help="remote tracker mapping, e.g. github:123")
@@ -151,10 +149,6 @@ def main():
     tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
     os.makedirs(tdir, exist_ok=True)
 
-    needs_design = (args.ttype == "epic")
-    if args.needs_design is not None:
-        needs_design = args.needs_design == "true"
-
     ticket = lib.new_ticket_doc(
         ticket_id, args.title, args.ttype,
         description=args.description,
@@ -163,7 +157,6 @@ def main():
         external=external,
         assignee=args.assignee,
         story_points=args.story_points,
-        needs_design=needs_design,
         docs_only=args.docs_only == "true",
         due_date=args.due_date,
         features=features,
@@ -191,8 +184,8 @@ def main():
     # is what the gates checked all along.
     #
     # A child minted here therefore never re-runs /acs:create-ticket: its
-    # pipeline starts at /acs:code (via /acs:ship <child-id>), inheriting the
-    # EPIC's design rather than settling one of its own.
+    # pipeline starts at /acs:code (via /acs:ship <child-id>), reading the
+    # EPIC's tech design when one exists (`context.design`, ADR-0139).
 
     if parent_ticket is not None:
         children = parent_ticket.setdefault("children", [])

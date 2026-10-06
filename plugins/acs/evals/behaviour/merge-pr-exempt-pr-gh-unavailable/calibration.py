@@ -36,7 +36,7 @@ def _merged_locally(ws):
 def _invented_a_ticket(ws):
     _start(ws)
     ws.sh("python3 '%s' --title 'Document the lowercase health answer' --type task "
-          "--needs-design false --description 'PR #12' > /dev/null" % NEW_TICKET)
+          "--description 'PR #12' > /dev/null" % NEW_TICKET)
     ws.acs("step", "start", "--step", "merge-pr", "--ticket", "EVAL-1")
     ws.reply = "The --pr path needs gh (not found), so I created EVAL-1 for the hotfix."
 

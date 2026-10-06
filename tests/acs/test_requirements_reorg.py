@@ -518,10 +518,6 @@ REWORDED_BY_ADR_0135 = {
         'Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout.':
             'Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`',
     },
-    'overview.md(scoped:Packaging+Distribution+CorePrinciples)': {
-        'Architecturally significant tickets (`needs_design`) get an approved `design.md`':
-            'Architecturally significant tickets (`needs_design`) get a reviewed `tech-design.md`',
-    },
 }
 
 #: ADR-0138: `bug` is a fourth ticket type, and /acs:breakdown-ticket takes
@@ -547,9 +543,32 @@ REWORDED_BY_ADR_0138 = {
     },
 }
 
+#: ADR-0139: a ticket carries no design flag, and /create-tech-design runs
+#: when the user asks. create-ticket's "MUST set needs_design" becomes the
+#: obligation not to ask about, record or recommend a design, and the design
+#: gate (reworded once by ADR-0135) now says who decides: the user, by
+#: running the skill. ticket.json's `needs_design` row has no successor: the
+#: field is gone, and workspace-and-state.md says so below the table.
+REWORDED_BY_ADR_0139 = {
+    'skills.md': {
+        '- MUST set **`needs_design`**, epic-only: always `true` for epics':
+            '- MUST NOT ask about, record or recommend a design: whether a change gets a',
+    },
+    'overview.md(scoped:Packaging+Distribution+CorePrinciples)': {
+        'Architecturally significant tickets (`needs_design`) get an approved `design.md`':
+            'A change the user runs `/create-tech-design` on gets a reviewed `tech-design.md`',
+    },
+}
+
+RETIRED_BY_ADR_0139 = {
+    'workspace-and-state.md': (
+        '| `needs_design` | boolean | True for epics only; always `false` for stories/tasks',
+    ),
+}
+
 REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103,
                     REWORDED_BY_ADR_0109, REWORDED_BY_ADR_0128, REWORDED_BY_ADR_0135,
-                    REWORDED_BY_ADR_0138)
+                    REWORDED_BY_ADR_0138, REWORDED_BY_ADR_0139)
 
 
 def _retired():
@@ -559,7 +578,7 @@ def _retired():
                   RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING,
                   RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105,
                   RETIRED_BY_ADR_0116, RETIRED_BY_ADR_0117, RETIRED_BY_ADR_0118,
-                  RETIRED_BY_ADR_0127):
+                  RETIRED_BY_ADR_0127, RETIRED_BY_ADR_0139):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     for rewording in REWORDING_TABLES:

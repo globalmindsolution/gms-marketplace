@@ -18,8 +18,8 @@ This module turns that argument text into one normalised record per run:
                   `<run>/requirements.md` -- idempotent, called by both the
                   Skill pre-hook and `acs.py step start` (hookless hosts too)
   add_sources     a later invocation's new sources, appended (never replaced)
-  refine          analyze-requirements' refined criteria, needs_design and
-                  feature(s), kept in `<run>/requirements-refined.json`, rendered
+  refine          analyze-requirements' refined criteria, feature(s) and
+                  phase, kept in `<run>/requirements-refined.json`, rendered
                   as `## Refined`, and patched onto the ticket when there is one
   summary         the `requirements` block of the step-start context and of
                   `acs.py requirements show`
@@ -50,7 +50,10 @@ PHASES = ("discovery", "development")
 #: of its run copy (or its repo path) for the model to Read.
 INLINE_EXTENSIONS = (".md", ".markdown", ".mdx", ".txt", ".text", ".rst", ".adoc")
 INLINE_MAX_BYTES = 256 * 1024
-REFINE_KEYS = ("acceptance_criteria", "needs_design", "features", "feature", "phase")
+REFINE_KEYS = ("acceptance_criteria", "features", "feature", "phase")
+#: Keys a refined record written before ADR-0139 may still hold: refused on
+#: write, ignored on read -- a ticket carries no design flag any more.
+RETIRED_REFINE_KEYS = ("needs_design",)
 _SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 _GENERATED_LINE = re.compile(r'^generated_at: .*$', re.M)
 
@@ -253,8 +256,12 @@ def load_sources(rdir):
 
 
 def load_refined(rdir):
+    """The run's refined record; a retired key an older run wrote
+    (RETIRED_REFINE_KEYS) is dropped, so no reader can act on it."""
     doc = read_json(refined_path(rdir))
-    return doc if isinstance(doc, dict) else {}
+    if not isinstance(doc, dict):
+        return {}
+    return {k: v for k, v in doc.items() if k not in RETIRED_REFINE_KEYS}
 
 
 def _entry(rdir, ctx, source, index):
@@ -429,7 +436,6 @@ def render(rdir, ctx, doc, recorded, refined=None):
         lines += ["- title: %s" % (ticket.get("title") or ""),
                   "- type: %s" % (ticket.get("type") or ""),
                   "- features: %s" % (", ".join(features) if features else "none recorded"),
-                  "- needs_design: %s" % ("true" if ticket.get("needs_design") else "false"),
                   "", "### Description", ""]
         lines += (_fence(ticket["description"]) if ticket.get("description")
                   else ["_None._"]) + ["", "### Acceptance criteria", ""]
@@ -450,13 +456,11 @@ def render(rdir, ctx, doc, recorded, refined=None):
         lines += ["## Refined", "",
                   "_Recorded by `acs.py requirements refine` at %s._"
                   % (refined.get("refined_at") or "?"), ""]
-        for key in ("feature", "features", "needs_design", "phase"):
+        for key in ("feature", "features", "phase"):
             if key in refined:
                 value = refined[key]
                 if isinstance(value, list):
                     value = ", ".join(value) or "none"
-                elif isinstance(value, bool):
-                    value = "true" if value else "false"
                 lines.append("- %s: %s" % (key, value))
         if refined.get("acceptance_criteria"):
             lines += ["", "### Acceptance criteria", ""]
@@ -487,6 +491,11 @@ def _write_requirements(rdir, ctx, doc, recorded):
 def _validate_refined(data):
     if not isinstance(data, dict):
         raise GateError("refine takes a JSON object")
+    retired = sorted(k for k in data if k in RETIRED_REFINE_KEYS)
+    if retired:
+        raise GateError("refine no longer takes %s: tickets and requirements carry no "
+                        "design flag (ADR-0139) -- run /acs:create-tech-design when you "
+                        "want a design" % ", ".join(retired))
     unknown = sorted(k for k in data if k not in REFINE_KEYS)
     if unknown:
         raise GateError("refine does not take %s (it takes %s)"
@@ -496,8 +505,6 @@ def _validate_refined(data):
             isinstance(criteria, list)
             and all(isinstance(c, str) and c.strip() for c in criteria)):
         raise GateError("acceptance_criteria must be a list of non-empty strings")
-    if "needs_design" in data and not isinstance(data["needs_design"], bool):
-        raise GateError("needs_design must be true or false")
     features = data.get("features")
     if "features" in data and not (isinstance(features, list)
                                    and all(isinstance(f, str) and _SLUG_RE.match(f)
@@ -531,7 +538,7 @@ def refine(rdir, ctx, data):
     if ticket_id:
         tdir, ticket = _load_ticket(ctx, ticket_id)
         if ticket is not None:
-            patch = {k: data[k] for k in ("acceptance_criteria", "needs_design", "features")
+            patch = {k: data[k] for k in ("acceptance_criteria", "features")
                      if k in data}
             if data.get("feature"):
                 features = list(patch.get("features", ticket.get("features") or []))
@@ -584,14 +591,14 @@ def run_phase(doc, refined=None, rdir=None):
 
 def summary(rdir, ctx, doc=None):
     """The `requirements` block: {path, sources, acceptance_criteria, features,
-    feature, needs_design, phase, feature_analysis, refined}."""
+    feature, phase, feature_analysis, refined}."""
     doc = doc if doc is not None else (load_run(rdir) or {})
     recorded = load_sources(rdir) or [dict(s, ref=s.get("ticket_id") or s.get("path")
                                             or s.get("text"))
                                       for s in sources_of(doc.get("subject"))]
     refined = load_refined(rdir)
     tickets = [(tid, t) for tid, _d, t in _tickets(ctx, recorded)]
-    criteria, features, needs = [], [], None
+    criteria, features = [], []
     for ticket_id, ticket in tickets:
         for item in (ticket or {}).get("acceptance_criteria") or []:
             criteria.append({"id": "AC-%d" % (len(criteria) + 1), "text": item,
@@ -599,8 +606,6 @@ def summary(rdir, ctx, doc=None):
         for feature in (ticket or {}).get("features") or []:
             if feature not in features:
                 features.append(feature)
-        if ticket is not None:
-            needs = bool(needs) or bool(ticket.get("needs_design"))
     if refined.get("acceptance_criteria"):
         criteria = [{"id": "AC-%d" % n, "text": text, "source": "refined"}
                     for n, text in enumerate(refined["acceptance_criteria"], 1)]
@@ -608,24 +613,15 @@ def summary(rdir, ctx, doc=None):
         features = list(refined["features"])
     if refined.get("feature") and refined["feature"] not in features:
         features.insert(0, refined["feature"])
-    if "needs_design" in refined:
-        needs = refined["needs_design"]
     feature = run_feature(ctx, rdir, doc, refined)
     root = ctx.get("checkout_root")
     living = (doc_layout.existing_feature_analysis(root, feature, ctx.get("settings"))
               if feature and root else None)
     return {"path": requirements_path(rdir), "sources": recorded,
             "acceptance_criteria": criteria, "features": features, "feature": feature,
-            "needs_design": needs, "phase": run_phase(doc, refined),
+            "phase": run_phase(doc, refined),
             "feature_analysis": living,
             "refined": bool(refined)}
-
-
-def recorded_needs_design(rdir):
-    """The run's refined needs_design, or None when none was recorded."""
-    refined = load_refined(rdir)
-    value = refined.get("needs_design")
-    return value if isinstance(value, bool) else None
 
 
 __all__ = ["parse_sources", "primary_subject", "subject_from_text", "sources_of",

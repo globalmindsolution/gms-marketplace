@@ -60,8 +60,6 @@ Plus:
 - **Size** — a bug is one PR. If the report describes several defects, or a fix
   that needs a redesign, say so in `## Size`: the coordinator splits or re-types.
 
-`needs_design` is `false`.
-
 ## Iteration 2
 
 The reviewer's findings are in `<context>`. Address every one and record each,

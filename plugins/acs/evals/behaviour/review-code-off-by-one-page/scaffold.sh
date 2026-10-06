@@ -16,7 +16,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Add 1-based page numbers to the customer listing" task false \
+acs_ticket "Add 1-based page numbers to the customer listing" task \
   "Merchants page through customers by page number, starting at page 1."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers_page(customers, page=1) returns the first per_page customers", "list_customers_page(customers, page=2) returns the next per_page customers", "page numbers start at 1"]}' \

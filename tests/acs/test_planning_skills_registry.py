@@ -140,10 +140,11 @@ class DispatchRoutingCase(acs_case.AcsWorkspaceCase):
 
     Taking no run position is not the same as being ungated. create-tech-design is
     gated on its SUBJECT, through `gates.SUBJECT_GATES`, which is consulted
-    before the workflow is even resolved: a ticket flagged needs_design opens,
-    and anything else is refused. So a refusal here does NOT mean the workflow
-    adopted the skill -- test_the_resolved_workflow_does_not_name_it below
-    still holds -- it means the subject did not warrant a design."""
+    before the workflow is even resolved: any ticket, prompt or documents opens
+    it (tickets carry no design flag, ADR-0139), and an invocation with no
+    requirements at all is refused. So a refusal here does NOT mean the
+    workflow adopted the skill -- test_the_resolved_workflow_does_not_name_it
+    below still holds -- it means there was nothing to design from."""
 
     def test_create_tech_design_is_gated_on_its_subject_not_on_a_run_position(self):
         bare = self.pre("create-tech-design")
@@ -213,7 +214,7 @@ class HandoffResumeCase(acs_case.AcsWorkspaceCase):
     workflow would have pointed at."""
 
     def test_create_tech_design_resumes_via_handoff(self):
-        ticket = self.new_ticket("Design system revamp", "epic")  # needs_design by default
+        ticket = self.new_ticket("Design system revamp", "epic")
         out = self.start("create-tech-design", ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         result = self.run_script("handoff.py", "--summary", "s", "--run", ticket)

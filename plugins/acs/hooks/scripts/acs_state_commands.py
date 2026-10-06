@@ -483,7 +483,7 @@ def cmd_step_start(args):
         return _exempt_pr_start(args, ctx, verdict)
     subject_gate = lib.SUBJECT_GATES.get(args.step)
     if subject_gate:
-        # The pre-hook's subject gates (create-tech-design's needs_design flag,
+        # The pre-hook's subject gates (create-tech-design's requirements,
         # merge-pr's recorded PR), re-applied: without the hook they were
         # never checked at all.
         text = args.args or args.ticket or args.run or ""
@@ -599,10 +599,11 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
     It replaces the one `skill-start.py` printed before that script was
     removed, and it is the same document for every skill
     (§3.11): one resolution, printed once, rather than a per-skill assembly
-    each gate had its own copy of. `ticket` and `design` are present only when
-    the run's SUBJECT is a ticket -- a run started from a prompt or a document
-    has neither, and inventing empty ones would read as "no design required"
-    rather than "not that kind of run".
+    each gate had its own copy of. `ticket` is present only when the run's
+    SUBJECT is a ticket -- a run started from a prompt or a document has none.
+    `design` is always present: `{exists, dir, source}`, the tech design found
+    for the run (its own, else its ticket's parent epic's; ADR-0139), which a
+    skill reads when `exists` and otherwise proceeds without.
     """
     entry = lib.step_entry(doc, step)
     subject = doc.get("subject") or {}
@@ -639,19 +640,17 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
         "gate_enforcement": gate,
     }
     out["requirements"] = lib.requirements.summary(rdir, ctx, doc)
+    tdir, ticket = None, None
     if ticket_id:
         tdir, _archived = lib.find_ticket_partition(
             ctx["workspace"], ctx["repo_id"], ticket_id)
         ticket = lib.load_ticket(tdir)
         if isinstance(ticket, dict):
             out["ticket"] = ticket
-            required, design_dir, source = lib.design_requirement(ctx, tdir, ticket, rdir)
-            out["design"] = {"required": required, "dir": design_dir, "source": source}
-    elif out["requirements"]["needs_design"] is not None:
-        # A ticketless run's design requirement is its REFINED needs_design.
-        required = bool(out["requirements"]["needs_design"])
-        out["design"] = {"required": required, "dir": None,
-                         "source": "requirements" if required else None}
+    # The tech design that applies, if one exists (ADR-0139): found, never
+    # required -- the run's or ticket's own, else its parent epic's.
+    exists, design_dir, source = lib.design_source(ctx, tdir, ticket, rdir)
+    out["design"] = {"exists": exists, "dir": design_dir, "source": source}
     return out
 
 

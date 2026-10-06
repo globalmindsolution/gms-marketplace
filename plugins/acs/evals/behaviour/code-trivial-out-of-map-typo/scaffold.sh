@@ -38,7 +38,7 @@ git add -A
 git commit -qm "Reproduce the greeting typo (red)"
 
 ACS_FEATURES=storefront
-acs_ticket "Fix the typo in the storefront greeting" task false \
+acs_ticket "Fix the typo in the storefront greeting" task \
   "The storefront greets shoppers with \"Helo\". tests/test_greeting.py reproduces it and is red."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["greeting(\"Ann\") returns \"Hello, Ann!\"", "tests/test_greeting.py passes"]}' \

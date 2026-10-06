@@ -18,7 +18,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 
 acs_repo
 ACS_FEATURES=customer-listing
-acs_ticket "Reject a non-positive page limit" task false \
+acs_ticket "Reject a non-positive page limit" task \
   "list_customers(limit=0) returns an empty page forever; a limit below 1 is a caller bug."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers(limit=0) and list_customers(limit=-5) raise ValueError", "list_customers(limit=1) still returns a page with limit 1"]}' \
