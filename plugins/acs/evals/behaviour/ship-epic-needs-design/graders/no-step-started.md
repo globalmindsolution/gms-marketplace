@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .git/acs/state-machine/example-shop/runs/*/steps/**
+path: .acs/state-machine/example-shop/runs/*/steps/**
 exists: false
 ---
 

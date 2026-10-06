@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .git/acs/state-machine/example-shop/runs/*/steps/run-e2e-tests/result.json
+path: .acs/state-machine/example-shop/runs/*/steps/run-e2e-tests/result.json
 ---
 
 The step finished through `post-run-e2e-tests.py`, which persists the result

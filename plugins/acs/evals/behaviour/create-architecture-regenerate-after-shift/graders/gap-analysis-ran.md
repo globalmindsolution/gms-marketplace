@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/runs/regenerate-the-architecture-after-the-shift-1304/steps/create-architecture/iter-1/gaps.md }
+target: { source: file, path: .acs/state-machine/example-shop/runs/regenerate-the-architecture-after-the-shift-1304/steps/create-architecture/iter-1/gaps.md }
 pattern: '^(?=[\s\S]*## Unimplemented\n(?:(?!\n## )[\s\S])*(?:export.worker|redis))(?=[\s\S]*## Undocumented\n(?:(?!\n## )[\s\S])*\borders\b)'
 flags: i
 ---

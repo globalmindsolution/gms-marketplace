@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/runs/amend-the-prd-after-the-scope-0d30/steps/create-prd/state.json }
+target: { source: file, path: .acs/state-machine/example-shop/runs/amend-the-prd-after-the-scope-0d30/steps/create-prd/state.json }
 pattern: '^(?=[\s\S]*"status"\s*:\s*"completed")(?=[\s\S]*"files"\s*:\s*\[[^\]]*"docs/product/prd\.md")(?=[\s\S]*"files"\s*:\s*\[[^\]]*"docs/product/roadmap\.md")'
 ---
 

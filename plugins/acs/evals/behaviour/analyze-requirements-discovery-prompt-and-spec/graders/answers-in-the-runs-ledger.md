@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .git/acs/state-machine/example-shop/runs/*/clarifications.json
+path: .acs/state-machine/example-shop/runs/*/clarifications.json
 ---
 
 With no ticket the clarification ledger is the run's own,

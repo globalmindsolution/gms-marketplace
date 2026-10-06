@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/runs/amend-the-prd-after-the-scope-0d30/steps/create-prd/result.json }
+target: { source: file, path: .acs/state-machine/example-shop/runs/amend-the-prd-after-the-scope-0d30/steps/create-prd/result.json }
 pattern: '/pull/[0-9]+'
 match: not_contains
 ---

@@ -21,7 +21,7 @@ import sys
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
-STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-flows"
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-flows"
 L = "docs/architecture/lld"
 FLOW = L + "/orders/flows/cancel-order.md"
 STATE = L + "/orders/flows/state-order.md"

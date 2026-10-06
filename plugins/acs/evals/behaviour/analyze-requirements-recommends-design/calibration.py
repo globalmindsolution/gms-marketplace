@@ -13,7 +13,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-live-order-tracking-from-carrier-updates"
 README = "---\nticket: EVAL-1\nready_for_planning: true\nneeds_design_recommendation: true\n---\n\n# Analysis — EVAL-1: Live order tracking from carrier updates\n\n## Scope and summary\n\nCarriers push shipment status to the shop; the shop stores every change per\norder, serves the latest, and emails the shopper.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Carrier tracking | [carrier-tracking.md](carrier-tracking.md) | how carrier updates become an order's status |\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- New inbound surface from third parties (authentication); a new stored shape.\n\n## Questions and assumptions\n\n- C-1 how carriers deliver updates — answered: signed webhooks.\n- C-2 design needed — answered: yes, confirmed; needs_design set on the ticket.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning once designed; needs a design.\n"
 

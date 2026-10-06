@@ -7,7 +7,7 @@ description: >-
   written under docs/, the choice is neither asked nor re-saved, and the
   completion report says the analysis was kept local.
 expected_outcome: >-
-  .git/acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements/local/analysis/README.md
+  .acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements/local/analysis/README.md
   exists with ready_for_planning true, and its customer-listing.md beside it has an
   impact map naming src/shop/__init__.py;
   no file was created under docs/; .acs/settings.json still records

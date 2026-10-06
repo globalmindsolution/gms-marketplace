@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/EVAL-1/ticket.json }
+target: { source: file, path: .acs/state-machine/example-shop/EVAL-1/ticket.json }
 pattern: '"children"\s*:\s*\[\s*"EVAL-2"\s*,\s*"EVAL-3"\s*,\s*"EVAL-4"\s*\]'
 ---
 

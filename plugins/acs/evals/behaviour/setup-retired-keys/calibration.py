@@ -14,7 +14,7 @@ def IDEAL(ws):
     done = ws.setup_apply({}, [])
     assert done.returncode == 0, done.stdout + done.stderr
     ws.reply = ("Re-run: .acs/settings.json still carries retired keys `workspace_path` and "
-                "`prd_path`; acs ignores both (state lives in .git/acs/state-machine/, documents "
+                "`prd_path`; acs ignores both (state lives in .acs/state-machine/, documents "
                 "are found, not configured). Defaults kept; no CI installed.")
 
 

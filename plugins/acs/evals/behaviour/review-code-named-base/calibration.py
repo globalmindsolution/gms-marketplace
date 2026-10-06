@@ -14,7 +14,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST_REVIEW = os.path.join(PLUGIN, "hooks", "scripts", "post-review-code.py")
-REVIEW = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/review-code"
+REVIEW = ".acs/state-machine/example-shop/runs/EVAL-1/steps/review-code"
 
 BOUNDARY = {
     "id": "F-1-1", "status": "confirmed", "severity": "blocking", "kind": "acceptance",

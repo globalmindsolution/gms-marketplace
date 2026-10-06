@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/review-code/verdict.json }
+target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/review-code/verdict.json }
 pattern: 'page_bounds|off[- ]by[- ]one|0-based|zero-based|first page|page \* per_page|\(page - 1\)'
 flags: i
 ---

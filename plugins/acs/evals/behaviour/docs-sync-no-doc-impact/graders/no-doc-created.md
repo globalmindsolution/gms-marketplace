@@ -1,7 +1,7 @@
 ---
 type: regex
 target: files
-pattern: '^(?!\.acs/|\.git/acs/|\.claude/)[^\n]*\.md$'
+pattern: '^(?!\.acs/|\.claude/)[^\n]*\.md$'
 flags: m
 match: not_contains
 ---

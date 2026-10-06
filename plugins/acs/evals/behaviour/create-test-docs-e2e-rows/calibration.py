@@ -11,7 +11,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
 PUBLISHED = "docs/development/customer-listing/EVAL-1/test-cases.md"
 CASES = '---\nticket: EVAL-1\ncases: 4\ne2e_cases: 2\n---\n\n# Test cases — EVAL-1: Serve the customer listing over HTTP\n\n## Scope\n\nThe three criteria, per docs/development/customer-listing/EVAL-1/plan.md: the HTTP behaviour end\nto end through the configured `e2e` suite, the offset guard at unit level.\n\n## Cases\n\n| ID | AC | Type | Preconditions | Steps | Expected | Suite |\n| --- | --- | --- | --- | --- | --- | --- |\n| TC-1 | AC-1 | e2e | none | `GET /customers` | 200, JSON body with `limit` 20 | e2e |\n| TC-2 | AC-2 | e2e | none | `GET /customers?offset=40&limit=10` | 200, body `offset` 40 and `limit` 10 | e2e |\n| TC-3 | AC-3 | unit | none | `list_customers(offset=-1)` | raises `ValueError` | `tests/unit/test_customers.py` |\n| TC-4 | AC-1 | unit | none | `list_customers()` | offset 0, limit 20 | `tests/unit/test_customers.py` |\n\n## Traceability\n\n| AC | Cases |\n| --- | --- |\n| AC-1 | TC-1, TC-4 |\n| AC-2 | TC-2 |\n| AC-3 | TC-3 |\n\n## Gaps and assumptions\n\n_None._\n'
 

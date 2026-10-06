@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .git/acs/state-machine/example-shop/runs/*/steps/create-pr/state.json
+path: .acs/state-machine/example-shop/runs/*/steps/create-pr/state.json
 exists: true
 ---
 

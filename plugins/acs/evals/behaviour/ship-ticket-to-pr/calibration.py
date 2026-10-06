@@ -16,7 +16,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
-RUN = ".git/acs/state-machine/example-shop/runs/EVAL-1"
+RUN = ".acs/state-machine/example-shop/runs/EVAL-1"
 BRANCH = "task/EVAL-1-cap-the-customer-page-size-at-100"
 BASE_DETECT = "gh repo view --json defaultBranchRef --jq .defaultBranchRef.name"
 

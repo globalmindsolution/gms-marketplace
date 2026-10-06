@@ -19,7 +19,7 @@ import sys
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
-STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-data-design"
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-data-design"
 L = "docs/architecture/lld"
 DATA = L + "/orders/data"
 ERD = DATA + "/logical-erd.md"

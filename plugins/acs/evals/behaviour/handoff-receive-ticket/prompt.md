@@ -9,7 +9,7 @@ description: >-
 expected_outcome: >-
   tests/test_page_cap.py appears and src/shop/__init__.py carries the clamp,
   both uncommitted; the ticket and run.json for EVAL-1 are restored under
-  .git/acs/state-machine/example-shop/ with the code step in_progress; no commit
+  .acs/state-machine/example-shop/ with the code step in_progress; no commit
   on HEAD; the reply shows the note's clamp-not-400 decision and /acs:code
   EVAL-1; no questions.
 tags: [behaviour]

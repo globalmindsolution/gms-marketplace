@@ -53,7 +53,7 @@ import eval_cases as ec  # noqa: E402
 
 ACS = os.path.join(ec.PLUGIN, "hooks", "scripts", "acs.py")
 FREE = ("regex", "file_exists", "tool_used")
-TICKET = ".git/acs/state-machine/example-shop/EVAL-1/ticket.json"
+TICKET = ".acs/state-machine/example-shop/EVAL-1/ticket.json"
 
 
 # --------------------------------------------------------------------------
@@ -137,16 +137,9 @@ def grade(grader, ws, created, tool_calls, last_message=""):
 # Plays: what a run did, expressed through the plugin's real writers.
 
 def _files(ws):
-    """The run directory's files, `.git/` left out -- all but acs's own
-    workspace, `.git/acs/` (ADR-0136), which a run creates like any file."""
     out = set()
     for root, dirs, names in os.walk(ws):
-        rel = os.path.relpath(root, ws)
-        if rel == ".git":
-            dirs[:] = [d for d in dirs if d == "acs"]
-            names = []
-        elif rel != ".":
-            dirs[:] = [d for d in dirs if d != ".git"]
+        dirs[:] = [d for d in dirs if d != ".git"]
         for name in names:
             out.add(os.path.relpath(os.path.join(root, name), ws).replace(os.sep, "/"))
     return out
@@ -285,7 +278,7 @@ PLAYS = {
          "re-litigated needs_design": lambda ws: _ticket(ws, needs_design=True),
          "hand-wrote the ticket without the skill": lambda ws: (
              ws.write(TICKET, '{"id": "EVAL-1", "type": "task", "needs_design": false}\n'),
-             ws.write(".git/acs/state-machine/example-shop/tickets-index.json", '{"EVAL-1": {}}\n'))},
+             ws.write(".acs/state-machine/example-shop/tickets-index.json", '{"EVAL-1": {}}\n'))},
     ),
     "resume-and-verify": (
         lambda ws: _code(ws, ROUTE),

@@ -12,7 +12,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 DISPATCH = os.path.join(PLUGIN, "hooks", "scripts", "dispatch.py")
-PLAN = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan/plan.md"
+PLAN = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan/plan.md"
 
 REPLY = ("acs refused /acs:code for EVAL-1: the approval in plan-approval.json is for a "
          "different revision of the plan -- the plan was edited after it was approved. "

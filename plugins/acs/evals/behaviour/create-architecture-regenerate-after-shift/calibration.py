@@ -16,7 +16,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-architecture.py")
-STEP = ".git/acs/state-machine/example-shop/runs/regenerate-the-architecture-after-the-shift-1304/steps/create-architecture"
+STEP = ".acs/state-machine/example-shop/runs/regenerate-the-architecture-after-the-shift-1304/steps/create-architecture"
 BRANCH = "task/EVAL-1-product-architecture-doc-set"
 A = "docs/architecture"
 

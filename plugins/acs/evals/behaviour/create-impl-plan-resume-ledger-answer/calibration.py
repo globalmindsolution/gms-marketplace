@@ -12,7 +12,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan"
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan"
 PUBLISHED = "docs/development/customer-listing/EVAL-1/plan.md"
 FILES = ["src/shop/cursor.py", "src/shop/__init__.py", "tests/test_cursor.py",
          "tests/test_customers.py", "README.md"]

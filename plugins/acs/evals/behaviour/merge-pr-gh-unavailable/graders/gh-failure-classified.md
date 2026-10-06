@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/merge-pr/state.json }
+target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/merge-pr/state.json }
 pattern: '"(?:errors|findings)"\s*:\s*\[(?:(?!"invocations")[\s\S])*\bgh\b'
 ---
 

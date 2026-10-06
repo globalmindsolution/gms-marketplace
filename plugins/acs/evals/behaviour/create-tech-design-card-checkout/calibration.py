@@ -13,7 +13,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
-STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-tech-design"
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-tech-design"
 PUBLISHED = "docs/architecture/lld/checkout-with-card-payments/EVAL-1/tech-design.md"
 
 DESIGN = r"""# Tech design — EVAL-1: Checkout with card payments

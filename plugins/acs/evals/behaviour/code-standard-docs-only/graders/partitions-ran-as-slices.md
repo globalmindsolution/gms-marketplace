@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/implementer-2.json
+path: .acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-1/implementer-2.json
 ---
 
 Docs-only relaxes TDD, not the path's machinery: two disjoint partitions still

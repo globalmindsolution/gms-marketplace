@@ -51,7 +51,7 @@ class _Run(object):
         assert made.returncode == 0, made.stderr
         self.ws = ws
         self.run_id = json.loads(made.stdout)["run_id"]
-        self.dir = ".git/acs/state-machine/example-shop/runs/" + self.run_id
+        self.dir = ".acs/state-machine/example-shop/runs/" + self.run_id
 
     def start(self, step):
         self.ws.skill(step)

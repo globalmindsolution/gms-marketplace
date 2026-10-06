@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/EVAL-1/clarifications.json }
+target: { source: file, path: .acs/state-machine/example-shop/EVAL-1/clarifications.json }
 pattern: '"question"\s*:\s*"[^"]*maximum page size'
 match: 'count:1'
 ---

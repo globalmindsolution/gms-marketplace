@@ -18,7 +18,7 @@ import sys
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-audit-security.py")
 TEMPLATE = os.path.join(PLUGIN, "templates", "audit-security-report.md")
-STEP = (".git/acs/state-machine/example-shop/runs/audit-the-repository-for-security-weaknesses-e64d"
+STEP = (".acs/state-machine/example-shop/runs/audit-the-repository-for-security-weaknesses-e64d"
         "/steps/audit-security")
 ITER = STEP + "/iter-1"
 

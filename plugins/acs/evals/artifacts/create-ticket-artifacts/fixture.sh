@@ -5,7 +5,7 @@
 # Two things make this gradeable, and both are load-bearing:
 #
 #   * the run directory IS the repo's main checkout, so acs's workspace is
-#     `.git/acs/state-machine/` inside it (ADR-0136), where a grader can read it.
+#     `.acs/state-machine/` inside it (ADR-0086), where a grader can read it.
 #   * the git remote is fixed, so the partition id acs derives from it
 #     (owner-name, via acs_lib.repo_partition_id) is deterministically
 #     `example-shop` and a grader can name the path.
@@ -34,9 +34,9 @@ echo '.acs/state-machine/' >> .gitignore
 # already in the repo's history). A reconciled counters.json is the documented
 # fixture seam for that (MAR-402) -- without it the first mint blocks and asks
 # for `--seed-next`, which a "do not ask me anything" prompt cannot answer.
-mkdir -p .git/acs/state-machine/example-shop
+mkdir -p .acs/state-machine/example-shop
 printf '{"next": 1, "reconciled": true, "seed_source": "explicit-user", "seeded_at": "%s"}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .git/acs/state-machine/example-shop/counters.json
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .acs/state-machine/example-shop/counters.json
 
 git add -A
 git commit -qm seed

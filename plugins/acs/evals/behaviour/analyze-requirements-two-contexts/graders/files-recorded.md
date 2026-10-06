@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements/result.json }
+target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements/result.json }
 pattern: '"files"\s*:\s*\[(?=[^\]]*"docs/development/checkout-with-card-payments/EVAL-1/analysis/README\.md")(?=[^\]]*"docs/development/checkout-with-card-payments/EVAL-1/analysis/[a-z0-9]+(?:-[a-z0-9]+)*\.md")'
 ---
 

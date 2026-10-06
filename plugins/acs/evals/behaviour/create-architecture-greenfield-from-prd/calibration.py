@@ -13,7 +13,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-architecture.py")
-STEP = ".git/acs/state-machine/example-shop/runs/design-the-groomr-architecture-a90a/steps/create-architecture"
+STEP = ".acs/state-machine/example-shop/runs/design-the-groomr-architecture-a90a/steps/create-architecture"
 BRANCH = "task/EVAL-1-product-architecture-doc-set"
 ARCH = "docs/architecture"
 

@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .git/acs/state-machine/example-shop/test-runs/run-*/results.json
+path: .acs/state-machine/example-shop/test-runs/run-*/results.json
 ---
 
 Step 1: with nothing to run "you still emit a valid, empty-arrays artifact

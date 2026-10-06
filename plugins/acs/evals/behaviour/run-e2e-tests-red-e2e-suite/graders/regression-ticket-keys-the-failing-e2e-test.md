@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/EVAL-1/ticket.json }
+target: { source: file, path: .acs/state-machine/example-shop/EVAL-1/ticket.json }
 pattern: 'acs-regression-key: e2e:[^\s"\\]*test_customers_default_page_is_50'
 ---
 

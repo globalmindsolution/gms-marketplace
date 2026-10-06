@@ -6,7 +6,7 @@ nothing is written anywhere: no run, no report.md, no result document."""
 import os
 
 A = "docs/architecture"
-RUNS = ".git/acs/state-machine/example-shop/runs"
+RUNS = ".acs/state-machine/example-shop/runs"
 REPLY = ("No architecture set found -- there is no hld/tech-stack.md in this repo, so "
          "there is nothing to audit. /acs:create-architecture can baseline one. Nothing "
          "was changed.")

@@ -16,7 +16,7 @@ import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
-STEP = ".git/acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
+STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-cursor-pagination-for-get-customers"
 PUBLISHED = "docs/development/customer-listing/EVAL-1/analysis"
 DRAFT = STEP + "/iter-1/analysis"

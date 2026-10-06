@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements/local/analysis/README.md
+path: .acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements/local/analysis/README.md
 ---
 
 With `docs.share_run_documents: false` saved, `docs where` (and `artifacts

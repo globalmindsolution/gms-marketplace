@@ -11,7 +11,7 @@ import os
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
-P = ".git/acs/state-machine/example-shop"
+P = ".acs/state-machine/example-shop"
 TICKET = P + "/EVAL-1/ticket.json"
 STEP = P + "/runs/EVAL-1/steps/create-ticket"
 REQUEST = "Order tracking for shoppers (PRD feature F3)"

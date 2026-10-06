@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/review-code/verdict.json }
+target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/review-code/verdict.json }
 pattern: 'can_checkout|age\s*>=?\s*(?:18|ADULT_AGE)|boundary|off[- ]by[- ]one|aged 18|exactly 18|18-year-old|18 or over'
 flags: i
 ---

@@ -228,13 +228,9 @@ Pilot with `--runs 1 --no-publish` first.
   end: they grant Bash, and the cloud container they were written in cannot
   start Claude Code's Bash sandbox. Record baselines with
   `scripts/record_baseline.py` on a host that can (see `behaviour/README.md`).
-  Three things only that first run will settle: whether the CLI lets a
+  Two things only that first run will settle: whether the CLI lets a
   `{ source: file }` grader read inside `.git/` (about 60 graders read `HEAD`,
-  a reflog, a hook or `.git/config`, and 170 read acs's workspace, which
-  ADR-0136 moved to `.git/acs/state-machine/`); whether the files a run
-  created, which `file_exists` and `target: files` grade (43 graders on that
-  workspace), include `.git/acs/` as `check_grader_calibration.py` assumes;
-  and whether the sandbox leaves the
+  a reflog, a hook or `.git/config`), and whether the sandbox leaves the
   run's stand-in origin `.eval-origin.git` alone — the CLI scrubs "planted
   bare-repo" files in some sandbox paths.
 

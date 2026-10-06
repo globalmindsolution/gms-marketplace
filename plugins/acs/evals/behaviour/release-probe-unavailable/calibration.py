@@ -39,7 +39,7 @@ def _cut_past_the_probe(ws):
     cfg = _config(ws)
     ws.sh("sh scripts/pre-release-check.sh")
     draft = json.loads(ws.sh(
-        "python3 %s draft --version 2.5.0 --repo-root \"$PWD\" --workspace \"$PWD/.git/acs/state-machine\""
+        "python3 %s draft --version 2.5.0 --repo-root \"$PWD\" --workspace \"$PWD/.acs/state-machine\""
         " --release-config '%s' --ticket-prefix EVAL" % (NOTES, cfg)))
     with open(os.path.join(ws.path, "CHANGELOG.md"), encoding="utf-8") as fh:
         changelog = fh.read()

@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/create-pr/iter-1/commit-plan.json }
+target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-pr/iter-1/commit-plan.json }
 pattern: '"paths"\s*:\s*\[[^\]]*(?:notes/release-plan\.md|src/shop/pagination\.py)'
 match: not_contains
 ---

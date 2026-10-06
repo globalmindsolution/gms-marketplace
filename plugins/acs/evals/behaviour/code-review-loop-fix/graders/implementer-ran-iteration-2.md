@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: .git/acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-2/implementer*.json
+path: .acs/state-machine/example-shop/runs/EVAL-1/steps/code/iter-2/implementer*.json
 ---
 
 The fix went through an implementer on the loop's own iteration: its report
