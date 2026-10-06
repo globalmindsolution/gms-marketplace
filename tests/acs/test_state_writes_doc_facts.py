@@ -48,7 +48,7 @@ DOC_FILES = ("README.md", "CLAUDE.md", os.path.join("plugins", "acs", "README.md
 
 #: The withdrawn draft: the workspace under the git directory, its migration
 #: note and doctor field, and the ADR's old filename.
-WITHDRAWN = re.compile(r"\.git/acs\b|<git-common-dir>/acs/|state-machine\.MOVED|"
+WITHDRAWN = re.compile(r"\.git[/]acs\b|<git-common-dir>/acs/|state-machine\.MOVED|"
                        r"legacy_leftover|0136-state-in-the-git-common-dir")
 
 
