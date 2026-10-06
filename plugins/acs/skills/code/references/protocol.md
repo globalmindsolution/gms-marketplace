@@ -151,8 +151,8 @@ That invariant is true of a gate that fired. If `ticket.type == "epic"`
 nonetheless reaches this step — a bypassed or best-effort pre-gate on some
 runtimes — STOP immediately and surface the same breakdown message the gate
 would have raised: design the epic with `/acs:create-tech-design <id>` if it has
-none, break it down into child tickets with `/acs:create-ticket <id>` (epic
-fan-out), then run `/acs:code` on a child. **Never implement an epic under any
+none, break it down into child tickets with `/acs:breakdown-ticket <id>`,
+then run `/acs:code` on a child. **Never implement an epic under any
 circumstance**, regardless of what the pre-gate did or did not enforce.
 
 This is defence in depth, and it is a rule of every delivery path: a leg that

@@ -1,6 +1,6 @@
 # 0075 — The acs pipeline splits into a planning phase (`create-ticket(epic) → create-design → fan-out`) and an implementation phase (`create-ticket → code → … → merge-pr`); epics are never implemented
 
-**Status**: Accepted · **Date**: 2026-08-20
+**Status**: Accepted — amended by [0138](0138-breakdown-ticket-and-typed-ticket-authors.md) (an epic's children are minted by `/acs:breakdown-ticket <epic-id>`; `/acs:create-ticket --fan-out` refuses) · **Date**: 2026-08-20
 
 ## Context
 

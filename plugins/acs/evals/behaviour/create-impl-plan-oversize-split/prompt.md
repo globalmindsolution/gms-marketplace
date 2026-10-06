@@ -6,11 +6,11 @@ description: >-
   question up front: split. The run must end in the documented orderly way --
   the split answer recorded in the ledger, the planner's draft carrying the
   split seams, the step finished `failed` through its post-hook, and the reply
-  pointing at /acs:create-ticket split -- rather than planning one mega-PR.
+  pointing at /acs:breakdown-ticket -- rather than planning one mega-PR.
 expected_outcome: >-
   clarifications.json holds a create-impl-plan entry answered with split; the
   step's draft plan exists and names split seams; run.json records create-
-  impl-plan failed; the final reply names /acs:create-ticket split EVAL-1;
+  impl-plan failed; the final reply names /acs:breakdown-ticket EVAL-1;
   nothing under src/ or tests/ was created.
 tags: [behaviour]
 max_turns: 100

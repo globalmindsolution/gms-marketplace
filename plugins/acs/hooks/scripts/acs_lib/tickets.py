@@ -11,8 +11,8 @@ import os
 import re
 import sys
 
-from ._common import (GateError, ReconciliationRequired, TICKET_ID_RE,
-    now_iso, read_json, write_json)
+from ._common import (BUG_FIELDS, BUG_SEVERITIES, GateError, ReconciliationRequired,
+    TICKET_ID_RE, TICKET_TYPES, now_iso, read_json, write_json)
 from .repo import (_guarded_repo_write, index_path, repo_dir, repo_guard,
     scan_local_ticket_evidence, ticket_dir)
 from . import artifacts
@@ -68,7 +68,34 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
     if kw.get("features"):
         # The PRD features it traces to (ADR-0120); absent rather than [] when none.
         doc["features"] = list(kw["features"])
+    # A bug's report (ADR-0138): each field only when given, never a null.
+    for field in BUG_FIELDS:
+        if kw.get(field) is not None:
+            doc[field] = kw[field]
     return doc
+
+
+def check_bug_fields(ticket):
+    """Raise GateError when `ticket` is outside what ticket.schema.json and
+    ADR-0138 allow for its type: a type acs does not know, a bug field on a
+    ticket that is not a bug, a severity outside BUG_SEVERITIES, or a bug
+    field that is not a string. A bug's fields are all optional."""
+    ttype = ticket.get("type")
+    if ttype not in TICKET_TYPES:
+        raise GateError("type %r is not a ticket type (allowed: %s)"
+                        % (ttype, ", ".join(TICKET_TYPES)))
+    present = [f for f in BUG_FIELDS if f in ticket]
+    if present and ttype != "bug":
+        raise GateError("%s only apply to a bug; %s is a %s"
+                        % (", ".join(present), ticket.get("id") or "this ticket", ttype))
+    if "severity" in ticket and ticket["severity"] not in BUG_SEVERITIES:
+        raise GateError("severity %r is not one of %s (it is how bad the bug is, "
+                        "separate from priority)"
+                        % (ticket["severity"], ", ".join(BUG_SEVERITIES)))
+    for field in present:
+        if not isinstance(ticket[field], str):
+            raise GateError("%s must be a string, not %s"
+                            % (field, type(ticket[field]).__name__))
 
 
 

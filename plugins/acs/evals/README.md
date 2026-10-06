@@ -7,7 +7,7 @@ Edit a case by editing its files.
 
 ```
 evals/
-├── routing/                  # 274 cases: does a prompt reach the right skill?
+├── routing/                  # 285 cases: does a prompt reach the right skill?
 │   └── <case>/
 │       ├── prompt.md         # frontmatter: description, expected_outcome, tags, limits; body: the prompt
 │       └── graders/<name>.md # one grader per file
@@ -16,7 +16,7 @@ evals/
 ├── setup/                    # 6 cases: does /acs:setup configure exactly what was asked?
 │   ├── _fixtures/            # the repo every case starts from (not a case)
 │   └── <case>/               # prompt.md + case.yaml (scaffold.sh) + graders/
-├── behaviour/                # 99 cases: 2–9 per skill, every mode — what did it DO? (behaviour/README.md)
+├── behaviour/                # 101 cases: 2–9 per skill, every mode — what did it DO? (behaviour/README.md)
 │   ├── _fixtures/repo.sh     # the shared repo; state seeded through the plugin's own CLIs
 │   └── <case>/               # + calibration.py, baseline.criteria.md, and once recorded baseline.jsonl
 └── results/                  # written by each run; gitignored
@@ -47,21 +47,21 @@ release gate's ~2,500 runs cost about $190.
 
 | Tag | Cases | Asserts |
 |---|---|---|
-| `routing` | all 274 routing cases | a prompt reaches (or avoids) a skill |
-| `description` | 255 | a natural-language request, never naming the skill, reaches it — at least ten phrasings for each of 25 skills |
-| `confusable` | 77 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
+| `routing` | all 285 routing cases | a prompt reaches (or avoids) a skill |
+| `description` | 266 | a natural-language request, never naming the skill, reaches it — at least ten phrasings for each of 26 skills |
+| `confusable` | 85 | (a subset of `description`) the phrasing borrows a neighbouring skill's vocabulary |
 | `explicit` | 5 | a typed `/acs:<skill>` reaches it — see the limit below |
 | `negative` | 4 | a description of an internal leg's subject does NOT reach the leg |
 | `control` | 10 | a request answered in prose invokes no skill at all — six of them the session-pause phrasings `/acs:handoff` answered before ADR-0131 made it the team handoff |
 | `artifacts` | 2 | the skill wrote the expected workspace state |
 | `setup` | 6 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
-| `behaviour` | 99 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–9 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
+| `behaviour` | 101 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–9 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
 
 `--tag` keeps a case if ANY of its tags match, so `--tag description --tag
 negative --tag control` runs the routing cases that are fully measurable —
 which is exactly what the release gate runs.
 
-Each of the 25 skills a user reaches by describing the work has at least ten
+Each of the 26 skills a user reaches by describing the work has at least ten
 phrasings: plain requests, indirect ones with the context stated in the
 prompt, and `confusable` ones that borrow a neighbour's words — "don't merge
 anything, just open the pull request", "not a design for one ticket: regenerate

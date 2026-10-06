@@ -30,7 +30,7 @@ erDiagram
     TICKET {
         string id PK "SHOP-123"
         string title
-        enum type "epic|story|task"
+        enum type "epic|story|task|bug (bug since ADR-0138)"
         string description
         array acceptance_criteria
         enum priority "critical|high|medium|low"
@@ -40,9 +40,15 @@ erDiagram
         json external "tracker mapping or null"
         string assignee
         number story_points
-        bool needs_design "true for epics only; always false for story/task (MAR-76)"
+        bool needs_design "true for epics only; always false for story/task/bug (MAR-76)"
         bool docs_only
         string due_date "ISO-8601 date or null (NEW, MAR-8 Child 3)"
+        array features "PRD feature slugs (ADR-0120); a child inherits its parent's (ADR-0138)"
+        enum severity "bug only: critical|high|medium|low, separate from priority (ADR-0138)"
+        string reproduction "bug only: steps to reproduce (ADR-0138)"
+        string expected "bug only (ADR-0138)"
+        string actual "bug only (ADR-0138)"
+        string environment "bug only: environment or version (ADR-0138)"
     }
     SKILL_STATE {
         string skill PK

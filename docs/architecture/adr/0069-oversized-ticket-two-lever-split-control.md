@@ -1,6 +1,6 @@
 # 0069 — Oversized-ticket split detection is a two-lever control again
 
-**Status**: Accepted · **Date**: 2026-08-04
+**Status**: Accepted — amended by [0138](0138-breakdown-ticket-and-typed-ticket-authors.md) (lever 2's "split" answer points at `/acs:breakdown-ticket <id>`; `/acs:create-ticket split` refuses) · **Date**: 2026-08-04
 
 ## Context
 

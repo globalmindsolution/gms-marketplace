@@ -51,7 +51,9 @@ defect — it is the wrong pipeline.
    or carry differently, is a finding. The front matter's `ticket` or
    `feature` names the run's ticket or the feature recorded in the
    requirements. The assumptions hold only what the
-   ledger does not record as answered.
+   ledger does not record as answered. On a `bug` ticket the notes carry
+   `## Reproduction` and the README reports it — reproduced (the commands and
+   output cited) or not (with its open question); neither is a finding.
 3. `api-surface` — the interfaces the README's `## Cross-cutting risks and
    decisions` names as added or altered (and each context's `## API notes`)
    match what the repository shows: a changed endpoint, CLI flag, hook or skill

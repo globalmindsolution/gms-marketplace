@@ -174,3 +174,32 @@ whole of what Stage 2 takes to the user:
 
 Researchable facts are never questions: the survey reads the code, the docs,
 the ledger and the previous analysis instead. An empty group says `_None._`.
+
+## A bug — reproduce first
+
+When the run's ticket is a `bug` (its `type` in the ticket file; ADR-0138), the
+requirements lane reproduces it BEFORE it records anything else, because every
+other entry — the problem, the criteria, the impact — rests on knowing what
+actually happens:
+
+1. Read the bug's fields from the ticket: `reproduction` (the steps),
+   `expected`, `actual`, `environment`, `severity`, and the suspected area its
+   description names (a lead, never a finding).
+2. Follow the steps against the checkout as it is, WITHOUT changing a repo file:
+   run the existing test, CLI or endpoint the steps exercise; a scratch script,
+   when one is needed, lives under `steps/analyze-requirements/` (written through
+   `acs.py write`), never in the repo. Quote every command and its output.
+3. Record the outcome in the notes under `## Reproduction`:
+   - **reproduced** — the commands, the observed output matching `actual`, and
+     the code path it runs through (`path:line`), which seeds the impact lanes'
+     map and the regression test the plan writes first;
+   - **not reproduced** — what was run and what happened instead, plus an
+     **(a) open question** naming what is missing (an environment, data, a
+     version, a step) and what the analysis proceeds on meanwhile. A bug that
+     cannot be reproduced is never analyzed as if it had been.
+
+The draft carries the outcome in the README — the reproduction (or its
+failure) in `## Scope and summary`, an unreproduced bug's question under
+`## Questions and assumptions` — with no new heading: the README's six headings
+are fixed. The criterion that a regression test reproduces the bug stays as the
+ticket states it; refine its wording, never drop it.

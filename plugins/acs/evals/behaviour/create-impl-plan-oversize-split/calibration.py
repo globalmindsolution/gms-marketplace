@@ -67,7 +67,7 @@ def IDEAL(ws):
     _answer(ws)
     _finish(ws, status="failed", published=False, summary=SPLIT)
     ws.reply = ("The plan exceeds one reviewable PR and you chose to split. Next: "
-                "/acs:create-ticket split EVAL-1 per steps/create-impl-plan/plan.md")
+                "/acs:breakdown-ticket EVAL-1 steps/create-impl-plan/plan.md")
 
 
 def _one_mega_plan(ws):
@@ -82,7 +82,7 @@ def _stopped_unrecorded(ws):
     """Stopped on the size without recording the answer or finishing."""
     _start(ws)
     ws.write(STEP + "/plan.md", PLAN)
-    ws.reply = "This is too big; consider /acs:create-ticket split EVAL-1."
+    ws.reply = "This is too big; consider /acs:breakdown-ticket EVAL-1."
 
 
 def _built_it(ws):

@@ -155,9 +155,9 @@ class RefusalPointerTest(unittest.TestCase):
         start = norm(section(self.body, "## Start"))
         self.assertIn("ask the user what to ship rather than guessing", start)
 
-    def test_epic_refusal_pointer_names_design_then_fan_out_then_ship(self):
-        epic = section(self.body, "## Epic fan-out")
-        self.assertIn("--fan-out", epic)
+    def test_epic_refusal_pointer_names_design_then_breakdown_then_ship(self):
+        epic = section(self.body, "## Epic breakdown")
+        self.assertIn("/acs:breakdown-ticket <epic-id>", epic)
         self.assertIn("/acs:create-tech-design", epic)
         self.assertIn("/acs:ship <child-id>", epic)
         self.assertIsNotNone(
@@ -165,7 +165,7 @@ class RefusalPointerTest(unittest.TestCase):
             "the epic section must state that an epic is refused")
 
     def test_epic_refusal_is_the_gates_verdict_not_ships_own_guess(self):
-        epic = norm(section(self.body, "## Epic fan-out"))
+        epic = norm(section(self.body, "## Epic breakdown"))
         self.assertIn("epic brake", epic)
         self.assertIn("verbatim", epic)
 
@@ -178,11 +178,17 @@ class RefusalPointerTest(unittest.TestCase):
         pointer = re.search(r"(?s)is an epic — epics are never .*?on a child\.", source)
         self.assertIsNotNone(pointer, "gate_inputs.py must carry the epic pointer")
         pointer_text = norm(pointer.group(0))
-        epic = norm(section(self.body, "## Epic fan-out"))
-        for command in ("/acs:create-tech-design", "/acs:create-ticket", "fan-out"):
+        epic = norm(section(self.body, "## Epic breakdown"))
+        for command in ("/acs:create-tech-design", "/acs:breakdown-ticket"):
             self.assertIn(command, pointer_text, command)
             self.assertIn(command, epic, command)
         self.assertIn("/acs:ship <child-id>", epic)
+
+    def test_a_bug_ships_like_a_story(self):
+        """ADR-0138: ship refuses only the epic; a bug runs the same steps."""
+        epic = norm(section(self.body, "## Epic breakdown"))
+        self.assertIn("A bug ships like a story or a task", epic)
+        self.assertIn("nothing refused", epic)
 
 
 class LoopDelegationTest(unittest.TestCase):

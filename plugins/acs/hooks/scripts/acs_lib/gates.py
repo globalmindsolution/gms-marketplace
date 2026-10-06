@@ -310,12 +310,50 @@ def gate_merge_pr(ctx, payload):
         "skill) must complete first." % ticket_id)
 
 
+def gate_breakdown_ticket(ctx, payload):
+    """Brake: /acs:breakdown-ticket breaks down ONE live parent (ADR-0138).
+
+    The parent is the ticket the invocation names, else the one the session
+    pointer or the branch resolves. It must exist, be live (not archived, not
+    done) and be an epic, a story or a task -- a story or task is converted to
+    an epic that keeps its id by the skill itself. A bug is fixed as one
+    ticket: related work is a new ticket of its own. A prompt or a document
+    may ride along (an oversize-split plan, say), but there is no parent to
+    mint children under without a ticket, so a work item that has none yet is
+    /acs:create-ticket's first. Whether the epic's tech design is approved is
+    a WARNING the skill gives (ADR-0135), never a refusal here."""
+    from . import requirements
+    text = _merge_pr_arg_text(payload).strip()
+    named = requirements.ticket_ids(requirements.parse_sources(text, ctx))
+    if len(named) > 1:
+        raise GateError(
+            "/breakdown-ticket breaks down one ticket at a time; the invocation names "
+            "%s. Run it once per ticket." % ", ".join(named))
+    if not named and not resolve_ticket_id(ctx["cwd"], ctx["settings"], ctx["workspace"],
+                                           ctx["repo_id"], args_text=text)[0]:
+        raise GateError(
+            "no ticket to break down: /breakdown-ticket splits an existing epic, story or "
+            "task into child tickets. Name it, e.g. /acs:breakdown-ticket %s-123; work "
+            "that has no ticket yet is made one with /acs:create-ticket first."
+            % ctx["settings"].get("ticket_prefix", "SHOP"))
+    ticket_id, _tdir, ticket = _resolve_ticket_for_gate(ctx, payload, "breakdown-ticket")
+    if ticket.get("status") == "done":
+        raise GateError("ticket %s is done — there is nothing left to break down."
+                        % ticket_id)
+    if ticket.get("type") == "bug":
+        raise GateError(
+            "ticket %s is a bug — a bug is fixed as one ticket, not broken down. File "
+            "related work as tickets of its own with /acs:create-ticket." % ticket_id)
+    return ticket_id
+
+
 #: skill -> gate, for a skill whose precondition is about the SUBJECT TICKET.
 #: Consulted before the workflow is read: neither skill is a step of `ship`
 #: (§2.4), so neither has a run to read its precondition from. A row here resolves a ticket
 #: through path joins and `read_json` alone -- it opens no run, takes no lock
 #: and settles nothing, which is what keeps `acs gate` inert.
 SUBJECT_GATES = {
+    "breakdown-ticket": gate_breakdown_ticket,
     "create-tech-design": gate_create_tech_design,
     "merge-pr": gate_merge_pr,
 }

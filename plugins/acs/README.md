@@ -167,7 +167,7 @@ The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 29 skills
+## The 30 skills
 
 The tables group the skills by phase — Discovery, Design, Development, Audit
 or Utility ([ADR-0129](../../docs/architecture/adr/0129-discovery-design-development-regroup.md)). There is no registry file and no per-skill manifest: a skill is its
@@ -200,8 +200,10 @@ recorded the PR reference completed — an artifact, not a position.
 
 The PRD, and a feature's analysis before any ticket is cut. A ticket is not a
 phase: it is one container of requirements, made with `/acs:create-ticket`
-(Utility) when the work needs one
-([ADR-0129](../../docs/architecture/adr/0129-discovery-design-development-regroup.md)).
+(Utility) when the work needs one, and broken into PR-sized children with
+`/acs:breakdown-ticket` when it is too large for one
+([ADR-0129](../../docs/architecture/adr/0129-discovery-design-development-regroup.md),
+[ADR-0138](../../docs/architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)).
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
@@ -291,7 +293,8 @@ report breaks it and derives the counts it records from the report itself.
 | `/acs:update` | — (utility, user-invoked only) | Upgrade assistant: installed-vs-latest version check, CHANGELOG delta with breaking-change callouts, marketplace refresh, post-update migration checks (settings, a leftover acs status line). Reloading stays your action. |
 | `/acs:release` | — (unhooked) | Assembles/verifies the CHANGELOG section for a release version from the merged-ticket archive, bumps version-location files, dates the section, and opens an exempt `release/*` PR for a mandatory human merge. Fails fast if no `release` block is configured. |
 | `/acs:handoff` | — (utility) | Hands a ticket in mid-flight to a teammate on another machine. `/acs:handoff <ID>` asks one question — your note (done, in flight, next, decisions), each outside-repo attachment (include or skip) and the push — then sends the ticket's resume set (the uncommitted work, the run and its steps' state, results and verdicts) as one commit to the hidden ref `refs/acs/handoff/<ID>`; your own work, run and lock stay as they are. `/acs:handoff receive <ID>`, from a clean tree, applies the work with a three-way merge, restores the run, deletes the ref and prints the command to continue; `/acs:handoff list` shows what is waiting. Anyone who can read the remote can fetch the ref. Handing a finished phase to the next team needs no handoff: `/acs:set-doc-status`, then `/acs:create-pr` ([ADR-0131](../../docs/architecture/adr/0131-ticket-handoff-between-members.md)). |
-| `/acs:create-ticket` | Settings exist | Turns a prompt (or an imported remote key) into a typed ticket (epic/story/task) with PRD tracing, `needs_design` flag, optional GitHub Projects sync. Also `--fan-out` to mint a designed epic's children. |
+| `/acs:create-ticket` | Settings exist | Turns a prompt, documents or an imported remote key into ONE typed ticket — `epic`, `story`, `task` or `bug` — with PRD tracing, `features`, the epic-only `needs_design` flag and optional GitHub Projects sync. The coordinator sizes the request and picks the type, asks every question in one grouped ask, then spawns one author for that type (epic: problem, scope, success metrics and a breakdown outline; story: user value and Given/When/Then criteria; task: technical outcome and a done-when list; bug: reproduction steps, expected vs actual, environment, `severity` and a regression-test criterion) and a reviewer, at most two rounds, before you confirm the draft. An epic's run ends pointing at `/acs:create-tech-design` (when `needs_design`) and `/acs:breakdown-ticket`; `--fan-out` and `split` now refuse and name it ([ADR-0138](../../docs/architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). |
+| `/acs:breakdown-ticket` | A ticket resolves (argument, session or branch); not `done`, archived or a `bug` | Breaks an epic, or a story or task too large for one PR, into PR-sized children. Reads the ticket's requirements, the feature analysis, the tech design and any oversize-split signal from the plan; proposes every child — title, type (`story`, `task` or `bug`), acceptance criteria, the parent's `features` unless narrowed, a size — in one confirmation; mints them with `new-ticket.py --parent` and syncs them to the tracker. A split story or task becomes an epic that keeps its id. Warns, never blocks, when the epic's tech design is not `approved`. Runs inline, no subagent ([ADR-0138](../../docs/architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). |
 | `/acs:set-doc-status` | — (unhooked) | Approves, or otherwise moves the status of, the versioned Discovery and Design documents — the PRD, the roadmap, feature analyses, the HLD, each feature's LLD and each change's `tech-design.md`. Lists them by phase and feature (`acs.py design list`), lets you pick whole features, design areas or single documents in one ask, offers only the legal moves, then runs one all-or-nothing `acs.py design status --set` that records who moved them, when and why (`status_by`, `status_at`, `status_reason`). The move to `implemented` is normally `/acs:docs-sync`'s, once the code matches. Commits nothing: it lists the changed files for `/acs:create-pr` ([ADR-0130](../../docs/architecture/adr/0130-prd-versions-and-set-doc-status.md)). Also `/acs:set-doc-status approved wishlist`. |
 
 ## How gating works

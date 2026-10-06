@@ -33,7 +33,8 @@ CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-tech-design", "SKILL.md")
 
 # The exact breakdown-command wording lives in acs_lib's _refuse_epic (T1,
 # committed d7d345d) -- cross-consistency requires the SAME command string.
-GATE_BREAKDOWN_COMMAND = "/acs:create-ticket %s (epic fan-out)"
+# ADR-0138 moved the breakdown from create-ticket's `--fan-out` to its own skill.
+GATE_BREAKDOWN_COMMAND = "/acs:breakdown-ticket %s"
 
 # design.md:813-818 (D6-B) prescribes routing the user through
 # /acs:create-design FIRST when the epic has no design yet, before the
@@ -194,12 +195,12 @@ class CreateDesignEpicConditionalHandoffTest(unittest.TestCase):
         body_norm = norm(self._body())
         self.assertIsNotNone(
             re.search(r"(?i)for a non-epic ticket.{0,60}/acs:code <id>.{0,60}"
-                      r"for an epic.{0,300}/acs:create-ticket <id>.{0,60}"
-                      r"epic fan-out.{0,120}/acs:code.{0,20}child", body_norm),
+                      r"for an epic.{0,300}/acs:breakdown-ticket <id>"
+                      r".{0,120}/acs:code.{0,20}child", body_norm),
             "create-tech-design/SKILL.md's direct-invocation report branch "
             "(~:333-334) must be epic-conditional: non-epic -> /acs:code "
-            "<id>; epic -> break it down via /acs:create-ticket <id> "
-            "(epic fan-out), then /acs:code on a child")
+            "<id>; epic -> break it down via /acs:breakdown-ticket <id>, "
+            "then /acs:code on a child")
 
     def test_handoff_next_step_is_epic_conditional_single_element(self):
         body_norm = norm(self._body())
@@ -207,7 +208,7 @@ class CreateDesignEpicConditionalHandoffTest(unittest.TestCase):
             re.search(r"(?i)exactly one `<next-step>`.{0,400}"
                       r"/acs:(?:create-impl-plan|code) <id>"
                       r".{0,60}for a non-epic ticket.{0,120}for an epic"
-                      r".{0,300}/acs:create-ticket <id>.{0,60}epic fan-out",
+                      r".{0,300}/acs:breakdown-ticket <id>",
                       body_norm),
             "create-tech-design/SKILL.md's <handoff> next-step instruction "
             "(~:337) must be epic-conditional while staying a single "
@@ -235,7 +236,7 @@ class CreateDesignEpicConditionalHandoffTest(unittest.TestCase):
             re.search(r"(?i)\*\*Next\*\*.{0,120}"
                       r"/acs:(?:create-impl-plan|code) <ticket-id>.{0,60}"
                       r"for a non-epic ticket.{0,120}for an epic.{0,300}"
-                      r"/acs:create-ticket <ticket-id>.{0,60}epic fan-out",
+                      r"/acs:breakdown-ticket <ticket-id>",
                       report_norm),
             "create-tech-design/SKILL.md's normative Completion report Next line "
             "(~:356) must be epic-conditional")
@@ -265,10 +266,10 @@ class GateAndCreateDesignSameBreakdownCommandTest(unittest.TestCase):
             GATE_BREAKDOWN_COMMAND, gate_src,
             "sanity check: _refuse_epic's own message wording")
         self.assertIsNotNone(
-            re.search(r"/acs:create-ticket <(id|ticket-id)>`? \(epic fan-out\)",
+            re.search(r"/acs:breakdown-ticket <(id|ticket-id)>`",
                       design_body),
             "create-tech-design/SKILL.md must name the SAME breakdown command "
-            "(/acs:create-ticket <epic-id>, epic fan-out) that gate_code's "
+            "(/acs:breakdown-ticket <epic-id>) that gate_code's "
             "GateError message names")
 
     def test_the_refusal_orders_create_design_before_fan_out(self):
@@ -282,7 +283,7 @@ class GateAndCreateDesignSameBreakdownCommandTest(unittest.TestCase):
             gate_src.index(GATE_DESIGN_FIRST_COMMAND),
             gate_src.index(GATE_BREAKDOWN_COMMAND),
             "gate_code's message must route through /acs:create-tech-design "
-            "before the /acs:create-ticket fan-out step")
+            "before the /acs:breakdown-ticket step")
 
 
 if __name__ == "__main__":

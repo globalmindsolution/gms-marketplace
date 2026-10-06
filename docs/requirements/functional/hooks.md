@@ -181,6 +181,7 @@ Seventeen hooked skills, each with one pre-hook and one post-hook:
 | `/create-prd` | `pre-create-prd.py` | `post-create-prd.py` | `create-prd-state.json` |
 | `/create-architecture` | `pre-create-architecture.py` | `post-create-architecture.py` | `create-architecture-state.json` |
 | `/create-ticket` | `pre-create-ticket.py` | `post-create-ticket.py` | `create-ticket-state.json` |
+| `/breakdown-ticket` | `pre-breakdown-ticket.py` | `post-breakdown-ticket.py` | `breakdown-ticket-state.json` |
 | `/create-tech-design` | `pre-create-tech-design.py` | `post-create-tech-design.py` | `create-tech-design-state.json` |
 | `/create-api-contract` | `pre-create-api-contract.py` | `post-create-api-contract.py` | `create-api-contract-state.json` |
 | `/analyze-requirements` | `pre-analyze-requirements.py` | `post-analyze-requirements.py` | `analyze-requirements-state.json` |
@@ -212,6 +213,7 @@ for an upstream artifact.
 |-------|--------|--------|
 | `/create-prd` | — (only the baseline checks; no settings file needed) | — |
 | `/create-ticket` | — | — |
+| `/breakdown-ticket` | a ticket resolves (argument, else the session pointer or branch) and its partition exists and is not archived (ADR-0138) | not `done`; not a `bug`; lock free. The tech design's status is the skill's warning, never a gate |
 | `/create-architecture` | — (the skill reads the PRD at Start when there is one, else works from the subject) | — |
 | `/create-tech-design` | subject resolves; `needs_design` recorded in the run's requirements (refined, or the ticket's flag) — a ticketless run with none recorded is allowed when the user invoked the skill with requirements (ADR-0128) | lock free |
 | `/create-api-contract` | — (a Design skill, not a `ship.yaml` step: it takes a ticket — an epic included — a feature, documents or a prompt and needs no plan; ADR-0134) | — |

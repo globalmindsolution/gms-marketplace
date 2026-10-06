@@ -129,7 +129,7 @@ current, so the bare command is enough. It prints one JSON object:
 Branch strictly on what comes back:
 
 1. **Exit 2** → surface stderr verbatim and stop. Two cases matter: an epic
-   (see "Epic fan-out" below) and a run that does not resolve — suggest
+   (see "Epic breakdown" below) and a run that does not resolve — suggest
    `/acs:create-ticket`, or report that an archived ticket is already done.
 2. **`done: true`** → Finish.
 3. **`status: "failed"`** → the run is over: a step failed, or the review loop
@@ -270,18 +270,24 @@ Breaking another session's lock is the operator's call, not yours: the command
 requires a stated reason and records who broke it in the audit ledger, and
 nothing about being blocked tells you the other session is actually gone.
 
-## Epic fan-out — refuse and point at it
+## Epic breakdown — refuse and point at it
 
 Epics are never shipped. The epic brake refuses every implementation step on
 an epic, printing the whole Design-phase path: settle the epic's tech design
 with `/acs:create-tech-design <epic-id>` (approved with `/acs:set-doc-status`),
-mint its children with
-`/acs:create-ticket <epic-id> --fan-out`, then run `/acs:ship <child-id>` for
-each child you want shipped, one run at a time (parallel children belong in
-separate worktrees and sessions). Surface that pointer verbatim and stop.
+break it down into child tickets with `/acs:breakdown-ticket <epic-id>`, then
+run `/acs:ship <child-id>` for each child you want shipped, one run at a time
+(parallel children belong in separate worktrees and sessions). Surface that
+pointer verbatim and stop.
 
 Implementation happens on the children, never on the epic itself; the epic is
 auto-marked done by hooks once all children merge — not your concern.
+
+**A bug ships like a story or a task** (ADR-0138): the same `ship.yaml`, the
+same steps, nothing refused. Its two differences live in the steps themselves —
+`/acs:analyze-requirements` reproduces it first, and `/acs:create-impl-plan`
+opens the plan with a failing reproduction test — so you drive it exactly as
+any other ticket.
 
 ## Context pressure
 

@@ -322,14 +322,20 @@ Key fields written by `/acs:create-ticket` and maintained by hooks:
 |---|---|---|
 | `id` | string | Allocated ticket id, e.g. `SHOP-123` |
 | `title` | string | Human-readable summary |
-| `type` | `"epic"\|"story"\|"task"` | |
+| `type` | `"epic"\|"story"\|"task"\|"bug"` | `bug` since ADR-0138; a bug runs like a story |
 | `status` | `"open"\|"in_progress"\|"in_review"\|"done"` | **Derived** from the run ledger, never stored |
 | `parent` | string\|null | Parent epic id; null for roots |
 | `children` | string[] | Child ticket ids (epics only) |
+| `features` | string[] | The PRD feature slugs the ticket traces to (ADR-0120); a child minted with `new-ticket.py --parent` (by `/acs:breakdown-ticket`) inherits its parent's unless `--features` is given (ADR-0138) |
 | `external` | object\|null | Remote tracker mapping (`provider`/`key`) |
-| `needs_design` | boolean | True for epics only; always `false` for stories/tasks (never offered or confirmed) — MAR-76 |
+| `needs_design` | boolean | True for epics only; always `false` for stories/tasks/bugs (never offered or confirmed) — MAR-76 |
 | `docs_only` | boolean | True when the change is docs/comments only; default false |
 | `due_date` | string\|null | Optional delivery target date, ISO-8601 `YYYY-MM-DD`; `null` = no deadline set (MAR-15) |
+| `severity` | `"critical"\|"high"\|"medium"\|"low"` | Optional, on a `bug` only (refused on any other type); a bug's impact, separate from `priority` (ADR-0138) |
+| `reproduction` | string | Optional, on a `bug` only (refused on any other type); a bug's steps to reproduce (ADR-0138) |
+| `expected` | string | Optional, on a `bug` only (refused on any other type); what a bug should do (ADR-0138) |
+| `actual` | string | Optional, on a `bug` only (refused on any other type); what a bug does instead (ADR-0138) |
+| `environment` | string | Optional, on a `bug` only (refused on any other type); the environment or version a bug was seen in (ADR-0138) |
 | `created_at` | ISO-8601 datetime | Set at ticket creation, never changed |
 | `updated_at` | ISO-8601 datetime | Refreshed on every save |
 

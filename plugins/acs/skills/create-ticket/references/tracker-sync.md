@@ -1,13 +1,15 @@
-# /acs:create-ticket — Step 5, tracker sync
+# Tracker sync — /acs:create-ticket Step 5, shared with /acs:breakdown-ticket
 
 Open this ONLY when `settings.tracker.provider` is `github`. On the
 default `local` provider there is no remote to sync to and this whole step is
 skipped: no issue is created, and every ticket's `external` stays null.
 
-**Where the cross-references below point.** Step 4 is SKILL.md's. The
-split/restructure mode this step's exclusion rule keeps mentioning is
-`${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/split-ticket.md`;
-a bare "above" naming it means that file, not a section of this one.
+**Two skills follow this one procedure** (ADR-0138, never a copy):
+`/acs:create-ticket` syncs the ticket it created (its Step 5), and
+`/acs:breakdown-ticket` syncs the children it minted (its Materialize step 5).
+"The root ticket" below is the ticket a creation run made, or the parent a
+breakdown run cut children from; "the children" are a breakdown run's, and a
+creation run has none.
 
 ### Step 5 — Tracker sync
 
@@ -24,15 +26,15 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   pull, report the conflict in the result — ask the user which side wins, then
   re-dispatch.
 - **Tickets to sync** = `[root ticket, unless it is an import] + [every child
-  minted in Step 4]`, EXCLUDING any product-flow delivery title
+  a breakdown run minted]`, EXCLUDING any product-flow delivery title
   (`PRODUCT_TICKET_TITLES`: "Product definition (PRD)", "Product architecture
   doc set") — never sync a product-flow ticket (AC-4) — **and EXCLUDING any
-  ticket whose `external` is already non-null**: a `--fan-out` run's "root
-  ticket" is an already-synced epic, so re-applying this set literally would
-  re-create its issue as a duplicate; excluding it means only the newly
-  minted children (whose `external` is still null) enter the sync set, the
-  same split MAR-69's own fan-out produced (issue kept, new issues created
-  for the children only). **For each ticket to
+  ticket whose `external` is already non-null**: a breakdown run's root
+  is already synced, so re-applying this set literally would re-create its
+  issue as a duplicate;
+  excluding it means only the newly minted children (whose `external` is
+  still null) enter the sync set, the same split MAR-69's own fan-out
+  produced (issue kept, new issues created for the children only). **For each ticket to
   sync**, run the `gh issue create` sequence below once per ticket — this is
   a **critical (per ticket), soft (per batch)** gh call: a failed `gh`
   call for any one ticket is never silently swallowed: it produces an
@@ -42,12 +44,11 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   tickets; that ticket's `external` stays null). Other tickets are
   unaffected. The Finish report lists which
   tickets synced (with their key) and which failed (with the error) so the
-  failed ones can be retried individually. This set covers children minted in
-  Step 4 by either the `--fan-out` mode or the split/restructure mode; a
-  split/restructure run's already-synced root is excluded by the same
-  `external`-non-null rule above and instead has its remote issue
-  **updated** (title/type/links), as the split section already instructs
-  (above).
+  failed ones can be retried individually. This set covers children minted
+  by /acs:breakdown-ticket, an epic's fan-out or a split; a split run's
+  already-synced root is excluded by the same `external`-non-null rule above
+  and instead has its remote issue **updated** (title/type/links), as
+  breakdown-ticket's Materialize step 5 instructs.
 - `github` (`tracker.github.owner`, `tracker.github.project_number`): one
   command performs the whole batch — issue creation, labels, assignee,
   milestone, Project membership, and every Project field the board defines:
@@ -59,7 +60,7 @@ content, not new GitHub-facing behavior; this is expected and not a regression
 
   Pass every ticket in the set above; the command applies the exclusion rules
   itself (a product-flow delivery title, and any ticket whose `external` is
-  already non-null — which is what stops a `--fan-out` run re-creating its
+  already non-null — which is what stops a breakdown run re-creating its
   already-synced root as a duplicate). `--dry-run` prints the set it would
   sync and the ids it excluded, and writes nothing. The body it posts is each
   partition's `tracker-body.md`; write that file from the rendered description

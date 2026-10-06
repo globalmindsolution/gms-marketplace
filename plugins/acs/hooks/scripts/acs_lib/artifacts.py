@@ -68,9 +68,12 @@ LEGACY_ARTIFACT_NAMES = {"tech-design.md": ("design.md",)}
 #: (partition-relative source, docs-folder name) copied by migrate.
 MIGRATED_ARTIFACTS = (("design.md", "design.md"), (os.path.join("phases", "code", "plan.md"), "plan.md"))
 
-_FRONT_MATTER_ORDER = ("id", "title", "type", "priority", "parent", "children", "features", "external",
-                       "assignee", "story_points", "needs_design", "docs_only",
-                       "due_date", "created_at", "updated_at")
+#: A bug's severity sits by its priority; its report (ADR-0138) after the
+#: dates a planner reads, before the timestamps.
+_FRONT_MATTER_ORDER = ("id", "title", "type", "priority", "severity", "parent", "children",
+                       "features", "external", "assignee", "story_points", "needs_design",
+                       "docs_only", "due_date", "reproduction", "expected", "actual",
+                       "environment", "created_at", "updated_at")
 _BODY_FIELDS = ("description", "acceptance_criteria")
 _DERIVED_FIELDS = ("status",)
 _KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.\-]*$")
@@ -451,6 +454,12 @@ def _own_fields(tdir):
     return doc if isinstance(doc, dict) else (entry if isinstance(entry, dict) else {})
 
 
+#: Steps that make or restructure tickets rather than work on one: neither
+#: starts the ticket (ADR-0138 -- a breakdown mints an epic's children, and
+#: the epic turns in_progress when a CHILD starts).
+TICKET_MAKING_STEPS = ("create-ticket", "breakdown-ticket")
+
+
 def derive_status(tdir, ticket=None):
     """open / in_progress / in_review / done from the ledger and the archive:
 
@@ -458,8 +467,9 @@ def derive_status(tdir, ticket=None):
                    every child is done in the index
       in_review    create-pr completed, or a delivery-ticket skill completed
                    with a PR recorded in its states
-      in_progress  any step but create-ticket has a status other than skipped,
-                   or (an epic) a child has started
+      in_progress  any step but the ticket-making ones (TICKET_MAKING_STEPS)
+                   has a status other than skipped, or (an epic) a child has
+                   started
       open         otherwise
 
     `ticket` is the ticket's fields when the caller has them (the epic rule
@@ -487,7 +497,7 @@ def derive_status(tdir, ticket=None):
     if children == "active":
         return "in_progress"
     started = [step for step, entry in steps.items()
-               if step != "create-ticket" and isinstance(entry, dict)
+               if step not in TICKET_MAKING_STEPS and isinstance(entry, dict)
                and entry.get("status") and entry.get("status") != "skipped"]
     return "in_progress" if started else "open"
 

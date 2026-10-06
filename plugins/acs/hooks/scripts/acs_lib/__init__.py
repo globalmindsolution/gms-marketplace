@@ -46,6 +46,7 @@ from . import (_common, settings, repo, hostgates, planrules, lock, tickets,  # 
 
 from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS, STANDALONE_RUN_SKILLS,
     LEGACY_DELIVERY_TICKET_SKILLS,
+    BUG_FIELDS, BUG_SEVERITIES,
     DELIVERY_TICKET_TITLES, CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
     PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
     PRODUCT_TICKET_TITLES, ReconciliationRequired, TICKET_ID_RE,
@@ -90,8 +91,8 @@ from .lock import (LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,  # noqa: F401
     lock_audit_path, lock_is_stale, lock_staleness, read_lock, release_lock)
 
 from . import tickets as tickets_module  # noqa: F401
-from .tickets import (allocate_ticket_id, load_ticket, new_ticket_doc,  # noqa: F401
-    parse_features, save_ticket, update_index)
+from .tickets import (allocate_ticket_id, check_bug_fields, load_ticket,  # noqa: F401
+    new_ticket_doc, parse_features, save_ticket, update_index)
 
 from .setup_helpers import (TOOLCHAIN, _BARE_INT_RE,
     _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
@@ -103,7 +104,8 @@ from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
 from .gates import _workflow_for as workflow_for  # noqa: F401
 from .gates import (BRAKES, NothingOwed,  # noqa: F401
     SUBJECT_GATES, _merge_pr_arg_text,
-    build_context, design_requirement, gate_create_tech_design, gate_merge_pr,
+    build_context, design_requirement, gate_breakdown_ticket, gate_create_tech_design,
+    gate_merge_pr,
     gate_outcome, parent_epic_dir, resolve_run_for,
     run_pre, run_pre_payload, session_end, step_brakes,
     subject_from_payload)

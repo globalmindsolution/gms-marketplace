@@ -33,7 +33,7 @@ needs input, user chose to split) in `summary`.
    uncommitted file in the working tree), the executor
    tasks and whether their file maps are disjoint, the AC-to-test mapping
    count, approval, open findings, and the next step (`/acs:code <id>`, or
-   `/acs:create-ticket split <id> per <plan path>` after a split answer). Under /acs:ship, instead return ONLY the `<handoff>` XML as
+   `/acs:breakdown-ticket <id> <plan path>` after a split answer). Under /acs:ship, instead return ONLY the `<handoff>` XML as
    your final message — status, summary (≤1 KB), `<artifacts>` listing the plan
    path, and `<next-step>` pointing at `/acs:code <ticket-id>` (or at
-   `/acs:create-ticket split <ticket-id>` after a split answer).
+   `/acs:breakdown-ticket <ticket-id>` after a split answer).

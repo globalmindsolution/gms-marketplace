@@ -48,12 +48,16 @@ REQ_NON_FUNCTIONAL = os.path.join(REPO_ROOT, "docs", "requirements", "non-functi
 
 # Fixture-pinned skills.md clauses (tests/acs/fixtures/mar145_clause_inventory.json)
 # that MUST survive verbatim somewhere under docs/requirements/{functional,non-functional}/.
+#
+# ADR-0138 moved the split into /acs:breakdown-ticket and reworded two of the
+# three (tests/acs/test_requirements_reorg.py maps them, REWORDED_BY_ADR_0138);
+# these are their successors.
 PINNED_CLAUSES = (
-    "- MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,",
+    "- A **story or task** being split is first converted to an **epic that keeps",
     # "monster spec" became "monster plan" when the spec fold finished: the
     # plan IS the spec content, so there is no second artifact to oversize.
     "- MUST escalate an **oversized ticket** instead of producing a monster plan",
-    "`/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept",
+    "`/breakdown-ticket <id>` (user-confirmed); the user MAY explicitly accept",
 )
 
 C9_STOP_REASON = "user chose to split; restructure required before implementation"
@@ -65,21 +69,11 @@ def read(path):
 
 
 def create_ticket_split_section():
-    """/acs:create-ticket's split/restructure mode, wherever it lives.
-
-    It moved out of SKILL.md into `references/split-ticket.md` under
-    progressive disclosure -- a run that mints a fresh ticket never reads it.
-    Prefer the reference when it exists and fall back to slicing SKILL.md, so
-    these assertions pin what the skill SAYS, never which file says it.
-    """
-    ref = os.path.join(PLUGIN, "skills", "create-ticket", "references",
-                       "split-ticket.md")
-    heading = "## Splitting an existing oversized ticket"
-    if os.path.isfile(ref):
-        body = read(ref)
-        return body[body.index(heading):]
-    body = read(CREATE_TICKET_SKILL)
-    return body[body.index(heading):body.index("## Resume & reconcile")]
+    """The split, wherever it lives: since ADR-0138 /acs:breakdown-ticket's
+    contract (it absorbed create-ticket's `references/split-ticket.md`). The
+    name stays so the assertions below keep reading as the MAR-164 pins they
+    are; the text is the skill that now splits a ticket."""
+    return skill_contract("breakdown-ticket")
 
 
 def _req_tree_bodies():
@@ -184,14 +178,18 @@ class CreateTicketSplitPathRewriteTest(unittest.TestCase):
         self.assertNotIn("escalation", self.section)
 
     def test_names_code_plan_artifact_as_evidence_source(self):
-        self.assertIn("plan-time oversize", self.section)
+        normalized = re.sub(r"\s+", " ", self.section)
+        self.assertIn("The plan's oversize signal", normalized)
+        self.assertIn("split seams (ADR-0069)", normalized)
 
     def test_downstream_work_rule_unchanged(self):
-        """':75-77' — untouched by this spec; still governs re-entry."""
+        """Still governs re-entry: existing downstream work is surfaced in the
+        one confirmation, and the children start fresh."""
         normalized = re.sub(r"\s+", " ", self.section)
         self.assertIn(
-            "If downstream work already exists (specs, a branch), say so and "
-            "get the user's confirmation first", normalized)
+            "any downstream work that already exists (a plan, specs, a branch)",
+            normalized)
+        self.assertIn("the children start their own pipelines fresh", normalized)
 
 
 class PlanSkillFoldPointerTest(unittest.TestCase):
@@ -238,7 +236,7 @@ class PlanSkillUserInteractionSplitTest(unittest.TestCase):
 
     def test_states_failed_status_and_next_step(self):
         self.assertIn('"failed"', self.section)
-        self.assertIn("/acs:create-ticket split", self.section)
+        self.assertIn("/acs:breakdown-ticket", self.section)
 
     def test_summary_restates_the_instruction(self):
         self.assertIsNotNone(
@@ -299,11 +297,11 @@ class PlanSkillFinishStep3BothSitesTest(unittest.TestCase):
 
     def test_direct_run_sentence_carries_split_exception(self):
         self.assertIn("/acs:code", self.direct_run)
-        self.assertIn("create-ticket split", self.direct_run)
+        self.assertIn("/acs:breakdown-ticket", self.direct_run)
 
     def test_ship_sentence_carries_split_exception(self):
         self.assertIn("/acs:code", self.ship_part)
-        self.assertIn("create-ticket split", self.ship_part)
+        self.assertIn("/acs:breakdown-ticket", self.ship_part)
 
 
 class SkillsReqOversizeClauseTest(unittest.TestCase):
@@ -328,7 +326,7 @@ class SkillsReqOversizeClauseTest(unittest.TestCase):
 
     def test_states_split_answer_termination(self):
         self.assertIn('"failed"', self.clause)
-        self.assertIn("/acs:create-ticket split", self.clause)
+        self.assertIn("/acs:breakdown-ticket", self.clause)
 
     def test_pinned_clauses_survive_exactly_once(self):
         for clause in PINNED_CLAUSES:
@@ -357,7 +355,7 @@ class InternalsSizingTodayTest(unittest.TestCase):
 
     def test_states_implemented_mechanism(self):
         self.assertIn("ADR 0069", self.section)
-        self.assertIn("/acs:create-ticket split", self.section)
+        self.assertIn("/acs:breakdown-ticket", self.section)
 
 
 class RequirementsReadmeSizeControlRowTest(unittest.TestCase):

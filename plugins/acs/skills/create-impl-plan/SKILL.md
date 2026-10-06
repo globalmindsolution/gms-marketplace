@@ -94,8 +94,8 @@ simply absent: this skill creates none of them.
 run has no type to refuse). Every ticket that reaches this step has
 `ticket.type != "epic"`. If an epic reaches it anyway (a bypassed or
 best-effort pre-gate on some runtime), STOP and surface the same message the
-gate would have raised: design the epic with `/acs:create-tech-design <id>`, fan it
-out with `/acs:create-ticket <id>`, then run `/acs:create-impl-plan` on a
+gate would have raised: design the epic with `/acs:create-tech-design <id>`, break
+it down with `/acs:breakdown-ticket <id>`, then run `/acs:create-impl-plan` on a
 child.
 
 ## Working tree — the plan is a repo file
@@ -446,5 +446,5 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Findings**: <open findings / clarifications, or "none">
 - **Artifacts**: <uncommitted files written (the plan path, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:code <ticket-id>`; after a split answer, `/acs:create-ticket split <ticket-id>`. The files stay uncommitted until `/acs:create-pr <ticket-id>`
+- **Next**: `/acs:code <ticket-id>`; after a split answer, `/acs:breakdown-ticket <ticket-id>`. The files stay uncommitted until `/acs:create-pr <ticket-id>`
 ```

@@ -58,11 +58,11 @@ def _require_artifact(ctx, ticket_id, tdir, ticket, name, producer):
 
 
 def _refuse_epic(ticket_id, skill, verb):
-    """Epics are designed and fanned out, never worked as one ticket."""
+    """Epics are designed and broken down, never worked as one ticket."""
     raise GateError(
         "ticket %s is an epic — epics are never %s directly; run "
         "/acs:create-tech-design %s first if the epic has no design yet, then break it down "
-        "into child tickets with /acs:create-ticket %s (epic fan-out), then run /acs:%s "
+        "into child tickets with /acs:breakdown-ticket %s, then run /acs:%s "
         "on a child." % (ticket_id, verb, ticket_id, ticket_id, skill))
 
 

@@ -46,7 +46,8 @@ LAYERS = ("ticket-docs", "design", "slice", "docs-sync", "e2e", "other")
 
 #: Which layer a step's recorded paths belong to; any other step is `other`.
 SKILL_LAYER = {
-    "create-ticket": "ticket-docs", "analyze-requirements": "ticket-docs",
+    "create-ticket": "ticket-docs", "breakdown-ticket": "ticket-docs",
+    "analyze-requirements": "ticket-docs",
     "create-impl-plan": "ticket-docs", "create-test-docs": "ticket-docs",
     # ADR-0134: the API contract is a Design document, committed with them.
     "create-tech-design": "design", "create-api-contract": "design",

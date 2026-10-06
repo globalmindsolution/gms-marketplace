@@ -30,7 +30,7 @@ other terminal run), writing
 `steps/create-impl-plan/result.json` with `status: "failed"` and
 `summary` "user chose to split; restructure required before
 implementation", and only then return `<handoff status="failed">` whose
-`<next-step>` reads `/acs:create-ticket split <id> per
+`<next-step>` reads `/acs:breakdown-ticket <id>
 steps/create-impl-plan/plan.md` — it is the handoff element's own
 `status` attribute, not only `result.json`'s field, that must read `failed`.
 The `<summary>` (≤1 KB) must also restate the split instruction in prose, not

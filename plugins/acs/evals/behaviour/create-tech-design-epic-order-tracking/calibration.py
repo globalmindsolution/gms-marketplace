@@ -4,7 +4,7 @@ IDEAL does what /acs:create-tech-design's coordinator does, through the plugin's
 own writers: `acs step start`, the relayed answers recorded with `clarify.py
 add`, the designer's draft with its version front matter, the Publish copy into docs/architecture/lld/order-tracking/EVAL-1/ (left
 uncommitted: no ticket branch exists), result.json and the post-hook, and a
-reply naming the fan-out."""
+reply naming the breakdown."""
 
 import json
 import os
@@ -131,8 +131,8 @@ def IDEAL(ws):
     _publish(ws, DESIGN)
     _finish(ws, DECISION)
     ws.reply = ("Tech design published (proposed) for epic EVAL-1. Next: approve it with "
-                "/acs:set-doc-status approved order-tracking, then /acs:create-ticket EVAL-1 "
-                "--fan-out, then /acs:code on each child.")
+                "/acs:set-doc-status approved order-tracking, then /acs:breakdown-ticket EVAL-1, "
+                "then /acs:code on each child.")
 
 
 def _minted_children(ws):

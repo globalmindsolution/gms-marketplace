@@ -216,6 +216,31 @@ matching section here, and merge to `main` — the Release workflow tags
   pre-approved. Setup also ignores `.claude/worktrees/`, where Claude Code puts the
   worktrees it creates. **Migration:** none — re-run `/acs:setup` to opt in.
 
+- **`/acs:breakdown-ticket`** (ADR-0138): a new Utility skill that breaks an
+  epic, or a story or task too large for one PR, into PR-sized children. It
+  reads the ticket's requirements, the feature analysis, the tech design and,
+  when there is one, the plan's oversize-split signal; proposes every child —
+  title, type (`story`, `task` or `bug`), acceptance criteria, `features`
+  inherited from the parent unless narrowed, `needs_design: false` and a size —
+  in one grouped confirmation; then mints them with `new-ticket.py --parent`,
+  saves their acceptance criteria and syncs them to the tracker through
+  create-ticket's tracker-sync reference. A story or task being split becomes an
+  epic that keeps its id. It warns, without blocking, when the epic's tech
+  design is not `approved`. It runs inline, with no subagent. 30 skills.
+- **`bug` is a ticket type** (ADR-0138). `/acs:create-ticket` files a defect as a
+  `bug`, `new-ticket.py --type bug` mints one, and `templates/bug-default.md`
+  describes it. A bug carries five optional fields — `severity` (`critical`,
+  `high`, `medium` or `low`, separate from `priority`), `reproduction`,
+  `expected`, `actual` and `environment` — and an acceptance criterion that a
+  regression test reproduces it and passes after the fix. It syncs to a GitHub
+  Project's `Bug` type option (a Project without one gets the usual "option
+  missing" finding). A bug runs like a story: `/acs:analyze-requirements`
+  reproduces it first, recording the reproduction or an open question saying it
+  could not, and `/acs:create-impl-plan` makes a failing reproduction test,
+  named for the bug, the first test of the first slice.
+- **A child ticket inherits its parent's `features`** (ADR-0138).
+  `new-ticket.py --parent` copies them unless `--features` is given.
+
 ### Changed
 
 - **⚠️ BREAKING: only `/acs:create-pr` branches, commits and pushes** (ADR-0127).
@@ -497,6 +522,31 @@ matching section here, and merge to `main` — the Release workflow tags
   `approved`. The drift reviewer gains a seventh dimension, `lld-currency`, in
   its `placement` slice, and the scaffold gains `models.docs-sync.gap-analyst`.
   Nothing to migrate: a run whose ticket names no feature behaves as before.
+
+- **⚠️ BREAKING: `/acs:create-ticket` drafts through a type author and a
+  reviewer, and its `--fan-out` and `split` modes move to
+  `/acs:breakdown-ticket`** (ADR-0138). The coordinator still parses the
+  request, sizes it, asks every question in one grouped ask, confirms and
+  materialises the ticket, but the draft is now written by one author for the
+  chosen type — `create-ticket-epic-author`, `create-ticket-story-author`,
+  `create-ticket-task-author` or `create-ticket-bug-author` — and checked by
+  `create-ticket-reviewer` (concrete, testable acceptance criteria, the PRD
+  trace and `features`, the type's own sections, an honest size, no invented
+  facts) in at most two iterations before you see it. The rules every type
+  shares live once, in `skills/create-ticket/references/authoring-rules.md`. An
+  epic gets problem and outcome, scope, success metrics and a breakdown outline;
+  a story its user value and Given/When/Then criteria; a task its technical
+  outcome and a done-when checklist. 40 agent files; the scaffold gains
+  `models.create-ticket.{epic-author,story-author,task-author,bug-author,reviewer}`.
+  `/acs:create-ticket <epic-id> --fan-out` and `/acs:create-ticket split <id>`
+  now refuse and name `/acs:breakdown-ticket`, and an epic's run ends with
+  *Next: `/acs:create-tech-design <id>` (when `needs_design`) →
+  `/acs:breakdown-ticket <id>`*. **Migration:** run
+  `/acs:breakdown-ticket <epic-id>` where you ran
+  `/acs:create-ticket <epic-id> --fan-out`, and `/acs:breakdown-ticket <id>`
+  where you ran `/acs:create-ticket split <id>`; the oversize-split question in
+  `/acs:create-impl-plan` now points there too. Existing tickets, partitions and
+  tracker issues need nothing; the refusing flags go in the next release.
 
 ### Removed
 

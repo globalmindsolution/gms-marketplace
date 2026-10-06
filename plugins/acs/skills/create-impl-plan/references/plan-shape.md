@@ -112,7 +112,7 @@ plan reviewer checks the first.
 
 **Oversize signal pointer.** `create-impl-plan-planner.md`'s survey item 2
 compares this decomposition against the reviewable-diff bar; when it fires,
-the split seams recorded above are what `/acs:create-ticket split` reads (see
+the split seams recorded above are what `/acs:breakdown-ticket` reads (see
 User interaction for the split-answer termination).
 
 **Short is not empty.** A plan that says "see ticket", or a file map with no
@@ -149,3 +149,16 @@ single full-suite run that proves the change breaks nothing, and state
 doc paths only. If the ticket cannot be delivered without touching executable
 code or tests, the flag is wrong: surface that to the user (User interaction)
 rather than planning around it.
+
+## A bug — the first test reproduces it
+
+On a `bug` ticket (ADR-0138) the plan's first slice opens with a **failing
+reproduction test**: the FIRST test of the FIRST executor task, written before
+any fix, named for the behaviour that is broken (`test_reset_link_expires_before_email_arrives`
+— never the ticket id), built from the reproduction the analysis recorded (its
+`## Scope and summary`) and the ticket's `reproduction`, `expected` and
+`actual`. `## Test strategy` says it fails before the fix and passes after
+it, which is the ticket's regression criterion. When the analysis could not
+reproduce the bug, the plan says so and plans the test from the ticket's steps,
+flagged as unconfirmed. The plan reviewer checks this (its dimension 5).
+Nothing else about the plan's shape changes.

@@ -32,7 +32,10 @@ PRODUCT_SKILLS = ["create-prd", "create-architecture"]
 # `flow = "product" if skill in PRODUCT_SKILLS else "ticket"` stays right, and
 # HOOKED_SKILLS keeps its three-way shape. Their ORDER lives in
 # workflows/ship.yaml, never in this list -- a list position buys nothing.
-WORKFLOW_SKILLS = ["create-ticket", "analyze-requirements", "create-impl-plan",
+# ADR-0138 added breakdown-ticket beside create-ticket: it mints a parent's
+# children, so like create-ticket it is hooked yet no step of ship.yaml.
+WORKFLOW_SKILLS = ["create-ticket", "breakdown-ticket", "analyze-requirements",
+                   "create-impl-plan",
                    "create-test-docs", "code", "review-code",
                    "docs-sync", "create-e2e-tests", "run-e2e-tests", "create-pr",
                    "merge-pr", "audit-design", "audit-security"]
@@ -75,7 +78,11 @@ UNHOOKED_SKILLS = ["setup", "ship", "handoff", "update", "release", "set-doc-sta
 #: A step's states (§4.3). `skipped` never existed here; `handed_off` did, and
 #: it is gone -- it named a REASON rather than a state, and the reason is now
 #: `stop_reason` on the single resumable state, `interrupted`.
-TICKET_TYPES = ["epic", "story", "task"]
+TICKET_TYPES = ["epic", "story", "task", "bug"]
+#: A bug's own optional fields (ADR-0138), valid on a `bug` ticket only. Its
+#: severity is how bad the defect is, kept apart from `priority` (how soon).
+BUG_FIELDS = ("severity", "reproduction", "expected", "actual", "environment")
+BUG_SEVERITIES = ("critical", "high", "medium", "low")
 TICKET_STATUSES = ["open", "in_progress", "in_review", "done"]
 PRIORITIES = ["critical", "high", "medium", "low"]
 

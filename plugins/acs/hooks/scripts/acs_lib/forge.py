@@ -50,7 +50,7 @@ GROUP_B_FIELDS = (
 )
 
 #: How the `Type` single-select is spelled for each ticket type.
-TYPE_OPTIONS = {"epic": "Epic", "story": "Story", "task": "Task"}
+TYPE_OPTIONS = {"epic": "Epic", "story": "Story", "task": "Task", "bug": "Bug"}
 
 
 class Gh(object):
@@ -573,8 +573,9 @@ def sync_candidates(tickets, product_titles):
     """create-ticket's "tickets to sync" rule, as a filter.
 
     Excludes a product-flow delivery ticket and anything already carrying an
-    `external` -- a --fan-out run's root is an already-synced epic, and
-    re-applying the set literally would re-create its issue as a duplicate."""
+    `external` -- a /acs:breakdown-ticket run's parent is an already-synced
+    ticket, and re-applying the set literally would re-create its issue as a
+    duplicate."""
     out = []
     for ticket in tickets:
         if ticket.get("external"):

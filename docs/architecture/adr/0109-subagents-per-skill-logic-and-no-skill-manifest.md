@@ -1,6 +1,6 @@
 # 0109 — Subagents follow each skill's logic, and a skill carries no manifest
 
-**Status**: Accepted — amended by [0118](0118-discovery-design-development-phases.md) (the project and requirements skills' roles are gone; `SKILL_LEGS` holds only `code`'s legs) · **Date**: 2026-09-27
+**Status**: Accepted — amended by [0118](0118-discovery-design-development-phases.md) (the project and requirements skills' roles are gone; `SKILL_LEGS` holds only `code`'s legs) and by [0138](0138-breakdown-ticket-and-typed-ticket-authors.md) (`create-ticket` is no longer inline: four type authors (write) and a reviewer (judge)) · **Date**: 2026-09-27
 
 **Amends**: [0092](0092-skill-machinery-declared-per-skill.md) (class D's
 "executor + verifier" shape is replaced by roles named for each skill's own

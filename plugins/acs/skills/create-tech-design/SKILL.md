@@ -365,7 +365,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
      uncommitted files left in the working tree, and the next step: approve it
      with `/acs:set-doc-status approved <feature>`, then for a non-epic ticket, `/acs:create-impl-plan <id>`
      and `/acs:code <id>`; for an epic, break it down into child tickets with
-     `/acs:create-ticket <id>` (epic fan-out), then run `/acs:code` on a
+     `/acs:breakdown-ticket <id>`, then run `/acs:code` on a
      child, each of which inherits this design; for a ticketless run,
      `/acs:create-impl-plan` then `/acs:code` on the same run (or
      `/acs:create-ticket` to cut its tickets).
@@ -373,7 +373,7 @@ MANDATORY final step — never skipped, including on failure or handoff:
      `status` matching result.json, `<summary>` <=1KB naming the approval
      command, `<artifacts>` referencing `<design_path>`, and exactly one
      `<next-step>`: `/acs:create-impl-plan <id>` for a non-epic ticket; for an
-     epic, `/acs:create-ticket <id>` (epic fan-out), then `/acs:code` on a
+     epic, `/acs:breakdown-ticket <id>`, then `/acs:code` on a
      child.
 
 ## Completion report (normative)
@@ -394,6 +394,6 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 - **Metrics**: iterations <n>/<cap> · <wall time>
 - **Next**: approve it with `/acs:set-doc-status approved <feature>`, then
   `/acs:create-impl-plan <ticket-id>` for a non-epic ticket; for an epic,
-  `/acs:create-ticket <ticket-id>` (epic fan-out), then `/acs:code` on a
+  `/acs:breakdown-ticket <ticket-id>`, then `/acs:code` on a
   child. The files stay uncommitted until `/acs:create-pr <ticket-id>`
 ```

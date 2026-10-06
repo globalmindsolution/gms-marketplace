@@ -59,6 +59,7 @@ CREATE_DESIGN_DESIGNER = os.path.join(AGENTS_DIR, "create-tech-design-designer.m
 # materialization reference the coordinator follows inline.
 CREATE_TICKET_MATERIALIZE = os.path.join(SKILLS_DIR, "create-ticket", "references",
                                          "materialize.md")
+BREAKDOWN_TICKET_SKILL = os.path.join(SKILLS_DIR, "breakdown-ticket", "SKILL.md")
 
 # create-docs/SKILL.md was the second identical file until ADR-0124 removed it.
 RULE2_IDENTICAL_FILES = [CREATE_ARCHITECTURE_SKILL]
@@ -268,11 +269,15 @@ class Rule1CreateTicketNextLineBothOccurrencesTest(unittest.TestCase):
     corrects only one occurrence must fail this assertion."""
 
     def test_next_line_both_occurrences_route_to_code(self):
+        """ADR-0138 rewrote the line: an epic goes through its design and
+        /acs:breakdown-ticket, every other type straight to /acs:code --
+        still never create-spec."""
         body_norm = norm(read(CREATE_TICKET_SKILL))
         self.assertRegex(body_norm, phrase_re(
-            "**Next**: `/acs:create-tech-design <id>` when `needs_design` is "
-            "true, else `/acs:code <id>`; for an epic, each child continues "
-            "with `/acs:code <child-id>` after the epic's design"))
+            "**Next**: an epic: `/acs:create-tech-design <id>` (when "
+            "`needs_design`) → `/acs:breakdown-ticket <id>`, then each child "
+            "continues with `/acs:ship <child-id>`; a story, task or bug: "
+            "`/acs:code <id>`"))
 
 
 class Rule1RemainingSitesTest(unittest.TestCase):
@@ -282,9 +287,13 @@ class Rule1RemainingSitesTest(unittest.TestCase):
     skill went inline) — each proven REPLACED, not merely absent."""
 
     def test_create_ticket_pipeline_starts_at_code(self):
-        body_norm = norm(read(CREATE_TICKET_SKILL))
-        self.assertRegex(
-            body_norm, phrase_re("their pipeline starts at /acs:code"))
+        """The children's pipeline sentence moved with the breakdown
+        (ADR-0138); it names the Build steps, never create-spec."""
+        body_norm = norm(read(BREAKDOWN_TICKET_SKILL))
+        self.assertRegex(body_norm, phrase_re(
+            "Children never run `/acs:create-ticket`: their pipeline starts at "
+            "`/acs:analyze-requirements <child-id>` (or `/acs:ship <child-id>`)"))
+        self.assertNotIn("create-spec", body_norm)
 
     def test_create_ticket_epic_children_next_step_pair(self):
         body_norm = norm(read(CREATE_TICKET_SKILL))
@@ -300,10 +309,11 @@ class Rule1RemainingSitesTest(unittest.TestCase):
             "child tickets inherit this design in their /acs:code"))
 
     def test_create_ticket_materialize_capture_phrase(self):
-        body_norm = norm(read(CREATE_TICKET_MATERIALIZE))
-        self.assertRegex(
-            body_norm,
-            phrase_re("/acs:code. Capture each printed `ticket_id`"))
+        """Minting moved to /acs:breakdown-ticket (ADR-0138); materialize.md
+        mints nothing now, and neither names create-spec."""
+        self.assertRegex(norm(read(BREAKDOWN_TICKET_SKILL)),
+                         phrase_re("Capture each printed `ticket_id`"))
+        self.assertNotIn("create-spec", read(CREATE_TICKET_MATERIALIZE))
 
 
 class Rule2OutcomeTextTest(unittest.TestCase):

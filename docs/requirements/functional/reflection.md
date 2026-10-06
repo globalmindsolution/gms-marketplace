@@ -21,7 +21,7 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: write → judge
 
-The eleven **authoring skills** MUST apply the Reflection pattern as a
+The twelve **authoring skills** MUST apply the Reflection pattern as a
 **write → judge cycle** over their own roles, with a **different subagent
 for each role** (ADR-0109):
 
@@ -29,6 +29,7 @@ for each role** (ADR-0109):
 |---|---|---|---|
 | analyze-requirements | `analyze-requirements-impact-analyst` | `analyze-requirements-analyst` | `analyze-requirements-impact-reviewer` |
 | create-prd | `create-prd-surveyor` | `create-prd-author` | `create-prd-reviewer` |
+| create-ticket | — | ONE of `create-ticket-epic-author`, `create-ticket-story-author`, `create-ticket-task-author`, `create-ticket-bug-author` — the author for the type the coordinator chose; it writes the draft only (ADR-0138) | `create-ticket-reviewer` (at most two iterations) |
 | create-architecture | `create-architecture-gap-analyst` (beside the architect's survey, when an HLD exists — ADR-0122) | `create-architecture-architect` | `create-architecture-reviewer` |
 | create-tech-design | — | `create-tech-design-designer` | `create-tech-design-reviewer` |
 | create-data-design | `create-data-design-gap-analyst` (beside the designer's survey, when the feature's `data/` holds documents — ADR-0126) | `create-data-design-designer` | `create-data-design-reviewer` |
@@ -69,14 +70,17 @@ review" below.
 ### Apply-work skills: inline shape (MAR-55 invariant (b))
 
 The **apply-work** group — `/acs:create-pr`, `/acs:merge-pr`, and
-`/acs:create-ticket` — does **not** apply the Reflection pattern. These skills
+`/acs:breakdown-ticket` — does **not** apply the Reflection pattern. These skills
 are inline and deterministic: the coordinator handles the work directly,
-following its `references/` (`materialize.md`, `publish.md`, `merge.md`), and
+following its SKILL.md and `references/` (`publish.md`, `merge.md`), and
 spawns no subagent — this holds on every delivery path.
 Upstream
 quality is gated by `/acs:review-code` (before the PR is opened or merged) or by
-the user-confirmation gate (at ticket creation); there is no in-skill verify
-phase for these three skills.
+the user-confirmation gate (the one grouped confirmation of a breakdown); there
+is no in-skill verify phase for these three skills. `/acs:create-ticket` left
+this group with ADR-0138: its draft is written by a type author and judged by
+its reviewer, and only its materialisation (`references/materialize.md`) and
+tracker sync stay inline.
 
 Requirements:
 
@@ -146,11 +150,11 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 35 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 40 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
-  **Eleven** skills run the write → judge cycle: all **eleven** authoring
+  **Twelve** skills run the write → judge cycle: all **twelve** authoring
   skills in the table above — which include the five Build/Test skills the
   skills-independence refactor added (`analyze-requirements`,
   `create-impl-plan`, `create-api-contract` — a Design skill since
@@ -161,7 +165,8 @@ Requirements:
   beside their survey over the documents they revise (ADR-0122, ADR-0126,
   ADR-0134), and one (`docs-sync`) a gap analyst per feature beside its
   doc-updaters, over the living LLD documents the run implemented
-  (ADR-0137).
+  (ADR-0137). One (`create-ticket`) owns four write roles, one per ticket
+  type, and spawns exactly one of them per run (ADR-0138).
 
   **One** prefix is write-only: `code`, whose implementers are judged by
   `/acs:review-code`, because an implementer that grades its own output gave

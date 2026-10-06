@@ -45,7 +45,7 @@ import acs_lib as lib  # noqa: E402
 from acs_lib import workflow  # noqa: E402
 
 PINNED_SORTED_HOOKED_SKILLS = [
-    "analyze-requirements", "audit-design", "audit-security", "code",
+    "analyze-requirements", "audit-design", "audit-security", "breakdown-ticket", "code",
     "create-api-contract",
     "create-architecture", "create-data-design",
     "create-e2e-tests", "create-flows", "create-impl-plan",

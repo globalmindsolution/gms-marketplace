@@ -212,5 +212,77 @@ class TestParentRefusals(acs_case.AcsWorkspaceCase):
         self.assertEqual(_partition_entries(self.ws), before)
 
 
+class TestFeaturesInheritance(acs_case.AcsWorkspaceCase):
+    """ADR-0138: a child minted under an epic traces to the epic's PRD
+    features unless the caller narrows them -- /acs:breakdown-ticket proposes
+    children that inherit them, and a child that silently traced to nothing
+    would drop out of every feature's LLD and doc-sync."""
+
+    def mint(self, *args):
+        out = self.run_script("new-ticket.py", *args)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        payload = json.loads(out.stdout)
+        return payload, acs_case.lib.load_ticket(self.tdir(payload["ticket_id"]))
+
+    def epic(self, features="wishlist,checkout"):
+        args = ["--title", "Wishlist", "--type", "epic"]
+        if features is not None:
+            args += ["--features", features]
+        payload, _ticket = self.mint(*args)
+        return payload["ticket_id"]
+
+    def test_a_child_inherits_the_parents_features_by_default(self):
+        epic = self.epic()
+        payload, child = self.mint("--title", "API", "--type", "story", "--parent", epic)
+        self.assertEqual(child["features"], ["wishlist", "checkout"])
+        self.assertEqual(payload["features"], ["wishlist", "checkout"])
+        self.assertTrue(payload["features_inherited"])
+        index = acs_case.lib.read_json(acs_case.lib.index_path(self.ws, REPO_ID))
+        self.assertEqual(index["tickets"][payload["ticket_id"]]["features"],
+                         ["wishlist", "checkout"])
+
+    def test_an_explicit_features_overrides_the_parents(self):
+        epic = self.epic()
+        payload, child = self.mint("--title", "API", "--type", "task", "--parent", epic,
+                                   "--features", "checkout")
+        self.assertEqual(child["features"], ["checkout"])
+        self.assertFalse(payload["features_inherited"])
+
+    def test_an_explicit_empty_features_means_none(self):
+        epic = self.epic()
+        payload, child = self.mint("--title", "API", "--type", "task", "--parent", epic,
+                                   "--features", "")
+        self.assertNotIn("features", child)
+        self.assertEqual(payload["features"], [])
+        self.assertFalse(payload["features_inherited"])
+
+    def test_a_parent_without_features_gives_none(self):
+        epic = self.epic(features=None)
+        payload, child = self.mint("--title", "API", "--type", "task", "--parent", epic)
+        self.assertNotIn("features", child)
+        self.assertFalse(payload["features_inherited"])
+
+    def test_no_parent_inherits_nothing(self):
+        payload, child = self.mint("--title", "API", "--type", "task")
+        self.assertNotIn("features", child)
+        self.assertEqual(payload["features"], [])
+        self.assertFalse(payload["features_inherited"])
+
+    def test_the_parent_keeps_its_own_features(self):
+        epic = self.epic()
+        self.mint("--title", "API", "--type", "task", "--parent", epic, "--features", "x")
+        self.assertEqual(acs_case.lib.load_ticket(self.tdir(epic))["features"],
+                         ["wishlist", "checkout"])
+
+    def test_a_story_parent_is_still_refused_until_it_is_converted(self):
+        """The split conversion (ticket save type epic) comes first; --parent
+        itself never accepts a story or task."""
+        _mint(self.ws, "SHOP-40", ttype="story")
+        out = self.run_script("new-ticket.py", "--title", "X", "--type", "task",
+                              "--parent", "SHOP-40")
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("is a story, not an epic", out.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -560,7 +560,7 @@ class OversizeSplitSignalTest(unittest.TestCase):
         section = self._split_section()
         section_norm = norm(section)
         self.assertIn('"failed"', section)
-        self.assertIn("/acs:create-ticket split", section)
+        self.assertIn("/acs:breakdown-ticket", section)
         self.assertIn("clarify.py add", section)
         self.assertIn(C9_STOP_REASON, section_norm)
         self.assertIsNotNone(

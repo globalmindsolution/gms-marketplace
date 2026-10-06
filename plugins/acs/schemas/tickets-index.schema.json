@@ -15,7 +15,7 @@
         "properties": {
           "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
           "title": {"oneOf": [{"type": "string"}, {"type": "null"}]},
-          "type": {"enum": ["epic", "story", "task"]},
+          "type": {"enum": ["epic", "story", "task", "bug"]},
           "status": {"enum": ["open", "in_progress", "in_review", "done"]},
           "parent": {"oneOf": [{"type": "string"}, {"type": "null"}]},
           "children": {"type": "array", "items": {"type": "string"}},
