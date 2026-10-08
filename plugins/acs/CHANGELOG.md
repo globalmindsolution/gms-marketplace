@@ -19,6 +19,8 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-08
+
 ### Added
 
 - **`/acs:create-data-design`** (ADR-0126): a ticket-scoped Design skill that writes
