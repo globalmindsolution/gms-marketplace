@@ -217,16 +217,22 @@ jobs:
                       f"one shared version."
                   )
 
-          # Root Devin meta-plugin shares the marketplace's version.
+          # Root Devin meta-plugin shares the plugins' version. The marketplace
+          # itself is unversioned, so the plugin manifests are the reference.
           root_devin = ".devin-plugin/plugin.json"
           if os.path.exists(root_devin):
               with open(root_devin, encoding="utf-8") as fh:
                   rm = json.load(fh)
-              if rm.get("version") and mkt.get("version") and rm["version"] != mkt["version"]:
-                  errors.append(
-                      f".devin-plugin/plugin.json version '{rm['version']}' != marketplace.json version "
-                      f"'{mkt['version']}' — the repo ships one shared version."
-                  )
+              for plugin_dir in plugin_dirs():
+                  with open(os.path.join(plugin_dir, ".claude-plugin", "plugin.json"),
+                            encoding="utf-8") as fh:
+                      cm = json.load(fh)
+                  if rm.get("version") and cm.get("version") and rm["version"] != cm["version"]:
+                      errors.append(
+                          f".devin-plugin/plugin.json version '{rm['version']}' != "
+                          f"'{plugin_dir}' plugin.json version '{cm['version']}' — the repo "
+                          f"ships one shared version."
+                      )
 
           for w in warnings:
               print(f"::warning::{w}")

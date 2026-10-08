@@ -7,17 +7,25 @@ and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Releases are automated: run **`/acs:release <version>`** to perform the five
-steps below in one command — bump `version` to the same value in all FOUR
-locations `.acs/settings.json` lists (`.claude-plugin/marketplace.json`,
-`plugins/acs/.claude-plugin/plugin.json`,
+steps below in one command — bump `version` to the same value in all THREE
+locations `.acs/settings.json` lists (`plugins/acs/.claude-plugin/plugin.json`,
 `plugins/acs/.devin-plugin/plugin.json` and `.devin-plugin/plugin.json`),
 point the `plugins/acs` entry's `ref` in `.devin-plugin/plugin.json`'s
-`requiredPlugins` at `v<version>` — the marketplace entry's source is the
-relative string `"./plugins/acs"` and carries no `ref` of its own — add a
+`requiredPlugins` at `v<version>` — the marketplace is unversioned and its
+`acs` entry follows the `acs-stable` branch, which the workflow moves — add a
 matching section here, and merge to `main` — the Release workflow tags
 `v<version>` and publishes a GitHub release using that section as the notes.
 
 ## [Unreleased]
+
+### Changed
+
+- **The marketplace is no longer released.** `marketplace.json` drops its
+  `version`, and the `acs` entry becomes a `git-subdir` source on the
+  `acs-stable` branch, which the Release workflow moves to each `v<version>`
+  tag. Consumers update the plugin alone (`claude plugin update
+  acs@gms-marketplace`); the release trigger is now `plugin.json`. Per-marketplace
+  pinning (`marketplace add …@v<x>`) no longer applies.
 
 ## [0.6.0] - 2026-10-08
 

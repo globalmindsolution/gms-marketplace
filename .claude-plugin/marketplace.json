@@ -1,17 +1,21 @@
 {
   "name": "gms-marketplace",
   "displayName": "GMS Marketplace",
-  "version": "0.6.0",
   "owner": {
     "name": "Global Mind Solution"
   },
   "metadata": {
-    "description": "Global Mind Solution plugin marketplace for Claude Code. Plugins: acs (Claude Code agentic workflow — autonomous coding skills: PRD, architecture, specs, TDD, PR, merge). Plugin updates are per-plugin versioned (see each plugin's CHANGELOG.md)."
+    "description": "Global Mind Solution plugin marketplace for Claude Code. Plugins: acs (Claude Code agentic workflow — autonomous coding skills: PRD, architecture, specs, TDD, PR, merge). The marketplace itself is unversioned; each plugin is released and updated on its own (see each plugin's CHANGELOG.md)."
   },
   "plugins": [
     {
       "name": "acs",
-      "source": "./plugins/acs",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/globalmindsolution/gms-marketplace.git",
+        "path": "plugins/acs",
+        "ref": "acs-stable"
+      },
       "description": "Autonomous Coding Skills - an agentic software-delivery workflow: PRD, architecture, tickets, design, specs, TDD implementation with review loop, PR, and merge; hook-gated, resumable, workspace-backed."
     }
   ]

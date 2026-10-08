@@ -52,17 +52,20 @@ claude plugin eval acs@gms-marketplace --tag routing --ablation none           #
 
 ### Marketplace layout
 
-`.claude-plugin/marketplace.json` resolves acs from the relative source `./plugins/acs`.
-A relative source resolves from the marketplace checkout itself, so there is **no second ref
-to keep in sync** — consumers pin by pinning the marketplace
-(`claude plugin marketplace add <repo>@v0.5.0`), not per-plugin.
+`.claude-plugin/marketplace.json` is **unversioned and never released**. The acs entry is a
+`git-subdir` object (`path: plugins/acs`, `ref: acs-stable`); `release.yml` tags `v<version>`
+when `plugins/acs/.claude-plugin/plugin.json` bumps on `main` and force-moves the `acs-stable`
+**branch** to that tag, so consumers update the plugin alone
+(`claude plugin update acs@gms-marketplace`) and never re-pin the marketplace. The ref must be a
+branch or tag, never a bare SHA (`git clone --branch` rejects one), and never a per-release
+value, which goes stale. The first release creates the branch; `workflow_dispatch` seeds it.
 
-This matters historically: the entry previously used a `git-subdir` object with its own
-`path` + `ref`, which has two readers that disagree — CI's validator resolves `path` against
-the **working tree** while the installer resolves it **at `ref`**. In September 2026 each
-field was individually correct and the pair was unresolvable, making the plugin uninstallable.
-If you ever reintroduce an object source, `tests/acs/test_marketplace_ref_resolves.py` is the
-test that guards it.
+History worth knowing: an earlier `git-subdir` entry pinned a per-release `ref`, and CI's
+validator (path against the **working tree**) and the installer (path **at `ref`**) disagreed.
+In September 2026 each field was individually correct and the pair was unresolvable, making the
+plugin uninstallable; a relative `./plugins/acs` source replaced it, at the price of tying the
+plugin to the marketplace ref. The stable-branch ref keeps the decoupling without the per-release
+coordinate. `tests/acs/test_marketplace_ref_resolves.py` guards the shape.
 
 `.github/scripts/plugin_source_dirs.py` deliberately discovers plugin directories by walking
 for the `.claude-plugin/plugin.json` marker rather than reading `path` from the manifest —
