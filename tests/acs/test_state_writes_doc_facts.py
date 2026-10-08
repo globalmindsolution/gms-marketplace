@@ -120,7 +120,12 @@ class ChangelogEntryTest(unittest.TestCase):
     def _bullet(self):
         text = _read(CHANGELOG)
         start = text.index("## [Unreleased]")
-        unreleased = text[start:text.index("\n## [", start + 1)]
+        end = text.index("\n## [", start + 1)
+        if not text[start + len("## [Unreleased]"):end].strip():
+            # right after a cut [Unreleased] is empty and the notes sit in the newest dated section
+            end = text.find("\n## [", end + 1)
+            end = len(text) if end == -1 else end
+        unreleased = text[start:end]
         changed = unreleased[unreleased.index("### Changed"):unreleased.index("### Removed")]
         head = "- **State files are written through `acs.py write`, never the Write tool**"
         self.assertIn(head, changed)

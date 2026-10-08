@@ -111,6 +111,10 @@ class ChangelogBreakingEntryTest(unittest.TestCase):
         text = _read(CHANGELOG)
         start = text.index("## [Unreleased]")
         end = text.index("\n## [", start + 1)
+        if not text[start + len("## [Unreleased]"):end].strip():
+            # right after a cut [Unreleased] is empty and the notes sit in the newest dated section
+            end = text.find("\n## [", end + 1)
+            end = len(text) if end == -1 else end
         unreleased = text[start:end]
         changed = unreleased.index("### Changed")
         removed = unreleased.index("### Removed", changed)
