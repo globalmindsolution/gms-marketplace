@@ -125,7 +125,7 @@ class TheCommitPhase(unittest.TestCase):
     def test_commits_come_before_the_push_and_the_base_detect_before_the_push(self):
         text = flat(skill())
         commit = text.index("pr commit --plan")
-        base = text.index("gh repo view --json defaultBranchRef")
+        base = text.index("gh api repos/{owner}/{repo} --jq .default_branch")
         push = text.index("git push -u origin <branch>")
         self.assertLess(commit, push)
         self.assertLess(base, push)
@@ -138,9 +138,9 @@ class TheCommitPhase(unittest.TestCase):
         self.assertIn("never an assumption", text)
 
     def test_the_body_lists_the_commits(self):
-        self.assertRegex(flat(skill()), r"Changes \(the commits, in order — one bullet per "
-                                        r"commit")
-        self.assertIn("the Changes section lists every commit", flat(publish()))
+        self.assertRegex(flat(skill()), r"Changes \(the plan's `ahead` commits and the commits made, "
+                                        r"in order — one bullet per commit")
+        self.assertIn("the Changes section lists every commit on the branch past the default branch", flat(publish()))
 
 
 class TheSafetyRules(unittest.TestCase):
@@ -167,7 +167,7 @@ class TheSafetyRules(unittest.TestCase):
         with open(ci, encoding="utf-8") as fh:
             self.assertIn('EXEMPT_LABEL = "acs-exempt"', fh.read())
         text = flat(skill())
-        self.assertIn("(with no ticket, add `--label acs-exempt`)", text)
+        self.assertIn("(no ticket: also `acs-exempt`)", text)
         self.assertRegex(text, r"With no ticket a `ticket_link` error is expected")
         self.assertIn("/acs:merge-pr --pr <number>", text)
 

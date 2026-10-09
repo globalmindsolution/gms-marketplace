@@ -111,7 +111,7 @@ C4. **Commit** with `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-pla
    `{external_key_line}` renders as ` — tracker: <provider> <key>` when
    `ticket.external` is set, empty otherwise); replace the template's HTML comments
    with real content and DELETE the comments; fill every section strictly from the
-   state files and the commits made — the Changes section lists every commit
+   state files and the commits made — the Changes section lists every commit on the branch past the default branch (the plan's `ahead` plus the ones made)
    (short sha, subject, paths) in order. Checklist items are `[x]` ONLY when
    code-state substantiates them (e.g. review loop passed only when
    `review.findings_open == 0`) — an unearned tick is a lie the reviewer of the

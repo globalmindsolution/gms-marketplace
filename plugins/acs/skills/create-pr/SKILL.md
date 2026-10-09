@@ -174,11 +174,15 @@ C1. **Plan.**
    `git status` to make one.
 
    - A non-zero exit is the answer: surface its message and stop failed.
-   - **No groups** (nothing left to commit — the work was committed by an
-     earlier invocation or by hand): skip C2–C4 and publish the branch the
-     plan names, which must exist locally (`git rev-parse --verify
-     <branch>`); a missing branch with nothing to commit means there is
-     nothing to ship — say so and stop failed.
+   - **No groups** (nothing left to commit — the work is already committed,
+     pushed or not): skip C2–C3 and run C4 only to cut the plan's branch at
+     HEAD when you are not on it (detached HEAD, or the default branch with
+     commits ahead of origin). `ahead` is the plan's list of commits HEAD
+     carries that the default branch does not, `pushed` whether origin has the
+     branch at HEAD; the publish phase skips the push when `pushed` is true.
+     No groups and no `ahead` means there is nothing to ship — say so and stop
+     failed. Uncommitted changes beside `ahead` commits are planned as usual;
+     the PR carries both.
 
 C2. **Preview and confirm — ONE grouped question.** Show the user the whole
    plan in one AskUserQuestion: the branch, then each group in order as its
@@ -270,7 +274,7 @@ C4. **Commit.**
    prompt or the documents — or of the doc sets changed); no script renders it. This is the exact value passed **verbatim** as the `title` of step 5's create/update — no further transformation. The ticket is
    named by the body's Ticket section, not the title.
    Body: Summary (from specs scope + design decision), Ticket (id, title,
-   type, external key), Changes (the commits, in order — one bullet per
+   type, external key), Changes (the plan's `ahead` commits and the commits made, in order — one bullet per
    commit: short sha, subject, the paths it carries — plus `specs_implemented`
    and `docs_updated`), Test plan (from
    `tests.passed/failed/coverage_percent/coverage_target` and the specs' test

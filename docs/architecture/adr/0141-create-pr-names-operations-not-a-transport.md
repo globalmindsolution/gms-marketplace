@@ -32,6 +32,13 @@ PR for the branch, create or update the PR, label it — and the classification 
 - The report says which access was used, and a PR, label or comment that was not actually
   made is never reported.
 
+The plan also reports the state the work is in: `ahead` (commits HEAD carries past the
+default branch) and `pushed` (origin has the branch at HEAD). Uncommitted, committed
+and unpushed, committed on the default branch or a detached HEAD, and already pushed
+all ship through the same flow: `pr commit` with no groups only cuts the branch at HEAD,
+the push is skipped when `pushed`, and the PR body lists every commit past the default
+branch, not just those this run made.
+
 `create-ticket` and `merge-pr` keep 0088 as written until the same change is made there.
 
 ## Consequences

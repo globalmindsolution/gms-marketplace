@@ -334,12 +334,51 @@ def _slice_groups(records, slices, ticket_id):
     return groups
 
 
+def base_ref(root):
+    """The ref a PR would be cut against: origin's default branch when the
+    clone has it, else a local `main`/`master`, else None."""
+    proc = changes._run_git(root, ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+                            check=False)
+    candidates = [proc.stdout.decode().strip()] if proc.returncode == 0 else []
+    candidates += ["refs/remotes/origin/main", "refs/remotes/origin/master",
+                   "refs/heads/main", "refs/heads/master"]
+    for ref in candidates:
+        if ref and changes._run_git(root, ["rev-parse", "--verify", "--quiet", ref],
+                                    check=False).returncode == 0:
+            return ref
+    return None
+
+
+def ahead_commits(root):
+    """[{sha, subject}] oldest first: the commits HEAD carries that the default
+    branch does not -- work already committed (pushed or not) before create-pr."""
+    ref = base_ref(root)
+    if not ref or not changes.head_sha(root):
+        return []
+    out = changes._run_git(root, ["log", "--reverse", "--format=%H%x09%s", "%s..HEAD" % ref],
+                           check=False).stdout.decode("utf-8", "replace")
+    return [{"sha": s, "subject": subj} for s, _, subj in
+            (line.partition("\t") for line in out.splitlines() if line)]
+
+
+def is_pushed(root, branch):
+    """Is origin's copy of `branch` at HEAD? False for a branch that is not on
+    origin, or is behind/ahead of it, so the push still happens."""
+    if not branch:
+        return False
+    proc = changes._run_git(root, ["rev-parse", "--verify", "--quiet",
+                                   "refs/remotes/origin/%s" % branch], check=False)
+    return proc.returncode == 0 and proc.stdout.decode().strip() == changes.head_sha(root)
+
+
 def _envelope(root, subject, mode, base, tree, groups, left_out, excluded):
+    branch = proposed_branch(root, subject)
     return {"mode": mode, "run_id": subject.get("run_id"),
             "ticket_id": subject.get("ticket_id"),
-            "branch": proposed_branch(root, subject),
+            "branch": branch,
             "current_branch": changes.current_branch(root),
             "base": base, "tree": tree, "groups": groups,
+            "ahead": ahead_commits(root), "pushed": is_pushed(root, branch),
             "left_out": sorted(left_out), "excluded": sorted(excluded)}
 
 
@@ -455,7 +494,12 @@ def validate_plan(root, plan):
             errors.append("%r is not a valid branch name" % branch)
     groups = plan.get("groups")
     if not isinstance(groups, list) or not groups:
-        return errors + ["the plan has no groups to commit"]
+        # Nothing to commit is fine when the work is already committed: the
+        # branch is then cut at HEAD. Re-read git; never trust the plan's copy.
+        if not errors and ahead_commits(root):
+            return errors
+        return errors + ["the plan has no groups to commit, and HEAD carries no "
+                         "commits ahead of the default branch"]
     pending = uncommitted(root)
     seen = {}
     for index, group in enumerate(groups):
