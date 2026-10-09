@@ -24,7 +24,7 @@ evals/
 ├── setup/                    # 6 cases: does /acs:setup configure exactly what was asked?
 │   ├── _fixtures/            # the repo every case starts from (not a case)
 │   └── <case>/               # prompt.md + case.yaml (scaffold.sh) + graders/
-├── behaviour/                # 102 cases: 2–9 per skill, every mode — what did it DO? (behaviour/README.md)
+├── behaviour/                # 103 cases: 2–9 per skill, every mode — what did it DO? (behaviour/README.md)
 │   ├── _fixtures/repo.sh     # the shared repo; state seeded through the plugin's own CLIs
 │   └── <case>/               # + calibration.py, baseline.criteria.md, and once recorded baseline.jsonl
 └── results/                  # written by each run; gitignored

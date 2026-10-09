@@ -21,6 +21,7 @@
           "children": {"type": "array", "items": {"type": "string"}},
           "external": {"oneOf": [{"type": "object"}, {"type": "null"}]},
           "features": {"type": "array", "items": {"type": "string"}},
+          "requirements": {"type": "array", "items": {"type": "string"}},
           "archived": {"type": "boolean"},
           "updated_at": {"type": "string", "format": "date-time"}
         },

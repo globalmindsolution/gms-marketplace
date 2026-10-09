@@ -42,18 +42,30 @@ coordinator and reads each file itself:
 - Never invent scope: every criterion traces to a sentence of the requirements,
   a `C-<n>` answer or the feature's analysis (refined criteria there seed yours).
 
-## PRD trace and features
+## The PRD link — features and requirements (ADR-0144)
 
-- `prd_trace.feature` names the PRD feature or goal the ticket traces to — a feature
-  by the requirement ids its own PRD gives (`<slug>/R2`) when the ticket delivers
-  some of them (an
-  epic: also its roadmap milestone), as the PRD names it; `null` when no PRD
-  exists. When the request goes beyond the PRD, `prd_trace.divergence` is a
-  one-line statement of how — the coordinator puts it to the user; never hide it.
-- `features` are the slugs of those PRD features, each made with `python3
-  "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" slug --text "<PRD feature name>"`
-  (ADR-0120); `[]` when it traces to none. Never coin a slug for a feature the
-  PRD does not have.
+Tickets are made from the PRD: the repo has one (the skill refuses to start
+without it), and every ticket links it.
+
+- `features` are the slugs of the PRD features the ticket serves — at least one,
+  for every type. A feature's slug is the folder of its own PRD,
+  `<prd_dir>/features/<slug>/prd.md`, linked from the hub's Features index; never
+  coin a slug the PRD does not have.
+- `requirements` are the requirement ids it delivers, each `<slug>/R<n>` — the
+  `**R<n>**` lines of that feature PRD's `## Requirements`. A **story** names at
+  least one: its value IS a requirement. An epic, a task or a bug names the ones
+  it delivers or fixes when there are any. Base each criterion on the
+  requirement it delivers, and name the id beside it in `draft.md`.
+- `prd_trace.feature` is the linked feature as the PRD names it (an epic: also its
+  roadmap milestone); `prd_trace.divergence` is always `null`.
+- **Work the PRD does not describe is not a ticket yet.** When the request goes
+  beyond every feature PRD — a new capability, a requirement no `R<n>` covers —
+  say so as an `open_questions` entry naming what is missing; never stretch a
+  link to cover it. The coordinator stops and points the user at `/acs:create-prd`.
+- Check the link before you hand the draft in: `python3
+  "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket link-check --type <type>
+  --features <slugs> --requirements <ids>` — `ok: true`, or each problem it lists
+  is fixed or is an `open_questions` entry.
 
 ## References — cite the documents that exist, never invent one
 
@@ -98,9 +110,10 @@ needs to ask the user:
 | `acceptance_criteria` | the criteria, as an array of strings |
 | `priority` | `critical`, `high`, `medium` or `low` |
 | `story_points` | an integer, or `null` |
-| `features` | the slugs, or `[]` |
+| `features` | the linked feature slugs, at least one |
+| `requirements` | the `<slug>/R<n>` ids it delivers (a story: at least one), or `[]` |
 | `docs_only` | `true` only when the change touches documentation alone (a recommendation; the coordinator confirms it) |
-| `prd_trace` | `{"feature": …, "divergence": …}` |
+| `prd_trace` | `{"feature": …, "divergence": null}` |
 | `flags` | `[{"criterion": <1-based index>, "reason": "…"}]` — every criterion you could not make concrete |
 | `open_questions` | what the inputs do not settle, one string each |
 | `assumptions` | `[{"assumption": "…", "reason": "…"}]` |

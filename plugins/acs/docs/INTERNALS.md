@@ -844,7 +844,7 @@ every other key below is persisted verbatim from the result document:
 |-------|-----------------------------------|
 | create-prd | `prd` `{path}`, `files: [...]` (the hub, the roadmap and the feature PRDs, left uncommitted for `/acs:create-pr`) |
 | create-architecture | `architecture` `{path, hld:[...]}`, `files: [...]` (every HLD path written, left uncommitted) |
-| create-ticket | `ticket_id`, `type`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
+| create-ticket | `ticket_id`, `type`, `children: [ids]`, `prd_trace` `{feature, divergence}` (`divergence` always null since ADR-0144: the post-hook refuses a completed run whose ticket does not link the PRD) |
 | breakdown-ticket | `ticket_id`, `type` (always `epic` after the run), `converted_from` (`story`/`task` when a split converted the ticket, else `null`), `children: [ids]` (the parent's full list), `minted: [ids]` (this run's), `design_status` (the tech design's status, or `null`) — ADR-0138 |
 | create-tech-design | `design_path` (the published `tech-design.md` — the run's Design folder `lld/<feature>/<id>/`, or the partition when there is no checkout), `decision` (one line) |
 | create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — left as uncommitted changes for `/acs:create-pr`), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |

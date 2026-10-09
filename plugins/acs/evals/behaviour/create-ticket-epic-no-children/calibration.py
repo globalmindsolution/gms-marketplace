@@ -44,7 +44,7 @@ def _finish(ws, ttype="epic", children=()):
 
 
 EPIC = {"title": "[EPIC] Order tracking", "type": "epic", "children": [],
-        "priority": "high",
+        "priority": "high", "features": ["order-tracking"],
         "description": "## Summary\n\nShoppers track an order from payment to delivery.\n\n## Notes\n\nacs-ticket: EVAL-1\n",
         "acceptance_criteria": ["A shopper sees the current status of each of their orders",
                                 "A shopper is emailed on every order status change"]}
@@ -86,7 +86,16 @@ def _typed_story(ws):
     _finish(ws, ttype="story")
 
 
+def _unlinked(ws):
+    """An epic linking no PRD feature: the post-hook refuses the run (ADR-0144)."""
+    _start(ws)
+    _drafted(ws)
+    _save(ws, **dict(EPIC, features=[]))
+    _finish(ws)
+
+
 BAD = {
+    "linked no PRD feature": _unlinked,
     "fired the skill, allocated, wrote nothing": _started_only,
     "minted children in the creation run": _minted_children,
     "typed it a story": _typed_story,

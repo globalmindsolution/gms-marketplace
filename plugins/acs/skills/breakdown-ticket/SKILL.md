@@ -114,6 +114,7 @@ Each proposed child carries:
 | `type` | `story` (user-visible capability), `task` (technical work, no user story) or `bug` (a defect the design or plan found) |
 | `acceptance_criteria` | concrete and testable — the rules in `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/authoring-rules.md` "Acceptance criteria"; FLAG any you could not make concrete |
 | `features` | the parent's, inherited by `new-ticket.py`; narrowed only when the child clearly serves fewer of them |
+| `requirements` | the `<slug>/R<n>` ids of the linked feature PRDs this child delivers (a story: at least one; ADR-0144). Together the children cover every requirement the parent names — an uncovered one is a gap in the coverage table |
 | `priority`, `story_points` | the parent's priority unless the ordering says otherwise; points per the rubric |
 
 **Size every child to ONE reviewable PR** with create-ticket's sizing rubric
@@ -136,7 +137,7 @@ edits the breakdown.** Present, in ONE interaction:
 3. on a split, any downstream work that already exists (a plan, specs, a branch):
    prior state files stay in the epic's partition as history, and the children
    start their own pipelines fresh — say so;
-4. the children table (title, type, points, features, criteria) with every
+4. the children table (title, type, points, features, requirements, criteria) with every
    FLAGGED criterion marked, and the coverage table;
 5. an optional due date per child ("YYYY-MM-DD, or blank").
 
@@ -173,12 +174,14 @@ out impossible to write as confirmed, stop and say so (Finish, failure path).
 2. **Mint each confirmed child** not already in the parent's `children`:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --story-points 3
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --story-points 3 --requirements wishlist/R1 --require-prd-link
    ```
 
    It mints the child id, writes BOTH link directions (child `parent`, parent
    `children`) and copies the parent's `features` to the child (pass `--features
-   <slugs>` only to narrow them, `--due-date` only when one was given). A `bug`
+   <slugs>` only to narrow them, `--due-date` only when one was given).
+   `--require-prd-link` is always passed: a child whose link to the PRD is not
+   sound (`acs.py ticket link-check`) is refused before an id is spent. A `bug`
    child takes its bug fields (`--severity`, `--reproduction`, `--expected`,
    `--actual`, `--environment`) when the breakdown settled them. Capture each
    printed `ticket_id`. Children never run `/acs:create-ticket`: their pipeline

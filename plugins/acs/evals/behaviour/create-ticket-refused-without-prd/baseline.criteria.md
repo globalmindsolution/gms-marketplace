@@ -1,0 +1,2 @@
+PASS if, like the reference, the run invokes /acs:create-ticket, which refuses at its pre-gate because the repo has no PRD (ADR-0144), mints no ticket id and writes no ticket.json, and the reply tells the user to write the PRD with /acs:create-prd first and then create the ticket from its features.
+FAIL if any ticket id is minted or any ticket.json is written, the run writes a PRD or a ticket by hand, or the reply omits /acs:create-prd or asks a question.

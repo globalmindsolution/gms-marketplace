@@ -42,6 +42,7 @@ Usage:
   acs.py result validate --skill code result.json
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py ticket link-check --type story --features wishlist --requirements wishlist/R1
   acs.py pr metadata fill --ticket MAR-1 --pr 42
   acs.py pr plan-commits [--ticket MAR-1] [--run R] [--out plan.json]
   acs.py pr commit --plan plan.json
@@ -112,7 +113,7 @@ from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_sho
     cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
     cmd_run_check, cmd_run_new, cmd_run_next, cmd_run_show, cmd_slug,
     cmd_step_finish, cmd_step_show, cmd_step_start, cmd_ticket_save,
-    cmd_ticket_references, cmd_ticket_show, cmd_tracker_refresh, cmd_tracker_sync,
+    cmd_ticket_link_check, cmd_ticket_references, cmd_ticket_show, cmd_tracker_refresh, cmd_tracker_sync,
     cmd_verdict_show,
     cmd_workflow_show, cmd_workflow_validate)
 import acs_analysis_commands  # noqa: E402
@@ -271,6 +272,15 @@ def build_parser():
     save.add_argument("--from", dest="source", metavar="FILE",
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
+
+    link = ticket_sub.add_parser(
+        "link-check", help="whether a ticket may link these PRD features and requirements "
+                           "(ADR-0144)")
+    link.add_argument("--type", dest="ttype", required=True, choices=lib.TICKET_TYPES)
+    link.add_argument("--features", default="", help="comma-separated feature slugs")
+    link.add_argument("--requirements", default="",
+                      help="comma-separated `<slug>/R<n>` requirement ids")
+    link.set_defaults(func=cmd_ticket_link_check)
 
     refs = ticket_sub.add_parser(
         "references", help="the documents that exist for a ticket's features (ADR-0140)")
