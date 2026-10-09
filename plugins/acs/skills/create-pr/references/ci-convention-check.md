@@ -10,7 +10,8 @@ before it.
 
 The check exempts, by fixed rule, a PR labelled `acs-exempt` and branches
 `release/*`, `dependabot/*` and `renovate/*`; every other PR's description must
-name its ticket as an id, a `#<n>` reference or an issue link. A PR from a run
+name its ticket as an id, a `#<n>` reference or an issue link, or declare a
+change with no ticket in a line of its own, `Ticket: none — <reason>` (ADR-0143). A PR from a run
 with no ticket (`/acs:create-pr "<prompt>"`) names none and carries
 `acs-exempt`, so a red check on one means the label did not land — verify the
 labels before anything else.

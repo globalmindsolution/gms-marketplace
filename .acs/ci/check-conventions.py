@@ -6,9 +6,11 @@ acs convention check — self-contained (Python stdlib only).
 and wires it into a GitHub Actions workflow.
 
 It checks ONE thing: that the PR description names its ticket -- the acs id
-(`ACS-12`), a `#<n>` issue reference, or an issue link (ADR-0106). The
-description is where a PR is linked to its ticket (ADR-0105); branch names,
-titles and commit subjects are free, and no label is required.
+(`ACS-12`), a `#<n>` issue reference, or an issue link (ADR-0106) -- or says
+in a line of its own that there is none, with the reason: `Ticket: none --
+<reason>` (ADR-0143), for a change that has no ticket (a ticketless run,
+ADR-0127). The description is where a PR is linked to its ticket (ADR-0105);
+branch names, titles and commit subjects are free, and no label is required.
 
 No acs plugin install is required on the runner. The only setting read is
 `ticket_prefix` from the committed `.acs/settings.json` (default `ACS`, ADR-0105),
@@ -95,11 +97,20 @@ def ticket_link_re(prefix):
     return re.compile(r"\b%s-\d+\b|(?<![\w/&])#\d+\b|/issues/\d+\b" % re.escape(prefix))
 
 
+#: A line that declares the change has no ticket, and why: `Ticket: none -- <reason>`
+#: (an em or en dash, a hyphen or a colon before the reason). The reason is
+#: required, so the declaration is a statement and not a switch.
+NO_TICKET_RE = re.compile(r"^[ \t>*_-]*Ticket:[ \t]*none[ \t]*[\u2014\u2013:-][ \t]*\S",
+                          re.IGNORECASE | re.MULTILINE)
+
+
 def _check_ticket_link(settings, ctx, prefix, res):
-    if not ticket_link_re(prefix).search(ctx.get("body") or ""):
+    body = ctx.get("body") or ""
+    if not (ticket_link_re(prefix).search(body) or NO_TICKET_RE.search(body)):
         res.errors.append(("ticket_link",
             "PR description names no ticket: add its id (e.g. %s-12), a #<issue> "
-            "reference or an issue link." % prefix))
+            "reference or an issue link -- or, for a change with no ticket, a line "
+            "`Ticket: none -- <reason>`." % prefix))
 
 
 _CHECKERS = {"ticket_link": _check_ticket_link}
@@ -142,7 +153,7 @@ def _emit(res):
         print("acs conventions: exempt (%s) — checks skipped." % res.exempt)
         return 0
     if res.passed:
-        print("acs conventions: the PR names its ticket.")
+        print("acs conventions: the PR names its ticket (or says it has none).")
         return 0
     summary = "acs conventions: %d violation(s) found.\n" % len(res.errors)
     (print(summary) if in_actions else sys.stderr.write(summary + "\n"))
