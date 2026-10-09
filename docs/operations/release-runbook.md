@@ -55,34 +55,34 @@ the step-by-step the maintainer follows.
 2. **Cut the release — recommended: `/acs:release <version>`.** This
    one-command skill runs `release_notes.py status` → `draft` → `bump`
    (drafting and dating the CHANGELOG section from the merged-ticket archive
-   plus the `base_branch` git-history fallback), bumps all four manifests +
+   plus the `base_branch` git-history fallback), bumps all three manifests +
    the Devin meta-plugin's `ref`, and opens the exempt `release/*` PR, then
    stops for a mandatory human merge (ADRs 0050-0052). The manual steps below
    are the underlying mechanism it automates, and remain the documented
    fallback if the skill is unavailable:
-   1. **Bump the version** — set the same `version` in all four files
-      `release.version_locations` lists: `.claude-plugin/marketplace.json`,
+   1. **Bump the version** — set the same `version` in the three files
+      `release.version_locations` lists:
       `plugins/acs/.claude-plugin/plugin.json`,
       `plugins/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
-      CI checks each Devin manifest against `marketplace.json`, so skipping one
-      fails the cut (`.devin-plugin/plugin.json version != marketplace.json
-      version`). Leave the marketplace `acs` entry's `source` string
-      `"./plugins/acs"` **untouched** — that entry is no longer a pinned
-      `git-subdir` object, so there is nothing to repoint: the ref the
-      marketplace itself was installed at *is* the pin. Rewriting it back into
-      the pinned-object shape is what broke the install twice (recorded in
-      `.github/workflows/ci.yml`). The one ref to set is
+      `.claude-plugin/marketplace.json` carries **no version** and is not
+      touched by a cut: the marketplace is never released. Its `acs` entry's
+      `source` is a `git-subdir` object with `ref: "acs-stable"`, a branch the
+      Release workflow advances to each tag — leave it alone, and never
+      replace it with a tag or a SHA (`git clone --branch` rejects a bare SHA;
+      a version-named ref goes stale on the next cut). The one ref to set is
       `requiredPlugins[0].ref` in `.devin-plugin/plugin.json` → `v<version>`;
       this is what `release.extra_refs` automates.
    2. **Update the changelog** — add the matching section to
       [`plugins/acs/CHANGELOG.md`](../../plugins/acs/CHANGELOG.md) (Keep a Changelog
       format); this becomes the release notes.
    3. **Open the release PR**, get CI green, and merge (squash). On merge the
-      Release workflow cuts the immutable `v<version>` tag and publishes the
-      release from the changelog section.
-3. **Verify the tag** resolves and the plugin installs from it:
+      Release workflow cuts the immutable `v<version>` tag, publishes the
+      release from the changelog section and moves `acs-stable` to the tag.
+      The first release after this change creates the branch; run the
+      workflow by hand (`workflow_dispatch`) to seed or repair it.
+3. **Verify the release** resolves and the plugin installs from it:
    ```bash
-   claude plugin marketplace add globalmindsolution/gms-marketplace@v<version>
+   claude plugin marketplace add globalmindsolution/gms-marketplace
    claude plugin install acs@gms-marketplace
    ```
 

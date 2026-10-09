@@ -1,33 +1,36 @@
 name: Release
 
-# Single automated release for the gms-marketplace catalog and its acs plugin,
-# which share ONE version. To ship a release:
-#   1. Bump "version" in BOTH .claude-plugin/marketplace.json AND
-#      plugins/acs/.claude-plugin/plugin.json to the SAME value (CI enforces
-#      they match), following semver: MAJOR for breaking changes to
-#      skills/hooks/state contracts, MINOR for new backwards-compatible
-#      capability, PATCH for backwards-compatible fixes.
-#   2. Nothing to repoint in marketplace.json: the acs entry's source is the
-#      relative path "./plugins/acs", so an install resolves it inside the
-#      marketplace ref it was installed at. The Devin meta-plugin still pins a
-#      tag, so set the acs entry's "ref" in .devin-plugin/plugin.json
-#      requiredPlugins to "v<version>". The tag is created by this same push,
-#      so that ref resolves once this workflow runs.
+# Per-plugin release for acs. The marketplace is NOT versioned or released:
+# marketplace.json carries no "version", and the acs entry is a git-subdir
+# source pinned to the moving branch `acs-stable`, which this workflow advances
+# to each release tag. A consumer therefore updates the plugin alone
+# (`claude plugin update acs@gms-marketplace`); nothing re-pins the marketplace.
+# To ship a release:
+#   1. Bump "version" in plugins/acs/.claude-plugin/plugin.json and in
+#      plugins/acs/.devin-plugin/plugin.json and .devin-plugin/plugin.json to
+#      the SAME value (CI enforces they match), following semver: MAJOR for
+#      breaking changes to skills/hooks/state contracts, MINOR for new
+#      backwards-compatible capability, PATCH for backwards-compatible fixes.
+#   2. Set the acs entry's "ref" in .devin-plugin/plugin.json requiredPlugins
+#      to "v<version>" (the tag is created by this same push). Leave
+#      marketplace.json alone: its ref is the stable branch, never a version.
 #   3. Add a matching "## [<version>] - YYYY-MM-DD" section to
 #      plugins/acs/CHANGELOG.md (move entries out of [Unreleased]).
-#   4. Merge to main. This workflow reads the marketplace version, and if tag
-#      v<version> does not exist yet, creates an annotated tag, and creates a
+#   4. Merge to main. This workflow reads the plugin version, and if tag
+#      v<version> does not exist yet, creates an annotated tag, creates a
 #      GitHub release whose notes are that changelog section (capped below
-#      GitHub's 125000-character body limit, linking the full CHANGELOG). If
+#      GitHub's 125000-character body limit, linking the full CHANGELOG), and
+#      fast-forwards (force-moves) branch `acs-stable` to the tagged commit. If
 #      the tag and the release both exist, it skips gracefully; a tag with no
-#      release (a previously failed publish) gets its release created.
-#      Consumers pin with @v<version>.
+#      release (a previously failed publish) gets its release created. The
+#      branch is always (re)pointed at the tag, so a failed run self-heals.
+#      Seed or repair the branch with workflow_dispatch.
 
 on:
   push:
     branches: [main]
     paths:
-      - .claude-plugin/marketplace.json
+      - plugins/acs/.claude-plugin/plugin.json
   workflow_dispatch:
 
 permissions:
@@ -45,11 +48,9 @@ jobs:
       - name: Read version
         id: version
         run: |
-          MANIFEST=".claude-plugin/marketplace.json"
+          MANIFEST="plugins/acs/.claude-plugin/plugin.json"
           VERSION="$(python3 -c "import json; print(json.load(open('${MANIFEST}'))['version'])")"
-          # Prefer the human-readable displayName for the release title; fall
-          # back to name if displayName is absent.
-          TITLE="$(python3 -c "import json; m=json.load(open('${MANIFEST}')); print(m.get('displayName') or m['name'])")"
+          TITLE="$(python3 -c "import json; print(json.load(open('${MANIFEST}'))['name'])")"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "title=${TITLE}" >> "$GITHUB_OUTPUT"
           echo "Release version: ${VERSION}"
@@ -140,3 +141,12 @@ jobs:
           gh release create "${TAG}" \
             --title "${{ steps.version.outputs.title }} ${TAG}" \
             --notes-file release-notes.md
+
+      - name: Advance the acs-stable branch
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The marketplace's acs entry clones this branch (a branch, never a
+          # bare SHA: `git clone --branch` rejects one). Point it at the tag.
+          git push --force origin "refs/tags/${TAG}^{commit}:refs/heads/acs-stable"

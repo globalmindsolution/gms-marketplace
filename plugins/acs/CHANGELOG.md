@@ -19,6 +19,18 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-09
+
+### Fixed
+
+- **The marketplace is no longer released.** `marketplace.json` drops its
+  `version`, and the `acs` entry becomes a `git-subdir` source on the
+  `acs-stable` branch, which the Release workflow moves to each `v<version>`
+  tag. Consumers update the plugin alone (`claude plugin update
+  acs@gms-marketplace`); the release trigger is `plugin.json`, and the cut bumps
+  three manifests instead of four. Per-marketplace pinning
+  (`marketplace add …@v<x>`) no longer applies.
+
 ## [0.6.0] - 2026-10-08
 
 ### Added
