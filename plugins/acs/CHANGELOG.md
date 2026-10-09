@@ -19,21 +19,6 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
-### Changed
-
-- **BREAKING: `/acs:create-prd` writes a hub plus one PRD per feature, with parallel authors.**
-  `prd.md` keeps its eight sections, but **Features (prioritized)** is now an index: MoSCoW groups,
-  each bullet linking `features/<slug>/prd.md` and naming its goal ids. Every feature gets its own
-  PRD beside its analysis (Summary, Goals served, Requirements `R<n>`, Acceptance criteria,
-  Dependencies, Out of scope). The write fans out like the survey and the review: a `hub` author
-  writes `prd.md` and `roadmap.md` first, then one `feature-<slug>` author per feature runs in
-  parallel, and a reviewer finding goes to the author that owns its file. A new deterministic
-  `prd_feature_check.py` joins the review floor, `prd_conformance_check.py` accepts a feature PRD
-  as an answer anchor (`--feature-notes`), every document is versioned, `design list` groups a
-  feature's PRD with its analysis (the group is now labelled `feature <slug>`), and a ticket's PRD
-  link is the feature's own `prd.md`. There is no compatibility layer: a single-file PRD is split
-  by its next `/acs:create-prd` run (ADR-0142).
-
 ## [0.6.2] - 2026-10-09
 
 ### Changed

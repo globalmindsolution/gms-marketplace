@@ -1,6 +1,6 @@
 # 0130 — PRD documents are versioned; `/acs:set-doc-status` approves and moves document status
 
-**Status**: Accepted — amended by [0135](0135-create-tech-design.md) (§4: `design list` lists a run's `tech-design.md` from its per-run Design folder) and [0142](0142-prd-hub-and-feature-prds.md) (the block reaches every feature PRD) · **Date**: 2026-10-05
+**Status**: Accepted — amended by [0135](0135-create-tech-design.md) (§4: `design list` lists a run's `tech-design.md` from its per-run Design folder) · **Date**: 2026-10-05
 
 **Amends**: [0122](0122-design-versions-and-gap-detection.md) (the version front
 matter reaches the PRD and the roadmap; a status move gains a skill, an approver

@@ -135,7 +135,7 @@ class CreatePrdSkillContractTest(unittest.TestCase):
         return skill_contract("create-prd")
 
     def test_author_region_states_mapping_table_duty(self):
-        window = section(self._skill_md(), "### Author — the write")
+        window = section(self._skill_md(), "### Author — the hub, then one writer per feature")
         self.assertIn("Release versions", window)
         self.assertIn("mapping table", window)
 

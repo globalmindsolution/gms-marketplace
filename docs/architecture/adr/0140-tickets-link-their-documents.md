@@ -1,6 +1,6 @@
 # 0140 — Tickets link their documents: a `## References` section, found from the standard layout
 
-**Status**: Accepted — amended by [0142](0142-prd-hub-and-feature-prds.md) (the PRD link is the feature's own `prd.md`, not a heading anchor) · **Date**: 2026-10-06
+**Status**: Accepted · **Date**: 2026-10-06
 
 **Amends**: [0088](0088-gh-only-github-transport-and-criticality-classification.md)
 (a new `gh` operation, `acs.py tracker refresh`'s `gh issue view` / `gh issue

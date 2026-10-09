@@ -176,10 +176,7 @@ No branch is prepared: the authors write into the working tree on whatever
 branch is checked out, and the documents stay there as uncommitted changes
 (Delivery below).
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/documents.md` (the
-shapes) and `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/author-slices.md`
-(the sequence) before the first author spawn. The authors — the only roles that
-mutate the repo — write:
+The authors — the only roles that mutate the repo — write:
 
 - `<prd>`, the hub, with EXACTLY the eight `required_sections`; **Features
   (prioritized)** (MoSCoW: Must/Should/Could/Won't) is the index, one bullet per
@@ -200,9 +197,8 @@ mutate the repo — write:
     a release cut.
 - In amend mode: edit the documents in place, preserving untouched sections
   exactly (verify with `git diff` over the whole set); update `roadmap.md` only
-  where the amendment changes it. The leading front-matter block is exempt from
-  that rule and is never an author's: they neither write, edit nor remove it
-  (Versions below).
+  where the amendment changes it. The leading front-matter block is exempt from the byte-for-byte rule
+  and is never an author's: they neither write, edit nor remove it (Versions below).
 
 Each author completes the `## Answer fidelity` anchors against the text it
 wrote. Should one return `needs_input` (a product fact the answers do not
@@ -215,6 +211,10 @@ and amend mode's diff discipline spans both, so no partition two writers could
 own exists. The feature PRDs are disjoint, derive from the hub's index and run in
 parallel after it. No integration pass follows: the index is the seam, and the
 floor checks it.
+
+Read `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/documents.md` (the shapes)
+and `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/author-slices.md` (the
+sequence) before the first author spawn.
 
 ### Versions — after every author result (ADR-0122, ADR-0130)
 
@@ -348,8 +348,7 @@ MANDATORY final step — never skipped, also on failure.
      "summary": "PRD created and reviewed; left as local changes",
      "states": {
        "prd": {"path": "docs/product"},
-       "files": ["docs/product/prd.md", "docs/product/roadmap.md",
-                 "docs/product/features/wishlist/prd.md"]
+       "files": ["docs/product/prd.md", "docs/product/roadmap.md"]
      },
      "findings": [],
      "errors": []
@@ -357,7 +356,8 @@ MANDATORY final step — never skipped, also on failure.
    ACS_EOF
    ```
 
-   `files` lists EVERY repo path written, repo-relative, feature PRDs included —
+   `files` lists EVERY repo path written, repo-relative, each feature PRD
+   (`docs/product/features/<slug>/prd.md`) too —
    `/acs:create-pr` groups exactly these into the PRD's commit. On failure keep whatever is true:
    status `failed`, remaining reviewer findings in `findings`, `states.prd` and,
    in `states.files`, the files written so far, and the reason in `summary`.

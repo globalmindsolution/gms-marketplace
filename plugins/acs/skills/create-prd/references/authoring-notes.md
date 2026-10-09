@@ -20,8 +20,10 @@ reviewer's semantic ceiling then judges. Never invent or omit them.
   `clarifications.json` entry:
 
   ```
-  - C-<n> — <prd.md|roadmap.md|features/<slug>/prd.md> — "<verbatim anchor text>"
+  - C-<n> — <prd.md|roadmap.md> — "<verbatim anchor text>"
   ```
+
+  (A feature PRD is a target too: `features/<slug>/prd.md` in place of the file name.)
 
   or, for an answer that yields no verbatim text:
 

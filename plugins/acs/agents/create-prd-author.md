@@ -126,7 +126,7 @@ your files (`git status --short` for a new one) and revert stray hunks.
 
 **The version front matter is never yours.** A file may open with a `---`
 block (`status`, `version`, `tickets`, maybe `status_by`/`status_at`/
-`status_reason`): leave it exactly as it is and write the sections below it. A new
+`status_reason`): never write, edit, reorder or remove it — the leading front-matter block is exempt from the byte-for-byte rule. Write the sections below it. A new
 file starts at its title, with no block. The coordinator initialises and bumps it
 through `acs.py design` (ADR-0122, ADR-0130).
 
