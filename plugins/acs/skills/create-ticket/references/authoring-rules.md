@@ -47,10 +47,11 @@ coordinator and reads each file itself:
 Tickets are made from the PRD: the repo has one (the skill refuses to start
 without it), and every ticket links it.
 
-- `features` are the slugs of the PRD features the ticket serves — at least one,
+- `features` are the slugs of those PRD features the ticket serves — at least one,
   for every type. A feature's slug is the folder of its own PRD,
-  `<prd_dir>/features/<slug>/prd.md`, linked from the hub's Features index; never
-  coin a slug the PRD does not have.
+  `<prd_dir>/features/<slug>/prd.md`, linked from the hub's Features index (the
+  same slug `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" slug --text
+  "<PRD feature name>"` prints, ADR-0120); never coin a slug the PRD does not have.
 - `requirements` are the requirement ids it delivers, each `<slug>/R<n>` — the
   `**R<n>**` lines of that feature PRD's `## Requirements`. A **story** names at
   least one: its value IS a requirement. An epic, a task or a bug names the ones

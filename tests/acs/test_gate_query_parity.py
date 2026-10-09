@@ -156,7 +156,8 @@ class GateQueryParityTest(GateQueryCase):
         out = self.assert_parity("breakdown-ticket", bug)
         self.assertEqual(out.returncode, 2, out.stderr)
         self.assertIn("is a bug", out.stderr)
-        epic = self.new_ticket("Checkout revamp", "epic")
+        self.write_prd()  # children are made from the PRD (ADR-0144)
+        epic = self.new_ticket("Checkout revamp", "epic", "--features", "wishlist")
         out = self.assert_parity("breakdown-ticket", epic)
         self.assertEqual(out.returncode, 0, out.stderr)
 

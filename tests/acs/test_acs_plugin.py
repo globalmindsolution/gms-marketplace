@@ -48,13 +48,18 @@ class TestDispatcher(AcsWorkspaceCase):
 
 
 class TestGates(AcsWorkspaceCase):
+    def setUp(self):
+        super().setUp()
+        self.write_prd()  # create-ticket is made from the PRD (ADR-0144)
+
     def test_a_repo_that_never_ran_setup_is_not_blocked(self):
         """ADR-0105: every setting has a default, so no /acs:setup is needed
         first -- and the state the gate writes stays out of `git status`."""
         plain = os.path.join(self.tmp, "plain")
         os.makedirs(plain)
         subprocess.run(["git", "init", "-q", plain], check=True)
-        result = self.pre("create-ticket", cwd=plain)
+        # create-prd: a plain repo has no PRD, which create-ticket would need.
+        result = self.pre("create-prd", cwd=plain)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("/acs:setup", result.stderr)
         status = subprocess.run(["git", "status", "--porcelain"], cwd=plain,
