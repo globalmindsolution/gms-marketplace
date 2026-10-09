@@ -32,6 +32,14 @@ GH_ACCESS_HINT = (
     "`gh` authentication and should not see this."
 )
 
+GH_GRAPHQL_MARKER = "GraphQL is not available"
+
+GH_GRAPHQL_HINT = (
+    "This session refuses GraphQL, which `gh repo view` and `gh pr "
+    "list/view/create/edit` use. Make the call through `gh api` REST instead "
+    "(create-pr: references/rest-transport.md)."
+)
+
 GH_GENERIC_HINT = "check `gh auth status` and repo access"
 
 
@@ -40,6 +48,8 @@ def gh_failure_hint(stderr_text):
     text = stderr_text if isinstance(stderr_text, str) else str(stderr_text or "")
     if GH_ACCESS_DENIED_MARKER in text:
         return GH_ACCESS_HINT
+    if GH_GRAPHQL_MARKER in text:
+        return GH_GRAPHQL_HINT
     return GH_GENERIC_HINT
 
 

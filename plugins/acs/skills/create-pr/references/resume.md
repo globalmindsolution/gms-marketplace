@@ -44,7 +44,7 @@ continuing:
      at C1 as a fresh run does.
 3. Re-check the publish phase: does the branch exist on origin
    (`git ls-remote origin <branch>`)? Does an open PR for it exist
-   (`gh pr list --head <branch> --state open --json number,url,baseRefName`)?
+   (the REST detect in `rest-transport.md`)?
    A PR recorded but missing remotely is not done; a PR that exists but was
    never recorded is done-but-unfinalized — verify it, then finish normally.
 4. Continue from the first unfinished phase of the recorded iteration, and

@@ -233,7 +233,7 @@ C4. **Commit.**
 
 1. **Branch and base.** The branch is the one C4 committed to (or C1 named).
    Detect the base branch here, BEFORE anything is pushed:
-   `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. That call
+   `gh api repos/{owner}/{repo} --jq .default_branch`. That call
    is **critical**, so its failure now stops the run before the push instead of
    after it; step 2 reuses the `<base>` it yields rather than detecting it
    again. The commits C4 made stay on the local branch; a re-run resumes at
@@ -242,8 +242,7 @@ C4. **Commit.**
    **One message for the independent calls.** None of these depends on
    another or on the push, so issue them as parallel Bash calls in ONE
    message: the base detect above, step 3's label create, and step 5's
-   open-PR detect (`gh pr list --head <branch> --state open --json
-   number,url,baseRefName,isDraft` — a PR can only exist for a branch already
+   open-PR detect (`references/rest-transport.md`, "Detect" — a PR can only exist for a branch already
    on origin, so the answer is the same before the push). Steps 3 and 5 reuse
    those results rather than running the calls again. A failed critical call
    among them stops the run before the push, as above.
@@ -268,8 +267,7 @@ C4. **Commit.**
    second time.
    Write the PR title directly — concise, normally the ticket's title
    (`ticket.json` `title`; with no ticket, a summary of the requirements — the
-   prompt or the documents — or of the doc sets changed); no script renders it. This is the exact value passed **verbatim** to `gh pr create --title` /
-   `gh pr edit --title` in step 5 — no further transformation. The ticket is
+   prompt or the documents — or of the doc sets changed); no script renders it. This is the exact value passed **verbatim** as the `title` of step 5's create/update — no further transformation. The ticket is
    named by the body's Ticket section, not the title.
    Body: Summary (from specs scope + design decision), Ticket (id, title,
    type, external key), Changes (the commits, in order — one bullet per
@@ -304,8 +302,8 @@ C4. **Commit.**
    ticket also ensures `acs-exempt` the same way and applies both labels at
    step 5.
 
-4. **Pre-open self-check.** Before either branch of step 5 runs `gh pr
-   create`/`gh pr edit`, self-check the filled body against exactly what CI
+4. **Pre-open self-check.** Before either branch of step 5 creates or
+   updates the PR, self-check the filled body against exactly what CI
    will check, with the helper's `check` subcommand — a deterministic CLI
    call, never a spawned subagent and never a plan/execute/verify triad — no
    new subagent role is introduced by this step:
@@ -335,7 +333,7 @@ C4. **Commit.**
      `check`. Cap the retry at a small bounded number of attempts (up to 2 re-fills) — this is a tight
      fix-and-recheck loop around one deterministic call, NOT a new
      plan/execute/verify iteration. If `check` still fails after the bounded
-     retries, STOP: do NOT call `gh pr create`/`gh pr edit`; surface a
+     retries, STOP: do NOT create or update the PR; surface a
      blocking problem naming the exact failing heading(s)/detail(s) from the
      helper's `errors`, write it into the phase artifact, and follow the
      Finish failure path — `states.pr` is omitted if no PR exists yet, or kept
@@ -343,31 +341,29 @@ C4. **Commit.**
      be re-validated. Never open or leave in place a PR known to be
      non-conforming as a result of this run.
    - Apply this identical self-check on BOTH the create path and the edit
-     path below — one `check` call before whichever `gh pr` command ends up
+     path below — one `check` call before whichever call ends up
      running.
 
 5. **Create or update PR.** Detect existing open PR — step 1's batch already
-   ran `gh pr list --head <branch> --state open --json number,url,baseRefName,isDraft`;
-   use its answer. If no open PR exists for the branch:
+   ran the REST detect (`references/rest-transport.md`); use its answer. If no open PR exists for the branch:
 
-   ```bash
-   gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file steps/create-pr/pr-body.md --label ACS
-   ```
-
-   (with no ticket, add `--label acs-exempt`). No `--draft` — PRs are created
-   ready-for-review. If an open PR already exists for the branch: update it
-   instead — `gh pr edit <number> --title "<PR title>" --body-file <body>
-   --add-label ACS`, plus `gh pr edit <number> --base <default-branch>` when
-   its base is wrong and `gh pr ready <number>` when it is a draft.
+   Use the REST calls in `references/rest-transport.md`, not `gh pr
+   create` / `gh pr edit` / `gh pr view` / `gh pr list` / `gh repo view`:
+   those porcelain commands are GraphQL-backed and a Claude Code session
+   refuses GraphQL (HTTP 403), while `gh api` REST works everywhere — still
+   `gh`, still the only transport (ADR-0141). Create with `ACS` as a label
+   (no ticket: also `acs-exempt`), ready-for-review, never a draft; an open
+   PR is updated in place (title, body, `ACS` label, base when wrong,
+   ready-for-review when a draft).
 
    When a milestone is known (mirrors create-ticket's conditional milestone
    fill — the repo defines at least one, or the ticket/settings names one
-   explicitly), both `gh pr create` and `gh pr edit` above additionally pass
-   `--milestone <name>`; omit the flag entirely when none is configured (this
+   explicitly), both the create and the update additionally pass
+   the milestone (`-F milestone=<number>`); omit the flag entirely when none is configured (this
    repo defines none today) — never an unconditional call that would error.
 
-6. **Record.** `gh pr view <branch> --json number,url,baseRefName,headRefName,isDraft,labels`
-   → capture `{number, url, branch, base}` for `states.pr`.
+6. **Record.** The create/update response (or the REST "Detect" read) carries
+   `number`, `html_url`, `base.ref`, `head.ref`, `draft` and labels → capture `{number, url, branch, base}` for `states.pr`.
 
 6a. **Tracker-metadata fill (github-tracker only).** When
    `settings.tracker.provider == "github"` AND `ticket.external.key` is set
@@ -451,10 +447,10 @@ exactly two classes:
 
 Per-call classification in this skill:
 
-- **Critical**: `gh pr list` (step 1, resume/create-vs-update detect);
-  `gh repo view --json defaultBranchRef` (step 1, base detect); `gh pr
-  create` / `gh pr edit` (step 5).
-- **Non-critical**: `gh pr ready` (step 5, un-draft); `gh pr view` (step 6,
+- **Critical**: the REST open-PR detect (step 1, resume/create-vs-update);
+  the REST default-branch read (step 1, base detect); the REST PR create /
+  update (step 5).
+- **Non-critical**: the un-draft call (step 5); the Record re-read (step 6,
   Record — a confirming re-read); the labels/assignee/milestone/type-label
   fill and its `gh label list` / `gh api …/milestones` reads (step 6a);
   Projects v2 `gh project item-add` / `field-list` / `item-edit` and the

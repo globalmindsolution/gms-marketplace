@@ -98,9 +98,9 @@ C4. **Commit** with `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-pla
 1. **Branch and base.** The branch is the one C4 committed to (or, with no
    groups to commit, the one C1 named — it must exist locally:
    `git rev-parse --verify <branch>`). Detect the base BEFORE anything is
-   pushed — `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`.
+   pushed — `gh api repos/{owner}/{repo} --jq .default_branch`.
    The base detect, step 3's label create and step 5's
-   `gh pr list` depend on nothing but the branch name: issue them as parallel
+   open-PR detect depend on nothing but the branch name: issue them as parallel
    Bash calls in ONE message (SKILL.md step 1) and reuse their answers.
    Then push: `git push -u origin <branch>`; skip the push when the branch is
    already on origin and current. A failed critical call stops the run before
@@ -126,17 +126,13 @@ C4. **Commit** with `acs.py pr commit --plan steps/create-pr/iter-<n>/commit-pla
    its bounded re-fill retry (SKILL.md step 4) — a deterministic call, not a
    subagent. A body that still fails is never opened.
 5. **Create or update.** Follow the branch's state
-   (`gh pr list --head <branch> --state open --json number,url,baseRefName,isDraft`):
-   - No open PR for the branch:
-     `gh pr create --base <default-branch> --head <branch> --title "<PR title>" --body-file steps/create-pr/pr-body.md --label ACS`
-     (no ticket: plus `--label acs-exempt`) — no `--draft`; PRs ship
-     ready-for-review.
-   - An open PR already exists: update it —
-     `gh pr edit <number> --title "<PR title>" --body-file <body> --add-label ACS`,
-     plus `gh pr edit <number> --base <default-branch>` when its base is wrong and
-     `gh pr ready <number>` when it is a draft.
-6. **Record.** `gh pr view <branch> --json number,url,baseRefName,headRefName,isDraft,labels`
-   — capture `{number, url, branch, base}` into the publish report and, at
+   (`rest-transport.md`, "Detect"):
+   - No open PR for the branch: create it with the REST call in
+     `rest-transport.md` (title verbatim, body from `pr-body.md`, label `ACS`;
+     no ticket: plus `acs-exempt`) — no draft; PRs ship ready-for-review.
+   - An open PR already exists: update it with the REST calls there (title,
+     body, `ACS` label, base when wrong, ready-for-review when a draft).
+6. **Record.** The REST create/update response (`rest-transport.md`) — capture `{number, url, branch, base}` into the publish report and, at
    Finish, into `states.pr` for the /acs:merge-pr gate; never report a PR you
    did not confirm live.
 6a. **Tracker-metadata fill (github-tracker only)** — only when
@@ -241,7 +237,7 @@ How the run ends, and what the report then says:
   `acs.py pr commit` printed (with no ticket: the run's requirements and the changed
   files) — a section the
   state cannot fill stays honest and minimal.
-- If `git push` or `gh pr create` fails, capture the exact stderr plus the
+- If `git push` or the PR create call fails, capture the exact stderr plus the
   canonical hint from `acs_lib.gh_failure_hint` in the report's `problems` and
   the result document's `errors` (critical, per create-pr/SKILL.md's
   classification — no fallback to any other transport); never retry
