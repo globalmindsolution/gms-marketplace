@@ -8,8 +8,9 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-pr. Your job: get the changes we made
 into a pull request, whatever state they are in — uncommitted, committed,
 committed but unpushed, or already pushed. This is the ONLY acs skill that
-creates a branch, stages, commits or pushes (ADR-0127). Do the work yourself,
-inline, with no subagent, and use your judgment on the mechanics: the goal and
+creates a branch, stages, commits or pushes (ADR-0127). You spawn no subagent:
+run the work inline, following `references/publish.md` for the details that are
+easy to get wrong, and use your judgment on the mechanics: the goal and
 the few rules below are fixed, the commands are yours to choose.
 
 Compose the title and body from workspace state (the run's requirements, the
@@ -26,7 +27,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-pr
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim. Do not improvise a
-workaround. The pre-hook refuses only a run whose recorded review left the
+workaround. If it prints `DEGRADED ENFORCEMENT` (the hooks did not fire), the run
+continues ungated: put that in the report's Findings. The pre-hook refuses only a run whose recorded review left the
 verifier failing; it does not require `/acs:code` or `/acs:docs-sync` to have
 run, so treat a missing `steps/code/state.json` as "no recorded implementation".
 
@@ -38,6 +40,13 @@ Read the printed context JSON: `run_id`, `subject`, `requirements.path`,
 checkout's current run); a ticketless run has no ticket id in commit subjects,
 no ticket reference or tracker sync in the PR, and lands with
 `/acs:merge-pr --pr <number>`.
+
+## Resume & reconcile
+
+When `context.reconcile` is true (the previous invocation ended `interrupted` or
+`failed`) or `context.handoff_summary` exists, read `references/resume.md` first
+and verify recorded state against git and origin before committing or creating
+anything. A fresh run skips it.
 
 ## What to do
 
@@ -67,17 +76,35 @@ no ticket reference or tracker sync in the PR, and lands with
    from the `pr-default` template (a repo's `.acs/templates/pr-default.md`
    replaces it) — Summary, Ticket, Changes (every commit on the branch past the
    default branch), Test plan, Checklist ticked only where state evidences it
-   (`review.findings_open == 0` for the review tick). Label it `ACS`; a run
-   with no ticket also gets `acs-exempt`, because CI fails any PR that names no
-   ticket unless that label exempts it. If an open PR already exists for the
-   branch, update it instead of opening a second one. Before opening, check the
-   body with `pr-conventions.py check --body-file <body> --ticket-prefix <prefix>`
-   and fix what it reports (a missing ticket link is expected with no ticket).
-5. **Fill the metadata and sync the tracker (github tracker, ticket only).**
-   `acs.py pr metadata fill --pr <number>` and a comment on the remote issue
-   with the PR URL. Best-effort: a failure is a finding with its command, never
-   a stop.
-6. **Record** `{number, url, branch, base}` for the result.
+   (`review.findings_open == 0` for the review tick). The Ticket section carries
+   the GitHub-native issue link `Closes #{external_key}` when the ticket's
+   `external.provider` is `github`. For a local or unsynced ticket the bullet is omitted. Label it `ACS` (create the label if missing); a run with no
+   ticket also gets `acs-exempt`, because CI fails any PR that names no ticket
+   unless that label exempts it. If an open PR already exists for the branch,
+   update it instead of opening a second one. Before opening, self-check the
+   body against what CI checks:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
+     --body-file <body> --ticket-prefix <settings.ticket_prefix>
+   ```
+
+   A failing check blocks the PR: fix the body and re-check, at most twice, then
+   stop failed rather than open a non-conforming PR (a missing ticket link is
+   expected with no ticket; only the placeholder and leftover-comment scans must
+   pass).
+5. **Record** `{number, url, branch, base}` for the result, and write the
+   publish report (mode, plan path, commits made, what was pushed, the PR,
+   sync results, problems, which GitHub access you used) to
+   `steps/create-pr/iter-<n>/publish.json` through `acs.py write`. State lives
+   on disk, not in the conversation: a fresh session must be able to resume
+   from these files alone. Write every state file with `acs.py write`, never
+   the Write tool.
+6. **Fill the metadata and sync the tracker (github tracker, ticket only).**
+   Once the PR number is known, run `acs.py pr metadata fill --pr <number>` and
+   comment on the remote issue with `gh issue comment`
+   (`references/publish.md`). Skipped with no ticket or an unsynced ticket;
+   best-effort otherwise: a failure is a finding with its command, never a stop.
 
 Use whatever GitHub access works in this session — normally `gh`. The
 `gh pr …` and `gh repo view` commands use GraphQL, which a Claude Code session
@@ -92,18 +119,32 @@ actually made, and say which access you used. A red "Branch / PR / commit
 conventions" check after opening: read `references/ci-convention-check.md`
 before believing it.
 
-## Questions
+## User interaction
 
-Run `clarify.py list` first and reuse recorded answers; record every Q&A with
+Clarification ledger first. Run `clarify.py list` and reuse recorded answers; record every Q&A with
 `clarify.py add --skill create-pr --question "..." --answer "..."` before acting
-on it, and ask several open questions in one grouped interaction. The commit
+on it, ask several open questions in one grouped interaction, and never skip a
+question, merge two into one entry, or auto-answer one outside the
+`--source assumption --rationale` rule. The commit
 preview is the only routine question. Ask something else only when reality
 diverges from state (the branch carries commits the plan does not account for,
 or an open PR for the branch was authored outside ACS with a conflicting base).
-If you cannot reach the user and the request holds no approval of the plan,
-commit nothing: record the question as `open`, finish `interrupted` /
-`needs_input`, and return a `<handoff skill="create-pr" status="needs_input">`
-with the plan in a `<question>`.
+Under /acs:ship, or when you cannot reach the user and the request holds no
+approval of the plan, commit nothing: record the question as `open`, finish
+`interrupted` with `stop_reason: needs_input`, and return a `<handoff
+skill="create-pr" status="needs_input">` carrying the plan in a `<question>`.
+
+## Failure paths
+
+Every outcome ends in Finish. `failed`: the plan or `pr commit` is refused, a
+critical GitHub call has no working route, the body still fails
+`pr-conventions.py check` after fixing it, or there is nothing to ship — put the
+reason in `summary` and `errors`, keep whatever is true (commits made, a PR that
+was created), and omit `states.pr` if no PR exists. `interrupted`: the user
+cancelled at the preview (`stop_reason` says so), or input is needed (above).
+Never undo a commit already made, and never retry destructively.
+
+## Context pressure
 
 If your context runs low, flush progress to `steps/create-pr/handoff-context.md`,
 run `handoff.py --run <run_id> --summary "<done / in-flight / next / decisions>"`,
