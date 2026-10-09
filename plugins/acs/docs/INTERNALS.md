@@ -15,7 +15,7 @@ component follows.
 | Skills | `plugins/acs/skills/<name>/SKILL.md` | 30 |
 | Subagents | `plugins/acs/agents/<skill>-<role>.md` | 40 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `breakdown-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
 | Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 20 pre + 20 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 20 pre + 20 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 16 |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,prd_feature_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 20 pre + 20 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 17 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
@@ -514,7 +514,7 @@ copy of the writing, so no skill runs a planning pass before its writer
 (ADR-0092). Where a skill's work genuinely has two jobs — a read-only survey
 that ends in questions, then a write after the answers — the jobs are two
 roles (ADR-0109): `create-prd` runs a surveyor on iteration 1 only, and its
-author writes from the frozen notes. Every other skill's writer surveys
+authors — a `hub` author, then one per feature (ADR-0142) — write from the frozen notes. Every other skill's writer surveys
 first and records the survey in its authoring notes. On iteration 2+ the
 judge's findings feed straight into the next write role's `<context>`, and
 the writer authors the remediation. `/acs:create-impl-plan`'s `planner` is the
@@ -842,7 +842,7 @@ every other key below is persisted verbatim from the result document:
 
 | Skill | Required `states` keys on success |
 |-------|-----------------------------------|
-| create-prd | `prd` `{path}`, `files: [...]` (the PRD and roadmap, left uncommitted for `/acs:create-pr`) |
+| create-prd | `prd` `{path}`, `files: [...]` (the hub, the roadmap and the feature PRDs, left uncommitted for `/acs:create-pr`) |
 | create-architecture | `architecture` `{path, hld:[...]}`, `files: [...]` (every HLD path written, left uncommitted) |
 | create-ticket | `ticket_id`, `type`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
 | breakdown-ticket | `ticket_id`, `type` (always `epic` after the run), `converted_from` (`story`/`task` when a split converted the ticket, else `null`), `children: [ids]` (the parent's full list), `minted: [ids]` (this run's), `design_status` (the tech design's status, or `null`) — ADR-0138 |
@@ -1138,7 +1138,7 @@ keyed by the run's feature (ADR-0128):
 
 | Phase | Folder | Documents |
 |---|---|---|
-| Discovery | `<prd_dir>/features/<feature>/` | the feature's living analysis, the `analysis/` folder (ADR-0133; ADR-0122 front matter + `feature` on every file) |
+| Discovery | `<prd_dir>/features/<feature>/` | the feature's own PRD `prd.md` (ADR-0142; `/acs:create-prd` writes it, ADR-0122 front matter) and its living analysis, the `analysis/` folder (ADR-0133; ADR-0122 front matter + `feature` on every file) |
 | Design | `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/` | `tech-design.md` (ADR-0135; a legacy `design.md` is still read), `api-contract.md` (the per-run record linking the interface files it wrote, ADR-0134); the living `lld/<feature>/{api,data,flows,components}/` stays edited in place (ADR-0126, ADR-0134) |
 | Development | `<development_dir>/<feature>/<ticket-id or run-id>/` | a Development run's `analysis/` folder (ADR-0133), `plan.md`, `test-cases.md` |
 

@@ -59,6 +59,8 @@ LLD_DIRNAME = "lld"
 ANALYSIS_DIRNAME = "analysis"
 ANALYSIS_ENTRY = "README.md"
 LEGACY_ANALYSIS_FILENAME = "analysis.md"
+#: A feature's own PRD inside its folder (ADR-0142).
+FEATURE_PRD_FILENAME = "prd.md"
 
 #: The per-run documents and the phase folder each is filed under. analysis.md
 #: is the one whose side depends on the run: Discovery (the feature root) for
@@ -235,6 +237,12 @@ def feature_dir(root, feature, settings=None):
     if not (root and feature):
         return None
     return _join(root, prd_dir(root, settings), FEATURES_DIRNAME, feature)
+
+
+def feature_prd_path(root, feature, settings=None):
+    """The feature's own PRD: `<prd_dir>/features/<f>/prd.md` (ADR-0142)."""
+    folder = feature_dir(root, feature, settings)
+    return os.path.join(folder, FEATURE_PRD_FILENAME) if folder else None
 
 
 def feature_analysis_dir(root, feature, settings=None):

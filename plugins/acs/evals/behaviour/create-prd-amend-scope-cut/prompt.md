@@ -4,7 +4,8 @@ description: >-
   tracking, which the existing PRD lists as a Should-have with its own v2.6.0
   milestone. It should run ticketless, move order tracking to Won't and Out
   of scope, drop its milestone and release row from the roadmap, leave every
-  other section byte-for-byte, and leave both documents as uncommitted local
+  other section and every feature PRD byte-for-byte (the cut feature keeps
+  its link and its document), and leave both documents as uncommitted local
   changes listed in states.files -- no ticket, branch, commit, push or PR
   (ADR-0127).
 expected_outcome: >-
@@ -12,7 +13,7 @@ expected_outcome: >-
   Vision through Goals and the NFR and Constraints sections unchanged;
   docs/product/roadmap.md keeps Checkout v2.5.0 and no longer mentions
   v2.6.0; both files' front matter is bumped from approved v1 to proposed
-  v2; HEAD is still the scaffold's last commit on main and nothing was
+  v2 while every feature PRD stays approved v1; HEAD is still the scaffold's last commit on main and nothing was
   pushed; the step finished with both files in states.files and no PR.
 tags: [behaviour]
 max_turns: 150

@@ -176,9 +176,18 @@ class ReviewerIndependenceUnchangedTest(unittest.TestCase):
 
 def slice_table(body, first_id):
     """{slice id: (dimension numbers, owns-the-run-of cell)} from the reviewer
-    slice table that opens with the `first_id` row."""
-    rows = {}
+    slice table that opens with the `first_id` row (the author's slice table
+    is another table, so only the block of table lines holding `first_id`)."""
+    blocks, block = [], []
     for line in body.splitlines():
+        if line.startswith("|"):
+            block.append(line)
+        elif block:
+            blocks.append(block)
+            block = []
+    blocks.append(block)
+    rows = {}
+    for line in next((b for b in blocks if any("`%s`" % first_id in l for l in b)), []):
         m = re.match(r"^\| `([a-z-]+)` \| ([^|]+) \| (.+) \|$", line)
         if m:
             rows[m.group(1)] = ([int(n) for n in re.findall(r"(?:^|, )(\d+) ", m.group(2))],
@@ -215,6 +224,7 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertRegex(self.norm, r"\*\*two or more disjoint top-level areas\*\*")
         self.assertIn("Greenfield never slices", self.norm)
         self.assertIn("Slice `lead` owns", self.norm)
+        self.assertIn("`## Feature set` (a draft: the `hub` author finalizes it)", self.norm)
         self.assertIn("no directory belongs to two slices", self.norm)
         self.assertIn('<constraint name="survey_area">', self.body)
         self.assertIn("--out <partition>/steps/create-prd/iter-1/authoring.md", self.norm)
@@ -233,12 +243,36 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertIn("`## Synthesis`", author)
         self.assertIn("Never silently pick one side", author)
 
-    def test_the_author_is_never_sliced_and_says_why(self):
-        self.assertIn("**One author, never sliced — on every iteration.**", self.norm)
+    def test_the_author_is_the_hub_then_one_per_feature_and_says_why(self):
+        """ADR-0142: the coupled prd.md + roadmap.md pair is ONE writer that runs
+        first; the disjoint feature PRDs fan out after it."""
+        self.assertIn("### Author — the hub, then one writer per feature", self.body)
+        self.assertIn("**The hub is one author, and runs first.**", self.norm)
         self.assertIn("`roadmap.md` derives from `prd.md`", self.norm)
-        self.assertNotRegex(self.norm, r"(?i)MAY run two authors in parallel")
-        self.assertNotIn("-<k>", read(PRD_AUTHOR))
         self.assertIn("No integration pass follows", self.norm)
+        self.assertNotRegex(self.norm, r"(?i)MAY run two authors in parallel")
+        self.assertNotIn("One author, never sliced", self.norm)
+        table = slice_table(self.body, "hub")
+        self.assertEqual(sorted(table), ["hub"])
+        self.assertIn("first, alone", table["hub"][1])
+        self.assertIn("| `feature-<slug>` |", self.body)
+        self.assertIn("after `hub`, every one together in ONE message", self.norm)
+        self.assertIn("`features_to_write`", self.body)
+        self.assertIn("iter-<n>/author-slices.json", self.body)
+
+    def test_findings_route_to_the_author_that_owns_the_file(self):
+        self.assertIn("Route each finding verbatim to the `<context>` of the slice that owns its",
+                      self.norm)
+        self.assertIn("a feature PRD → that feature's slice", self.norm)
+
+    def test_the_agent_names_both_kinds_of_slice(self):
+        author = norm(read(PRD_AUTHOR))
+        self.assertIn('slice="hub"', author)
+        self.assertIn('slice="feature-<slug>"', author)
+        self.assertIn("iter-<n>/author-<id>.json", author)
+        self.assertIn("steps/create-prd/features/<slug>/notes.md", author)
+        self.assertIn("`features_to_write`", author)
+        self.assertIn("documents.md", author)
 
     def test_reviewer_slices_and_the_floor_cover_every_dimension(self):
         """Every dimension is owned exactly once, except 7, split along its

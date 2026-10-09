@@ -12,6 +12,9 @@ from .artifacts import TICKETS_PATH
 #: other folder under lld/<feature>/ is one change's design records.
 LLD_LIVING = {"api", "data", "flows", "components"}
 
+#: A feature's own PRD, `<prd_dir>/features/<feature>/prd.md` (ADR-0142).
+FEATURE_PRD = "prd.md"
+
 
 def doc_set(path):
     """(key, label) of the doc set a document belongs to."""
@@ -29,15 +32,16 @@ def doc_set(path):
             return "lld/%s/%s" % (feature, raw), "%s design records" % raw
         return ("lld/%s" % feature, "LLD %s" % feature) if feature else ("lld", "LLD")
     if "features" in dirs:
-        # A feature's living analysis: the folder `features/<f>/analysis/`
-        # (ADR-0133) -- every file of it one group -- or the single
+        # A feature's Discovery documents, one group: its PRD
+        # `features/<f>/prd.md` (ADR-0142), its living analysis folder
+        # `features/<f>/analysis/` (ADR-0133) or the single
         # `features/<f>/analysis.md` it replaced.
         at = dirs.index("features")
         feature = dirs[at + 1] if at + 1 < len(dirs) else None
         folder = at + 3 == len(dirs) and dirs[at + 2] == "analysis"
-        single = at + 2 == len(dirs) and name == "analysis.md"
+        single = at + 2 == len(dirs) and name in ("analysis.md", FEATURE_PRD)
         if feature and (folder or single):
-            return "prd/features/%s" % feature, "feature %s analysis" % feature
+            return "prd/features/%s" % feature, "feature %s" % feature
     if "hld" in dirs:
         return "hld", "HLD"
     if "development" in dirs:

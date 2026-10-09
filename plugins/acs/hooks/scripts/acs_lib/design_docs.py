@@ -23,7 +23,7 @@ skill reads is derived from this record, not asserted by an agent.
 first (it exists, its block is valid, the move is legal) and none is written
 when any is refused. `list_documents` is the deterministic lister behind
 `acs.py design list` and /acs:set-doc-status: the Discovery documents (PRD,
-roadmap, each feature's living analysis folder) and the Design documents (HLD, each feature's living
+roadmap, each feature's own PRD and living analysis folder) and the Design documents (HLD, each feature's living
 LLD), grouped by phase and doc set, each with the moves it may make. A
 change's tech design (ADR-0135, `lld/<f>/<key>/tech-design.md`) is the one
 per-run record listed: the hand-off the team approves before implementation,
@@ -37,7 +37,7 @@ import re
 from ._common import GateError, TICKET_ID_RE, _ISO_INSTANT, now_iso
 from . import doc_layout, yamlsubset
 from .artifacts import render_front_matter
-from .doc_sets import LLD_LIVING, doc_order, doc_set
+from .doc_sets import FEATURE_PRD, LLD_LIVING, doc_order, doc_set
 
 STATUSES = ("proposed", "approved", "implemented", "deprecated")
 
@@ -296,8 +296,12 @@ def candidates(root, settings=None):
            if os.path.isfile(os.path.join(prd, name))]
     features = os.path.join(prd, doc_layout.FEATURES_DIRNAME)
     for f in _subdirs(features):
-        # A feature's living analysis: its folder's files (ADR-0133), and the
-        # single analysis.md of before it while one is still there.
+        # A feature's own PRD (ADR-0142), then its living analysis: its
+        # folder's files (ADR-0133), and the single analysis.md of before it
+        # while one is still there.
+        feature_prd = os.path.join(features, f, FEATURE_PRD)
+        if os.path.isfile(feature_prd):
+            out.append(("discovery", feature_prd))
         legacy = os.path.join(features, f, doc_layout.LEGACY_ANALYSIS_FILENAME)
         if os.path.isfile(legacy):
             out.append(("discovery", legacy))

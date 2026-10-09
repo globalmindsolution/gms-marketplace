@@ -44,7 +44,9 @@ coordinator and reads each file itself:
 
 ## PRD trace and features
 
-- `prd_trace.feature` names the PRD feature or goal the ticket traces to (an
+- `prd_trace.feature` names the PRD feature or goal the ticket traces to — a feature
+  by the requirement ids its own PRD gives (`<slug>/R2`) when the ticket delivers
+  some of them (an
   epic: also its roadmap milestone), as the PRD names it; `null` when no PRD
   exists. When the request goes beyond the PRD, `prd_trace.divergence` is a
   one-line statement of how — the coordinator puts it to the user; never hide it.

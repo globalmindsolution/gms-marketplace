@@ -152,7 +152,7 @@ class SetDocStatusSkillTest(unittest.TestCase):
         seen = {(g["phase"], g["key"], g["label"]) for g in groups}
         self.assertEqual(seen, {
             ("discovery", "prd", "PRD"),
-            ("discovery", "prd/features/wishlist", "feature wishlist analysis"),
+            ("discovery", "prd/features/wishlist", "feature wishlist"),
             ("design", "hld", "HLD"),
             ("design", "lld/wishlist", "LLD wishlist"),
         })

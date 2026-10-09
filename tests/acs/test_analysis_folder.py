@@ -337,7 +337,7 @@ class TestDocSetsAndDesignList(FolderCase):
                      "docs/product/features/export/analysis/order-export.md",
                      "docs/product/features/export/analysis.md"):
             self.assertEqual(doc_sets.doc_set(path),
-                             ("prd/features/export", "feature export analysis"), path)
+                             ("prd/features/export", "feature export"), path)
         self.assertEqual(doc_sets.doc_set("docs/development/export/SHOP-1/analysis/README.md"),
                          ("development/export/SHOP-1", "SHOP-1 docs"))
         self.assertNotEqual(doc_sets.doc_set("docs/product/features/export/notes.md")[0],

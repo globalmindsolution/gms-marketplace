@@ -49,7 +49,8 @@ Narrow it when the arguments already name a phase or a feature:
 problems, allowed}]}]}`, deterministically ordered:
 
 - **Discovery** — the PRD (`<prd_dir>/prd.md`), the roadmap, and each feature's
-  living analysis (`<prd_dir>/features/<f>/analysis.md`);
+  own PRD (`<prd_dir>/features/<f>/prd.md`) with its living analysis
+  (`<prd_dir>/features/<f>/analysis/`) in one `feature <f>` group;
 - **Design** — the HLD (`<architecture_dir>/hld/*.md`) and each feature's LLD
   (`<architecture_dir>/lld/<f>/{api,data,flows,components}/**`), plus each
   change's tech design `lld/<f>/<id>/tech-design.md` — the hand-off

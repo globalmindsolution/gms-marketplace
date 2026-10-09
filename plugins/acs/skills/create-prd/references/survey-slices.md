@@ -17,9 +17,9 @@ above.
 (including an existing `<prd>` and `<roadmap>`) and the whole-product sections
 of the notes: `## Mode & evidence`, the product-level `## PRD outline` (Vision,
 Problem statement, personas, goals with their candidate metrics),
-`## Roadmap outline`, `## Roadmap milestones` and `## Answer fidelity` — so each
-ledger id gets its one line from one slice — plus the ADR-0012
-doc-consistency step. Every other slice is one code area, named by its
+`## Roadmap outline`, `## Roadmap milestones`, `## Feature set` (a draft: the
+`hub` author finalizes it) and `## Answer fidelity` — so each ledger id gets its
+one line from one slice — plus the ADR-0012 doc-consistency step. Every other slice is one code area, named by its
 directory basename (`api`, `web-app`, `billing`), and owns only
 that area's paths: it records the features, product NFRs and code evidence its
 area proves under `## PRD outline` and `## Code evidence`, candidate milestones
@@ -44,7 +44,7 @@ two slices survey — or cite — the same path.
 
 3. Put the open questions of ALL slices to the user in ONE grouped
    clarification-ledger ask (User interaction) — never one ask per slice.
-4. The author then runs exactly as below from the joined `iter-1/authoring.md`
+4. The `hub` author then runs exactly as below from the joined `iter-1/authoring.md`
    — and **synthesizes** it, because a mechanical join is not a synthesis:
    where two slices' notes contradict each other (one feature described two
    ways, an area's code evidence against a `lead` goal or constraint, a
@@ -52,9 +52,10 @@ two slices survey — or cite — the same path.
    with the evidence that settles it under a `## Synthesis` heading of
    `iter-1/authoring.md`, or returns `needs_input` with the contradiction as a
    question — never silently picks one side. It also reconciles
-   `## Roadmap milestones` with the milestone headings it actually writes. No
-   integration pass follows: there is one author, so there are no writer
-   seams to reconcile.
+   `## Roadmap milestones` with the milestone headings it actually writes, and
+   settles `## Feature set` from the features the area slices proved (one slug
+   per feature, none twice); the feature authors are cut from that final list.
+   No integration pass follows: the hub's index is the one seam.
 
 A slice that returns `failed` or no usable `<result>` fails the survey: re-run
 the failed slices once (together, in ONE message); still failing → fail the

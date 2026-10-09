@@ -109,8 +109,9 @@ publish to: `publish` refuses until Stage 2 records one.
    The analysis maps the requirements onto that decision; it never re-opens it.
 3. The PRD and the living requirements set when they exist — what the
    product already promises about this area, and the feature list the
-   feature slug is chosen from (`<prd_dir>/prd.md`, the feature folders under
-   `<prd_dir>/features/`). Locate them, and the architecture set below, the
+   feature slug is chosen from (`<prd_dir>/prd.md`, whose Features index links
+   each feature's own PRD — its requirements `R<n>` and acceptance criteria — and
+   the feature folders under `<prd_dir>/features/`). Locate them, and the architecture set below, the
    way any session finds a document: CLAUDE.md and whatever docs index it or
    the repo points at (e.g. `docs/README.md`), then a Glob/Grep by file name
    or content (`prd.md`, a `requirements/` folder, `hld/tech-stack.md`;

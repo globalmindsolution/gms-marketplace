@@ -7,7 +7,7 @@ work?" -- found in the STANDARD LAYOUT (`acs_lib.doc_layout`), so a ticket
 minted before ADR-0140 finds them as well -- and turns each into a link to the
 remote's DEFAULT BRANCH:
 
-  prd          `<prd_dir>/prd.md`, anchored at the heading naming each feature
+  prd          `<prd_dir>/prd.md` and each feature's own PRD (`<prd_dir>/features/<f>/prd.md`)
   analysis     the feature's living analysis (`<prd_dir>/features/<f>/analysis/`)
   hld          `hld/overview.md`, plus every HLD view whose text names the feature
   lld          the feature's living LLD (`lld/<f>/{api,data,flows,components}/**`)
@@ -37,7 +37,7 @@ import subprocess
 import tempfile
 from urllib.parse import quote
 
-from ._common import GateError, _git, slugify
+from ._common import GateError, _git
 from . import changes, doc_layout, yamlsubset
 from .doc_sets import LLD_LIVING
 from .forge import _render_command, finding
@@ -201,36 +201,6 @@ def headings(text):
     return out
 
 
-def _names(heading):
-    """The feature names a heading may spell: the heading, a `Feature: <name>`
-    heading's name, each with a trailing `(...)` or ` — ...` dropped."""
-    text = _LINK_RE.sub(r"\1", heading).replace("*", "").replace("`", "").strip()
-    found = []
-    match = re.match(r"(?i)^feature\s*:\s*(.+)$", text)
-    for name in ([match.group(1)] if match else []) + [text]:
-        found.append(name.strip())
-        short = re.split(r"\s+[(—–-]|\s*\(", name, 1)[0].strip()
-        if short:
-            found.append(short)
-    return list(dict.fromkeys(n for n in found if n))
-
-
-def feature_heading(prd_text, feature):
-    """(heading text, anchor, name) of the PRD heading naming `feature`, or
-    None: a `Feature: <name>` heading first, then any heading, whose name
-    slugs to the feature."""
-    found = headings(prd_text)
-    for wanted_feature_form in (True, False):
-        for _level, text, anchor in found:
-            is_feature = bool(re.match(r"(?i)^\W*feature\s*:", text))
-            if is_feature != wanted_feature_form:
-                continue
-            for name in _names(text):
-                if slugify(name) == feature:
-                    return text, anchor, name
-    return None
-
-
 # ---------------------------------------------------------------------------
 # Reading one document
 # ---------------------------------------------------------------------------
@@ -318,16 +288,18 @@ def _entry(kind, file, anchor=None, title=None):
     return {"kind": kind, "file": file, "anchor": anchor, "title": title}
 
 
-def _prd_entries(root, prd_rel, features):
-    text = _read(_abs(root, prd_rel))
-    out, names = [], {}
+def _prd_entries(root, prd_rel, prd, features):
+    """The product PRD (the hub) once, then each feature's own PRD
+    (`features/<f>/prd.md`, ADR-0142) that exists; `names` maps a feature to
+    the title its PRD opens with, for the HLD documents that name it."""
+    out, names = [_entry("prd", prd_rel)], {}
     for feature in features:
-        found = feature_heading(text, feature)
-        if found:
-            out.append(_entry("prd", prd_rel, found[1], found[0]))
-            names[feature] = found[2]
-        else:
-            out.append(_entry("prd", prd_rel))
+        rel = _join(prd, doc_layout.FEATURES_DIRNAME, feature, doc_layout.FEATURE_PRD_FILENAME)
+        if not os.path.isfile(_abs(root, rel)):
+            continue
+        title = _meta(_abs(root, rel))[0]
+        out.append(_entry("prd", rel, None, title))
+        names[feature] = re.sub(r"(?i)^\W*(feature|prd)\s*[:—–-]\s*", "", title).strip()
     return out, names
 
 
@@ -360,7 +332,7 @@ def _feature_entries(root, dirs, features):
     prd_file = _join(prd, "prd.md")
     out, names = [], {}
     if os.path.isfile(_abs(root, prd_file)):
-        out, names = _prd_entries(root, prd_file, features)
+        out, names = _prd_entries(root, prd_file, prd, features)
     for feature in features:
         folder = _join(prd, doc_layout.FEATURES_DIRNAME, feature)
         legacy = _join(folder, doc_layout.LEGACY_ANALYSIS_FILENAME)
@@ -616,6 +588,6 @@ def refresh_issue(gh, key, block, dry_run=False):
 
 __all__ = ["START_MARKER", "END_MARKER", "KINDS", "NO_REFERENCES", "NO_WEB_REMOTE",
            "web_base_for_url", "web_base", "blob_url", "default_branch", "fetch_default",
-           "published", "github_anchor", "headings", "feature_heading", "report",
+           "published", "github_anchor", "headings", "report",
            "references_for_ticket", "references_for_features", "dedupe", "render_block",
            "current_block", "apply_block", "write_body_block", "refresh_issue"]

@@ -88,7 +88,7 @@ not settle is `status="needs_input"` with the question.
 The survey pass writes the authoring notes and NO doc file; the HLD is the write
 pass's job, from the notes, after the user has answered the open points.
 
-1. Read every file listed in `<inputs>` — `prd.md` and `roadmap.md` first; they are the
+1. Read every file listed in `<inputs>` — `prd.md`, `roadmap.md` and the feature PRDs it links first; they are the
    bar the architecture is verified against. When the task's `prd` constraint says
    there is none, that bar is the goals, product-level NFRs and constraints the
    coordinator recorded from the run's requirements (the `C-<n>` entries in `<context>`,
