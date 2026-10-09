@@ -114,7 +114,7 @@ Each proposed child carries:
 | `type` | `story` (user-visible capability), `task` (technical work, no user story) or `bug` (a defect the design or plan found) |
 | `acceptance_criteria` | concrete and testable — the rules in `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/authoring-rules.md` "Acceptance criteria"; FLAG any you could not make concrete |
 | `features` | the parent's, inherited by `new-ticket.py`; narrowed only when the child clearly serves fewer of them |
-| `requirements` | the `<slug>/R<n>` ids of the linked feature PRDs this child delivers (a story: at least one; ADR-0144). Together the children cover every requirement the parent names — an uncovered one is a gap in the coverage table |
+| `requirements` | the `<slug>/R<n>` ids of the linked feature PRDs this child delivers (a story: at least one; a technical task may link nothing; ADR-0144). Together the children cover every requirement the parent names — an uncovered one is a gap in the coverage table |
 | `priority`, `story_points` | the parent's priority unless the ordering says otherwise; points per the rubric |
 
 **Size every child to ONE reviewable PR** with create-ticket's sizing rubric

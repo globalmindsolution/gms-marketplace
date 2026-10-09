@@ -1,4 +1,4 @@
 schema_version: "1.1"
-name: create-ticket-refused-without-prd
+name: create-ticket-technical-task-without-prd
 context:
   scaffold_script: scaffold.sh

@@ -10,8 +10,8 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-ticket. Turn `$ARGUMENTS` (requirements — a raw
 request, a bug report, documents in the repo or attached from outside it, or a mix of
 them — or a remote tracker key) into ONE schema-complete ticket in the workspace
-partition: typed (`epic`, `story`, `task` or `bug`), clarified, created from the PRD
-and linked to it (ADR-0144), and optionally synced to the tracker. A ticket records no design flag (ADR-0139): a
+partition: typed (`epic`, `story`, `task` or `bug`), clarified, linked to the PRD
+(a technical task may link nothing, ADR-0144), and optionally synced to the tracker. A ticket records no design flag (ADR-0139): a
 design is written when the user asks for one. Every creation run ends with
 `children: []` — an epic's children are minted later by `/acs:breakdown-ticket`.
 
@@ -164,8 +164,8 @@ before anyone drafts:
   user story describes. It is a recommendation about SHAPE, not a stored axis: a
   ticket carries no `size` or `stakes` field since ADR-0095, and how much rigor
   the work gets is judged later, from its plan, by `/acs:ship`.
-- the PRD feature(s) and requirement ids (`<slug>/R<n>`) it delivers — work no
-  feature PRD describes is not a ticket yet (Step 2 item 2);
+- the PRD feature(s) and requirement ids (`<slug>/R<n>`) it delivers — product work
+  no feature PRD describes is not a ticket yet; a technical task links nothing (Step 2 item 2);
 - the questions the record genuinely needs answered (Step 2 item 1) — held for
   the ONE grouped interaction, never asked one at a time.
 
@@ -252,8 +252,8 @@ overrides:
    that needs the codebase read for the analysis, and say so.
 2. **PRD link** (ADR-0144): show the proposed `features` and `requirements`; the
    user's correction wins, and `acs.py ticket link-check` must return `ok: true` on
-   what is confirmed. Work no feature PRD describes is NOT minted: finish the run
-   `failed` with the gap as its summary and point the user at `/acs:create-prd`.
+   what is confirmed. Product work no feature PRD describes (or in a repo with no
+   PRD) is NOT minted: finish `failed`, pointing at `/acs:create-prd`. A task needs no link.
 3. **AC/DoD substantiveness**: present every flagged `acceptance_criteria` entry,
    and every reviewer finding left after iteration 2, to the user. The user must
    either revise the entry or explicitly confirm keeping it as-is — the ticket

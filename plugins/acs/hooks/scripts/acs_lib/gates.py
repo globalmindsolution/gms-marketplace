@@ -341,24 +341,7 @@ def gate_breakdown_ticket(ctx, payload):
         raise GateError(
             "ticket %s is a bug — a bug is fixed as one ticket, not broken down. File "
             "related work as tickets of its own with /acs:create-ticket." % ticket_id)
-    # Children are made from the PRD like every ticket (ADR-0144): they inherit
-    # the parent's features, so a parent that links none has nothing to give.
-    from . import prd_link
-    prd_link.require_prd(ctx["checkout_root"], ctx["settings"])
-    if not ticket.get("features"):
-        raise GateError(
-            "ticket %s links no PRD feature, so its children could not either: link it "
-            "first (`acs.py ticket save --ticket %s` with \"features\"), then break it "
-            "down." % (ticket_id, ticket_id))
     return ticket_id
-
-
-def gate_create_ticket(ctx, payload):
-    """Brake: tickets are created from the PRD (ADR-0144). A repo with no PRD
-    gets no ticket: /acs:create-prd writes it first, and every ticket then
-    links one of its features."""
-    from . import prd_link
-    prd_link.require_prd(ctx["checkout_root"], ctx["settings"])
 
 
 #: skill -> gate, for a skill whose precondition is about the SUBJECT TICKET.
@@ -368,7 +351,6 @@ def gate_create_ticket(ctx, payload):
 #: and settles nothing, which is what keeps `acs gate` inert.
 SUBJECT_GATES = {
     "breakdown-ticket": gate_breakdown_ticket,
-    "create-ticket": gate_create_ticket,
     "create-tech-design": gate_create_tech_design,
     "merge-pr": gate_merge_pr,
 }

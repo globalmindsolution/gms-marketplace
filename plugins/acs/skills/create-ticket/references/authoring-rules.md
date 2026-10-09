@@ -44,11 +44,12 @@ coordinator and reads each file itself:
 
 ## The PRD link — features and requirements (ADR-0144)
 
-Tickets are made from the PRD: the repo has one (the skill refuses to start
-without it), and every ticket links it.
+Product work — an epic, a story, a bug — is made from the PRD and links it. A
+**task** is technical work (a CI upgrade, a refactor, a dependency bump) and may
+link nothing; what it does link must resolve like any other link.
 
-- `features` are the slugs of those PRD features the ticket serves — at least one,
-  for every type. A feature's slug is the folder of its own PRD,
+- `features` are the slugs of those PRD features the ticket serves — at least one
+  for an epic, a story or a bug; a task names one only when it serves it. A feature's slug is the folder of its own PRD,
   `<prd_dir>/features/<slug>/prd.md`, linked from the hub's Features index (the
   same slug `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" slug --text
   "<PRD feature name>"` prints, ADR-0120); never coin a slug the PRD does not have.
@@ -59,10 +60,12 @@ without it), and every ticket links it.
   requirement it delivers, and name the id beside it in `draft.md`.
 - `prd_trace.feature` is the linked feature as the PRD names it (an epic: also its
   roadmap milestone); `prd_trace.divergence` is always `null`.
-- **Work the PRD does not describe is not a ticket yet.** When the request goes
-  beyond every feature PRD — a new capability, a requirement no `R<n>` covers —
-  say so as an `open_questions` entry naming what is missing; never stretch a
-  link to cover it. The coordinator stops and points the user at `/acs:create-prd`.
+- **Product work the PRD does not describe is not a ticket yet.** When the request
+  goes beyond every feature PRD — a new capability, a requirement no `R<n>` covers —
+  say so as an `open_questions` entry naming what is missing; never stretch a link
+  to cover it, and never relabel user-facing work a task to escape the link. The
+  coordinator stops and points the user at `/acs:create-prd`. Technical work no
+  user sees is a task, and needs neither a link nor a PRD.
 - Check the link before you hand the draft in: `python3
   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket link-check --type <type>
   --features <slugs> --requirements <ids>` — `ok: true`, or each problem it lists
@@ -111,7 +114,7 @@ needs to ask the user:
 | `acceptance_criteria` | the criteria, as an array of strings |
 | `priority` | `critical`, `high`, `medium` or `low` |
 | `story_points` | an integer, or `null` |
-| `features` | the linked feature slugs, at least one |
+| `features` | the linked feature slugs (an epic, a story, a bug: at least one), or `[]` for an unlinked task |
 | `requirements` | the `<slug>/R<n>` ids it delivers (a story: at least one), or `[]` |
 | `docs_only` | `true` only when the change touches documentation alone (a recommendation; the coordinator confirms it) |
 | `prd_trace` | `{"feature": …, "divergence": null}` |

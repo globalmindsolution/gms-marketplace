@@ -59,7 +59,6 @@ class TestRunPre(AcsWorkspaceCase):
             "ticket_prefix": "SHOP", "tests": {"coverage": 90},
             "tracker": {"provider": "github"},
         })
-        self.write_prd()  # create-ticket is made from the PRD (ADR-0144)
         bin_dir = os.path.join(self.tmp, "bin")
         os.makedirs(bin_dir)
         env = acs_case.fake_gh(bin_dir, None)

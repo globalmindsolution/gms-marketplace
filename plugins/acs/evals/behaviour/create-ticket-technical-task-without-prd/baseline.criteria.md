@@ -1,0 +1,2 @@
+PASS if, like the reference, the run invokes /acs:create-ticket, types the Python 3.13 upgrade a task, drafts it through the task author and the reviewer, mints it with no PRD feature or requirement (the repo has no PRD and a technical task needs none, ADR-0144), completes the step, and reports EVAL-1 without asking anything.
+FAIL if the run refuses or stops for want of a PRD, types it a story or an epic, invents a feature link, writes the ticket by hand, or asks a question.

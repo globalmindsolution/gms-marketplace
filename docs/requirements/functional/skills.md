@@ -915,10 +915,11 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 
 - MUST analyze and clarify requirements from three sources: the **user
   prompt**, the **codebase**, and existing **docs**.
-- MUST be created from the **PRD** ([ADR-0144](../../architecture/adr/0144-tickets-are-made-from-the-prd.md)):
-  with no PRD the skill refuses at its pre-gate and points at `/create-prd`;
-  every ticket links at least one PRD feature (`features`) and the requirement
-  ids it delivers (`requirements`, `<slug>/R<n>`; a story names at least one),
+- MUST be created from the **PRD** ([ADR-0144](../../architecture/adr/0144-tickets-are-made-from-the-prd.md))
+  for product work: an epic, a story or a bug links at least one PRD feature
+  (`features`) and the requirement ids it delivers (`requirements`,
+  `<slug>/R<n>`; a story names at least one), and with no PRD it is not minted
+  (the run points at `/create-prd`); a technical task MAY link nothing,
   checked against the feature PRDs by `acs.py ticket link-check`, and the
   post-hook refuses a completed run whose ticket does not link the PRD. Epics
   SHOULD derive from the roadmap. MUST also read

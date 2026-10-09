@@ -311,8 +311,7 @@ class BreakdownStartOnAnExistingEpicCase(acs_case.AcsWorkspaceCase):
     """A breakdown start resolves the existing epic: no new id, no new partition."""
 
     def test_breakdown_start_allocates_no_new_id(self):
-        self.write_prd()
-        epic = self.new_ticket("Wishlist epic", "epic", "--features", "wishlist")
+        epic = self.new_ticket("Wishlist epic", "epic")
         before = set((lib.read_json(lib.index_path(self.ws, REPO_ID)) or {}).get("tickets", {}))
         result = self.start("breakdown-ticket", epic)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -358,8 +357,7 @@ class BreakdownRunLeavesItsStepCompletedCase(acs_case.AcsWorkspaceCase):
     of ship.yaml)."""
 
     def test_breakdown_run_leaves_its_step_completed(self):
-        self.write_prd()
-        epic = self.new_ticket("Wishlist epic", "epic", "--features", "wishlist")
+        epic = self.new_ticket("Wishlist epic", "epic")
         start = self.start("breakdown-ticket", epic)
         self.assertEqual(start.returncode, 0, start.stderr)
         post = self.post("breakdown-ticket", epic, {

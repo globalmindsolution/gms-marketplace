@@ -250,7 +250,6 @@ class TicketSaveTest(AcsWorkspaceCase):
 class StepStartTypeTest(AcsWorkspaceCase):
 
     def test_step_start_allocate_accepts_bug(self):
-        self.write_prd()  # tickets are made from the PRD (ADR-0144)
         out = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
                               "--allocate", "--type", "bug", "--title", "Cart bug")
         self.assertEqual(out.returncode, 0, out.stderr)

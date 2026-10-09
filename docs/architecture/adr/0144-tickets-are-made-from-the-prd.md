@@ -1,4 +1,4 @@
-# 0144 — Tickets are made from the PRD and link it
+# 0144 — Product tickets are made from the PRD and link it
 
 **Status**: Accepted · **Date**: 2026-10-09
 
@@ -20,22 +20,26 @@ is possible.
 
 ## Decision
 
-1. **No PRD, no ticket.** `/acs:create-ticket` and `/acs:breakdown-ticket`
-   refuse at their pre-gate in a repo with no PRD, pointing at
-   `/acs:create-prd`. Breakdown also refuses a parent that links no feature.
-2. **Every ticket links the PRD.** A ticket carries `features` (at least one
-   feature slug, whose own PRD exists and is not `deprecated`) and
-   `requirements` (`<slug>/R<n>`, each a requirement its feature's PRD
-   declares). A story names at least one requirement; an epic, a task or a bug
-   names the ones it delivers or fixes. `acs_lib.prd_link` holds the rule.
-3. **Work beyond the PRD is not minted.** The run ends `failed` and points at a
-   PRD amendment; the ticket is created from the amended PRD.
+1. **Product work links the PRD.** An epic, a story or a bug carries
+   `features` (at least one feature slug, whose own PRD exists and is not
+   `deprecated`) and `requirements` (`<slug>/R<n>`, each a requirement its
+   feature's PRD declares). A story names at least one requirement; an epic or
+   a bug names the ones it delivers or fixes. In a repo with no PRD, none of
+   them is minted: the run points at `/acs:create-prd`.
+2. **A technical task may link nothing.** A task — a CI upgrade, a refactor, a
+   dependency bump — is work no user sees and needs neither a link nor a PRD;
+   what a task does link must resolve like any other link. Relabelling
+   user-facing work a task to escape the rule is a reviewer finding.
+3. **Product work beyond the PRD is not minted.** The run ends `failed` and
+   points at a PRD amendment; the ticket is created from the amended PRD.
    `prd_trace.divergence` stays in the result schema and is always `null`.
-4. **Enforced in code, at three points.** `acs.py ticket link-check` judges a
-   draft (the authors and the reviewer run it); `post-create-ticket` refuses a
-   completed run whose ticket does not link the PRD; `new-ticket.py
+4. **Enforced in code, not at a pre-gate.** The ticket's type is decided after
+   `/acs:create-ticket` starts, so no gate refuses the start. `acs_lib.prd_link`
+   holds the rule; `acs.py ticket link-check` judges a draft (the authors and
+   the reviewer run it); `post-create-ticket` refuses a completed run whose
+   ticket does not link the PRD as its type requires; `new-ticket.py
    --require-prd-link`, which `/acs:breakdown-ticket` passes for each child,
-   refuses before an id is spent. `acs.py ticket save` refuses a
+   refuses before an id is spent; `acs.py ticket save` refuses a
    `requirements` patch that does not resolve, whoever sends it.
 5. **The id allocator stays neutral.** Without `--require-prd-link`,
    `new-ticket.py` mints as before — the regression bug `/acs:run-e2e-tests`
@@ -47,7 +51,8 @@ is possible.
 - A ticket says which requirements it delivers, so coverage of a feature PRD
   by tickets can be derived rather than asserted (the groundwork for deriving
   a feature PRD's `implemented` status and a roadmap's delivery status).
-- A repo adopting acs writes its PRD before its first ticket. A brownfield repo
-  gets one from `/acs:create-prd`'s brownfield mode.
-- Tickets minted before this change keep working; one without `features`
-  cannot be broken down until it is linked (`acs.py ticket save`).
+- A repo adopting acs writes its PRD before its first product ticket (a
+  brownfield repo gets one from `/acs:create-prd`'s brownfield mode); technical
+  tasks can be filed from day one.
+- Tickets minted before this change keep working; a child minted from an
+  unlinked parent must be a task, or be linked when it is minted.

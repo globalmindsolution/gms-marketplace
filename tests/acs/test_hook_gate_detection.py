@@ -246,10 +246,6 @@ class FailOpenTest(EvidenceCase):
     """Verifier checklist item 3, and MAR-514's guarantee: an evidence-write
     failure must never block a gated skill -- nor may the warning about it."""
 
-    def setUp(self):
-        super().setUp()
-        self.write_prd()  # the gated skill here is create-ticket (ADR-0144)
-
     def break_sessions_dir(self):
         """Force the write to raise by pre-creating sessions/ as a plain file."""
         sessions = lib.sessions_dir(self.ws, lib.repo_partition_id(self.repo))

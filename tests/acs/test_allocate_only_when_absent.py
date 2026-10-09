@@ -30,10 +30,6 @@ class AllocateOnlyWhenAbsentTest(AcsWorkspaceCase):
     """--allocate must not mint a second ticket for work that already has one
     (MAR-509), and must not let one product-level leg adopt another's ticket."""
 
-    def setUp(self):
-        super().setUp()
-        self.write_prd()  # tickets are made from the PRD (ADR-0144)
-
     def _release(self, ticket_id):
         """The lock is the RUN's (§4.5), and `acs step start --allocate` takes
         it over the run it just minted. A second start from the same checkout

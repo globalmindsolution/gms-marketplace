@@ -1,22 +1,24 @@
 """acs_lib.prd_link — a ticket's link to the PRD it is created from (ADR-0144).
 
-Tickets are made from the PRD, never ahead of it: /acs:create-ticket and
-/acs:breakdown-ticket refuse to start in a repo with no PRD, and every ticket
-they mint links the PRD -- its `features` (feature slugs) and, for the work
-that delivers specific requirements, its `requirements`, each
-`<slug>/R<n>` naming a requirement of that feature's own PRD
-(`<prd_dir>/features/<slug>/prd.md`, ADR-0142).
+Product work is made from the PRD, never ahead of it: every epic, story and
+bug /acs:create-ticket or /acs:breakdown-ticket mints links the PRD -- its
+`features` (feature slugs) and, for the work that delivers specific
+requirements, its `requirements`, each `<slug>/R<n>` naming a requirement of
+that feature's own PRD (`<prd_dir>/features/<slug>/prd.md`, ADR-0142). A
+**task** is technical work -- a CI upgrade, a refactor, a dependency bump --
+and may link nothing; what it does link must resolve.
 
 This module only reads the repo. `check_link` returns the problems with a
-proposed link (an empty list when it is sound); `require_prd` raises the
-refusal the two skills' gates give. The rules by ticket type:
+proposed link (an empty list when it is sound). The rules by ticket type:
 
-  every type   at least one feature; each feature has its own PRD, which is
-               not `deprecated`
-  story        at least one requirement too: a story is user-facing value,
-               and the value is a requirement of the PRD
-  any type     every requirement names one of the ticket's features and an
-               `R<n>` its PRD's `## Requirements` section declares
+  epic, story, bug  the repo has a PRD; at least one feature
+  story             at least one requirement too: a story is user-facing
+                    value, and the value is a requirement of the PRD
+  task              nothing required; a PRD only when it links something
+  any type          each linked feature has its own PRD, which is not
+                    `deprecated`; every requirement names one of the
+                    ticket's features and an `R<n>` its PRD's
+                    `## Requirements` section declares
 
 A link to work the PRD does not describe is not minted: the PRD is amended
 first (/acs:create-prd), then the ticket is created from it.
@@ -30,12 +32,17 @@ from . import doc_layout, yamlsubset
 
 #: `wishlist/R2`: a feature slug and one of its PRD's requirement ids.
 REQUIREMENT_RE = re.compile(r"^([a-z0-9]+(?:-[a-z0-9]+)*)/(R\d+)$")
+#: The ticket types that are product work, made from the PRD; a task may be
+#: technical work no PRD feature describes.
+LINKED_TYPES = ("epic", "story", "bug")
+
 #: A requirement line of a feature PRD (`- **R1** — ...`), as prd_feature_check.py reads it.
 _REQUIREMENT_LINE = re.compile(r"^\s*[-*]\s+\*\*(R\d+)\*\*")
 _H2 = re.compile(r"^##\s+(.+?)\s*$")
 
-NO_PRD = ("tickets are created from the PRD, and this repo has none: write it first "
-          "with /acs:create-prd, then create the ticket from its features")
+NO_PRD = ("product work (an epic, a story or a bug) is created from the PRD, and this "
+          "repo has none: write it first with /acs:create-prd, then create the ticket "
+          "from its features -- a technical task needs no PRD")
 
 
 def parse_requirements(text):
@@ -55,12 +62,6 @@ def prd_path(root, settings=None):
         return None
     path = os.path.join(root, *doc_layout.prd_dir(root, settings).split("/"), "prd.md")
     return path if os.path.isfile(path) else None
-
-
-def require_prd(root, settings=None):
-    """Raise GateError (NO_PRD) unless the repo has a PRD."""
-    if not prd_path(root, settings):
-        raise GateError(NO_PRD)
 
 
 def _read(path):
@@ -96,11 +97,13 @@ def _status(text):
 def check_link(root, ttype, features, requirements=(), settings=None):
     """The problems with linking a `ttype` ticket to `features` and
     `requirements` ([] when the link is sound)."""
+    features, requirements = list(features or []), list(requirements or [])
+    if ttype not in LINKED_TYPES and not (features or requirements):
+        return []  # a technical task: nothing to link, nothing to check
     if not prd_path(root, settings):
         return [NO_PRD]
-    features, requirements = list(features or []), list(requirements or [])
     problems = []
-    if not features:
+    if not features and ttype in LINKED_TYPES:
         problems.append("a %s links at least one PRD feature (`features`); work the PRD "
                         "does not describe is added to it first with /acs:create-prd" % ttype)
     if ttype == "story" and not requirements:

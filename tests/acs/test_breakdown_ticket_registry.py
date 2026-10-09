@@ -125,17 +125,11 @@ class RolesTest(unittest.TestCase):
 
 class GateTest(AcsWorkspaceCase):
 
-    def setUp(self):
-        super().setUp()
-        # Children are made from the PRD (ADR-0144).
-        self.write_prd()
-
-    def mint(self, tid, ttype, status="open", archived=False, features=("wishlist",)):
+    def mint(self, tid, ttype, status="open", archived=False):
         base = (os.path.join(lib.archive_dir(self.ws, "acme-shop"), tid) if archived
                 else lib.ticket_dir(self.ws, "acme-shop", tid))
         os.makedirs(base, exist_ok=True)
-        ticket = lib.new_ticket_doc(tid, "T " + tid, ttype, status=status,
-                                    features=list(features))
+        ticket = lib.new_ticket_doc(tid, "T " + tid, ttype, status=status)
         lib.save_ticket(base, ticket)
         lib.update_index(self.ws, "acme-shop", ticket, archived=archived)
 
@@ -173,21 +167,6 @@ class GateTest(AcsWorkspaceCase):
         out = self.pre(SKILL, "SHOP-15")
         self.assertEqual(out.returncode, 2)
         self.assertIn("archived", out.stderr)
-
-    def test_no_prd_is_refused(self):
-        """ADR-0144: children are made from the PRD like every ticket."""
-        import shutil
-        shutil.rmtree(os.path.join(self.repo, "docs"))
-        self.mint("SHOP-16", "epic")
-        out = self.pre(SKILL, "SHOP-16")
-        self.assertEqual(out.returncode, 2)
-        self.assertIn("/acs:create-prd", out.stderr)
-
-    def test_a_parent_linking_no_feature_is_refused(self):
-        self.mint("SHOP-17", "epic", features=())
-        out = self.pre(SKILL, "SHOP-17")
-        self.assertEqual(out.returncode, 2)
-        self.assertIn("links no PRD feature", out.stderr)
 
     def test_an_unknown_ticket_is_refused(self):
         out = self.pre(SKILL, "SHOP-99")

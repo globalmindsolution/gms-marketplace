@@ -1,10 +1,10 @@
-"""ADR-0144: tickets are made from the PRD and link it.
+"""ADR-0144: product work (an epic, a story, a bug) is made from the PRD and
+links it; a technical task may link nothing.
 
 `acs_lib.prd_link` judges a proposed link (features, `<slug>/R<n>`
-requirements) against the repo's PRD; /acs:create-ticket and
-/acs:breakdown-ticket refuse a repo with no PRD; `new-ticket.py
---require-prd-link`, `acs.py ticket link-check` and `acs.py ticket save` hold
-the link to what the PRD says.
+requirements) against the repo's PRD; `new-ticket.py --require-prd-link`,
+`acs.py ticket link-check`, `acs.py ticket save` and the create-ticket
+post-hook hold the link to what the PRD says.
 
 Run:  python3 -m unittest tests.acs.test_prd_link -v
 """
@@ -51,16 +51,27 @@ class CheckLinkTest(unittest.TestCase):
         for ttype in ("epic", "task", "bug"):
             self.assertEqual(self.check(ttype, ["wishlist", "checkout"]), [], ttype)
 
-    def test_no_prd_is_the_one_problem(self):
+    def test_no_prd_is_the_one_problem_for_product_work(self):
         shutil.rmtree(os.path.join(self.root, "docs"))
-        self.assertEqual(self.check("story", ["wishlist"], ["wishlist/R1"]), [prd_link.NO_PRD])
+        for ttype in ("epic", "story", "bug"):
+            self.assertEqual(self.check(ttype, ["wishlist"], ["wishlist/R1"]),
+                             [prd_link.NO_PRD], ttype)
         self.assertIsNone(prd_link.prd_path(self.root))
-        with self.assertRaises(lib.GateError):
-            prd_link.require_prd(self.root)
         self.assertIsNone(prd_link.prd_path(None))
 
-    def test_every_type_links_a_feature(self):
-        for ttype in ("epic", "story", "task", "bug"):
+    def test_a_technical_task_needs_no_link_and_no_prd(self):
+        self.assertEqual(self.check("task", []), [])
+        shutil.rmtree(os.path.join(self.root, "docs"))
+        self.assertEqual(self.check("task", []), [])
+
+    def test_what_a_task_does_link_must_resolve(self):
+        self.assertEqual(len(self.check("task", ["loyalty"])), 1)
+        self.assertEqual(len(self.check("task", ["wishlist"], ["wishlist/R9"])), 1)
+        shutil.rmtree(os.path.join(self.root, "docs"))
+        self.assertEqual(self.check("task", ["wishlist"]), [prd_link.NO_PRD])
+
+    def test_product_work_links_a_feature(self):
+        for ttype in ("epic", "story", "bug"):
             self.assertTrue(any("at least one PRD feature" in p for p in self.check(ttype, [])),
                             ttype)
 
@@ -153,6 +164,11 @@ class CliTest(AcsWorkspaceCase):
         out = self.run_script("new-ticket.py", "--title", "Suite red", "--type", "bug")
         self.assertEqual(out.returncode, 0, out.stderr)
 
+    def test_a_technical_task_mints_with_the_flag_and_no_link(self):
+        out = self.run_script("new-ticket.py", "--title", "Upgrade CI to Python 3.13",
+                              "--type", "task", "--require-prd-link")
+        self.assertEqual(out.returncode, 0, out.stderr)
+
     def test_ticket_save_holds_a_requirements_patch_to_the_prd(self):
         tid = self.new_ticket("Save", "task", "--features", "wishlist")
         bad = self.run_script("acs.py", "ticket", "save", "--ticket", tid, "--from", "-",
@@ -194,17 +210,25 @@ class CreateTicketPostHookTest(AcsWorkspaceCase):
         self.assertEqual(post.returncode, 0, post.stderr)
 
 
-class CreateTicketGateTest(AcsWorkspaceCase):
+class NoPrdGateTest(AcsWorkspaceCase):
+    """No pre-gate: create-ticket and breakdown-ticket start without a PRD,
+    because a technical task needs none; product work is held at the link."""
 
-    def test_no_prd_refuses_create_ticket(self):
-        out = self.pre("create-ticket", "Add a wishlist")
-        self.assertEqual(out.returncode, 2)
-        self.assertIn("/acs:create-prd", out.stderr)
+    def test_create_ticket_starts_without_a_prd(self):
+        self.assertEqual(self.pre("create-ticket", "Upgrade CI").returncode, 0)
 
-    def test_a_prd_lets_it_start(self):
-        self.write_prd()
-        out = self.pre("create-ticket", "Add a wishlist")
-        self.assertEqual(out.returncode, 0, out.stderr)
+    def test_a_technical_task_completes_without_a_prd(self):
+        start = self.run_script("acs.py", "step", "start", "--step", "create-ticket",
+                                "--allocate", "--type", "task", "--title", "(draft)")
+        self.assertEqual(start.returncode, 0, start.stderr)
+        tid = json.loads(start.stdout)["ticket_id"]
+        self.run_script("acs.py", "ticket", "save", "--ticket", tid, "--from", "-",
+                        stdin=json.dumps({"title": "Upgrade CI to Python 3.13"}))
+        post = self.post("create-ticket", tid, {
+            "status": "completed", "summary": "task created",
+            "states": {"ticket_id": tid, "type": "task", "children": [],
+                       "prd_trace": {"feature": None, "divergence": None}}})
+        self.assertEqual(post.returncode, 0, post.stderr)
 
 
 if __name__ == "__main__":

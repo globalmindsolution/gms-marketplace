@@ -326,7 +326,6 @@ class SettingsMigrateCliTest(acs_case.AcsWorkspaceCase):
             self.assertEqual(fh.read(), "[1, 2]")
 
     def test_old_shape_is_refused_by_a_gate_until_migrated(self):
-        self.write_prd()  # create-ticket is made from the PRD (ADR-0144)
         refused = self.pre("create-ticket")
         self.assertEqual(refused.returncode, 2)
         self.assertIn("settings migrate", refused.stderr)

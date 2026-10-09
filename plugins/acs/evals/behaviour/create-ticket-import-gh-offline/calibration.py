@@ -36,10 +36,7 @@ def _finish(ws, status):
                             "replayable": False}],
               "errors": [ERROR]}
     ws.write(STEP + "/result.json", json.dumps(result))
-    # `|| true`: a ticket that does not link the PRD is refused here (ADR-0144),
-    # which leaves the step unfinished -- the outcome the graders judge.
-    ws.sh('python3 "%s/post-create-ticket.py" --result-file "%s/result.json" || true'
-          % (SCRIPTS, STEP))
+    ws.sh('python3 "%s/post-create-ticket.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 
 
 def IDEAL(ws):

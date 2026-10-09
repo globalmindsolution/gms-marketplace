@@ -10,7 +10,6 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_prd  # tickets are made from the PRD (ADR-0144)
 cat > .acs/settings.json <<'JSON'
 {
   "ticket_prefix": "EVAL",
