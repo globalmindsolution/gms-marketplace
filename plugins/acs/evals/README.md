@@ -5,6 +5,14 @@
 the suite: there is no dataset they are rendered from and no generator to run.
 Edit a case by editing its files.
 
+> **Rule: a skill change always changes its evals.** Any edit to a skill (`SKILL.md`,
+> `references/`, its agents, or the hook scripts it drives) adds or updates its cases in the
+> same change — routing cases for a new `description`, a behaviour case for each new mode,
+> branch or refusal, and fixes to any case whose prompt, graders or criteria quote behaviour
+> you changed — and keeps the acs standards (`../docs/AUTHORING.md`, "Changing a skill:
+> standards and evals, every time"). Run `python3 -m unittest discover -s tests/evals -p
+> 'check_*.py'` and `python3 scripts/eval_changed.py --dry-run` before committing.
+
 ```
 evals/
 ├── routing/                  # 285 cases: does a prompt reach the right skill?
@@ -16,7 +24,7 @@ evals/
 ├── setup/                    # 6 cases: does /acs:setup configure exactly what was asked?
 │   ├── _fixtures/            # the repo every case starts from (not a case)
 │   └── <case>/               # prompt.md + case.yaml (scaffold.sh) + graders/
-├── behaviour/                # 101 cases: 2–9 per skill, every mode — what did it DO? (behaviour/README.md)
+├── behaviour/                # 102 cases: 2–9 per skill, every mode — what did it DO? (behaviour/README.md)
 │   ├── _fixtures/repo.sh     # the shared repo; state seeded through the plugin's own CLIs
 │   └── <case>/               # + calibration.py, baseline.criteria.md, and once recorded baseline.jsonl
 └── results/                  # written by each run; gitignored
@@ -55,7 +63,7 @@ release gate's ~2,500 runs cost about $190.
 | `control` | 10 | a request answered in prose invokes no skill at all — six of them the session-pause phrasings `/acs:handoff` answered before ADR-0131 made it the team handoff |
 | `artifacts` | 2 | the skill wrote the expected workspace state |
 | `setup` | 6 | /acs:setup writes what was asked and nothing else; 2 of them assert it does not fire |
-| `behaviour` | 101 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–9 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
+| `behaviour` | 102 | every shipped skill does what it is for — the files, state and reply it produces — in each documented mode, branch and refusal: 2–9 cases a skill, with `setup` and `artifacts` on top ([ADR-0113](../../../docs/architecture/adr/0113-behaviour-case-per-skill-with-baselines.md)) |
 
 `--tag` keeps a case if ANY of its tags match, so `--tag description --tag
 negative --tag control` runs the routing cases that are fully measurable —

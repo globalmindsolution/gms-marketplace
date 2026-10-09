@@ -2,8 +2,8 @@
 
 IDEAL follows create-pr/SKILL.md with gh unable to reach a forge: `acs step
 start`, `acs.py pr plan-commits` finds nothing left to commit (the work is
-already committed on the checked-out branch), verify the branch, `gh repo
-view` fails (critical) -> stop before the push, write the failed result
+already committed on the checked-out branch), verify the branch, the default-branch
+read fails (critical) -> stop before the push, write the failed result
 document, run the post-hook.
 """
 import json
@@ -13,7 +13,7 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 RUN = ".acs/state-machine/example-shop/runs/EVAL-1"
 BRANCH = "task/EVAL-1-cap-the-customer-page-size-at-100"
-BASE_DETECT = "gh repo view --json defaultBranchRef --jq .defaultBranchRef.name"
+BASE_DETECT = "gh api repos/{owner}/{repo} --jq .default_branch"
 
 
 def _finish(ws, doc):
@@ -37,15 +37,15 @@ def _failed(ws):
     error = ws.sh(BASE_DETECT + " 2>&1 || true").strip() or "gh: command not found"
     _finish(ws, {
         "status": "failed",
-        "summary": "gh repo view failed; nothing pushed, no PR opened",
+        "summary": "default-branch read failed; nothing pushed, no PR opened",
         "states": {},
         "findings": [],
         "errors": [{"severity": "error", "area": "github", "command": BASE_DETECT,
                     "error": error, "hint": "check `gh auth status` and repo access",
                     "replayable": False}],
     })
-    ws.reply = ("## /acs:create-pr · EVAL-1 · failed\n\n`%s` failed (%s). gh is acs's only "
-                "GitHub transport, so nothing was pushed and no PR was opened." % (BASE_DETECT, error))
+    ws.reply = ("## /acs:create-pr · EVAL-1 · failed\n\n`%s` failed (%s). there is no other "
+                "route to GitHub here, so nothing was pushed and no PR was opened." % (BASE_DETECT, error))
 
 
 def IDEAL(ws):

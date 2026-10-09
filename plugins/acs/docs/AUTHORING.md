@@ -363,6 +363,45 @@ them for ordering or safety guarantees.
   requirements (+ decision-log row) → INTERNALS.md contract → SKILL.md /
   agents → tests → CHANGELOG.md.
 
+## Changing a skill: standards and evals, every time
+
+A skill is only as good as the standards it keeps and the evals that show it keeps
+them. **Any change to a `SKILL.md`, its `references/`, its agents or the hook scripts
+it drives is not done until both hold.** Simplifying a skill — shorter prose, more
+trust in the model — is welcome; it never removes either.
+
+1. **Keep the standards.** However short the prose, the skill still: starts with the
+   mandatory `acs.py step start` and stops on its failure; reads requirements from the
+   run, not `ticket.json`; sends every question through the clarification ledger
+   (ledger first, grouped asks, nothing auto-answered, headless `<handoff>`); writes
+   state only through `acs.py write`; follows the lifecycle skeleton (Start → Resume &
+   reconcile → User interaction → Failure paths → Context pressure → Finish); ends in
+   the result document, the post-hook and the completion report, also on failure;
+   spawns no subagent unless it owns agents; never touches git history unless it is
+   `/acs:create-pr` (ADR-0127); and works in a degraded-hook run by reporting it. Give
+   the goal and the rules; leave command spelling and sequencing to the model — but the
+   standards above are not style, and the contract tests
+   (`tests/acs/test_skill_contracts.py` and the per-skill modules) pin them.
+2. **Add or update the evals in the same change.** The suite is under
+   `plugins/acs/evals/` (read its README first):
+   - a changed or new `description` → add or adjust the **routing** cases for that skill
+     (plain, indirect, and a `confusable` one against its neighbours);
+   - a new or changed mode, branch, refusal or state the skill handles → add or update a
+     **behaviour** case (`behaviour/<skill>-<what>/`: `prompt.md`, `scaffold.sh`,
+     `graders/`, `calibration.py` with an `IDEAL` and a `BAD` play per grader,
+     `baseline.criteria.md`), and fix any existing case whose prompt, graders or criteria
+     quote behaviour you changed;
+   - a skill's output or state shape → the **artifacts** case when it has one.
+   A change that alters what a skill does and touches no case is a defect, exactly as a
+   code change with no test is.
+3. **Run the free checks before committing:** `python3 -m unittest discover -s tests/evals
+   -p 'check_*.py'` (malformed cases, grader calibration) and `python3 scripts/eval_changed.py
+   --dry-run` (the cases this branch's skill changes would run). The paid run
+   (`pre-commit run acs-evals --hook-stage manual`, or the release gate) is how a case
+   is shown to pass in a real session; say in the PR whether you ran it.
+4. **Update the docs in the order below** ("Keep docs honest"), and record a standards-level
+   change in an ADR rather than editing an old one.
+
 ## Adding a skill
 
 A new skill is a directory. There is no registry and no per-skill manifest
@@ -410,3 +449,6 @@ owns the agents named after it. In order:
    (skills on disk, agent files, hooks entries, README rows, INTERNALS
    sections); grep for an existing skill's name to find them all, and update
    each — they exist precisely so a half-registered skill cannot ship.
+8. **Add its evals** (see "Changing a skill: standards and evals, every time"): at least a
+   routing case set and a behaviour case per documented mode, branch or refusal.
+   `tests/evals/check_cases.py` fails a shipped skill without a routing case.

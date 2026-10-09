@@ -969,7 +969,7 @@ setting.
 | `audit-design` | `gap-analyst` (survey — one per top-level code area); read-only, no writer and no judge (ADR-0122) |
 | `audit-security` | `auditor` (survey — one per category: `code` per code area, `secrets-config`, `dependencies`, `threat-model`) · `adjudicator` (judge — one per candidate finding, prompted to refute it); read-only, no writer (ADR-0123) |
 | `create-ticket` | `epic-author` · `story-author` · `task-author` · `bug-author` (write — ONE per run, for the type the coordinator chose; each writes only the draft `steps/create-ticket/iter-<n>/draft.json` and `draft.md` through `acs.py write`, reading the shared `references/authoring-rules.md`, and never mints a ticket or touches the tracker) · `reviewer` (judge — concrete, testable acceptance criteria, PRD trace and `features`, the type's completeness, sizing honesty, no invented facts); at most two iterations, then the coordinator confirms and materialises inline from `references/materialize.md` (ADR-0138) |
-| `breakdown-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from its SKILL.md and `skills/<skill>/references/` (create-pr's `publish.md`, merge-pr's `merge.md`) |
+| `breakdown-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from its SKILL.md and `skills/<skill>/references/` (merge-pr's `merge.md`) |
 
 The surveyor runs on iteration 1 only and freezes its notes; the author
 writes from them. The lifecycle hooks do not track `review-code`'s lenses and

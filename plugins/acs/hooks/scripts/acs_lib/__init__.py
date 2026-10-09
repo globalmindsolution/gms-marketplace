@@ -61,6 +61,7 @@ from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, DEFAULT_TICKET_PREFI
     validate_settings)  # noqa: F401
 
 from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
+    GH_GRAPHQL_HINT, GH_GRAPHQL_MARKER,
     GUARD_ATTEMPTS, GUARD_ATTEMPTS_ENV, GUARD_ATTEMPTS_MAX, GUARD_INTERVAL,
     GUARD_STALE_SECONDS, GuardTimeout, guard_attempts, guard_stale_seconds,
     _EVIDENCE_RANKS, _evidence_source_commands, _guarded_repo_write, archive_dir,

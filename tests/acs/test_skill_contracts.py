@@ -1041,10 +1041,11 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         """AC-5: ACS label, base-branch detection, states.pr record,
         the finish transition, and tracker-sync invocations all survive."""
         body = read(self.skill_path("create-pr"))
-        self.assertIn("gh label create ACS", body,
-                      "AC-5 [create-pr]: ACS label creation must survive")
-        self.assertIn("defaultBranchRef", body,
-                      "AC-5 [create-pr]: base-branch detection must survive")
+        # ADR-0141: the skill names the outcomes, not the commands.
+        self.assertIn("Label it `ACS`", body,
+                      "AC-5 [create-pr]: the ACS label must survive")
+        self.assertIn("against the default branch", body,
+                      "AC-5 [create-pr]: the PR must target the default branch")
         self.assertIsNotNone(
             re.search(r'"states"\s*:\s*\{\s*"pr"\s*:', body),
             "AC-5 [create-pr]: states.pr object must survive")
@@ -2559,8 +2560,8 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
         that both the create and the edit path reach -- the skill says so, and
         it takes --pr rather than branching on how the PR came to exist."""
         body = " ".join(read(self.skill_path("create-pr")).split())
-        self.assertLess(body.find("**Record.**"), body.find("pr metadata fill"))
-        self.assertIn("now that the PR number is known from step 6", body)
+        self.assertLess(body.find("**Record**"), body.find("pr metadata fill"))
+        self.assertIn("Once the PR number is known", body)
         self.assertNotIn("create-only", body)
 
     def test_create_pr_metadata_local_unsynced_noop(self):
@@ -3016,7 +3017,7 @@ class TestCreatePrInReviewStatus(unittest.TestCase):
         """AC-3: one call, reached identically however the PR came to exist --
         the skill places it after Record and passes the PR number."""
         body = " ".join(read(os.path.join(PLUGIN, "skills", "create-pr", "SKILL.md")).split())
-        self.assertIn("now that the PR number is known from step 6", body)
+        self.assertIn("Once the PR number is known", body)
 
     def test_create_pr_missing_in_review_option_is_info_finding(self):
         """AC-4: a board with neither option leaves Status UNCHANGED, adds one

@@ -1,18 +1,10 @@
 #!/usr/bin/env bash
-# EVAL-1 implemented, committed and recorded: its ticket branch carries the
-# change -- committed by an earlier /acs:create-pr whose push never happened --
-# and is checked out with a clean working tree, and the /acs:code run that
-# produced it is recorded through the plugin's own writers (`acs step start`,
-# then the result document /acs:code writes and its post-hook). The run's
-# baseline is recorded after that commit, so `acs.py pr plan-commits` has no
-# group to propose: create-pr skips its commit phase and goes straight to
-# publishing. No /acs:review-code has run, so create-pr's one brake (a review
-# that did not pass) has nothing to refuse.
-#
-# The branch is deliberately NOT pushed: create-pr detects the base with
-# the default branch BEFORE it pushes, that read is critical, and `gh` cannot
-# reach a forge here -- so the correct run stops before the push and the
-# local origin never sees the branch.
+# EVAL-1 implemented and committed straight on main (unpushed), with its
+# /acs:code run recorded through the plugin's own writers. The run's baseline is
+# taken after that commit, so `acs.py pr plan-commits` proposes no group, but
+# reports the commit in `ahead` (origin/main is one commit behind). create-pr
+# must cut a feature branch at HEAD rather than push main. `gh` cannot reach a
+# forge here, so the base detection then stops it before any push.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
@@ -22,8 +14,6 @@ acs_ticket "Cap the customer page size at 100" task \
   "list_customers must refuse a limit above 100 with ValueError; 100 itself is allowed."
 acs_local_origin
 
-branch=task/EVAL-1-cap-the-customer-page-size-at-100
-acs_branch "$branch"
 cat > src/shop/__init__.py <<'PY'
 PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
