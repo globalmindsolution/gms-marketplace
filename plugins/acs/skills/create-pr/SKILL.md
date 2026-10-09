@@ -15,7 +15,8 @@ the few rules below are fixed, the commands are yours to choose.
 
 Compose the title and body from workspace state (the run's requirements, the
 ticket when there is one, `specs/`, `tech-design.md`, `steps/code/state.json`
-and its review summary, the commits on the branch) — never from conversation
+`invocations[-1].states` — `tests`, `review`, `specs_implemented`,
+`docs_updated` — and the commits on the branch) — never from conversation
 history, and never invent content a section has no source for.
 
 ## Start
@@ -28,11 +29,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-pr
 
 If it exits non-zero: STOP and surface its stderr verbatim. Do not improvise a
 workaround. If it prints `DEGRADED ENFORCEMENT` (the hooks did not fire), the run
-continues ungated: put that in the report's Findings. The pre-hook refuses only a run whose recorded review left the
-verifier failing; it does not require `/acs:code` or `/acs:docs-sync` to have
+continues ungated: put that in the report's Findings. The pre-hook is a safety brake, not an order check (order lives in
+`workflows/ship.yaml`): it refuses only a run whose recorded review left
+`states.verifier_passed` false; it does not require `/acs:code` or `/acs:docs-sync` to have
 run, so treat a missing `steps/code/state.json` as "no recorded implementation".
 
-Read the printed context JSON: `run_id`, `subject`, `requirements.path`,
+Read the printed context JSON: `run_id`, `subject`, `requirements.path` (the
+run's requirements — `acs.py requirements show`; never read `ticket.json` for
+acceptance criteria),
 `ticket_id` / `ticket` (absent when there is no ticket), `partition`,
 `settings.tracker`, `settings.ticket_prefix`, `design`, `checkout_root`, and
 `reconcile` / `handoff_summary` (when set, read `references/resume.md` first).
@@ -62,7 +66,9 @@ anything. A fresh run skips it.
 2. **Commit what is uncommitted — with the user's say-so.** Show the plan in
    ONE question (branch, each group's subject and paths, `left_out`, `excluded`)
    with confirm / edit / cancel; apply only the edits the user names and never
-   add an `excluded` path. Write the confirmed plan back to `commit-plan.json`
+   add an `excluded` path. Record the answer with `clarify.py add --skill
+   create-pr --question "Commit plan" --answer ... --source user` (the plan is
+   never an assumption), write the confirmed plan back to `commit-plan.json`
    (`acs.py write`), then `acs.py pr commit --plan <file>`. Commits are the
    user's history: no commit without their confirm, given at the preview or in
    the request itself ("commit it the way you split it"). Cancel commits and
@@ -74,7 +80,7 @@ anything. A fresh run skips it.
 4. **Open or update the PR** against the default branch, ready for review
    (never a draft): a concise title (normally the ticket's title), and a body
    from the `pr-default` template (a repo's `.acs/templates/pr-default.md`
-   replaces it) — Summary, Ticket, Changes (every commit on the branch past the
+   replaces it), written to `steps/create-pr/pr-body.md` through `acs.py write` — Summary, Ticket, Changes (every commit on the branch past the
    default branch), Test plan, Checklist ticked only where state evidences it
    (`review.findings_open == 0` for the review tick). The Ticket section carries
    the GitHub-native issue link `Closes #{external_key}` when the ticket's
