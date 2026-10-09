@@ -1,0 +1,42 @@
+# 0141 — create-pr names its GitHub operations, not one transport
+
+**Status**: Accepted · **Date**: 2026-10-09
+
+**Amends**: [0088](0088-gh-only-github-transport-and-criticality-classification.md)
+for `/acs:create-pr` only: the "`gh` is the only transport, no fallback" rule is
+relaxed there. The criticality classification of 0088 is unchanged.
+
+## Context
+
+`/acs:create-pr` stopped at its base detect, `gh repo view --json defaultBranchRef`,
+in a Claude Code session: `HTTP 403: GitHub GraphQL is not available from Claude Code
+sessions; use the REST API`. Nothing was wrong with the repo, the auth or the work.
+`gh repo view`, `gh pr list/view/create/edit` and `gh pr ready` are GraphQL-backed, while
+`gh api repos/...` REST was served — and the session's GitHub tools worked too. 0088
+forbade routing around a failed `gh` call, so the run ended with a pushed branch and no
+PR, and the PR was opened by hand. Prescribing one transport in the skill's prose made
+the skill brittle exactly where the environment varies.
+
+## Decision
+
+`create-pr` states the **operations** it needs — read the default branch, find the open
+PR for the branch, create or update the PR, label it — and the classification of each
+(critical or non-critical). It no longer prescribes one transport:
+
+- It reaches GitHub with whatever access works in the session: normally the `gh` CLI,
+  preferring the `gh api` REST forms in `references/rest-transport.md` over GraphQL-backed
+  porcelain, or the GitHub tools the session provides when `gh` is blocked.
+- A failed critical call surfaces the verbatim error plus the canonical hint
+  (`gh_failure_hint` now knows the GraphQL refusal), the skill tries another working
+  access path once, and stops if there is none.
+- The report says which access was used, and a PR, label or comment that was not actually
+  made is never reported.
+
+`create-ticket` and `merge-pr` keep 0088 as written until the same change is made there.
+
+## Consequences
+
+`create-pr` completes where one route is refused and another is open, without a human
+opening the PR. The cost is that the audit trail depends on the report naming the access
+used rather than on a single guaranteed transport; the credentials the other route uses
+are the session's own, not a new secret in acs settings.

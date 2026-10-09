@@ -26,9 +26,8 @@ class CreatePrUsesRestForItsCriticalCalls(unittest.TestCase):
         for rel in (("SKILL.md",), ("references", "publish.md"), ("references", "resume.md")):
             text = read(*rel)
             # The one sentence that NAMES the commands to avoid is allowed.
-            text = text.replace(
-                "Use the REST calls in `references/rest-transport.md`, not `gh pr\n"
-                "   create` / `gh pr edit` / `gh pr view` / `gh pr list` / `gh repo view`:", "")
+            text = re.sub(r"`references/rest-transport\.md` lists REST calls.*?GraphQL-backed",
+                          "", text, flags=re.S)
             with self.subTest(file=os.path.join(*rel)):
                 self.assertIsNone(PORCELAIN.search(text), PORCELAIN.search(text))
 

@@ -54,7 +54,7 @@ APPLY_REFERENCES = {
 # (verbatim, quoted text -- never a line number, per R-E).
 HEADINGS = {
     "create-ticket": "### GitHub call failure policy",
-    "create-pr": "### GitHub call failure policy (gh is acs's only transport)",
+    "create-pr": "### GitHub call failure policy",
     "merge-pr": "## GitHub call failure policy",
 }
 
@@ -63,10 +63,10 @@ HEADINGS = {
 CRITICAL_TOKENS = {
     "create-ticket": ["gh issue view"],
     "create-pr": [
-        "gh pr list",
-        "gh repo view --json defaultBranchRef",
-        "gh pr create",
-        "gh pr edit",
+        # ADR-0141: create-pr names the operations, not one transport.
+        "open-PR detect",
+        "default-branch read",
+        "PR create",
     ],
     "merge-pr": [
         "gh pr view",
@@ -95,8 +95,8 @@ NONCRITICAL_TOKENS = {
     "create-ticket": ["gh label list", "gh project item-add", "acs.py tracker refresh"],
     "merge-pr": ["acs.py tracker refresh --pending"],
     "create-pr": [
-        "gh pr ready",
-        "gh pr view",
+        "un-draft call",
+        "Record re-read",
         "gh label list",
         "gh project item-add",
         "gh pr diff",
@@ -352,7 +352,12 @@ class CriticalRuleShapeTest(unittest.TestCase):
             section_norm = norm(extract_section(read(SKILLS[name]), HEADINGS[name]))
             self.assertRegex(section_norm, r"(?i)verbatim")
             self.assertRegex(section_norm, r"(?i)\bstop\b")
-            self.assertIn("fallback to any other transport", section_norm.lower())
+            if name == "create-pr":
+                # ADR-0141: create-pr tries another working access path once
+                # instead of forbidding every other transport.
+                self.assertIn("another access path", section_norm.lower())
+            else:
+                self.assertIn("fallback to any other transport", section_norm.lower())
 
 
 class NonCriticalRuleShapeTest(unittest.TestCase):

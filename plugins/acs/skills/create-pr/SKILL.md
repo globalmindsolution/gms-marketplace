@@ -347,11 +347,10 @@ C4. **Commit.**
 5. **Create or update PR.** Detect existing open PR — step 1's batch already
    ran the REST detect (`references/rest-transport.md`); use its answer. If no open PR exists for the branch:
 
-   Use the REST calls in `references/rest-transport.md`, not `gh pr
-   create` / `gh pr edit` / `gh pr view` / `gh pr list` / `gh repo view`:
-   those porcelain commands are GraphQL-backed and a Claude Code session
-   refuses GraphQL (HTTP 403), while `gh api` REST works everywhere — still
-   `gh`, still the only transport (ADR-0141). Create with `ACS` as a label
+   `references/rest-transport.md` lists REST calls that work with `gh`:
+   the `gh pr` / `gh repo view` porcelain is GraphQL-backed and a Claude Code
+   session refuses GraphQL (HTTP 403), while `gh api` REST works everywhere
+   (ADR-0141). Create with `ACS` as a label
    (no ticket: also `acs-exempt`), ready-for-review, never a draft; an open
    PR is updated in place (title, body, `ACS` label, base when wrong,
    ready-for-review when a draft).
@@ -421,17 +420,19 @@ findings — additive, alongside the existing fields, plus the additive
 `reviewers{requested, skipped_reason, findings}` and
 `project_fields{priority, story_points, parent, findings}` keys).
 
-### GitHub call failure policy (gh is acs's only transport)
+### GitHub call failure policy
 
-`gh` is acs's only GitHub transport in this skill — there is no MCP-based
-transport and no second credential path (ADR-0088). Every `gh` call below is one of
-exactly two classes:
+The commands below name the operations; reach GitHub with whatever access
+works in this session — normally the `gh` CLI, or the GitHub tools the session
+provides when `gh` is blocked (ADR-0088 as relaxed by ADR-0141). Say which you used in the report.
+Every call below is one of exactly two classes:
 
 - **Critical** — a gate input, or a call this step cannot proceed without.
-  On non-zero exit: surface gh's verbatim stderr plus ONE canonical hint from
+  On failure: surface the verbatim error plus ONE canonical hint from
   `acs_lib.gh_failure_hint(stderr)` (`acs_lib.GH_ACCESS_HINT` when the
   stderr names a session-access restriction, else `acs_lib.GH_GENERIC_HINT`),
-  then STOP — no retry, no fallback to any other transport. Canon hint text
+  then try another access path that works here once; if there is none, STOP. Never
+  report a PR, label or comment that was not actually made. Canon hint text
   (`acs_lib.GH_ACCESS_HINT`):
 
   > This looks like a session-level access restriction — a Claude Code

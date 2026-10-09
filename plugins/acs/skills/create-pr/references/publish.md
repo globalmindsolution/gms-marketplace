@@ -40,8 +40,8 @@ history:
 
 ## GitHub call failure policy, as it applies here
 
-Canon lives in `create-pr/SKILL.md`'s own "GitHub call failure policy
-(gh is acs's only transport)" section — this reference classifies no `gh` call
+Canon lives in `create-pr/SKILL.md`'s own "GitHub call failure policy"
+section — this reference classifies no GitHub call
 itself, it only follows that classification (critical for branch/base
 detection and PR create/edit; non-critical for the metadata/tracker-fill
 calls). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
@@ -240,7 +240,7 @@ How the run ends, and what the report then says:
 - If `git push` or the PR create call fails, capture the exact stderr plus the
   canonical hint from `acs_lib.gh_failure_hint` in the report's `problems` and
   the result document's `errors` (critical, per create-pr/SKILL.md's
-  classification — no fallback to any other transport); never retry
+  classification); never retry
   destructively (no force-push, ever), and never undo a commit already made.
 
 ## Grounding (anti-hallucination)

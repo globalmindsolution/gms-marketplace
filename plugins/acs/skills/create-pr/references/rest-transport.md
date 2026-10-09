@@ -4,9 +4,9 @@
 A Claude Code session refuses GraphQL (`HTTP 403: GitHub GraphQL is not available
 from Claude Code sessions`), so a run that used them stopped at the base detect with
 nothing wrong with the repo, the auth or the work. `gh api` REST is served everywhere,
-so the **critical** calls use it and nothing else. It is still `gh` — ADR-0088's
-single transport — not a second one (ADR-0141); a failure is still classified,
-never routed around. `{owner}` and `{repo}` are filled by `gh` from the checkout's
+so these are the `gh` forms to reach for first (ADR-0141); any other access that
+works in the session does the same job. A failure is still reported with its hint.
+`{owner}` and `{repo}` are filled by `gh` from the checkout's
 remote. Read the PR title and body from files, never interpolate them into the shell.
 
 **Base** (critical):
