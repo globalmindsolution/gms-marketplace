@@ -36,8 +36,8 @@ GH_GRAPHQL_MARKER = "GraphQL is not available"
 
 GH_GRAPHQL_HINT = (
     "This session refuses GraphQL, which `gh repo view` and `gh pr "
-    "list/view/create/edit` use. Make the call through `gh api` REST instead "
-    "(create-pr: references/rest-transport.md)."
+    "list/view/create/edit` use. Make the call through `gh api` REST instead, "
+    "or through another access path that works in this session."
 )
 
 GH_GENERIC_HINT = "check `gh auth status` and repo access"

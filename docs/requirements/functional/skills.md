@@ -2036,7 +2036,7 @@ branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create
   conversation history.
 - MUST record the PR reference (number/URL) in the workspace state.
 - Inline shape (MAR-55 invariant (b)): the coordinator runs apply-work
-  directly from `references/publish.md` and spawns no subagent. Correctness was gated
+  directly from its SKILL.md and spawns no subagent. Correctness was gated
   by the upstream review (`/acs:review-code`); the human checkpoint is the PR review.
 - PR title and PR description MUST follow the formats configured in
   `settings.json` ([configuration.md](configuration.md)). The default

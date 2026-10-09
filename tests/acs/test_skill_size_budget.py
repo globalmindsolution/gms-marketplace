@@ -36,7 +36,6 @@ CEILINGS = {
     "skills/create-architecture/SKILL.md": 630,
     "skills/create-e2e-tests/SKILL.md": 720,
     "skills/create-flows/SKILL.md": 410,
-    "skills/create-pr/SKILL.md": 620,
     "skills/create-test-docs/SKILL.md": 640,
     "skills/docs-sync/SKILL.md": 580,
     "skills/merge-pr/SKILL.md": 490,

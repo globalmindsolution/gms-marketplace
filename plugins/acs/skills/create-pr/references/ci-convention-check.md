@@ -15,10 +15,6 @@ with no ticket (`/acs:create-pr "<prompt>"`) names none and carries
 `acs-exempt`, so a red check on one means the label did not land — verify the
 labels before anything else.
 
-**Where the cross-references below point.** The `gh run list` read this
-section governs is classified as non-critical by SKILL.md's "GitHub call
-failure policy"; the rule below is the one thing that policy does not cover.
-
 ### CI convention-check troubleshooting (frozen-payload gotcha)
 
 `.github/workflows/acs-conventions.yml` reads `ACS_PR_BODY`, `ACS_PR_BRANCH`,
@@ -42,9 +38,7 @@ Before treating a failing "Branch / PR / commit conventions" check as real:
 
 1. List the workflow runs for the PR's head SHA
    (`gh run list --branch <head-ref> --commit <head-sha>`), ordered by
-   recency. This is a **non-critical** read: on failure, one `info` finding
-   plus a replayable `gh run list --branch <head-ref> --commit <head-sha>`
-   block, never abort — but the convention check itself is then reported
+   recency. This is a best-effort read: on failure, record a finding with the command — but the convention check itself is then reported
    **unverified, never assumed green**, since the newest run's conclusion
    could not be confirmed.
 2. Read the NEWEST run's conclusion — that is the check's actual current

@@ -1,14 +1,9 @@
 """/acs:create-pr is the one skill that branches, commits and pushes (ADR-0127).
 
-Every step before it leaves its output as uncommitted changes and records the
-paths it wrote; create-pr splits them into the commits `acs.py pr
-plan-commits` proposes, has the user confirm that plan, commits it with `acs.py
-pr commit --plan`, and only then pushes and opens the PR. These tests pin that
-contract where it lives -- the skill's SKILL.md and references -- and check
-that what the prose tells the coordinator to record is what the CLI prints.
-
-The retired rule they replace said the opposite: uncommitted changes were
-/acs:code's job, and create-pr stopped on them.
+The skill is short, goal-level prose that leaves the mechanics to the model. These
+tests pin only what is machinery -- the mandatory commands, the CLIs, the rules that
+protect the user's history -- and that what the Finish example records is what
+`acs.py pr commit` prints.
 """
 
 import json
@@ -44,141 +39,72 @@ def skill():
     return read("SKILL.md")
 
 
-def publish():
-    return read("references", "publish.md")
-
-
 def resume():
     return read("references", "resume.md")
 
 
-class TheRetiredRuleIsGone(unittest.TestCase):
-    """Uncommitted changes are now create-pr's input, not its stop condition."""
-
-    def test_no_file_tells_the_coordinator_to_stop_on_uncommitted_work(self):
-        for name, body in (("SKILL.md", skill()), ("publish.md", publish()),
-                           ("resume.md", resume())):
-            text = flat(body)
-            with self.subTest(file=name):
-                self.assertNotRegex(text, r"(?i)never commit new work")
-                self.assertNotRegex(text, r"(?i)uncommitted (implementation )?changes "
-                                          r"(exist|are) .{0,40}/acs:code's job")
-                self.assertNotIn("Do not commit, do not merge", text)
-                self.assertNotIn("do not create new branches", text)
+class TheContractTheSystemDependsOn(unittest.TestCase):
+    """The skill is goal-level prose; these are the few things around it that are
+    machinery, not judgment: the mandatory commands, the CLIs it hands the
+    mechanics to, and the rules that protect the user's history."""
 
     def test_it_says_it_is_the_one_skill_that_commits(self):
         text = flat(skill())
         self.assertIn("ONLY acs skill that creates a branch, stages, commits or pushes", text)
         self.assertIn("ADR-0127", text)
 
-
-class TheCommitPhase(unittest.TestCase):
-
-    def test_a_ticket_a_prompt_or_the_current_run_plan_through_the_cli(self):
-        """No skill needs a ticket: a ticket id, documents, a prompt, a mix of
-        them, or nothing (the current run) all plan through the same CLI call,
-        and no `--docs` mode survives (ADR-0128)."""
+    def test_the_mandatory_commands_and_clis_are_named(self):
         body = skill()
         self.assertRegex(body, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         text = flat(body)
-        self.assertIn("acs.py\" pr plan-commits \\ --out", text)
-        for invocation in ("`/acs:create-pr <ticket-id>`", "`/acs:create-pr` (no argument)",
-                           "`/acs:create-pr \"<prompt>\"` with no current run"):
-            self.assertIn(invocation, text)
-        self.assertIn("every uncommitted change against HEAD", text)
-        for name, other in (("SKILL.md", body), ("publish.md", publish()),
-                            ("resume.md", resume())):
-            with self.subTest(file=name):
-                self.assertNotIn("--docs", other)
-                self.assertNotRegex(other, r"(?i)docs mode")
-
-    def test_the_brake_applies_only_to_a_run_with_a_code_step(self):
-        self.assertIn("it applies only when the run has a code step", flat(skill()))
-
-    def test_ticket_references_only_when_there_is_a_ticket(self):
-        text = flat(skill())
-        self.assertIn("with a ticket it keeps the configured commit-subject format, "
-                      "`{ticket_id} {summary}`; without one the subject is the summary alone",
-                      text)
-        self.assertIn("with no ticket id and no `Closes #` line", text)
-        self.assertIn("never without a ticket", text)
-
-    def test_the_plan_is_previewed_in_one_grouped_question(self):
-        text = flat(skill())
-        self.assertIn("Preview and confirm — ONE grouped question", text)
-        self.assertIn("AskUserQuestion", text)
-        for choice in ("**confirm**", "**edit**", "**cancel**"):
-            self.assertIn(choice, text)
-        for listed in ("`left_out`", "`excluded`"):
-            self.assertIn(listed, text)
-        for edit in ("moves a path between groups", "drops a path from a group",
-                     "adds a `left_out` path to a group", "rewords a subject"):
-            self.assertIn(edit, text)
-
-    def test_the_confirmed_plan_is_written_then_committed_by_the_cli(self):
-        text = flat(skill())
-        self.assertIn("steps/create-pr/iter-<n>/commit-plan.json", text)
-        self.assertIn("acs.py\" pr commit --plan steps/create-pr/iter-<n>/commit-plan.json",
-                      text)
+        for needle in ("acs.py\" step start --step create-pr", "pr plan-commits",
+                       "pr commit --plan", "pr-conventions.py check", "pr metadata fill",
+                       "post-create-pr.py", "acs.py\" write steps/create-pr/result.json",
+                       "clarify.py list", "handoff.py"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
         self.assertLess(text.index("pr plan-commits"), text.index("pr commit --plan"))
 
-    def test_commits_come_before_the_push_and_the_base_detect_before_the_push(self):
+    def test_it_works_in_any_git_state(self):
         text = flat(skill())
-        commit = text.index("pr commit --plan")
-        base = text.index("gh api repos/{owner}/{repo} --jq .default_branch")
-        push = text.index("git push -u origin <branch>")
-        self.assertLess(commit, push)
-        self.assertLess(base, push)
-        self.assertIn("its failure now stops the run before the push", text)
+        for state in ("uncommitted", "committed", "unpushed", "already pushed"):
+            self.assertIn(state, text)
+        for field in ("`ahead`", "`pushed`"):
+            self.assertIn(field, text)
 
-    def test_nothing_is_committed_without_a_confirm(self):
+    def test_nothing_is_committed_without_the_users_say_so(self):
         text = flat(skill())
-        self.assertIn("Silence is not approval", text)
-        self.assertIn("commits nothing and hands off `needs_input`", text)
-        self.assertIn("never an assumption", text)
+        self.assertIn("no commit without their confirm", text)
+        self.assertIn("confirm / edit / cancel", text)
+        self.assertIn("never add an `excluded` path", text)
 
-    def test_the_body_lists_the_commits(self):
-        self.assertRegex(flat(skill()), r"Changes \(the plan's `ahead` commits and the commits made, "
-                                        r"in order — one bullet per commit")
-        self.assertIn("the Changes section lists every commit on the branch past the default branch", flat(publish()))
-
-
-class TheSafetyRules(unittest.TestCase):
-
-    def test_publish_keeps_every_hard_rule(self):
-        text = flat(publish())
-        self.assertIn("Commit ONLY through `acs.py pr commit --plan`", text)
-        for rule in ("never `git add -A`, `git add .`, `git commit -a`",
-                     "never commit to the default branch",
-                     "never include a `left_out` path the user did not move into a group",
-                     "no force-push, ever",
-                     "Never stash, reset, restore, clean or check out over the user's work"):
-            with self.subTest(rule=rule):
-                self.assertIn(rule, text)
-
-    def test_skill_never_force_pushes_nor_pushes_the_default_branch(self):
-        self.assertIn("Never force-push, never push the default branch", flat(skill()))
+    def test_the_safety_rules(self):
+        text = flat(skill())
+        self.assertIn("Never force-push; never push the default branch", text)
+        self.assertIn("never a draft", text)
+        self.assertIn("Never report a PR, label or comment that was not actually made", text)
 
     def test_a_ticketless_pr_is_exempt_by_label_because_ci_still_wants_a_ticket(self):
-        """The installed CI check still fails a PR naming no ticket unless it
-        carries `acs-exempt`; a ticketless run applies that label, and only
-        that run does."""
         ci = os.path.join(PLUGIN, "templates", "ci", "check-conventions.py")
         with open(ci, encoding="utf-8") as fh:
             self.assertIn('EXEMPT_LABEL = "acs-exempt"', fh.read())
         text = flat(skill())
-        self.assertIn("(no ticket: also `acs-exempt`)", text)
-        self.assertRegex(text, r"With no ticket a `ticket_link` error is expected")
+        self.assertIn("a run with no ticket also gets `acs-exempt`", text)
         self.assertIn("/acs:merge-pr --pr <number>", text)
 
+    def test_the_brake_applies_only_to_a_run_with_a_code_step(self):
+        self.assertIn("does not require `/acs:code` or `/acs:docs-sync` to have run",
+                      flat(skill()))
 
-class Resume(unittest.TestCase):
-
-    def test_a_partial_plan_resumes_from_its_first_uncommitted_group(self):
+    def test_resume_resumes_from_the_first_uncommitted_group(self):
         text = flat(resume())
-        self.assertIn("resume from the first uncommitted group", text)
-        self.assertIn("do not re-plan and do not ask again", text)
+        self.assertIn("Resume from the first uncommitted group", text)
+        self.assertIn("do not re-plan or ask again", text)
         self.assertIn("commit-plan.resume.json", text)
+
+    def test_the_references_the_skill_names_exist(self):
+        for name in re.findall(r"references/([\w.-]+\.md)", skill()):
+            self.assertTrue(os.path.exists(os.path.join(SKILL_DIR, "references", name)), name)
 
 
 class WhatIsRecordedIsWhatTheCliPrints(unittest.TestCase):
@@ -232,9 +158,6 @@ class WhatIsRecordedIsWhatTheCliPrints(unittest.TestCase):
         self.assertEqual(out["branch"], "task/T-1-a")
         printed = set(out["commits"][0])
         for commit in self._finish_states()["commits"]:
-            self.assertLessEqual(set(commit), printed)
-        for commit in json.loads(re.search(r"```json\n(\{.*?)```", publish(), re.S)
-                                 .group(1))["commits"]:
             self.assertLessEqual(set(commit), printed)
 
 

@@ -39,14 +39,12 @@ MERGE_PR_MERGE = os.path.join(PLUGIN, "skills", "merge-pr", "references", "merge
 
 SKILLS = {
     "create-ticket": CREATE_TICKET_SKILL,
-    "create-pr": CREATE_PR_SKILL,
     "merge-pr": MERGE_PR_SKILL,
 }
 #: The inline apply references -- the command sequences each coordinator runs
 #: itself. They quote the classification canon rather than owning it.
 APPLY_REFERENCES = {
     "create-ticket": CREATE_TICKET_MATERIALIZE,
-    "create-pr": CREATE_PR_PUBLISH,
     "merge-pr": MERGE_PR_MERGE,
 }
 
@@ -54,7 +52,6 @@ APPLY_REFERENCES = {
 # (verbatim, quoted text -- never a line number, per R-E).
 HEADINGS = {
     "create-ticket": "### GitHub call failure policy",
-    "create-pr": "### GitHub call failure policy",
     "merge-pr": "## GitHub call failure policy",
 }
 
@@ -62,12 +59,6 @@ HEADINGS = {
 # leaves a gate input unevaluable, so they stop the run.
 CRITICAL_TOKENS = {
     "create-ticket": ["gh issue view"],
-    "create-pr": [
-        # ADR-0141: create-pr names the operations, not one transport.
-        "open-PR detect",
-        "default-branch read",
-        "PR create",
-    ],
     "merge-pr": [
         "gh pr view",
         "gh pr checks",
@@ -94,15 +85,6 @@ NONCRITICAL_TOKENS = {
     # (ADR-0140): best-effort, so a failure is a finding, never a stop.
     "create-ticket": ["gh label list", "gh project item-add", "acs.py tracker refresh"],
     "merge-pr": ["acs.py tracker refresh --pending"],
-    "create-pr": [
-        "un-draft call",
-        "Record re-read",
-        "gh label list",
-        "gh project item-add",
-        "gh pr diff",
-        "gh issue comment",
-        "gh run list",
-    ],
 }
 
 
@@ -352,12 +334,7 @@ class CriticalRuleShapeTest(unittest.TestCase):
             section_norm = norm(extract_section(read(SKILLS[name]), HEADINGS[name]))
             self.assertRegex(section_norm, r"(?i)verbatim")
             self.assertRegex(section_norm, r"(?i)\bstop\b")
-            if name == "create-pr":
-                # ADR-0141: create-pr tries another working access path once
-                # instead of forbidding every other transport.
-                self.assertIn("another access path", section_norm.lower())
-            else:
-                self.assertIn("fallback to any other transport", section_norm.lower())
+            self.assertIn("fallback to any other transport", section_norm.lower())
 
 
 class NonCriticalRuleShapeTest(unittest.TestCase):
@@ -365,7 +342,7 @@ class NonCriticalRuleShapeTest(unittest.TestCase):
     replayable command block."""
 
     def test_non_critical_rule_never_aborts(self):
-        for name in ("create-ticket", "create-pr"):
+        for name in ("create-ticket",):
             section_norm = norm(extract_section(read(SKILLS[name]), HEADINGS[name]))
             self.assertRegex(section_norm, r"(?i)never abort")
             self.assertRegex(section_norm, r"(?i)replayable")
@@ -473,7 +450,7 @@ class FrozenPayloadTest(unittest.TestCase):
         self.assertNotIn("actions_get", section)
         self.assertNotIn("when `gh` is unavailable", section)
         section_norm = norm(section)
-        self.assertRegex(section_norm, r"(?i)non-critical")
+        self.assertRegex(section_norm, r"(?i)best-effort")
         self.assertRegex(section_norm, r"(?i)unverified")
         self.assertRegex(section_norm, r"(?i)never assumed green")
 
@@ -497,10 +474,9 @@ class RuleX1Test(unittest.TestCase):
     def test_rule_x1_label_create_lines_are_unchanged(self):
         create_pr_body = read(CREATE_PR_SKILL)
         create_ticket_body = read(CREATE_TICKET_SKILL)
-        self.assertIn(
-            'gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true',
-            create_pr_body,
-        )
+        # create-pr no longer prescribes the label-create command (ADR-0141): the
+        # skill names the label and leaves the call to the coordinator.
+        self.assertIn("`ACS`", create_pr_body)
         # create-ticket's own label-create moved into acs_lib.forge with
         # MAR-525; the property is asserted below, in the language it now
         # lives in, rather than as a shell line the skill no longer carries.

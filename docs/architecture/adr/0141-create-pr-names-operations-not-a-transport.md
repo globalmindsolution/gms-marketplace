@@ -24,8 +24,9 @@ PR for the branch, create or update the PR, label it — and the classification 
 (critical or non-critical). It no longer prescribes one transport:
 
 - It reaches GitHub with whatever access works in the session: normally the `gh` CLI,
-  preferring the `gh api` REST forms in `references/rest-transport.md` over GraphQL-backed
-  porcelain, or the GitHub tools the session provides when `gh` is blocked.
+  preferring `gh api` REST over the GraphQL-backed `gh pr` / `gh repo view` porcelain, or
+  the GitHub tools the session provides when `gh` is blocked. The skill gives the hint, not
+  the command list.
 - A failed critical call surfaces the verbatim error plus the canonical hint
   (`gh_failure_hint` now knows the GraphQL refusal), the skill tries another working
   access path once, and stops if there is none.
@@ -40,6 +41,12 @@ the push is skipped when `pushed`, and the PR body lists every commit past the d
 branch, not just those this run made.
 
 `create-ticket` and `merge-pr` keep 0088 as written until the same change is made there.
+
+The skill itself shrinks to the goal, the mandatory commands and the rules that protect the
+user's history (about 160 lines, down from over 600), and leaves the sequencing and the
+command spelling to the model. `references/publish.md` is gone; `resume.md` and
+`ci-convention-check.md` stay for the runs that need them. Its tests pin the machinery
+(the commands, the CLIs, the safety rules), not the prose.
 
 ## Consequences
 

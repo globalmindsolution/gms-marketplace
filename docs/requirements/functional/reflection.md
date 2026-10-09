@@ -72,7 +72,7 @@ review" below.
 The **apply-work** group — `/acs:create-pr`, `/acs:merge-pr`, and
 `/acs:breakdown-ticket` — does **not** apply the Reflection pattern. These skills
 are inline and deterministic: the coordinator handles the work directly,
-following its SKILL.md and `references/` (`publish.md`, `merge.md`), and
+following its SKILL.md and `references/` (`merge.md`), and
 spawns no subagent — this holds on every delivery path.
 Upstream
 quality is gated by `/acs:review-code` (before the PR is opened or merged) or by
