@@ -9,7 +9,6 @@
   },
   "release": {
     "version_locations": [
-      ".claude-plugin/marketplace.json",
       "plugins/acs/.claude-plugin/plugin.json",
       "plugins/acs/.devin-plugin/plugin.json",
       ".devin-plugin/plugin.json"
@@ -34,7 +33,7 @@
     "publish_driver": {
       "workflow": ".github/workflows/release.yml",
       "trigger_paths": [
-        ".claude-plugin/marketplace.json"
+        "plugins/acs/.claude-plugin/plugin.json"
       ]
     },
     "pre_release_gate": [

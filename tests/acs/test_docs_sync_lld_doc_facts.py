@@ -78,6 +78,8 @@ def _unreleased_changed():
     if not text[start + len("## [Unreleased]"):end].strip():
         # right after a cut [Unreleased] is empty and the notes sit in the newest dated section
         end = text.find("\n## [", end + 1)
+        # the newest dated section (0.6.1) sits above the one with these notes (0.6.0)
+        end = text.find("\n## [", end + 1) if end != -1 else end
         end = len(text) if end == -1 else end
     section = text[start:end]
     changed = section.index("### Changed")
