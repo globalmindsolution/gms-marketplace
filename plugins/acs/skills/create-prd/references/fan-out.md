@@ -25,7 +25,9 @@ yourself. The roles' own artifacts are the authoring notes
 `iter-<n>/authoring.md` (Mode & evidence; PRD outline; Roadmap outline; Code
 evidence; Answer fidelity; Roadmap milestones; Open questions; Risks; Reviewer
 checklist — the surveyor writes iteration 1's, the author completes them and
-carries them forward), `iter-1/surveyor.json`, `iter-<n>/author.json` and
+carries them forward), `iter-1/surveyor.json`, `iter-<n>/author-hub.json` and
+`iter-<n>/author-feature-<slug>.json` (the author is always sliced:
+`author-slices.md`), each feature author's `features/<slug>/notes.md` and
 `iter-<n>/reviewer.md`; every iteration's reviewer `<inputs>` name that
 iteration's authoring notes. Decomposition is YOURS alone — subagents never
 spawn subagents.
@@ -47,9 +49,13 @@ every sliced phase follows:
 - **Slice plan first.** Before spawning, write (through `acs.py write`) the partition to
   `steps/create-prd/iter-<n>/<role>-slices.json` (`{"<id>": [<the paths or
   dimension numbers it owns>], …}`), so a resume knows which slices were
-  planned.
+  planned. The author's plan lists the feature wave only — written once the
+  `hub` has returned (`author-slices.md`); the `hub` is evidenced by its own
+  report.
 - **Per-slice files.** A surveyor slice writes `iter-1/authoring-<id>.md` and
-  `iter-1/surveyor-<id>.json`; a reviewer slice writes `iter-<n>/reviewer-<id>.md`.
+  `iter-1/surveyor-<id>.json`; an author slice writes `iter-<n>/author-<id>.json`
+  (a feature author also its `features/<slug>/notes.md`); a reviewer slice
+  writes `iter-<n>/reviewer-<id>.md`.
 - **The join is deterministic, never prose-merging by you.** One command joins
   the slice files by `## ` heading (first file's preamble; each H2 once, in
   first-seen order; bodies concatenated in input order, each prefixed by a

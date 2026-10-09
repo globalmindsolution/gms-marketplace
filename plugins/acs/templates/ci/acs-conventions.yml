@@ -2,7 +2,8 @@
 # .github/workflows/acs-conventions.yml. Re-run /acs:setup to refresh it.
 #
 # Checks one thing: the PR description names its ticket — the acs id (ACS-12),
-# a #<issue> reference, or an issue link (ADR-0106). The `acs-exempt` label or an
+# a #<issue> reference, or an issue link (ADR-0106) -- or declares `Ticket: none --
+# <reason>` for a change with no ticket (ADR-0143). The `acs-exempt` label or an
 # exempt branch (release/*, dependabot/*, renovate/*) skips it. Make it a
 # REQUIRED status check on your default branch so a PR with no ticket cannot
 # merge: /acs:setup offers to configure that, or run it once as a repo admin:

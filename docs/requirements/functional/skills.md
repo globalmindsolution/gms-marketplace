@@ -630,16 +630,26 @@ else is verified against.
   ([configuration.md](configuration.md#document-and-workspace-locations)),
   a new folder only once the user has confirmed it (`acs.py docs where --doc
   living:prd` reports a `location` question owed, [ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md)):
-  - `prd.md` — vision, problem statement, target users & personas, goals
-    with **measurable success metrics**, prioritized features (e.g.
-    MoSCoW), product-level NFRs, constraints & assumptions, out-of-scope;
+  - `prd.md` — the hub: vision, problem statement, target users & personas,
+    goals (`G<n>`) with **measurable success metrics**, the prioritized
+    features as an index (MoSCoW groups, each bullet linking the feature's own
+    PRD and naming the goals it serves), product-level NFRs, constraints &
+    assumptions, out-of-scope;
+  - `features/<slug>/prd.md` — one PRD per feature
+    ([ADR-0142](../../architecture/adr/0142-prd-hub-and-feature-prds.md)):
+    summary, goals served, requirements (`R<n>`), acceptance criteria,
+    dependencies, out-of-scope — beside the feature's living analysis;
   - `roadmap.md` — milestones/phases mapped to intended epics, plus a
     **"Release versions"** mapping table (each release version → its
     milestone/wave and the epic(s) it delivers).
 - Reflection cycle (survey → author → review — ADR-0109):
-  `create-prd-surveyor` (iteration 1 only: mode, outline, open questions),
-  `create-prd-author`, `create-prd-reviewer`. The reviewer checks: all required sections
-  present, features trace to goals, success metrics are measurable,
+  `create-prd-surveyor` (iteration 1 only: mode, outline, feature set, open
+  questions), `create-prd-author` (a `hub` author for `prd.md` and `roadmap.md`
+  first, then one `feature-<slug>` author per feature, in parallel — a finding
+  goes to the author that owns its file), `create-prd-reviewer`. The reviewer
+  checks: all required sections present in the hub and every feature PRD, the
+  index and the feature documents agree (`prd_feature_check.py`), features
+  trace to goals, success metrics are measurable,
   nothing contradicts the stated constraints, and every roadmap milestone
   resolves to exactly one release version (0 orphan milestones) — plus a
   deterministic `structure` floor (declared `required_sections`, blocking)
@@ -652,8 +662,8 @@ else is verified against.
   (brownfield/amend only, one citation per brownfield code claim in the
   house grammar; `N/A — greenfield, no code to cite` in greenfield),
   `## Answer fidelity` (one line per `clarifications.json`
-  answered/assumed entry, naming a verbatim anchor in `prd.md`/`roadmap.md`,
-  or an `N/A: <why>` escape), and `## Roadmap milestones` (one line per
+  answered/assumed entry, naming a verbatim anchor in `prd.md`, `roadmap.md`
+  or a feature's `features/<slug>/prd.md`, or an `N/A: <why>` escape), and `## Roadmap milestones` (one line per
   declared milestone, its verbatim `roadmap.md` heading text). The
   reviewer's `Plan conformance` dimension runs the shared deterministic
   `prd_conformance_check.py` floor over these three families — importing
@@ -670,7 +680,7 @@ else is verified against.
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - **Versioned** ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)):
-  `prd.md` and `roadmap.md` open with the version front matter of
+  `prd.md`, `roadmap.md` and every feature PRD open with the version front matter of
   [ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)
   (`status`, `version`, `tickets`, and the approver keys once a status is
   moved). The coordinator MUST run `acs.py design init --status proposed` on a

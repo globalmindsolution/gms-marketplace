@@ -57,24 +57,23 @@ def versioned(title, status="approved", version=2, feature=None):
 
 PRD = """# PRD — Shop
 
-## Goals
+## Goals & success metrics
 
-Wishlist sharing grows retention.
+G1: wishlist sharing grows retention.
 
-## Features (MoSCoW)
+## Features (prioritized)
 
-### Feature: Wishlist sharing (Must)
+### Must have
 
-Share a wishlist.
-
-### Checkout
-
-Pay.
+- [Wishlist sharing](features/wishlist-sharing/prd.md) — share a wishlist (supports G1)
+- [Checkout](features/checkout/prd.md) — pay (supports G1)
 """
 
 #: The standard layout, with a second feature's documents that must NOT show up.
 LAYOUT = {
     "docs/product/prd.md": PRD,
+    "docs/product/features/wishlist-sharing/prd.md": versioned("Wishlist sharing", "proposed", 1),
+    "docs/product/features/checkout/prd.md": "# Checkout\n\nPay.\n",
     "docs/product/features/wishlist-sharing/analysis/README.md": "# Wishlist analysis\n",
     "docs/product/features/wishlist-sharing/analysis/sharing.md": "# Sharing context\n",
     "docs/product/features/wishlist-sharing/analysis/sharing.evidence.md": "evidence\n",
@@ -211,13 +210,6 @@ class AnchorTest(unittest.TestCase):
         text = "# Top\n\n```md\n# Not a heading\n~~~\n# Still not\n```\n\n## Wishlist\n"
         self.assertEqual(doc_links.headings(text), [(1, "Top", "top"), (2, "Wishlist", "wishlist")])
 
-    def test_a_feature_heading_wins_over_a_plain_one_naming_the_same_slug(self):
-        text = "## Wishlist\n\nGoals.\n\n### Feature: **Wishlist** — sharing\n"
-        self.assertEqual(doc_links.feature_heading(text, "wishlist"),
-                         ("Feature: **Wishlist** — sharing", "feature-wishlist--sharing",
-                          "Wishlist"))
-        self.assertIsNone(doc_links.feature_heading(text, "checkout"))
-
     def test_duplicates_are_numbered(self):
         seen = {}
         got = [doc_links.github_anchor("Notes", seen) for _ in range(3)]
@@ -262,7 +254,8 @@ class CollectTest(RepoCase):
     def test_every_kind_for_a_story_in_the_standard_layout(self):
         refs = doc_links.references_for_ticket(self.ctx(), STORY)
         self.assertEqual(rows(refs), [
-            ("prd", "docs/product/prd.md#feature-wishlist-sharing-must"),
+            ("prd", "docs/product/features/wishlist-sharing/prd.md"),
+            ("prd", "docs/product/prd.md"),
             ("analysis", "docs/product/features/wishlist-sharing/analysis/README.md"),
             ("analysis", "docs/product/features/wishlist-sharing/analysis/sharing.md"),
             ("hld", "docs/architecture/hld/c4-container.md"),
@@ -287,17 +280,19 @@ class CollectTest(RepoCase):
         share = refs["docs/architecture/lld/wishlist-sharing/flows/share.md"]
         self.assertEqual((share["title"], share["status"], share["version"]),
                          ("share.md", None, None))
-        prd = refs["docs/product/prd.md#feature-wishlist-sharing-must"]
-        self.assertEqual(prd["title"], "Feature: Wishlist sharing (Must)")
+        prd = refs["docs/product/features/wishlist-sharing/prd.md"]
+        self.assertEqual((prd["title"], prd["status"], prd["version"]),
+                         ("Wishlist sharing", "proposed", 1))
         for ref in refs.values():
             self.assertEqual(set(ref), {"kind", "path", "title", "status", "version",
                                         "published", "url"})
 
-    def test_a_plain_heading_whose_slug_is_the_feature_anchors_too(self):
+    def test_a_feature_links_its_own_prd_then_the_product_prd(self):
         refs = doc_links.references_for_features(self.ctx(), ["checkout"])
-        self.assertEqual(refs[0]["path"], "docs/product/prd.md#checkout")
+        self.assertEqual([r["path"] for r in refs if r["kind"] == "prd"],
+                         ["docs/product/features/checkout/prd.md", "docs/product/prd.md"])
 
-    def test_a_feature_the_prd_does_not_head_links_the_file(self):
+    def test_a_feature_without_a_prd_of_its_own_links_the_product_prd_only(self):
         refs = doc_links.references_for_features(self.ctx(), ["loyalty"])
         self.assertEqual(rows(refs), [("prd", "docs/product/prd.md"),
                                       ("hld", "docs/architecture/hld/overview.md")])
@@ -338,8 +333,9 @@ class CollectTest(RepoCase):
                                               "wishlist-sharing"]))
         paths = [r["path"] for r in refs]
         self.assertEqual(len(paths), len(set(paths)))
-        self.assertEqual(paths[:2], ["docs/product/prd.md#checkout",
-                                     "docs/product/prd.md#feature-wishlist-sharing-must"])
+        self.assertEqual(paths[:3], ["docs/product/features/checkout/prd.md",
+                                     "docs/product/features/wishlist-sharing/prd.md",
+                                     "docs/product/prd.md"])
         self.assertIn("docs/architecture/lld/checkout/api/pay.md", paths)
 
     def test_a_legacy_single_file_analysis_is_listed(self):
@@ -383,15 +379,16 @@ class PublishedTest(RepoCase):
             self.assertIsNone(ref["url"])
 
     def test_a_pushed_document_links_to_the_default_branch_and_the_rest_wait(self):
-        self.publish("docs/product/prd.md", "docs/architecture/hld/tech-stack.md",
+        self.publish("docs/product/features/wishlist-sharing/prd.md",
+                     "docs/architecture/hld/tech-stack.md",
                      "docs/architecture/lld/wishlist-sharing/api/endpoints.md")
         report = doc_links.report(self.ctx(), ticket=STORY)
         self.assertEqual(report["default_branch"], "main")
         refs = {r["path"]: r for r in report["references"]}
-        prd = refs["docs/product/prd.md#feature-wishlist-sharing-must"]
+        prd = refs["docs/product/features/wishlist-sharing/prd.md"]
         self.assertTrue(prd["published"])
         self.assertEqual(prd["url"], "https://github.com/acme/shop/blob/main/docs/product/"
-                                     "prd.md#feature-wishlist-sharing-must")
+                                     "features/wishlist-sharing/prd.md")
         endpoints = refs["docs/architecture/lld/wishlist-sharing/api/endpoints.md"]
         self.assertEqual(endpoints["url"], "https://github.com/acme/shop/blob/main/docs/"
                                            "architecture/lld/wishlist-sharing/api/endpoints.md")

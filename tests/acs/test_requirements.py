@@ -833,7 +833,7 @@ class TestCommitPlanDocSets(unittest.TestCase):
         self.assertEqual(commit_plan.doc_set("docs/architecture/lld/export/data/erd.md")[0],
                          "lld/export", "the living LLD stays the feature's group")
         self.assertEqual(commit_plan.doc_set("docs/product/features/export/analysis.md"),
-                         ("prd/features/export", "feature export analysis"))
+                         ("prd/features/export", "feature export"))
         self.assertEqual(commit_plan.doc_set("docs/product/prd.md")[0], "prd")
 
 

@@ -26,7 +26,8 @@ MANDATORY first action — locate the PRD, before the run starts. Documents
 are found, not configured: read CLAUDE.md and whatever docs index it or the repo
 points at (e.g. `docs/README.md`), then Glob/Grep for `prd.md` or a PRD by
 content. Found → that file is `<prd>`, and its roadmap (located the same way) is
-`<roadmap>`.
+`<roadmap>`; the feature PRDs its Features index links (`features/<slug>/prd.md`)
+are read with it.
 
 None found → the skill still runs; it does not wait for /acs:create-prd. The
 bar the architecture is judged against falls back to the run's requirements

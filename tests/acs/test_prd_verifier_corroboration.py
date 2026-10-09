@@ -301,11 +301,11 @@ class SkillMirrorTest(unittest.TestCase):
 
 class Drift1Test(unittest.TestCase):
     """C-4(ii): the DRIFT-1 stop-reason example is repaired from '7 of 9' to
-    '9 of 11'."""
+    eleven dimensions ('10 of 11' since the example shows one finding)."""
 
     def test_nine_of_eleven_present(self):
         body = read(PRD_REVIEWER)
-        self.assertIn("9 of 11 dimensions pass, 2 blocking findings", body)
+        self.assertIn("10 of 11 dimensions pass, 1 blocking finding", body)
 
     def test_seven_of_nine_gone(self):
         body = read(PRD_REVIEWER)

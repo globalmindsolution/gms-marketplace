@@ -1,8 +1,9 @@
 """Calibration plays for create-prd-greenfield-no-code (see
 tests/evals/check_grader_calibration.py). The ideal run: `acs step start`
 resumes the ticketless run the scaffold opened, the author writes the two
-documents from the elicited answers alone and leaves them uncommitted, the
-coordinator gives both their first version front matter (`acs.py design init
+documents from the elicited answers alone (the hub, the roadmap and one PRD per
+feature, ADR-0142) and leaves them uncommitted, the coordinator gives every
+document its first version front matter (`acs.py design init
 --status proposed`), and the result document, listing both in `states.files`, goes through the real
 post-hook. Nothing is branched, committed or pushed (ADR-0127)."""
 
@@ -39,10 +40,22 @@ no-shows cost them about a fifth of their slots.
 
 ## Features (prioritized)
 
-- **Must**: online booking (G1), SMS reminders the day before (G2)
-- **Should**: deposits at booking (G2)
-- **Could**: loyalty stamp card (G1)
-- **Won't**: a marketplace ranking groomers
+### Must have
+
+- [Online booking](features/online-booking/prd.md) — pet owners book a slot (supports G1)
+- [SMS reminders](features/sms-reminders/prd.md) — a text the day before (supports G2)
+
+### Should have
+
+- [Deposits](features/deposits/prd.md) — a deposit at booking (supports G2)
+
+### Could have
+
+- [Loyalty stamp card](features/loyalty-stamp-card/prd.md) — repeat visits earn stamps (supports G1)
+
+### Won't have
+
+- A marketplace ranking groomers against each other (supports G1)
 
 ## Non-functional requirements
 
@@ -58,6 +71,44 @@ no-shows cost them about a fifth of their slots.
 
 - Native mobile apps; payments beyond deposits.
 """
+
+def feature_prd(name, slug, goal, requirement):
+    return """# %s
+
+## Summary
+
+%s.
+
+## Goals served
+
+- %s
+
+## Requirements
+
+- **R1** — %s
+
+## Acceptance criteria
+
+- Given the feature is live, when it is used, then %s.
+
+## Dependencies
+
+None.
+
+## Out of scope
+
+Anything not named above.
+""" % (name, requirement.capitalize(), goal, requirement, requirement)
+
+
+FEATURES = (
+    ("online-booking", "Online booking", "G1", "a pet owner books an open slot from a phone"),
+    ("sms-reminders", "SMS reminders", "G2", "an SMS goes out the day before an appointment"),
+    ("deposits", "Deposits", "G2", "a deposit is taken at booking"),
+    ("loyalty-stamp-card", "Loyalty stamp card", "G1", "repeat visits earn stamps"),
+)
+FEATURE_FILES = tuple("docs/product/features/%s/prd.md" % f[0] for f in FEATURES)
+FILES = ("docs/product/prd.md", "docs/product/roadmap.md") + FEATURE_FILES
 
 ROADMAP = """# Roadmap
 
@@ -85,9 +136,12 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _deliver(ws, prd=PRD, roadmap=ROADMAP, extra=(), commit=False):
+def _deliver(ws, prd=PRD, roadmap=ROADMAP, extra=(), commit=False, features=True):
     ws.write("docs/product/prd.md", prd)
     ws.write("docs/product/roadmap.md", roadmap)
+    for slug, name, goal, requirement in (FEATURES if features else ()):
+        ws.write("docs/product/features/%s/prd.md" % slug,
+                 feature_prd(name, slug, goal, requirement))
     for rel, text in extra:
         ws.write(rel, text)
     if commit:
@@ -101,15 +155,14 @@ def _finish(ws):
     ws.write(STEP + "/result.json", json.dumps({
         "status": "completed", "summary": "greenfield PRD written and reviewed; left as local changes",
         "states": {"prd": {"path": "docs/product"},
-                   "files": ["docs/product/prd.md", "docs/product/roadmap.md"]},
+                   "files": list(FILES)},
         "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
 
 def _version(ws):
     """The coordinator's Versions step: a new document gets `design init`."""
-    done = ws.acs("design", "init", "--status", "proposed",
-                  "docs/product/prd.md", "docs/product/roadmap.md")
+    done = ws.acs("design", "init", "--status", "proposed", *FILES)
     assert done.returncode == 0, done.stderr
 
 
@@ -119,7 +172,7 @@ def IDEAL(ws):
     _version(ws)
     _finish(ws)
     ws.reply = ("Greenfield: groomr PRD and roadmap written. Uncommitted: docs/product/prd.md, "
-                "docs/product/roadmap.md. Review them, then run /acs:create-pr to commit them "
+                "docs/product/roadmap.md and a features/<slug>/prd.md per feature. Review them, then run /acs:create-pr to commit them "
                 "and open the PR.")
 
 
@@ -156,6 +209,27 @@ def _delivered_it_itself(ws):
     _finish(ws)
 
 
+def _single_file_prd(ws):
+    """The layout this replaced: every feature inside prd.md, no feature PRDs."""
+    _start(ws)
+    _deliver(ws, features=False)
+    _finish(ws)
+
+
+def _unlinked_index(ws):
+    """Feature PRDs written, but the hub's index does not link them."""
+    _start(ws)
+    _deliver(ws, prd=PRD.replace("](features/", "](#"))
+    _finish(ws)
+
+
+def _feature_prd_missing_sections(ws):
+    _start(ws)
+    _deliver(ws, extra=[("docs/product/features/online-booking/prd.md",
+                         "# Online booking\n\n## Summary\n\nBook online.\n")])
+    _finish(ws)
+
+
 def _unversioned(ws):
     _start(ws)
     _deliver(ws)
@@ -163,6 +237,9 @@ def _unversioned(ws):
 
 
 BAD = {
+    "kept every feature in prd.md, writing no feature PRDs": _single_file_prd,
+    "wrote feature PRDs the hub's index does not link": _unlinked_index,
+    "wrote a feature PRD missing five sections": _feature_prd_missing_sections,
     "left the new documents without version front matter": _unversioned,
     "filled the skeleton with vague placeholders": _vague_prd,
     "shipped a PRD missing three sections": _missing_sections,

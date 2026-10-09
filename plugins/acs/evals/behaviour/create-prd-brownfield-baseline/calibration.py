@@ -2,8 +2,8 @@
 tests/evals/check_grader_calibration.py). The ideal run does what the skill
 does, through its own writers: `acs step start` resumes the ticketless run the
 scaffold opened, the author writes the two documents and leaves them
-uncommitted, the coordinator gives both their first version front matter
-(`acs.py design init --status proposed`), and the result document, listing both in `states.files`, goes
+uncommitted, the coordinator gives every document its first version front matter
+(`acs.py design init --status proposed`), and the result document, listing them all in `states.files`, goes
 through the real post-hook. Nothing is branched, committed or pushed
 (ADR-0127)."""
 
@@ -14,7 +14,10 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-prd.py")
 STEP = ".acs/state-machine/example-shop/runs/write-the-first-prd-96bb/steps/create-prd"
 BRANCH = "task/EVAL-1-product-definition-prd"
-FILES = ("docs/product/prd.md", "docs/product/roadmap.md")
+FEATURES = (("customer-listing", "G2"), ("card-checkout", "G1"),
+            ("order-tracking", "G1"), ("saved-carts", "G1"))
+FILES = ("docs/product/prd.md", "docs/product/roadmap.md") + tuple(
+    "docs/product/features/%s/prd.md" % slug for slug, _goal in FEATURES)
 
 PRD = """# PRD — shop
 
@@ -40,10 +43,22 @@ Setting up a storefront with payments takes merchants weeks of engineering.
 
 ## Features (prioritized)
 
-- **Must**: customer listing (shipped; G2), card checkout (G1)
-- **Should**: order tracking (G1)
-- **Could**: saved carts (G1)
-- **Won't**: a marketplace for third-party sellers
+### Must have
+
+- [Customer listing](features/customer-listing/prd.md) — shipped (supports G2)
+- [Card checkout](features/card-checkout/prd.md) — pay by card (supports G1)
+
+### Should have
+
+- [Order tracking](features/order-tracking/prd.md) — follow an order (supports G1)
+
+### Could have
+
+- [Saved carts](features/saved-carts/prd.md) — keep a cart (supports G1)
+
+### Won't have
+
+- A marketplace for third-party sellers (supports G1)
 
 ## Non-functional requirements
 
@@ -85,9 +100,16 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _write_docs(ws, prd=PRD, roadmap=ROADMAP):
+def _write_docs(ws, prd=PRD, roadmap=ROADMAP, features=True):
     ws.write("docs/product/prd.md", prd)
     ws.write("docs/product/roadmap.md", roadmap)
+    for slug, goal in (FEATURES if features else ()):
+        name = slug.replace("-", " ").capitalize()
+        ws.write("docs/product/features/%s/prd.md" % slug, (
+            "# %s\n\n## Summary\n\n%s.\n\n## Goals served\n\n- %s\n\n## Requirements\n\n"
+            "- **R1** — %s works\n\n## Acceptance criteria\n\n- It works.\n\n"
+            "## Dependencies\n\nNone.\n\n## Out of scope\n\nNothing else.\n")
+            % (name, name, goal, name.lower()))
 
 
 def _commit(ws):
@@ -124,6 +146,13 @@ def IDEAL(ws):
 
 def _allocated_only(ws):
     _start(ws)
+
+
+def _single_file_prd(ws):
+    """The layout this replaced: every feature inside prd.md, no feature PRDs."""
+    _start(ws)
+    _write_docs(ws, features=False)
+    _finish(ws)
 
 
 def _unversioned(ws):
@@ -168,6 +197,7 @@ def _recorded_no_files(ws):
 
 
 BAD = {
+    "kept every feature in prd.md, writing no feature PRDs": _single_file_prd,
     "left the new documents without version front matter": _unversioned,
     "started the run and wrote nothing": _allocated_only,
     "wrote a generic PRD without the stated facts or versions": _template_prd,

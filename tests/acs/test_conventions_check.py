@@ -70,6 +70,19 @@ class EvaluatePrTests(unittest.TestCase):
             with self.subTest(body=body):
                 self.assertFails(cc.evaluate(settings(), ctx(body=body), "pr"), "ticket_link")
 
+    def test_a_ticketless_change_may_declare_it_with_a_reason(self):
+        for body in ("Ticket: none — documents only, a ticketless run",
+                     "## Summary\nx\n\nTicket: None - no ticket for a PRD amendment\n",
+                     "Ticket: none: reason given"):
+            with self.subTest(body=body):
+                self.assertPasses(cc.evaluate(settings(), ctx(body=body), "pr"))
+
+    def test_a_ticket_declaration_without_a_reason_does_not_count(self):
+        for body in ("Ticket: none", "Ticket: none —", "Ticket: none  ", "no Ticket: none — x",
+                     "Tickets: none — reason", "Ticket: nonexistent — reason"):
+            with self.subTest(body=body):
+                self.assertFails(cc.evaluate(settings(), ctx(body=body), "pr"), "ticket_link")
+
     def test_look_alikes_do_not_count(self):
         """Another repo's prefix, an HTML entity and a URL fragment are not a
         ticket reference."""

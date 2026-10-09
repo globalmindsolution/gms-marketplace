@@ -173,9 +173,8 @@ class TicketReferencesCliTest(CliCase):
         self.assertEqual(out["web_base"], "https://github.com/acme/shop")
         self.assertFalse(out["written"])
         refs = {r["path"]: r for r in out["references"]}
-        self.assertEqual(refs["docs/product/prd.md#feature-wishlist"]["url"],
-                         "https://github.com/acme/shop/blob/main/docs/product/prd.md"
-                         "#feature-wishlist")
+        self.assertEqual(refs["docs/product/prd.md"]["url"],
+                         "https://github.com/acme/shop/blob/main/docs/product/prd.md")
         self.assertIsNone(refs["docs/architecture/lld/wishlist/flows/share.md"]["url"])
         self.assertNotIn("references", self.ticket_doc(ticket))
 
@@ -188,8 +187,8 @@ class TicketReferencesCliTest(CliCase):
         self.assertEqual(self.ticket_doc(ticket)["references"], out["references"])
         self.assertIn("- `docs/architecture/lld/wishlist/flows/share.md`: lld, pending: "
                       "not on `main` yet", out["block"])
-        self.assertIn("- [Feature: Wishlist](https://github.com/acme/shop/blob/main/docs/"
-                      "product/prd.md#feature-wishlist): prd", out["block"])
+        self.assertIn("- [PRD](https://github.com/acme/shop/blob/main/docs/"
+                      "product/prd.md): prd", out["block"])
 
     def test_features_with_a_parent_for_a_ticket_not_minted_yet(self):
         epic = self.new_ticket("Wishlist", "epic", "--features", "wishlist")
@@ -287,8 +286,7 @@ class TrackerSyncBodyTest(TrackerCliCase):
         with open(body, encoding="utf-8") as fh:
             text = fh.read()
         self.assertIn("## References\n\n" + doc_links.START_MARKER, text)
-        self.assertIn("(https://github.com/acme/shop/blob/main/docs/product/prd.md"
-                      "#feature-wishlist): prd", text)
+        self.assertIn("(https://github.com/acme/shop/blob/main/docs/product/prd.md): prd", text)
         self.assertTrue(text.rstrip().endswith("acs-ticket: %s" % ticket))
         self.assertTrue(self.ticket_doc(ticket)["references"])
         self.assertIn("remote_checked", out)
@@ -379,7 +377,7 @@ class ContextReferencesTest(CliCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         context = json.loads(out.stdout)
         paths = [r["path"] for r in context["references"]]
-        self.assertEqual(paths, ["docs/product/prd.md#feature-wishlist",
+        self.assertEqual(paths, ["docs/product/prd.md",
                                  "docs/architecture/lld/wishlist/api/endpoints.md",
                                  "docs/architecture/lld/wishlist/flows/share.md"])
         with open(os.path.join(self.rdir(ticket), "requirements.md"), encoding="utf-8") as fh:

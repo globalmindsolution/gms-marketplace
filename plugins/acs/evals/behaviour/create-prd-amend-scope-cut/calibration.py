@@ -1,7 +1,7 @@
 """Calibration plays for create-prd-amend-scope-cut (see
 tests/evals/check_grader_calibration.py). The ideal run: Start finds the PRD
 (amend mode) and `acs step start` resumes the ticketless run the scaffold
-opened, the author edits the two documents in place -- only the confirmed
+opened, the authors edit the hub and the roadmap in place and leave every feature PRD alone -- only the confirmed
 sections -- and leaves them uncommitted, the coordinator bumps both changed
 documents with `acs.py design bump` (approved v1 -> proposed v2), and the result document, listing both
 files in `states.files`, goes through the real post-hook. Nothing is
@@ -31,10 +31,11 @@ def _start(ws):
 
 def _amend(ws, prd_edit=None, roadmap_edit=None):
     prd = _read(ws, PRD)
-    prd = prd.replace("- **Should**: order tracking (G1)\n", "- **Should**: none\n")
-    prd = prd.replace("- **Won't**: a marketplace for third-party sellers\n",
-                      "- **Won't**: a marketplace for third-party sellers; order tracking "
-                      "(cut by leadership, 2026-09)\n")
+    cut = "- [Order tracking](features/order-tracking/prd.md) — follow an order (supports G1)\n"
+    prd = prd.replace("### Should have\n\n" + cut, "### Should have\n\n- None.\n")
+    prd = prd.replace("- A marketplace for third-party sellers (supports G1)\n",
+                      "- A marketplace for third-party sellers (supports G1)\n"
+                      + cut.replace("follow an order", "cut by leadership, 2026-09"))
     prd = prd.replace("- Third-party sellers.\n", "- Third-party sellers.\n- Order tracking.\n")
     if prd_edit:
         prd = prd_edit(prd)
@@ -52,6 +53,24 @@ def _bump(ws):
     """The coordinator's Versions step: a changed document gets `design bump`."""
     done = ws.acs("design", "bump", PRD, ROADMAP)
     assert done.returncode == 0, done.stderr
+
+
+def _bumped_an_untouched_feature(ws):
+    """Bumped every feature PRD, though the amendment touches none of them."""
+    _start(ws)
+    _amend(ws)
+    _bump(ws)
+    ws.acs("design", "bump", "docs/product/features/saved-carts/prd.md")
+    _finish(ws)
+
+
+def _deleted_the_cut_features_prd(ws):
+    """Nothing deletes a feature PRD: retiring it is /acs:set-doc-status deprecated."""
+    _start(ws)
+    _amend(ws)
+    _bump(ws)
+    os.remove(os.path.join(ws.path, "docs/product/features/order-tracking/prd.md"))
+    _finish(ws)
 
 
 def _finish(ws, files=(PRD, ROADMAP), pr=None):
@@ -87,9 +106,9 @@ def _regenerated(ws):
 def _only_deprioritised(ws):
     """Moved it to Could and kept the milestone: not the confirmed cut."""
     _start(ws)
-    prd = _read(ws, PRD).replace("- **Should**: order tracking (G1)\n", "- **Should**: none\n"
-                                 ).replace("- **Could**: saved carts (G1)\n",
-                                           "- **Could**: saved carts (G1), order tracking (G1)\n")
+    cut = "- [Order tracking](features/order-tracking/prd.md) — follow an order (supports G1)\n"
+    prd = _read(ws, PRD).replace("### Should have\n\n" + cut, "### Should have\n\n- None.\n"
+                                 ).replace("### Could have\n\n", "### Could have\n\n" + cut)
     ws.write(PRD, prd)
     _finish(ws)
 
@@ -145,6 +164,8 @@ def _invented_pr(ws):
 
 
 BAD = {
+    "bumped a feature PRD the amendment did not touch": _bumped_an_untouched_feature,
+    "deleted the cut feature's PRD": _deleted_the_cut_features_prd,
     "regenerated the PRD instead of amending it": _regenerated,
     "deprioritised order tracking instead of cutting it": _only_deprioritised,
     "dropped the Release versions table": _dropped_the_release_table,
