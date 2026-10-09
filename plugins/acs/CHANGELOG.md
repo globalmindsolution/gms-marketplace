@@ -19,6 +19,31 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-09
+
+### Changed
+
+- **`/acs:create-pr` ships work in any git state, in a shorter skill that keeps the standards.**
+  `acs.py pr plan-commits` now reports `ahead` (commits past the default branch) and `pushed`
+  (origin has the branch at HEAD), and `pr commit` with no groups cuts the branch at HEAD for
+  work committed on the default branch or a detached HEAD. The push is skipped when already
+  pushed and the PR body lists every commit on the branch. `SKILL.md` goes from over 600 to
+  about 190 lines: the goal, the mandatory commands and CLIs, and the rules that protect the
+  user's history, with the lifecycle skeleton, clarification ledger, result document, post-hook
+  and completion report kept (ADR-0141).
+- **create-pr no longer prescribes one GitHub transport.** `gh repo view` and `gh pr …` use
+  GraphQL, which a Claude Code session refuses (HTTP 403), so the skill stopped at its first
+  critical call. It now names the operations and uses whatever access works (preferring
+  `gh api` REST, or the session's GitHub tools), tries one other route on a critical failure,
+  then stops. ADR-0141 relaxes ADR-0088 for create-pr only; `gh_failure_hint` knows the
+  GraphQL refusal.
+
+### Added
+
+- A rule that any change to a skill keeps the acs standards and adds or updates its evals in
+  the same change (`plugins/acs/docs/AUTHORING.md`, `CLAUDE.md`, the evals README), a new
+  behaviour case `create-pr-committed-on-main`, and a refreshed `create-pr-gh-unavailable`.
+
 ## [0.6.1] - 2026-10-09
 
 ### Fixed
