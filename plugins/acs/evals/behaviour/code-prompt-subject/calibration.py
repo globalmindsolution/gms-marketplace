@@ -75,9 +75,11 @@ def _gate(ws):
 def _code(ws, plan=True, source=CAPPED, branch=False, ticket=False, commit=False):
     _gate(ws)
     if ticket:
+        # Minted through the id allocator: create-ticket's own start is refused
+        # here (no PRD, ADR-0144), but a run can still mint a ticket by hand.
         ws.skill("create-ticket")
-        ws.acs("step", "start", "--step", "create-ticket", "--allocate", "--type", "task",
-               "--title", "Cap the customer page size", "--args", PROMPT)
+        ws.sh('python3 "%s" --title "Cap the customer page size" --type task > /dev/null'
+              % os.path.join(PLUGIN, "hooks", "scripts", "new-ticket.py"))
     start = ws.acs("step", "start", "--step", "code", "--args", PROMPT)
     assert start.returncode == 0, start.stderr
     ctx = json.loads(start.stdout)

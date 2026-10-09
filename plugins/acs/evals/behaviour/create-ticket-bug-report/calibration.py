@@ -66,7 +66,10 @@ def _finish(ws, ttype="bug"):
                          "prd_trace": {"feature": "F1 Customer listing", "divergence": None}},
               "findings": [], "errors": []}
     ws.write(STEP + "/result.json", json.dumps(result))
-    ws.sh('python3 "%s/post-create-ticket.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
+    # `|| true`: a ticket that does not link the PRD is refused here (ADR-0144),
+    # which leaves the step unfinished -- the outcome the graders judge.
+    ws.sh('python3 "%s/post-create-ticket.py" --result-file "%s/result.json" || true'
+          % (SCRIPTS, STEP))
 
 
 def IDEAL(ws):
@@ -105,7 +108,7 @@ def _unlinked(ws):
     """A bug linking no PRD feature: the post-hook refuses the run (ADR-0144)."""
     _start(ws)
     _drafted(ws)
-    _save(ws, dict(BUG, features=[], requirements=[]))
+    _save(ws, {k: v for k, v in dict(BUG, features=[]).items() if k != "requirements"})
     _finish(ws)
 
 
