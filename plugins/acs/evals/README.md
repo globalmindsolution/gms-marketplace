@@ -5,6 +5,14 @@
 the suite: there is no dataset they are rendered from and no generator to run.
 Edit a case by editing its files.
 
+> **Rule: a skill change always changes its evals.** Any edit to a skill (`SKILL.md`,
+> `references/`, its agents, or the hook scripts it drives) adds or updates its cases in the
+> same change — routing cases for a new `description`, a behaviour case for each new mode,
+> branch or refusal, and fixes to any case whose prompt, graders or criteria quote behaviour
+> you changed — and keeps the acs standards (`../docs/AUTHORING.md`, "Changing a skill:
+> standards and evals, every time"). Run `python3 -m unittest discover -s tests/evals -p
+> 'check_*.py'` and `python3 scripts/eval_changed.py --dry-run` before committing.
+
 ```
 evals/
 ├── routing/                  # 285 cases: does a prompt reach the right skill?

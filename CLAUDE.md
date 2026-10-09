@@ -136,6 +136,18 @@ appears to run while **nothing gates it**. That degraded state is meant to be re
 **800 lines**, enforced by `tests/acs/test_module_line_budget.py` — split along seams rather than
 letting a module grow.
 
+### Changing a skill
+
+Every change to a skill (its `SKILL.md`, `references/`, agents, or the hook scripts it drives)
+must keep the acs standards — the mandatory `step start`, clarification ledger, `acs.py write`,
+lifecycle skeleton, result document + post-hook + completion report, hooks and state machine —
+**and** add or update its evals in the same change: routing cases for a new `description`,
+a behaviour case for each new mode, branch or refusal, and fixes to any case the change makes
+stale. Shorter prose is fine; dropping a standard or skipping the evals is not. Run the free
+checks (`python3 -m unittest discover -s tests/evals -p 'check_*.py'`,
+`python3 scripts/eval_changed.py --dry-run`). The full rule is in
+`plugins/acs/docs/AUTHORING.md` ("Changing a skill: standards and evals, every time").
+
 ### State and settings
 
 Pipeline state lives **outside** the repo tree in `.acs/state-machine/<repo-id>/` (gitignored),
