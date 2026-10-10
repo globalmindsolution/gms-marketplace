@@ -697,7 +697,7 @@ else is verified against.
 - Delivery: none of its own — the documents stay uncommitted for
   `/create-pr "<prompt>"` ([product-level delivery rules](#product-level-delivery-no-ticket)).
 - Downstream: `/create-architecture` is verified against the PRD, and
-  `/create-ticket` traces tickets to PRD features and flags divergence
+  `/create-ticket` creates tickets from the PRD's features and requirements
   ([workflow.md](workflow.md#product-level-architecture)).
 
 ## `/create-architecture` (product-level)
@@ -915,14 +915,20 @@ Purpose: turn a raw user prompt into a well-formed ticket.
 
 - MUST analyze and clarify requirements from three sources: the **user
   prompt**, the **codebase**, and existing **docs**.
-- MUST consult the **PRD** when present: tickets SHOULD trace to PRD
-  features/goals, and epics SHOULD derive from the roadmap. MUST also read
+- MUST be created from the **PRD** ([ADR-0144](../../architecture/adr/0144-tickets-are-made-from-the-prd.md))
+  for product work: an epic, a story or a bug links at least one PRD feature
+  (`features`) and the requirement ids it delivers (`requirements`,
+  `<slug>/R<n>`; a story names at least one), and with no PRD it is not minted
+  (the run points at `/create-prd`); a technical task MAY link nothing,
+  checked against the feature PRDs by `acs.py ticket link-check`, and the
+  post-hook refuses a completed run whose ticket does not link the PRD. Epics
+  SHOULD derive from the roadmap. MUST also read
   the touched areas' **living requirements** files (found in the repo) as
   the current behavior and flag any contradiction the request implies
   (deliberate behavior change vs. mistake). When a requested
-  capability goes beyond the PRD, `/create-ticket` MUST flag the divergence
-  and propose a PRD amendment (a `/create-prd` re-run, user-confirmed)
-  before proceeding. MUST propose the ticket's `features` — the slugs of the
+  capability goes beyond the PRD, `/create-ticket` MUST NOT mint it: the run
+  ends `failed`, pointing at a PRD amendment (`/create-prd`), and the ticket is
+  created from the amended PRD. MUST propose the ticket's `features` — the slugs of the
   PRD features it traces to (`acs.py slug --text "<feature name>"`), which
   name its `lld/<feature>/` design folders and the feature folders its runs'
   documents go to (ADR-0128) — and record the confirmed list

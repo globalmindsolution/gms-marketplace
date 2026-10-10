@@ -9,14 +9,21 @@ Usage:
   new-ticket.py --title "Wishlist API" --type story [--parent SHOP-122]
                 [--description "..."] [--priority high]
                 [--external github:123] [--assignee jane] [--story-points 3]
-                [--features wishlist,checkout]
+                [--features wishlist,checkout] [--requirements wishlist/R1,wishlist/R2]
+                [--require-prd-link]
   new-ticket.py --title "Cart doubles a line" --type bug [--severity high]
                 [--reproduction "1. ..."] [--expected "..."] [--actual "..."]
                 [--environment "v0.5.0, Firefox 140"]
 
 A child minted with `--parent` traces to its parent's PRD features unless
 `--features` says otherwise (`--features ""` = none) (ADR-0138). The parent must
-be an epic; /acs:breakdown-ticket converts a story or task it splits into one
+be an epic. `--requirements` names the PRD requirements the ticket delivers
+(`<slug>/R<n>`, ADR-0144); a given requirement must resolve against its
+feature's PRD. `--require-prd-link` -- what /acs:create-ticket and
+/acs:breakdown-ticket pass -- refuses to mint a ticket whose PRD link is not
+sound: no PRD, no feature, a feature with no PRD of its own, a story naming no
+requirement (`acs_lib.prd_link`). Without it (a regression bug /acs:run-e2e-tests
+files, say) the link is optional. /acs:breakdown-ticket converts a story or task it splits into one
 first (`acs.py ticket save`, type epic), so the id is kept. The bug flags apply
 to `--type bug` only.
 
@@ -56,6 +63,12 @@ def main():
                         help="PRD features it traces to, as comma-separated slugs (ADR-0120). "
                              "Omitted with --parent: the parent's features (ADR-0138); "
                              "\"\" = none.")
+    parser.add_argument("--requirements",
+                        help="PRD requirements it delivers, as comma-separated "
+                             "`<feature-slug>/R<n>` ids (ADR-0144)")
+    parser.add_argument("--require-prd-link", dest="require_prd_link", action="store_true",
+                        help="refuse unless the ticket links the PRD soundly (ADR-0144); "
+                             "/acs:create-ticket and /acs:breakdown-ticket pass it")
     # A bug's report (ADR-0138): --type bug only, each optional.
     parser.add_argument("--severity", choices=lib.BUG_SEVERITIES,
                         help="a bug's severity, separate from --priority")
@@ -77,6 +90,7 @@ def main():
 
     try:
         features = lib.parse_features(args.features)
+        requirements = lib.prd_link.parse_requirements(args.requirements)
     except lib.GateError as exc:
         sys.stderr.write("acs new-ticket: --%s\n" % exc)
         sys.exit(2)
@@ -129,6 +143,17 @@ def main():
     if inherited:
         features = list(parent_ticket["features"])
 
+    # The PRD link, judged before an id is spent (ADR-0144): always when the
+    # caller asks for it, and for any requirement given -- a link that names a
+    # requirement must name a real one.
+    if args.require_prd_link or requirements:
+        try:
+            lib.prd_link.ensure_link(ctx["checkout_root"], args.ttype, features,
+                                     requirements, ctx["settings"])
+        except lib.GateError as exc:
+            sys.stderr.write("acs new-ticket: %s\nNo ticket id was minted.\n" % exc)
+            sys.exit(2)
+
     repo_root = ctx.get("main_repo_root") or ctx["checkout_root"]
     try:
         ticket_id = lib.allocate_ticket_id(
@@ -160,6 +185,7 @@ def main():
         docs_only=args.docs_only == "true",
         due_date=args.due_date,
         features=features,
+        requirements=requirements,
         **bug
     )
     lib.save_ticket(tdir, ticket)
@@ -196,6 +222,7 @@ def main():
 
     print(json.dumps({"ticket_id": ticket_id, "partition": tdir,
                       "ticket_document": document, "features": features,
+                      "requirements": requirements,
                       "features_inherited": inherited}, indent=2))
 
 

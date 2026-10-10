@@ -61,6 +61,12 @@
       "uniqueItems": true,
       "default": []
     },
+    "requirements": {
+      "description": "Optional. The PRD requirements this ticket delivers, each `<feature-slug>/R<n>`: a requirement id of one of the ticket's `features`' own PRD (`<prd_dir>/features/<slug>/prd.md`, ADR-0142). A story names at least one; /acs:create-ticket and /acs:breakdown-ticket mint only a link that resolves (ADR-0144). Absent when it names none.",
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/R[0-9]+$"},
+      "uniqueItems": true
+    },
     "references": {
       "description": "Optional. The repo documents that exist for this ticket's features, found in the standard doc layout by `acs.py ticket references` (ADR-0140): the PRD feature section, the feature's living analysis, the HLD views, the living LLD, the tech designs and API contracts of the ticket and its parent epic, and the ticket's development docs. Each entry links to the remote's default branch once the document is published there (`url`), else is pending. Written by `ticket references --write` and `tracker refresh`; never hand-edited.",
       "type": "array",

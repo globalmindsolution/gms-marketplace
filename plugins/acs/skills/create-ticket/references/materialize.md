@@ -26,7 +26,8 @@ paraphrase of them. Before writing anything, re-read:
 - the settings you need: `tracker_provider` (`local`|`github`) and whether
   tracker sync is on;
 - the confirmed decisions: the final type, `docs_only`,
-  the due date, a confirmed PRD divergence, and any conflict resolutions.
+  the due date, the confirmed PRD link (features and requirements), and any
+  conflict resolutions.
 
 ## GitHub call failure policy, as it applies here
 
@@ -82,7 +83,10 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
    import mapping, the step-5 sync result, or null), `assignee` (or null),
    `story_points` (or null), `docs_only` (the confirmed value,
    default false), `due_date` (ISO-8601 date string or null), `features`
-   (the confirmed PRD feature slugs; omit when none), and on a bug its
+   (the confirmed PRD feature slugs — at least one for an epic, a story or a bug; omit
+   for an unlinked technical task), `requirements` (the confirmed
+   `<slug>/R<n>` ids; omit when none — `ticket save` refuses one the feature's PRD
+   does not declare, and the post-hook refuses a story with none, ADR-0144), and on a bug its
    `severity`, `reproduction`, `expected`, `actual` and `environment`
    (strings); refresh `updated_at` (ISO-8601 UTC). Send ONLY ticket fields:
    the draft's `prd_trace`, `flags`, `open_questions`, `assumptions` and an

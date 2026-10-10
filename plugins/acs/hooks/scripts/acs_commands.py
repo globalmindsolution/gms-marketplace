@@ -179,6 +179,14 @@ def cmd_ticket_save(args):
         lib.check_bug_fields(updated)
         if "references" in incoming:
             lib.check_references(incoming["references"])
+        if "requirements" in incoming:
+            # A requirement link must name a real requirement of a linked
+            # feature's PRD (ADR-0144); other patches never re-judge the link.
+            lib.prd_link.parse_requirements(",".join(incoming["requirements"] or []))
+            if lib.prd_link.prd_path(ctx["checkout_root"], ctx["settings"]):
+                lib.prd_link.ensure_link(ctx["checkout_root"], updated.get("type"),
+                                         updated.get("features"), updated["requirements"],
+                                         ctx["settings"])
     except lib.GateError as exc:
         die("ticket save", str(exc))
     lib.save_ticket(tdir, updated)
@@ -289,6 +297,24 @@ def _references_into_bodies(ctx, tickets, bodies):
                 "info", "references", "%s: the ## References section was not written: %s"
                 % (ticket.get("id"), exc)), ticket_id=ticket.get("id")))
     return remote_checked, findings
+
+
+def cmd_ticket_link_check(args):
+    """Whether a ticket of `--type` may link `--features` and `--requirements`
+    (ADR-0144): {ok, problems}, exit 1 when there is any. /acs:create-ticket and
+    /acs:breakdown-ticket run it on a draft before the user confirms it."""
+    ctx = context_or_die("ticket link-check")
+    try:
+        features = lib.parse_features(args.features)
+        requirements = lib.prd_link.parse_requirements(args.requirements)
+    except lib.GateError as exc:
+        die("ticket link-check", str(exc))
+    problems = lib.prd_link.check_link(ctx["checkout_root"], args.ttype, features,
+                                       requirements, ctx["settings"])
+    emit({"ok": not problems, "type": args.ttype, "features": features,
+          "requirements": requirements, "problems": problems})
+    if problems:
+        sys.exit(1)
 
 
 def cmd_ticket_references(args):

@@ -10,8 +10,8 @@ disallowed-tools: Edit, NotebookEdit
 You are the coordinator of /acs:create-ticket. Turn `$ARGUMENTS` (requirements — a raw
 request, a bug report, documents in the repo or attached from outside it, or a mix of
 them — or a remote tracker key) into ONE schema-complete ticket in the workspace
-partition: typed (`epic`, `story`, `task` or `bug`), clarified, traced to the PRD,
-and optionally synced to the tracker. A ticket records no design flag (ADR-0139): a
+partition: typed (`epic`, `story`, `task` or `bug`), clarified, linked to the PRD
+(a technical task may link nothing, ADR-0144), and optionally synced to the tracker. A ticket records no design flag (ADR-0139): a
 design is written when the user asks for one. Every creation run ends with
 `children: []` — an epic's children are minted later by `/acs:breakdown-ticket`.
 
@@ -164,12 +164,13 @@ before anyone drafts:
   user story describes. It is a recommendation about SHAPE, not a stored axis: a
   ticket carries no `size` or `stakes` field since ADR-0095, and how much rigor
   the work gets is judged later, from its plan, by `/acs:ship`.
-- the PRD feature(s) it likely traces to, and whether it goes beyond the PRD;
+- the PRD feature(s) and requirement ids (`<slug>/R<n>`) it delivers — product work
+  no feature PRD describes is not a ticket yet; a technical task links nothing (Step 2 item 2);
 - the questions the record genuinely needs answered (Step 2 item 1) — held for
   the ONE grouped interaction, never asked one at a time.
 
 The author drafts the fields (`title`, `description`, `acceptance_criteria`,
-`priority`, `story_points`, `features`, `prd_trace`, and its type's own); you
+`priority`, `story_points`, `features`, `requirements`, `prd_trace`, and its type's own); you
 check its draft the way the reviewer does:
 
 - Judge each proposed `acceptance_criteria` entry for concreteness/testability
@@ -249,10 +250,10 @@ overrides:
    acceptance criteria belong to `/acs:analyze-requirements <id>`, the first Build
    step. Ask here only what you need to write a well-formed ticket; park anything
    that needs the codebase read for the analysis, and say so.
-2. **PRD divergence**: if the draft goes beyond the PRD, present the divergence,
-   propose a follow-up `/acs:create-prd` re-run, and obtain explicit user
-   confirmation to proceed (or stop at the user's choice). Record the confirmed
-   divergence one-liner. Show the proposed `features`; the user's correction wins.
+2. **PRD link** (ADR-0144): show the proposed `features` and `requirements`; the
+   user's correction wins, and `acs.py ticket link-check` must return `ok: true` on
+   what is confirmed. Product work no feature PRD describes (or in a repo with no
+   PRD) is NOT minted: finish `failed`, pointing at `/acs:create-prd`. A task needs no link.
 3. **AC/DoD substantiveness**: present every flagged `acceptance_criteria` entry,
    and every reviewer finding left after iteration 2, to the user. The user must
    either revise the entry or explicitly confirm keeping it as-is — the ticket
@@ -313,7 +314,7 @@ Before a needs_input handoff, record the outgoing questions as `open`
 as `due_date`, and record that answer too.
 
 Ask clarifying questions whenever the request is genuinely ambiguous (scope, type,
-priority, acceptance criteria, PRD divergence) — use AskUserQuestion or plain
+priority, acceptance criteria, the PRD link) — use AskUserQuestion or plain
 questions, and ask BEFORE finalizing, not after. Do not ask about things the
 codebase or docs already answer. With no user to reach, see `references/headless.md`.
 
@@ -348,9 +349,9 @@ MANDATORY final step — never skipped, also on failure:
    ```
 
    `children` is `[]` for every type **and for an epic's own creation run**: only
-   `/acs:breakdown-ticket` mints children. `prd_trace.feature` is the PRD
-   feature/goal the ticket traces to (null when no PRD exists);
-   `prd_trace.divergence` is null or the user-confirmed divergence one-liner. On
+   `/acs:breakdown-ticket` mints children. `prd_trace.feature` is the linked PRD
+   feature; `prd_trace.divergence` is null — the post-hook refuses a completed run
+   whose ticket does not link the PRD (ADR-0144). On
    failure keep whatever is true and record blocking findings under `findings`
    with `severity: "blocking"`.
 
@@ -390,7 +391,7 @@ succeeded. Same labels, same order, `none` where empty; under /acs:ship your fin
 
 - **Ticket**: <id> — <title> (<type>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: ticket id, type, title; a bug's severity; PRD trace or flagged divergence; reviewer iterations; references (each pending one marked); tracker key when synced; children none (an epic's are minted by `/acs:breakdown-ticket`)
+- **Results**: ticket id, type, title; a bug's severity; its PRD link (features, requirements); reviewer iterations; references (each pending one marked); tracker key when synced; children none (an epic's are minted by `/acs:breakdown-ticket`)
 - **Findings**: <open findings / clarifications / kept reviewer findings, or "none">
 - **Artifacts**: <partition files, repo paths, branch, PR URL>
 - **Metrics**: iterations <n>/2 · <wall time>

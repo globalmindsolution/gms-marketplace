@@ -32,10 +32,11 @@ the standard the draft is held to.
    each traces to the requirements, a `C-<n>` answer or the feature analysis; a
    criterion the author could not make concrete is FLAGGED in `flags`, not
    passed off as concrete. A story's criteria are Given/When/Then.
-2. **trace** — `prd_trace.feature` names a feature or goal the PRD really has
-   (open the PRD); a request beyond the PRD carries a `divergence`; each
-   `features` slug is what `acs.py slug --text "<PRD feature name>"` prints for
-   a real PRD feature — run it.
+2. **trace** — the draft links the PRD (ADR-0144): run `acs.py ticket link-check
+   --type <type> --features <slugs> --requirements <ids>` yourself — each problem
+   is a finding; then open each linked feature PRD and judge that the work really
+   delivers the requirements it names (a criterion with no requirement behind it,
+   or a requirement stretched to cover new scope, is a finding).
 3. **type-completeness** — the draft is complete for its type, and the
    description fills every template section (no HTML comment left but the marker pair, the
    `acs-ticket:` line kept, the `## References` section and its

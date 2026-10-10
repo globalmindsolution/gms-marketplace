@@ -20,6 +20,7 @@ REQUEST = "The customer listing ignores the page size we ask for."
 BUG = {
     "title": "Customer listing ignores a page size above 20",
     "type": "bug", "priority": "medium", "children": [],
+    "features": ["customer-listing"], "requirements": ["customer-listing/R2"],
     "severity": "high",
     "reproduction": "1. Start from a database with 60 customers.\n"
                     "2. Call list_customers(offset=0, limit=50).\n"
@@ -65,7 +66,10 @@ def _finish(ws, ttype="bug"):
                          "prd_trace": {"feature": "F1 Customer listing", "divergence": None}},
               "findings": [], "errors": []}
     ws.write(STEP + "/result.json", json.dumps(result))
-    ws.sh('python3 "%s/post-create-ticket.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
+    # `|| true`: a ticket that does not link the PRD is refused here (ADR-0144),
+    # which leaves the step unfinished -- the outcome the graders judge.
+    ws.sh('python3 "%s/post-create-ticket.py" --result-file "%s/result.json" || true'
+          % (SCRIPTS, STEP))
 
 
 def IDEAL(ws):
@@ -100,7 +104,16 @@ def _drafted_inline(ws):
     _finish(ws)
 
 
+def _unlinked(ws):
+    """A bug linking no PRD feature: the post-hook refuses the run (ADR-0144)."""
+    _start(ws)
+    _drafted(ws)
+    _save(ws, {k: v for k, v in dict(BUG, features=[]).items() if k != "requirements"})
+    _finish(ws)
+
+
 BAD = {
+    "linked no PRD feature": _unlinked,
     "filed as a task": _typed_a_task,
     "no regression criterion": _no_regression_criterion,
     "drafted inline without the author": _drafted_inline,

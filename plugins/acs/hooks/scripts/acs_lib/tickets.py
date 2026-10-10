@@ -67,6 +67,9 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
     if kw.get("features"):
         # The PRD features it traces to (ADR-0120); absent rather than [] when none.
         doc["features"] = list(kw["features"])
+    if kw.get("requirements"):
+        # The PRD requirements it delivers, `<slug>/R<n>` (ADR-0144).
+        doc["requirements"] = list(kw["requirements"])
     if kw.get("references"):
         # The documents found for it in the standard layout (ADR-0140).
         doc["references"] = [dict(r) for r in kw["references"]]
@@ -189,6 +192,8 @@ def update_index(workspace, repo_id, ticket, archived=None):
         entry.pop("needs_design", None)
         if "features" in ticket:
             entry["features"] = list(ticket.get("features") or [])
+        if "requirements" in ticket:
+            entry["requirements"] = list(ticket.get("requirements") or [])
         if archived is not None:
             entry["archived"] = archived
         write_json(path, data)

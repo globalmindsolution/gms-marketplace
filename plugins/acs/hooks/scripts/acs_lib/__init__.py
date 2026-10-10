@@ -93,6 +93,7 @@ from .lock import (LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,  # noqa: F401
     lock_audit_path, lock_is_stale, lock_staleness, read_lock, release_lock)
 
 from . import tickets as tickets_module  # noqa: F401
+from . import prd_link  # noqa: F401,E402
 from .tickets import (allocate_ticket_id, check_bug_fields, check_references, load_ticket,  # noqa: F401
     new_ticket_doc, parse_features, save_ticket, update_index)
 

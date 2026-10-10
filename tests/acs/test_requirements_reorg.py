@@ -560,6 +560,17 @@ REWORDED_BY_ADR_0139 = {
     },
 }
 
+REWORDED_BY_ADR_0144 = {
+    'skills.md': {
+        '- MUST consult the **PRD** when present: tickets SHOULD trace to PRD':
+            '- MUST be created from the **PRD**',
+        'capability goes beyond the PRD, `/create-ticket` MUST flag the divergence':
+            'capability goes beyond the PRD, `/create-ticket` MUST NOT mint it',
+        'features/goals, and epics SHOULD derive from the roadmap. MUST also read':
+            'SHOULD derive from the roadmap. MUST also read',
+    },
+}
+
 RETIRED_BY_ADR_0139 = {
     'workspace-and-state.md': (
         '| `needs_design` | boolean | True for epics only; always `false` for stories/tasks',
@@ -568,7 +579,7 @@ RETIRED_BY_ADR_0139 = {
 
 REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103,
                     REWORDED_BY_ADR_0109, REWORDED_BY_ADR_0128, REWORDED_BY_ADR_0135,
-                    REWORDED_BY_ADR_0138, REWORDED_BY_ADR_0139)
+                    REWORDED_BY_ADR_0138, REWORDED_BY_ADR_0139, REWORDED_BY_ADR_0144)
 
 
 def _retired():

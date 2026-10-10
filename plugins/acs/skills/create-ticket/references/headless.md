@@ -18,8 +18,10 @@ with `clarify.py add … --source assumption --rationale "…"`, keep
 list the assumptions under the completion report's Findings, and continue
 to Step 3. Never return `needs_input` for a question the request already
 delegated — a headless run that hands off on "story or task?" after being
-told to decide has produced nothing. Only item 2, a PRD divergence, still
-needs the user: a delegation never confirms going beyond the PRD.
+told to decide has produced nothing. Item 2, the PRD link, is never
+assumed past — a delegation never confirms going beyond the PRD: it can choose
+among the PRD's features and requirements, but product work no feature PRD
+describes still ends the run `failed`, pointing at `/acs:create-prd` (ADR-0144).
 
 The same rule holds for any question User interaction would ask. When you
 genuinely cannot reach the user (a non-interactive run): return a `<handoff

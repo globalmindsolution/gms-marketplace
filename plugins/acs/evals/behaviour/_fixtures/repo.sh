@@ -84,7 +84,9 @@ MD
 }
 
 # acs_prd: the product docs a downstream skill (architecture, requirements,
-# doc sets, tickets) reads as upstream.
+# doc sets, tickets) reads as upstream -- the hub prd.md indexing one PRD per
+# feature (ADR-0142), each declaring its requirement ids, so a ticket can link
+# the PRD (ADR-0144).
 acs_prd() {
   mkdir -p docs/product
   cat > docs/product/prd.md <<'MD'
@@ -108,17 +110,41 @@ Let small merchants sell online without running infrastructure.
 
 ## Features
 
-- F1 Customer listing (shipped)
-- F2 Checkout with card payments (P0)
-- F3 Order tracking (P1)
+- F1 [Customer listing](features/customer-listing/prd.md) (shipped; supports G2)
+- F2 [Checkout with card payments](features/checkout-with-card-payments/prd.md) (P0; supports G1)
+- F3 [Order tracking](features/order-tracking/prd.md) (P1; supports G1)
+- F4 [Order management](features/order-management/prd.md) (P1; supports G1)
 
 ## Non-functional requirements
 
 - NFR1 p95 API latency under 300 ms.
 - NFR2 Unit test coverage at least 90%.
 MD
+  _acs_feature_prd customer-listing "Customer listing" G2 \
+    "a merchant lists customers" "a client pages through customers"
+  _acs_feature_prd checkout-with-card-payments "Checkout with card payments" G1 \
+    "a shopper pays by card" "a declined card creates no order"
+  _acs_feature_prd order-tracking "Order tracking" G1 \
+    "a shopper sees each order's status and history" "a shopper is emailed on every status change" \
+    "carrier updates move an order's status"
+  _acs_feature_prd order-management "Order management" G1 \
+    "a merchant refunds an order" "a merchant exports orders as CSV"
   printf '# Roadmap\n\n- Q4: checkout (F2)\n- Q1: order tracking (F3)\n' > docs/product/roadmap.md
   git add -A && git commit -qm "PRD and roadmap"
+}
+
+# _acs_feature_prd SLUG NAME GOAL REQUIREMENT...: one feature PRD, R1..Rn in order.
+_acs_feature_prd() {
+  local slug="$1" name="$2" goal="$3" n=0 req
+  shift 3
+  mkdir -p "docs/product/features/$slug"
+  {
+    printf '# %s\n\n## Summary\n\n%s.\n\n## Goals served\n\n- %s\n\n## Requirements\n\n' \
+      "$name" "$name" "$goal"
+    for req in "$@"; do n=$((n + 1)); printf -- '- **R%d** — %s\n' "$n" "$req"; done
+    printf '\n## Acceptance criteria\n\n- Each requirement is observable in the product.\n'
+    printf '\n## Dependencies\n\nNone.\n\n## Out of scope\n\nAnything not named above.\n'
+  } > "docs/product/features/$slug/prd.md"
 }
 
 # acs_architecture: a minimal HLD/LLD set, for the skills that read it.

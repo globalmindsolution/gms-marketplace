@@ -218,6 +218,21 @@ _POST_GUARD_REPAIR = {
 }
 
 
+def _ticket_link_problems(ctx, doc):
+    """What is wrong with the PRD link of the ticket a run is over ([] when
+    sound, or when the run has no ticket to judge)."""
+    from . import prd_link
+    ticket_id = (doc.get("subject") or {}).get("ticket_id")
+    tdir = (find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)[0]
+            if ticket_id else None)
+    ticket = load_ticket(tdir) if tdir and os.path.isdir(tdir) else None
+    if not ticket:
+        return []
+    return prd_link.check_link(ctx.get("checkout_root"), ticket.get("type"),
+                               ticket.get("features"), ticket.get("requirements"),
+                               ctx["settings"])
+
+
 def run_post(skill):
     """Entry point for post-<skill>.py: persist one step's outcome.
 
@@ -273,6 +288,15 @@ def run_post(skill):
     if audit_problems and status == "completed":
         sys.stderr.write("acs post-%s: the report does not follow its template: %s\n"
                          % (skill, "; ".join(audit_problems)))
+        sys.exit(1)
+
+    # A ticket is made from the PRD (ADR-0144): a completed create-ticket run
+    # whose ticket does not link it soundly is refused, whatever the result says.
+    link_problems = _ticket_link_problems(ctx, doc) if (
+        skill == "create-ticket" and status == "completed") else []
+    if link_problems:
+        sys.stderr.write("acs post-%s: the ticket does not link the PRD: %s\n"
+                         % (skill, "; ".join(link_problems)))
         sys.exit(1)
 
     try:
