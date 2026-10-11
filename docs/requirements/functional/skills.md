@@ -1,6 +1,6 @@
 # Skill Requirements
 
-Thirty skills in total. There is no registry file listing them: a skill is
+Thirty-one skills in total. There is no registry file listing them: a skill is
 a **directory** under `plugins/acs/skills/` holding a `SKILL.md`, and that is the
 whole of what makes it a skill (§2.4). Nothing declares what a skill reads or
 writes, or which group it belongs to, because nothing needs to: each skill
@@ -10,7 +10,10 @@ artifact is absent.
 The groups below are a reader's aid, not a structure the code knows about
 ([ADR-0129](../../architecture/adr/0129-discovery-design-development-regroup.md)):
 
-- **Discovery** — `/acs:create-prd`, `/acs:analyze-requirements` (run on
+- **Discovery** — `/acs:create-prd`, `/acs:manage-roadmap` (schedules the
+  PRD's features into milestones and reports their delivery,
+  [ADR-0145](../../architecture/adr/0145-roadmap-is-its-own-skill.md)),
+  `/acs:analyze-requirements` (run on
   its own with no ticket, it analyses a PRD feature, a prompt or an attached
   specification into the feature's living analysis,
   `<prd_dir>/features/<feature>/analysis/` —
@@ -87,12 +90,13 @@ Every **workflow** skill MUST:
   (ADR-0109; [reflection.md](reflection.md)): a `survey` role that reads
   and records notes and questions, a `write` role that produces the
   deliverable, a `judge` role that re-derives and judges it fresh. The
-  twelve **authoring skills** run a write → judge Reflection cycle over
+  thirteen **authoring skills** run a write → judge Reflection cycle over
   their own roles — `create-ticket` (one of epic-author, story-author,
   task-author or bug-author per run, then reviewer — at most two iterations,
   [ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)),
   `analyze-requirements` (analyst, impact-analyst, impact-reviewer),
-  `create-prd` (surveyor, author, reviewer),
+  `create-prd` (surveyor, author, reviewer), `manage-roadmap` (surveyor,
+  author, reviewer),
   `create-architecture` (architect, gap-analyst, reviewer), `create-tech-design` (designer,
   reviewer), `create-data-design` (designer, gap-analyst, reviewer),
   `create-flows` (designer, gap-analyst, reviewer), `create-impl-plan`
