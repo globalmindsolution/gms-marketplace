@@ -21,7 +21,7 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: write → judge
 
-The twelve **authoring skills** MUST apply the Reflection pattern as a
+The thirteen **authoring skills** MUST apply the Reflection pattern as a
 **write → judge cycle** over their own roles, with a **different subagent
 for each role** (ADR-0109):
 
@@ -29,6 +29,7 @@ for each role** (ADR-0109):
 |---|---|---|---|
 | analyze-requirements | `analyze-requirements-impact-analyst` | `analyze-requirements-analyst` | `analyze-requirements-impact-reviewer` |
 | create-prd | `create-prd-surveyor` | `create-prd-author` | `create-prd-reviewer` |
+| manage-roadmap | `manage-roadmap-surveyor` | `manage-roadmap-author` | `manage-roadmap-reviewer` (ADR-0145) |
 | create-ticket | — | ONE of `create-ticket-epic-author`, `create-ticket-story-author`, `create-ticket-task-author`, `create-ticket-bug-author` — the author for the type the coordinator chose; it writes the draft only (ADR-0138) | `create-ticket-reviewer` (at most two iterations) |
 | create-architecture | `create-architecture-gap-analyst` (beside the architect's survey, when an HLD exists — ADR-0122) | `create-architecture-architect` | `create-architecture-reviewer` |
 | create-tech-design | — | `create-tech-design-designer` | `create-tech-design-reviewer` |
@@ -150,16 +151,16 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 40 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 43 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
-  **Twelve** skills run the write → judge cycle: all **twelve** authoring
+  **Thirteen** skills run the write → judge cycle: all **thirteen** authoring
   skills in the table above — which include the five Build/Test skills the
   skills-independence refactor added (`analyze-requirements`,
   `create-impl-plan`, `create-api-contract` — a Design skill since
-  ADR-0134 — `create-test-docs`, `create-e2e-tests`). One of them
-  (`create-prd`) adds a surveyor, one (`analyze-requirements`) an impact
+  ADR-0134 — `create-test-docs`, `create-e2e-tests`). Two of them
+  (`create-prd`, `manage-roadmap`) add a surveyor, one (`analyze-requirements`) an impact
   analyst per code area (ADR-0114), four (`create-architecture`,
   `create-api-contract`, `create-data-design`, `create-flows`) a gap analyst
   beside their survey over the documents they revise (ADR-0122, ADR-0126,

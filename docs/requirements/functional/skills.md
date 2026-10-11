@@ -638,40 +638,41 @@ else is verified against.
   - `features/<slug>/prd.md` — one PRD per feature
     ([ADR-0142](../../architecture/adr/0142-prd-hub-and-feature-prds.md)):
     summary, goals served, requirements (`R<n>`), acceptance criteria,
-    dependencies, out-of-scope — beside the feature's living analysis;
-  - `roadmap.md` — milestones/phases mapped to intended epics, plus a
-    **"Release versions"** mapping table (each release version → its
-    milestone/wave and the epic(s) it delivers).
+    dependencies, out-of-scope — beside the feature's living analysis.
+  It does not write `roadmap.md`: scheduling the features is
+  [`/manage-roadmap`](#manage-roadmap-product-level)'s
+  ([ADR-0145](../../architecture/adr/0145-roadmap-is-its-own-skill.md)), and a
+  run that adds, cuts or re-prioritises a feature points the user at it.
 - Reflection cycle (survey → author → review — ADR-0109):
   `create-prd-surveyor` (iteration 1 only: mode, outline, feature set, open
-  questions), `create-prd-author` (a `hub` author for `prd.md` and `roadmap.md`
+  questions), `create-prd-author` (a `hub` author for `prd.md`
   first, then one `feature-<slug>` author per feature, in parallel — a finding
   goes to the author that owns its file), `create-prd-reviewer`. The reviewer
   checks: all required sections present in the hub and every feature PRD, the
   index and the feature documents agree (`prd_feature_check.py`), features
   trace to goals, success metrics are measurable,
-  nothing contradicts the stated constraints, and every roadmap milestone
-  resolves to exactly one release version (0 orphan milestones) — plus a
+  nothing contradicts the stated constraints, and each feature PRD describes
+  the feature its index bullet names — plus a
   deterministic `structure` floor (declared `required_sections`, blocking)
   and a blocking `audience-style` check (declared audience/style profile; an
   unwaived audience-mismatch blocks, a `clarify.py --source assumption` waiver
   makes it `severity="info"`, non-blocking).
 - **Independent corroboration (MAR-304).** The authoring notes additionally record
-  three sections (`iter-<n>-authoring.md`) that the
+  two sections (`iter-<n>-authoring.md`) that the
   deterministic floor parses: `## Code evidence`
   (brownfield/amend only, one citation per brownfield code claim in the
   house grammar; `N/A — greenfield, no code to cite` in greenfield),
   `## Answer fidelity` (one line per `clarifications.json`
-  answered/assumed entry, naming a verbatim anchor in `prd.md`, `roadmap.md`
-  or a feature's `features/<slug>/prd.md`, or an `N/A: <why>` escape), and `## Roadmap milestones` (one line per
-  declared milestone, its verbatim `roadmap.md` heading text). The
+  answered/assumed entry, naming a verbatim anchor in `prd.md` or a
+  feature's `features/<slug>/prd.md`, or an `N/A: <why>` escape). The
   reviewer's `Plan conformance` dimension runs the shared deterministic
-  `prd_conformance_check.py` floor over these three families — importing
+  `prd_conformance_check.py` floor over these two families (its third,
+  `roadmap-outline`, runs only with `--roadmap`, for `/manage-roadmap`) — importing
   `citation_check.py`'s own resolution helpers unchanged for the
   code-evidence family — then itself judges the semantic ceiling: whether
   each answer is reflected and not contradicted (every `N/A` judged, never
   silently accepted), whether each resolved code citation substantiates its
-  claim, and whether each matched milestone maps to the intended epic.
+  claim.
   Every such finding — mechanical or semantic — and an exit 2 from the
   script are `severity="blocking"`; there is no `severity="info"`
   carve-out. `clarifications.json` and the repo root are declared
@@ -680,13 +681,13 @@ else is verified against.
   doc-consistency step, surfacing gap/staleness findings through the
   existing clarification ledger.
 - **Versioned** ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md)):
-  `prd.md`, `roadmap.md` and every feature PRD open with the version front matter of
+  `prd.md` and every feature PRD open with the version front matter of
   [ADR-0122](../../architecture/adr/0122-design-versions-and-gap-detection.md)
   (`status`, `version`, `tickets`, and the approver keys once a status is
   moved). The coordinator MUST run `acs.py design init --status proposed` on a
   new document and `acs.py design bump` on a changed one — a document it left
   unchanged keeps its block and version — and MUST run `acs.py design check`
-  on both in its $0 floor, where a missing or invalid block is a finding. The
+  on every one in its $0 floor, where a missing or invalid block is a finding. The
   author's byte-for-byte preservation rule and the reviewer's
   untouched-content dimension exempt the leading front-matter block; a
   changed document MUST show a bumped version instead — one version per run.
@@ -696,9 +697,52 @@ else is verified against.
 - State lives in the run's partition (`steps/create-prd/`).
 - Delivery: none of its own — the documents stay uncommitted for
   `/create-pr "<prompt>"` ([product-level delivery rules](#product-level-delivery-no-ticket)).
-- Downstream: `/create-architecture` is verified against the PRD, and
+- Downstream: `/manage-roadmap` schedules the PRD's features,
+  `/create-architecture` is verified against the PRD, and
   `/create-ticket` creates tickets from the PRD's features and requirements
   ([workflow.md](workflow.md#product-level-architecture)).
+
+## `/manage-roadmap` (product-level)
+
+Purpose: plan when the PRD's features ship, and show how far each milestone
+has been delivered
+([ADR-0145](../../architecture/adr/0145-roadmap-is-its-own-skill.md)).
+
+- Product-level and ticketless, like `/create-prd`: it owns `roadmap.md`
+  beside the PRD hub and no other skill writes it. With no PRD it writes
+  nothing, fails its run and points at `/create-prd`.
+- Modes: **create** (no roadmap yet), **amend** (the user names a milestone
+  change), **replan** (the PRD moved under the roadmap — a feature cut, added
+  or re-prioritised) and **status**.
+- The document: milestones as `###` headings, each ending in its release
+  version, with `Status`, `Features` (links to feature PRDs), `Epics` (ticket
+  ids or `none yet` — never invented) and an optional user-given `Target`;
+  a **"Release versions"** table with one row per milestone, so every
+  milestone resolves to exactly one release version (0 orphan milestones).
+  `/release` never reads the table to resolve tickets.
+- Reflection cycle (survey → author → review, max 3 iterations):
+  `manage-roadmap-surveyor` (iteration 1 only: mode, the hub's features, the
+  current plan and its drift, the derived delivery evidence, open questions),
+  `manage-roadmap-author` (the only writer of `roadmap.md`; milestones the
+  change does not touch stay byte-for-byte), `manage-roadmap-reviewer`
+  (faithful to the PRD, order and dependencies, constraints and scope,
+  versions in sequence, answers honoured, diff discipline). The coordinator's
+  deterministic floor, blocking: `roadmap_check.py` (every Must-have
+  scheduled, no Won't-have, every linked feature PRD real, every milestone
+  mapped to one version, statuses valid and consistent; with the notes, the
+  milestone outline and answer fidelity) and `acs.py design check`.
+- **Status is derived, never asserted.** `acs.py roadmap status --write`
+  reads the tickets each milestone tracks — its epics and every ticket whose
+  `features` name one of its features — from the tickets index and the ticket
+  ids leading commit subjects on the default branch, and rewrites only the
+  Status lines and cells: `delivered` when every tracked ticket is done,
+  `in progress` when any has started, `planned` otherwise. The status mode
+  runs only that command — no subagent, no question.
+- **Versioned** like the PRD (ADR-0122, ADR-0130): `design init` on a new
+  roadmap, one `design bump` for a run that changes the plan; a status
+  refresh alone moves no front matter.
+- State lives in the run's partition (`steps/manage-roadmap/`). Delivery: none
+  of its own — the roadmap stays uncommitted for `/create-pr "<prompt>"`.
 
 ## `/create-architecture` (product-level)
 

@@ -58,12 +58,12 @@ Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
 - Deterministic layer: hooks, gates, workspace/state, locks, metrics *(removed by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md))*, helper CLIs.
-- 30 skills + 40 agent files on disk (verified `ls plugins/acs/skills` = 30,
-  `ls plugins/acs/agents` = 40; ADR-0095 added `/acs:code`'s four delivery-path
+- 31 skills + 43 agent files on disk (verified `ls plugins/acs/skills` = 31,
+  `ls plugins/acs/agents` = 43; ADR-0095 added `/acs:code`'s four delivery-path
   legs, which own no agents of their own and spawn `code`'s implementer); the
-  reflection (write → judge) protocol is active on the twelve authoring skills,
+  reflection (write → judge) protocol is active on the thirteen authoring skills,
   each over subagents named for its own work
-  (ADR-0109: e.g. `create-prd`'s surveyor, author and reviewer,
+  (ADR-0109: e.g. `create-prd`'s and `manage-roadmap`'s surveyor, author and reviewer,
   `create-impl-plan`'s planner and plan-reviewer); no skill has a planning
   pass before its writer since ADR 0092; `/acs:code` spawns implementers and
   is judged by `/acs:review-code`; `/acs:create-ticket` drafts through one
@@ -122,12 +122,12 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 30 green across 38 probes (matches
-  `s04_skill_triggers.py`'s 30-skill routing coverage, up from the original 12,
-  which is every one of the 30 shipped skill directories: the `test` alias, once
+  routes to the right skill — target all 31 green across 38 probes (matches
+  `s04_skill_triggers.py`'s 31-skill routing coverage, up from the original 12,
+  which is every one of the 31 shipped skill directories: the `test` alias, once
   the one unprobed directory, is gone, and `/acs:metrics` and `/acs:usage` left
   with their probes by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md), and `/acs:project`, its two legs and
-  `/acs:create-requirements` with theirs by [ADR 0118](../architecture/adr/0118-discovery-design-development-phases.md), while `/acs:audit-design` arrived with its own by [ADR-0122](../architecture/adr/0122-design-versions-and-gap-detection.md) and `/acs:audit-security` with its own by [ADR-0123](../architecture/adr/0123-audit-phase-and-audit-security.md), and `/acs:create-docs` left with its own by [ADR-0124](../architecture/adr/0124-remove-create-docs.md), while `/acs:create-data-design` and `/acs:create-flows` arrived with theirs by [ADR-0126](../architecture/adr/0126-lld-data-design-and-flows.md), and `/acs:set-doc-status` with its own by [ADR-0130](../architecture/adr/0130-prd-versions-and-set-doc-status.md), and `/acs:breakdown-ticket` with its own by [ADR-0138](../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). The four internal
+  `/acs:create-requirements` with theirs by [ADR 0118](../architecture/adr/0118-discovery-design-development-phases.md), while `/acs:audit-design` arrived with its own by [ADR-0122](../architecture/adr/0122-design-versions-and-gap-detection.md) and `/acs:audit-security` with its own by [ADR-0123](../architecture/adr/0123-audit-phase-and-audit-security.md), and `/acs:create-docs` left with its own by [ADR-0124](../architecture/adr/0124-remove-create-docs.md), while `/acs:create-data-design` and `/acs:create-flows` arrived with theirs by [ADR-0126](../architecture/adr/0126-lld-data-design-and-flows.md), and `/acs:set-doc-status` with its own by [ADR-0130](../architecture/adr/0130-prd-versions-and-set-doc-status.md), and `/acs:breakdown-ticket` with its own by [ADR-0138](../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md), and `/acs:manage-roadmap` with its own by [ADR-0145](../architecture/adr/0145-roadmap-is-its-own-skill.md)). The four internal
   legs — `/acs:code`'s delivery-path legs (ADR-0095) — are probed by explicit invocation plus a negative saying a
   description of the leg's subject must reach its entry point; the four doc-set
   legs were folded into `/acs:create-docs` by ADR 0094, which ADR 0124 then
@@ -682,7 +682,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 40 vs 40 reachable). **(ii) is
+  disk equals reachable-agent count (today 43 vs 43 reachable). **(ii) is
   DONE** — ADR-0092 deleted those six and made each skill declare the roles
   it owns. Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic

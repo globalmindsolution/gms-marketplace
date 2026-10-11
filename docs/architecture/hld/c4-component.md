@@ -55,9 +55,10 @@ The work loop follows each skill's own logic, and a skill spawns only the
 subagents that logic needs, each named for its work (ADR 0109). Every role
 has a kind — `survey`, `write` or `judge` (`acs_lib.skills.ROLE_KINDS`) — and
 the kind picks its model tier and whether the file-map guard is armed. The
-**twelve authoring skills** run a write → judge reflection
+**thirteen authoring skills** run a write → judge reflection
 loop over their own roles: `analyze-requirements` (analyst, impact-analyst, impact-reviewer), `create-prd`
-(surveyor, author, reviewer), `create-ticket` (epic-, story-, task- and
+(surveyor, author, reviewer), `manage-roadmap` (surveyor, author, reviewer;
+ADR-0145), `create-ticket` (epic-, story-, task- and
 bug-author — one per run, for the chosen type — and reviewer; ADR-0138), `create-architecture`
 (architect, gap-analyst, reviewer), `create-tech-design` (designer, reviewer),
 `create-data-design` and `create-flows` (each designer, gap-analyst, reviewer —
@@ -67,7 +68,7 @@ contract-reviewer — ADR-0134),
 `create-test-docs` (test-designer, trace-reviewer), `create-e2e-tests`
 (test-writer, suite-runner) and `docs-sync` (doc-updater, gap-analyst,
 drift-reviewer — ADR-0137)
-— **34 agents**. No skill has a plan
+— **37 agents**. No skill has a plan
 phase before its writer (ADR 0092): a surveyor runs on iteration 1
 only and freezes its notes, and where there is none the writer surveys first
 and records `iter-<n>/authoring.md`; the judge judges the deliverable against
@@ -84,7 +85,7 @@ The read-only `/acs:audit-security` runs no loop: its auditors (survey kind, one
 per category) raise candidate findings and one adjudicator (judge kind) per
 candidate tries to refute it, with no writer between them — 2 agents
 (ADR-0123). That gives
-**40 agent files, all reachable**: every file name resolves to a shipped
+**43 agent files, all reachable**: every file name resolves to a shipped
 skill and a known role, so no agent file is orphaned. `/create-impl-plan`'s
 planner is spawned on every run: MAR-72/ADR 0074's coordinator-authored fast
 path went with the lanes (ADR 0095).

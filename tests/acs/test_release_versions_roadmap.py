@@ -226,13 +226,13 @@ class ConformanceDocsTest(unittest.TestCase):
             "contracts.md conformance-chain area missing the release-versions "
             "mapping-table note")
 
-    def test_skills_md_create_prd_section_documents_table(self):
+    def test_skills_md_manage_roadmap_section_documents_table(self):
+        """ADR-0145 moved the table from create-prd's section to manage-roadmap's."""
         body = read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md"))
-        window = section(body, "## `/create-prd` (product-level)")
-        self.assertTrue(
-            "Release versions" in window or "mapping table" in window,
-            "skills.md create-prd section missing the release-versions "
-            "mapping-table output bullet")
+        window = section(body, "## `/manage-roadmap` (product-level)")
+        self.assertIn("Release versions", window)
+        self.assertIn("exactly one release version", window)
+        self.assertNotIn("Release versions", section(body, "## `/create-prd` (product-level)"))
 
 
 if __name__ == "__main__":

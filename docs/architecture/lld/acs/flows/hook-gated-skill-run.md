@@ -20,11 +20,11 @@ run: the entry point invokes each leg as a genuine Skill-tool call, so the
 user types.
 
 The diagram below shows the **reflection loop** (write → judge), which is
-how the twelve authoring skills run (`create-prd`, `create-ticket`, `create-architecture`,
+how the thirteen authoring skills run (`create-prd`, `manage-roadmap`, `create-ticket`, `create-architecture`,
 `create-tech-design`, `create-api-contract`, `create-data-design`, `create-flows`, `docs-sync`, `analyze-requirements`, `create-impl-plan`,
 `create-test-docs`, `create-e2e-tests`). Each skill spawns its own roles, named for its
 work (ADR 0109): an optional **survey** role (`create-prd-surveyor`,
-`analyze-requirements-impact-analyst`) on iteration 1
+`manage-roadmap-surveyor`, `analyze-requirements-impact-analyst`) on iteration 1
 only, which records the survey in `iter-1/authoring.md` and freezes it; a
 **write** role that authors the deliverable (and, with no survey role before
 it, surveys first); and a **judge** role that judges the deliverable against

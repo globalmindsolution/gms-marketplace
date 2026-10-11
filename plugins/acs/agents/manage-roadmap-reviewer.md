@@ -107,6 +107,9 @@ the reason — an assumption is a finding for the coordinator to resolve.
 - **As reviewer, police grounding too**: notes or an author report that assert
   something without a cited source or quoted output is itself a blocking
   finding — unverifiable work is unverified work.
-- **Precision is not the test; truth is.** A citation naming the right file but
-  the wrong lines is not a finding while the cited fact holds; a source that
-  does not say what the roadmap claims, or a fact with no citation, is.
+- **Precision is not the test; truth is.** A citation that names the right
+  file but the wrong lines or section, or a paraphrase looser than its source,
+  is not a finding while the cited fact holds — note the exact location in
+  your report and move on. What blocks: a source that does not say what the
+  draft claims, a file that does not exist, or a repo fact asserted with no
+  citation at all.
