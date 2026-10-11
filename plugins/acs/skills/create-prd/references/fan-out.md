@@ -22,9 +22,8 @@ starts: the SubagentStop hook snapshots each returned message to
 `steps/create-prd/iter-<n>/<role>-message.xml`; if that snapshot is missing (a
 host that does not fire the hook), write the `<task>` and `<result>` there
 yourself. The roles' own artifacts are the authoring notes
-`iter-<n>/authoring.md` (Mode & evidence; PRD outline; Roadmap outline; Code
-evidence; Answer fidelity; Roadmap milestones; Open questions; Risks; Reviewer
-checklist — the surveyor writes iteration 1's, the author completes them and
+`iter-<n>/authoring.md` (Mode & evidence; PRD outline; Feature set; Code
+evidence; Answer fidelity; Open questions; Risks; Reviewer checklist — the surveyor writes iteration 1's, the author completes them and
 carries them forward), `iter-1/surveyor.json`, `iter-<n>/author-hub.json` and
 `iter-<n>/author-feature-<slug>.json` (the author is always sliced:
 `author-slices.md`), each feature author's `features/<slug>/notes.md` and

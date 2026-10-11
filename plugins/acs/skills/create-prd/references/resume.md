@@ -16,7 +16,7 @@ continuing:
    `steps/create-prd/state.json` to see which phases completed, and
    `steps/create-prd/versions-before.json` (Versions below) — once written it is
    never rewritten, so a resume compares against the run's true start.
-2. Re-read `<repo>/<prd>`, `<repo>/<roadmap>` and every feature PRD under
+2. Re-read `<repo>/<prd>` and every feature PRD under
    `<features_dir>` — does their content match what the recorded author
    results claim?
 3. Continue from the first unfinished phase. If the reviewed docs already pass,

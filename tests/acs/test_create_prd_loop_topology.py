@@ -121,8 +121,9 @@ class SurveyAuthorReviewLoopTest(unittest.TestCase):
         surveyor = read(PRD_SURVEYOR)
         self.assertIn("iter-1/authoring.md", surveyor)
         self.assertIn("## Survey — what you establish (iteration 1)", surveyor)
-        for heading in ("## Code evidence", "## Answer fidelity", "## Roadmap milestones"):
+        for heading in ("## Code evidence", "## Answer fidelity"):
             self.assertIn(heading, surveyor)
+        self.assertNotIn("## Roadmap milestones", surveyor)  # ADR-0145
         self.assertIn("iter-<n>/surveyor.json", surveyor)
         author = read(PRD_AUTHOR)
         self.assertIn("steps/create-prd/iter-1/authoring.md", author)
@@ -134,7 +135,8 @@ class SurveyAuthorReviewLoopTest(unittest.TestCase):
     def test_the_surveyor_is_read_only_and_never_writes_the_prd(self):
         surveyor = norm(read(PRD_SURVEYOR))
         self.assertIn("You are read-only on the repo", surveyor)
-        self.assertIn("You never write `prd.md` or `roadmap.md` yourself", surveyor)
+        self.assertIn("You never write `prd.md` yourself", surveyor)
+        self.assertIn("nobody in this skill writes `roadmap.md`", surveyor)  # ADR-0145
 
     def test_findings_feed_the_author_context_and_the_survey_never_reruns(self):
         rerun_re = re.compile(r"(?i)surveyor (does not|never) (re-?run|runs? again)")
@@ -171,7 +173,7 @@ class ReviewerIndependenceUnchangedTest(unittest.TestCase):
         body = read(PRD_REVIEWER)
         self.assertIn("Never rubber-stamp: re-run every cheap check yourself", norm(body))
         self.assertIn("prd_conformance_check.py", body)
-        self.assertIn("independently and deterministically re-checks three families", norm(body))
+        self.assertIn("independently and deterministically re-checks two families", norm(body))
 
 
 def slice_table(body, first_id):
@@ -244,11 +246,12 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertIn("Never silently pick one side", author)
 
     def test_the_author_is_the_hub_then_one_per_feature_and_says_why(self):
-        """ADR-0142: the coupled prd.md + roadmap.md pair is ONE writer that runs
-        first; the disjoint feature PRDs fan out after it."""
+        """ADR-0142: the hub is ONE writer that runs first; the disjoint feature
+        PRDs fan out after it. ADR-0145 took roadmap.md out of the set."""
         self.assertIn("### Author — the hub, then one writer per feature", self.body)
         self.assertIn("**The hub is one author, and runs first.**", self.norm)
-        self.assertIn("`roadmap.md` derives from `prd.md`", self.norm)
+        self.assertIn("The hub's Features index is the seam every feature PRD hangs from", self.norm)
+        self.assertNotIn("`roadmap.md` derives from `prd.md`", self.norm)
         self.assertIn("No integration pass follows", self.norm)
         self.assertNotRegex(self.norm, r"(?i)MAY run two authors in parallel")
         self.assertNotIn("One author, never sliced", self.norm)

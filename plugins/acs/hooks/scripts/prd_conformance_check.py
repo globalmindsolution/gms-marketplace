@@ -17,10 +17,12 @@ Rule families:
                      whitespace-normalized anchor in prd.md, roadmap.md or
                      a feature's own features/<slug>/prd.md (ADR-0142), or
                      an `N/A: <why>` escape.
-  roadmap-outline  : active every mode. Every plan-declared milestone
-                     heading must occur, verbatim (whitespace-normalized,
-                     leading `#` marker optional), as a heading in
-                     roadmap.md; the reverse direction (every roadmap.md
+  roadmap-outline  : active only when --roadmap is given (/acs:manage-roadmap's
+                     floor, through roadmap_check.py, ADR-0145; /acs:create-prd
+                     no longer writes the roadmap and passes none). Every
+                     plan-declared milestone heading must occur, verbatim
+                     (whitespace-normalized, leading `#` marker optional), as
+                     a heading in roadmap.md; the reverse direction (every roadmap.md
                      heading must be plan-declared) runs against the full
                      roadmap in greenfield/brownfield and against only the
                      `--added-heading` values in amend mode.
@@ -54,7 +56,7 @@ Usage:
       --plan <iter-n-plan.md> --mode {greenfield|brownfield|amend} \\
       --repo-root <repo-root> \\
       --clarifications <partition>/clarifications.json \\
-      --prd <the PRD file> --roadmap <the roadmap file> \\
+      --prd <the PRD file> [--roadmap <the roadmap file>] \\
       [--added-heading "<verbatim milestone heading>" ...] \\
       [--feature-notes <a feature author's notes> ...]
 Importable:
@@ -90,7 +92,7 @@ _MODES = ("greenfield", "brownfield", "amend")
 _USAGE = ("usage: prd_conformance_check.py --plan <plan.md> "
           "--mode {greenfield|brownfield|amend} --repo-root <path> "
           "--clarifications <clarifications.json> --prd <prd.md> "
-          "--roadmap <roadmap.md> [--added-heading <heading> ...] "
+          "[--roadmap <roadmap.md>] [--added-heading <heading> ...] "
           "[--feature-notes <notes.md> ...]")
 
 
@@ -167,7 +169,9 @@ def check_answer_fidelity(text, clarifications, prd_text, roadmap_text, plan_pat
     declared = _parse_answer_lines(text)
     for notes in feature_notes:
         declared.update(_parse_answer_lines(notes))
-    file_texts = dict(feature_docs or {}, **{"prd.md": prd_text, "roadmap.md": roadmap_text})
+    file_texts = dict(feature_docs or {}, **{"prd.md": prd_text})
+    if roadmap_text is not None:
+        file_texts["roadmap.md"] = roadmap_text
     findings = []
     manifest = []
 
@@ -304,7 +308,7 @@ def main(argv):
         i += 2
 
     if (plan_path is None or mode is None or repo_root is None
-            or clarifications_path is None or prd_path is None or roadmap_path is None):
+            or clarifications_path is None or prd_path is None):
         print(_USAGE, file=sys.stderr)
         return 2
     if mode not in _MODES:
@@ -337,10 +341,12 @@ def main(argv):
         print("error reading %s: %s" % (prd_path, err), file=sys.stderr)
         return 2
 
-    roadmap_text, err = _read_text(roadmap_path)
-    if err is not None:
-        print("error reading %s: %s" % (roadmap_path, err), file=sys.stderr)
-        return 2
+    roadmap_text = None
+    if roadmap_path is not None:
+        roadmap_text, err = _read_text(roadmap_path)
+        if err is not None:
+            print("error reading %s: %s" % (roadmap_path, err), file=sys.stderr)
+            return 2
 
     feature_notes = []
     for path in feature_notes_paths:
@@ -363,9 +369,10 @@ def main(argv):
     findings += f
     manifest += m
 
-    f, m = check_roadmap_milestones(plan_text, roadmap_text, mode, added_headings, plan_path)
-    findings += f
-    manifest += m
+    if roadmap_text is not None:
+        f, m = check_roadmap_milestones(plan_text, roadmap_text, mode, added_headings, plan_path)
+        findings += f
+        manifest += m
 
     for entry in manifest:
         print(json.dumps(entry))

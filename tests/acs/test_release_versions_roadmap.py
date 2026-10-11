@@ -1,7 +1,7 @@
-"""MAR-130 — first-class release versions in the create-prd roadmap.
+"""MAR-130 — first-class release versions in the roadmap (/acs:manage-roadmap's since ADR-0145).
 
 Pins the populated "Release versions" mapping table in `roadmap.md` (the
-0-orphan milestone->version coverage invariant), the create-prd SKILL.md +
+0-orphan milestone->version coverage invariant), the manage-roadmap SKILL.md +
 agent-charter contract text that mandates the table, and the conformance-doc
 notes in `contracts.md`/`skills.md`.
 
@@ -125,41 +125,49 @@ class ZeroOrphanMilestoneInvariantTest(unittest.TestCase):
             "milestone(s) not mapping to exactly one version: %r" % (orphans,))
 
 
-class CreatePrdSkillContractTest(unittest.TestCase):
-    """AC-8 (reads Spec 01's output): SKILL.md's author-duties region
-    states the mapping-table duty; its review region states the coverage
-    sub-check. Read as the skill's contract: SKILL.md with its references
-    inlined where it points at them."""
+class ManageRoadmapSkillContractTest(unittest.TestCase):
+    """AC-8, moved by ADR-0145: the Release versions table is
+    /acs:manage-roadmap's, not create-prd's. Its contract (SKILL.md with its
+    references inlined) states the table and the 0-orphan coverage rule, and
+    its floor is the script that enforces it."""
 
     def _skill_md(self):
-        return skill_contract("create-prd")
+        return skill_contract("manage-roadmap")
 
-    def test_author_region_states_mapping_table_duty(self):
-        window = section(self._skill_md(), "### Author — the hub, then one writer per feature")
-        self.assertIn("Release versions", window)
-        self.assertIn("mapping table", window)
+    def test_the_contract_states_the_table_and_its_coverage(self):
+        body = self._skill_md()
+        self.assertIn("## Release versions", body)
+        self.assertIn("exactly one release version", body)
+        self.assertIn("0 orphan", body)
 
-    def test_review_region_states_coverage_subcheck(self):
-        window = section(self._skill_md(), "### Review")
-        self.assertTrue(
-            "exactly one release version" in window or "0 orphan milestones" in window,
-            "SKILL.md review region missing the coverage sub-check phrase")
+    def test_the_review_runs_the_floor_that_enforces_it(self):
+        window = section(self._skill_md(), "### Review — the floor, then the reviewer")
+        self.assertIn("roadmap_check.py", window)
+        script = read(os.path.join(PLUGIN, "hooks", "scripts", "roadmap_check.py"))
+        for rule in ("version-unmapped", "version-orphan", "version-duplicate"):
+            self.assertIn(rule, script)
+
+    def test_create_prd_no_longer_owns_the_table(self):
+        body = skill_contract("create-prd")
+        self.assertNotIn("Release versions", body)
+        self.assertNotIn("0 orphan milestones", body)
 
 
-class CreatePrdAgentCharterContractTest(unittest.TestCase):
-    """AC-3/AC-8 (reads Spec 01's output): the author/reviewer agent
-    charters mirror the same duty/sub-check phrases."""
+class ManageRoadmapAgentCharterContractTest(unittest.TestCase):
+    """AC-3/AC-8: the author writes the table; neither create-prd agent does."""
 
     def test_author_charter_mirrors_duty(self):
-        body = read(os.path.join(PLUGIN, "agents", "create-prd-author.md"))
+        body = read(os.path.join(PLUGIN, "agents", "manage-roadmap-author.md"))
         self.assertIn("Release versions", body)
-        self.assertIn("mapping table", body)
 
-    def test_reviewer_charter_mirrors_subcheck(self):
-        body = read(os.path.join(PLUGIN, "agents", "create-prd-reviewer.md"))
-        self.assertTrue(
-            "exactly one release version" in body or "0 orphan milestones" in body,
-            "create-prd-reviewer.md missing the coverage sub-check phrase")
+    def test_reviewer_judges_the_versions(self):
+        body = read(os.path.join(PLUGIN, "agents", "manage-roadmap-reviewer.md"))
+        self.assertIn("**Versions**", body)
+
+    def test_create_prd_agents_do_not(self):
+        for role in ("author", "reviewer", "surveyor"):
+            body = read(os.path.join(PLUGIN, "agents", "create-prd-%s.md" % role))
+            self.assertNotIn("Release versions", body, role)
 
 
 class AdditiveGuardTest(unittest.TestCase):

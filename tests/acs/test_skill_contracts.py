@@ -1127,7 +1127,8 @@ class TestProductSkillConventionWiring(unittest.TestCase):
 
     def test_no_regression_create_prd(self):
         body = read_skill_contract("create-prd")
-        self.assertIn('"files": ["docs/product/prd.md", "docs/product/roadmap.md"]', body)
+        self.assertIn('"files": ["docs/product/prd.md", "docs/product/features/wishlist/prd.md"]',
+                      body)
         self.assertIn("uncommitted changes", body)
         self.assertIn("/acs:create-pr", body)
         self.assertIn('/acs:create-pr "', body)

@@ -180,7 +180,8 @@ class CreatePrdVersioningTest(unittest.TestCase):
         body = skill_contract("create-prd")
         floor = body[body.index("**The floor, in the reviewer's own commands**"):
                      body.index("**Pass rule for sliced reviewers:**")]
-        self.assertIn('acs.py" design check "<prd>" "<roadmap>"', floor)
+        self.assertIn('acs.py" design check "<prd>"', floor)
+        self.assertNotIn('"<roadmap>"', floor)  # ADR-0145: manage-roadmap's
 
     def test_the_author_never_touches_the_block(self):
         flat = norm(read(PRD_AUTHOR))
@@ -195,7 +196,7 @@ class CreatePrdVersioningTest(unittest.TestCase):
         self.assertIn("The leading front-matter block is exempt", dim8)
         self.assertIn("A changed document whose version did not move is a finding", dim8)
         dim10 = norm(body[body.index("10. **structure**"):body.index("11. **audience-style**")])
-        self.assertIn("acs.py design check <prd> <roadmap>", dim10)
+        self.assertIn("acs.py design check <prd> <each feature PRD>", dim10)
 
 
 class CodeFactualEditsBumpTest(unittest.TestCase):

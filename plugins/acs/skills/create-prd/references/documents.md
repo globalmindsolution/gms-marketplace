@@ -8,7 +8,7 @@ link the two. The author, the reviewer and the floor all work from this page.
 ```
 <prd_dir>/                       (wherever the repo keeps its PRD, else docs/product/)
   prd.md                         the hub — the product PRD
-  roadmap.md                     milestones → epics, release versions
+  roadmap.md                     milestones → release versions — /acs:manage-roadmap's, never this skill (ADR-0145)
   features/<slug>/prd.md         one PRD per feature (a Won't-have feature may have none)
   features/<slug>/analysis/      the feature's living analysis — /acs:analyze-requirements, never this skill
 ```
@@ -78,6 +78,6 @@ have** keeping its link; nothing deletes a feature PRD — retiring it is
 
 ## Versions
 
-Every document of the set — the hub, the roadmap and each feature PRD — carries
+Every document of the set — the hub and each feature PRD — carries
 the version front matter, set only by the coordinator through `acs.py design`
 (see `versions.md`); an author never writes it.
