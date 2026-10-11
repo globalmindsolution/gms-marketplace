@@ -290,6 +290,13 @@ validated against `settings.schema.json`.
   file — merged in place (other keys and entries kept, added once, a re-run
   adds nothing)
   ([ADR-0136](../../architecture/adr/0136-state-is-written-through-acs-write.md)).
+- MUST offer to scaffold the document templates (recommended) — a copy of every
+  built-in template in `.acs/templates/` plus `templates.lock.json`, through
+  `setup apply` (`"templates": true`), never by hand — so a team edits them in
+  place. A re-run MUST refresh a copy nobody edited when its built-in changed,
+  MUST NOT overwrite an edited one, and MUST report an edited one whose
+  built-in moved on
+  ([ADR-0148](../../architecture/adr/0148-setup-scaffolds-templates.md)).
 - MUST NOT ask for a `ticket_prefix`: it defaults to `ACS`, and a repo that
   wants its own sets it by hand.
 - MUST show the three conventions — `formats.branch_name`,

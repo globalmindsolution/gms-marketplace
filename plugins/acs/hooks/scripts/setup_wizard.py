@@ -227,6 +227,8 @@ def detect(cwd):
         "design": lib.design_types.detect(settings),
         # The opt-in permission rules the setup question offers, verbatim.
         "claude_permissions": lib.claude_permissions.detect(root),
+        # The repo's copies of the document templates (ADR-0148).
+        "templates": lib.doc_templates.status(settings_root, lib.plugin_root()),
     }
 
 
@@ -618,6 +620,8 @@ def apply(cwd, answers, dry_run=False):
             staged.append(os.path.join(*lib.launch_config.PATH_PARTS))
         for warning in launch["warnings"]:
             changes.warn(warning)
+    templates = lib.doc_templates.apply_for_setup(root, lib.plugin_root(), answers.get("templates"),
+                                                  changes, staged, dry_run)
     permissions = None if perms == "skip" else lib.claude_permissions.apply(root, perms, dry_run)
     if permissions is not None:
         changes.note(bool(permissions["added"]), "added %d Claude Code permission rules to %s"
@@ -646,7 +650,7 @@ def apply(cwd, answers, dry_run=False):
                 # a workflow that was never installed blocks every future PR.
                 "required_check_contexts": [CI_INSTALLS[n][2] for n in installed_ci
                                             if n in CI_INSTALLS],
-                "launch": launch, "claude_permissions": permissions})
+                "launch": launch, "claude_permissions": permissions, "templates": templates})
     return out
 
 
@@ -663,6 +667,7 @@ ANSWER_TYPES = {
     "ci": (list, "a list of any of %s" % ", ".join(sorted(CI_INSTALLS))),
     "launch": (dict, "an object with `configurations` (and optional `autoVerify`)"),
     "claude_permissions": (str, "one of team, user or skip"),
+    "templates": (bool, "true to scaffold the document templates, false to skip"),
 }
 
 

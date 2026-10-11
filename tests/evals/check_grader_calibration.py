@@ -180,9 +180,11 @@ class Workspace(object):
         with open(path, "a" if append else "w", encoding="utf-8") as fh:
             fh.write(text)
 
-    def setup_apply(self, settings, ci):
-        return self.acs("setup", "apply", "--answers", "-",
-                        stdin=json.dumps({"settings": settings, "ci": ci}))
+    def setup_apply(self, settings, ci, templates=None):
+        answers = {"settings": settings, "ci": ci}
+        if templates is not None:
+            answers["templates"] = templates
+        return self.acs("setup", "apply", "--answers", "-", stdin=json.dumps(answers))
 
     def created(self):
         return sorted(_files(self.path) - self.before)

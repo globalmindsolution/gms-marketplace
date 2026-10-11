@@ -214,6 +214,7 @@ from . import notes  # noqa: F401,E402
 from .notes import merge_files as merge_notes, merge_texts, split_sections  # noqa: F401
 
 from . import doc_layout, requirements, run_docs, doc_share, doc_links  # noqa: F401,E402
+from . import doc_templates  # noqa: F401,E402
 from .gates import record_requirements  # noqa: F401,E402
 
 from . import artifacts  # noqa: F401,E402
