@@ -111,6 +111,19 @@ def parse(text):
     return {"milestones": milestones, "versions": versions, "headings": headings}
 
 
+def merged_on_default_branch(repo_root, settings):
+    """The ticket ids that lead a commit subject on the default branch --
+    `origin/<branch>` first (what the team merged), else the local branch.
+    The tickets index is per checkout; the default branch is shared."""
+    from . import doc_links  # deferred: doc_links imports the package
+    branch = doc_links.default_branch(repo_root)
+    if not branch:
+        return set()
+    prefix = (settings or {}).get("ticket_prefix")
+    return (merged_ids(repo_root, "origin/%s" % branch, prefix)
+            or merged_ids(repo_root, branch, prefix))
+
+
 def merged_ids(repo_root, base_branch, prefix):
     """Ticket ids that lead a commit subject on `base_branch` (best effort: [] on error)."""
     if not (repo_root and base_branch and prefix):

@@ -19,7 +19,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
 from acs_cli import context_or_die, die, emit  # noqa: E402
-from acs_lib import doc_layout, doc_links, roadmap  # noqa: E402
+from acs_lib import doc_layout, roadmap  # noqa: E402
 
 
 def _roadmap_path(ctx, explicit):
@@ -41,14 +41,8 @@ def cmd_roadmap_status(args):
                               "/acs:manage-roadmap" % (path, exc))
     index = (lib.read_json(lib.index_path(ctx["workspace"], ctx["repo_id"])) or {}).get(
         "tickets", {})
-    merged = set()
-    if not args.no_git:
-        root = ctx["checkout_root"]
-        branch = doc_links.default_branch(root)
-        if branch:
-            ref = "origin/%s" % branch
-            merged = (roadmap.merged_ids(root, ref, ctx["settings"].get("ticket_prefix"))
-                      or roadmap.merged_ids(root, branch, ctx["settings"].get("ticket_prefix")))
+    merged = (set() if args.no_git
+              else roadmap.merged_on_default_branch(ctx["checkout_root"], ctx["settings"]))
     derived = roadmap.derive(text, index, merged)
     updated = roadmap.render(text, derived)
     changed = updated != text
