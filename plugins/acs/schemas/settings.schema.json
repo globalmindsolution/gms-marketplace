@@ -668,6 +668,72 @@
           },
           "additionalProperties": false
         },
+        "manage-roadmap": {
+          "type": "object",
+          "properties": {
+            "author": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "reviewer": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "surveyor": {
+              "type": "object",
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "effort": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                    "inherit"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
         "create-tech-design": {
           "type": "object",
           "properties": {

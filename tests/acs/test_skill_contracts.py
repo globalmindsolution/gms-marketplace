@@ -88,13 +88,13 @@ _PROJECT_RESPONSES = {
     "gh project item-edit": (0, "", ""),
 }
 
-# The 19 hooked skills. The skills-independence refactor added the five
+# The 21 hooked skills. The skills-independence refactor added the five
 # Build/Test coordinators (analyze-requirements, create-impl-plan,
 # create-api-contract, create-test-docs, create-e2e-tests); ADR-0126 added the
 # two low-level Design skills (create-data-design, create-flows) beside
 # create-design; ADR-0134 moved create-api-contract among them; ADR-0135
-# renamed create-design to create-tech-design.
-HOOKED_SKILLS = ["create-prd", "create-architecture", "create-ticket",
+# renamed create-design to create-tech-design; ADR-0145 added manage-roadmap.
+HOOKED_SKILLS = ["create-prd", "manage-roadmap", "create-architecture", "create-ticket",
                  "breakdown-ticket", "create-tech-design", "create-api-contract", "create-data-design",
                  "create-flows", "analyze-requirements", "create-impl-plan",
                  "create-test-docs", "code",
@@ -130,6 +130,8 @@ EXPECTED_AGENTS = {
     "create-ticket": ["bug-author", "epic-author", "reviewer", "story-author",
                       "task-author"],
     "create-prd": ["surveyor", "author", "reviewer"],
+    # ADR-0145: the roadmap, out of create-prd into a skill of its own.
+    "manage-roadmap": ["surveyor", "author", "reviewer"],
     "create-architecture": ["architect", "gap-analyst", "reviewer"],
     # ADR-0135: renamed from create-design, its judge from design-reviewer.
     "create-tech-design": ["designer", "reviewer"],

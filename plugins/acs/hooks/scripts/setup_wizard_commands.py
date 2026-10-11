@@ -44,7 +44,7 @@ def render_protect(slug, branch, contexts):
 #: create-tech-design closes it, snapshotting what the other three wrote), then
 #: breakdown-ticket, which mints an epic's children once its tech design is
 #: settled (ADR-0138).
-PIPELINE_ORDER = ("create-prd", "create-architecture", "create-ticket",
+PIPELINE_ORDER = ("create-prd", "manage-roadmap", "create-architecture", "create-ticket",
                   "create-api-contract", "create-data-design", "create-flows",
                   "create-tech-design", "breakdown-ticket")
 
@@ -68,7 +68,7 @@ def delivery_steps(root=None):
 def render_next_steps(greenfield, root=None):
     """The next-steps list. Derived, because `git ls-files` decides it -- the
     skill should not be re-deriving a branch it can be handed."""
-    steps = ["/acs:create-prd", "/acs:create-architecture"]
+    steps = ["/acs:create-prd", "/acs:manage-roadmap", "/acs:create-architecture"]
     if greenfield:
         steps.append(GREENFIELD_SCAFFOLD_STEP)
     return {
