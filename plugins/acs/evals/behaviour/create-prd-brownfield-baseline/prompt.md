@@ -3,24 +3,24 @@ description: >-
   /acs:create-prd on a shipped codebase with no PRD, every product fact
   supplied up front. It should write docs/product/prd.md (the hub) with the
   eight required sections and the stated facts, a features/<slug>/prd.md per
-  feature (ADR-0142), a roadmap mapping milestones to release versions, and
-  leave the documents as uncommitted local changes
+  feature (ADR-0142), no roadmap -- the stated milestones are
+  /acs:manage-roadmap's (ADR-0145) -- and leave the documents as uncommitted local changes
   listed in states.files -- no ticket, branch, commit, push or PR (ADR-0127).
 expected_outcome: >-
-  docs/product/prd.md, docs/product/roadmap.md and at least one
-  docs/product/features/<slug>/prd.md written from the stated facts, each
+  docs/product/prd.md and at least one docs/product/features/<slug>/prd.md
+  written, and no docs/product/roadmap.md, from the stated facts, each
   opening with version front matter at status proposed,
   version 1, and left uncommitted on main (HEAD still the scaffold's commit,
-  nothing pushed), the step finished with both files in states.files and no
-  PR, and a reply that lists the files and points at /acs:create-pr.
+  nothing pushed), the step finished with the documents in states.files and
+  no PR, and a reply that lists the files and points at /acs:create-pr and
+  /acs:manage-roadmap.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 2400
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
-Run the /acs:create-prd skill to write the first PRD and roadmap for this
-repo. There is no PRD yet; the code under src/shop (customer listing and a
+Run the /acs:create-prd skill to write the first PRD for this repo. There is no PRD yet; the code under src/shop (customer listing and a
 health check) is what has shipped so far. Everything the skill would ask me is
 answered below. Treat all of it as confirmed, including the reverse-engineered
 baseline, and do not ask me anything.
@@ -42,5 +42,6 @@ baseline, and do not ask me anything.
 - Constraints and assumptions: one Python 3.12 service; card payments go only
   through an external payments gateway and no card data is stored.
 - Out of scope: native mobile apps; third-party sellers.
-- Roadmap: milestone "Checkout" delivers card checkout in release v2.5.0;
-  milestone "Order tracking" delivers order tracking in release v2.6.0.
+- Later, once the PRD is done: milestone "Checkout" will deliver card checkout
+  in release v2.5.0, and milestone "Order tracking" will deliver order
+  tracking in release v2.6.0.

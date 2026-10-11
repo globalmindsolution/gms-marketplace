@@ -1,20 +1,22 @@
 ---
 description: >-
   /acs:create-prd amend mode after a scope change: leadership cut order
-  tracking, which the existing PRD lists as a Should-have with its own v2.6.0
-  milestone. It should run ticketless, move order tracking to Won't and Out
-  of scope, drop its milestone and release row from the roadmap, leave every
-  other section and every feature PRD byte-for-byte (the cut feature keeps
-  its link and its document), and leave both documents as uncommitted local
-  changes listed in states.files -- no ticket, branch, commit, push or PR
-  (ADR-0127).
+  tracking, which the existing PRD lists as a Should-have and the roadmap
+  schedules in its own v2.6.0 milestone. It should run ticketless, move order
+  tracking to Won't and Out of scope, leave every other section and every
+  feature PRD byte-for-byte (the cut feature keeps its link and its
+  document), leave roadmap.md untouched -- it is /acs:manage-roadmap's
+  (ADR-0145), and the reply points there -- and leave the PRD as an
+  uncommitted local change listed in states.files -- no ticket, branch,
+  commit, push or PR (ADR-0127).
 expected_outcome: >-
   docs/product/prd.md lists order tracking under Won't and Out of scope, with
-  Vision through Goals and the NFR and Constraints sections unchanged;
-  docs/product/roadmap.md keeps Checkout v2.5.0 and no longer mentions
-  v2.6.0; both files' front matter is bumped from approved v1 to proposed
-  v2 while every feature PRD stays approved v1; HEAD is still the scaffold's last commit on main and nothing was
-  pushed; the step finished with both files in states.files and no PR.
+  Vision through Goals and the NFR and Constraints sections unchanged, its
+  front matter bumped from approved v1 to proposed v2; docs/product/roadmap.md
+  and every feature PRD stay approved v1, the roadmap still carrying its
+  v2.6.0 milestone; HEAD is still the scaffold's last commit on main and
+  nothing was pushed; the step finished with prd.md, not roadmap.md, in
+  states.files and no PR.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 2400
@@ -28,7 +30,5 @@ ask me anything:
 
 - Features (prioritized): order tracking moves from Should to Won't.
 - Out of scope: add order tracking.
-- Roadmap: remove the "Order tracking — v2.6.0" milestone and its v2.6.0 row
-  from the Release versions table. Checkout stays in v2.5.0.
-- Nothing else changes: every other section of the PRD and the rest of the
-  roadmap stay exactly as they are, word for word.
+- Nothing else changes: every other section of the PRD stays exactly as it
+  is, word for word.

@@ -148,6 +148,128 @@ _acs_feature_prd() {
 }
 
 # acs_architecture: a minimal HLD/LLD set, for the skills that read it.
+# acs_moscow_prd [should|wont]: a PRD hub in the MoSCoW shape /acs:create-prd
+# writes (ADR-0142) -- the eight sections, a Features index grouped Must /
+# Should / Could / Won't linking one PRD per feature -- for the roadmap cases
+# (ADR-0145). Order tracking is a Should-have, or, given `wont`, the
+# Won't-have leadership cut it to (and Out of scope lists it).
+acs_moscow_prd() {
+  local tracking="${1:-should}" should wont out
+  local line='- [Order tracking](features/order-tracking/prd.md) — follow an order (supports G1)'
+  if [ "$tracking" = wont ]; then
+    should='- None.'; wont="$line"$'\n''- A marketplace for third-party sellers (supports G1)'
+    out=$'- Native mobile apps.\n- Third-party sellers.\n- Order tracking.'
+  else
+    should="$line"; wont='- A marketplace for third-party sellers (supports G1)'
+    out=$'- Native mobile apps.\n- Third-party sellers.'
+  fi
+  mkdir -p docs/product
+  cat > docs/product/prd.md <<MD
+# PRD — shop
+
+## Vision
+
+Let small merchants sell online without running any infrastructure.
+
+## Problem statement
+
+Merchants lose sales because setting up a storefront with payments takes weeks
+of engineering they cannot afford.
+
+## Target users & personas
+
+- **Merchant** — lists products, fulfils orders.
+- **Shopper** — browses and pays.
+
+## Goals & success metrics
+
+| Goal | Metric |
+|---|---|
+| G1 Checkout that converts | checkout conversion >= 3.5% of shopper sessions by 2027-06-30 |
+| G2 Reliable service | 99.9% monthly availability, every calendar month from 2027-01 |
+
+## Features (prioritized)
+
+### Must have
+
+- [Customer listing](features/customer-listing/prd.md) — shipped (supports G2)
+- [Card checkout](features/card-checkout/prd.md) — pay by card (supports G1)
+
+### Should have
+
+$should
+
+### Could have
+
+- [Saved carts](features/saved-carts/prd.md) — keep a cart (supports G1)
+
+### Won't have
+
+$wont
+
+## Non-functional requirements
+
+- p95 API latency under 300 ms.
+- Unit test coverage at least 90%.
+
+## Constraints & assumptions
+
+- One Python 3.12 service; card payments only through an external gateway.
+
+## Out of scope
+
+$out
+MD
+  _acs_feature_prd customer-listing "Customer listing" G2 "a merchant lists a product"
+  _acs_feature_prd card-checkout "Card checkout" G1 "a shopper pays by card"
+  _acs_feature_prd order-tracking "Order tracking" G1 "a shopper follows an order"
+  _acs_feature_prd saved-carts "Saved carts" G1 "a shopper keeps a cart"
+}
+
+# acs_roadmap [checkout-epics]: roadmap.md beside the PRD in /acs:manage-roadmap's
+# shape (ADR-0145): three milestones, each with its version, features, epics and
+# a `planned` status, and the Release versions table mapping each to one row.
+acs_roadmap() {
+  local epics="${1:-none yet}" cell="${1:-—}"
+  cat > docs/product/roadmap.md <<MD
+# Roadmap — shop
+
+## Milestones
+
+### Storefront — v2.4.0
+
+- Status: planned
+- Features: [Customer listing](features/customer-listing/prd.md)
+- Epics: none yet
+
+The product listing every merchant starts from.
+
+### Checkout — v2.5.0
+
+- Status: planned
+- Features: [Card checkout](features/card-checkout/prd.md)
+- Epics: $epics
+
+Shoppers pay by card through the external gateway.
+
+### Order tracking — v2.6.0
+
+- Status: planned
+- Features: [Order tracking](features/order-tracking/prd.md)
+- Epics: none yet
+
+Shoppers follow an order from payment to delivery.
+
+## Release versions
+
+| Version | Milestone | Epics | Status |
+|---|---|---|---|
+| v2.4.0 | Storefront | — | planned |
+| v2.5.0 | Checkout | $cell | planned |
+| v2.6.0 | Order tracking | — | planned |
+MD
+}
+
 acs_architecture() {
   mkdir -p docs/architecture/hld docs/architecture/lld
   cat > docs/architecture/hld/c4-context.md <<'MD'

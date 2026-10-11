@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Put together the product vision and roadmap for this repo, including the goals we'll measure success against.
+Put together the product vision and feature priorities for this repo, including the goals we'll measure success against.

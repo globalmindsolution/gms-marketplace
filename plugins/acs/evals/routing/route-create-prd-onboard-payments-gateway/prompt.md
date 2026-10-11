@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-We're onboarding acs onto our existing payments gateway codebase and there's no product doc at all. Capture what the product is for, who uses it, its goals and metrics, and the roadmap ahead.
+We're onboarding acs onto our existing payments gateway codebase and there's no product doc at all. Capture what the product is for, who uses it, its goals and metrics, and the features it offers.

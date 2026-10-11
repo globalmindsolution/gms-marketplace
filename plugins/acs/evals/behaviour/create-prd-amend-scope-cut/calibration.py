@@ -1,10 +1,11 @@
 """Calibration plays for create-prd-amend-scope-cut (see
 tests/evals/check_grader_calibration.py). The ideal run: Start finds the PRD
 (amend mode) and `acs step start` resumes the ticketless run the scaffold
-opened, the authors edit the hub and the roadmap in place and leave every feature PRD alone -- only the confirmed
-sections -- and leaves them uncommitted, the coordinator bumps both changed
-documents with `acs.py design bump` (approved v1 -> proposed v2), and the result document, listing both
-files in `states.files`, goes through the real post-hook. Nothing is
+opened, the hub author edits the hub in place and leaves every feature PRD
+and the roadmap alone (the roadmap is /acs:manage-roadmap's, ADR-0145) -- only
+the confirmed sections -- and leaves it uncommitted, the coordinator bumps the
+changed hub with `acs.py design bump` (approved v1 -> proposed v2), and the
+result document, listing it in `states.files`, goes through the real post-hook. Nothing is
 branched, committed or pushed (ADR-0127)."""
 
 import json
@@ -29,7 +30,7 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _amend(ws, prd_edit=None, roadmap_edit=None):
+def _amend(ws, prd_edit=None):
     prd = _read(ws, PRD)
     cut = "- [Order tracking](features/order-tracking/prd.md) — follow an order (supports G1)\n"
     prd = prd.replace("### Should have\n\n" + cut, "### Should have\n\n- None.\n")
@@ -39,19 +40,12 @@ def _amend(ws, prd_edit=None, roadmap_edit=None):
     prd = prd.replace("- Third-party sellers.\n", "- Third-party sellers.\n- Order tracking.\n")
     if prd_edit:
         prd = prd_edit(prd)
-    roadmap = _read(ws, ROADMAP)
-    roadmap = roadmap.replace("### Order tracking — v2.6.0\n\nDelivers order tracking (Should) "
-                              "and serves G1.\n\n", "")
-    roadmap = roadmap.replace("| v2.6.0 | Order tracking | Order tracking |\n", "")
-    if roadmap_edit:
-        roadmap = roadmap_edit(roadmap)
     ws.write(PRD, prd)
-    ws.write(ROADMAP, roadmap)
 
 
 def _bump(ws):
     """The coordinator's Versions step: a changed document gets `design bump`."""
-    done = ws.acs("design", "bump", PRD, ROADMAP)
+    done = ws.acs("design", "bump", PRD)
     assert done.returncode == 0, done.stderr
 
 
@@ -73,7 +67,7 @@ def _deleted_the_cut_features_prd(ws):
     _finish(ws)
 
 
-def _finish(ws, files=(PRD, ROADMAP), pr=None):
+def _finish(ws, files=(PRD,), pr=None):
     states = {"prd": {"path": "docs/product"}, "files": list(files)}
     if pr:
         states["pr"] = pr
@@ -88,9 +82,10 @@ def IDEAL(ws):
     _amend(ws)
     _bump(ws)
     _finish(ws)
-    ws.reply = ("Amend mode: order tracking moved to Won't and Out of scope; its v2.6.0 "
-                "milestone removed. Uncommitted: docs/product/prd.md, docs/product/roadmap.md. "
-                "Review them, then run /acs:create-pr to commit them and open the PR.")
+    ws.reply = ("Amend mode: order tracking moved to Won't and Out of scope. Uncommitted: "
+                "docs/product/prd.md. Review it, then run /acs:create-pr to commit it and open "
+                "the PR. The roadmap still schedules order tracking in v2.6.0: run "
+                "/acs:manage-roadmap to re-plan it.")
 
 
 def _regenerated(ws):
@@ -113,10 +108,17 @@ def _only_deprioritised(ws):
     _finish(ws)
 
 
-def _dropped_the_release_table(ws):
+def _replanned_the_roadmap_itself(ws):
+    """The pre-ADR-0145 run: cut the milestone and bump the roadmap too."""
     _start(ws)
-    _amend(ws, roadmap_edit=lambda t: t.split("## Release versions")[0])
-    _finish(ws)
+    _amend(ws)
+    roadmap = _read(ws, ROADMAP).replace(
+        "### Order tracking — v2.6.0\n\nDelivers order tracking (Should) and serves G1.\n\n", ""
+    ).replace("| v2.6.0 | Order tracking | Order tracking |\n", "")
+    ws.write(ROADMAP, roadmap)
+    _bump(ws)
+    ws.acs("design", "bump", ROADMAP)
+    _finish(ws, files=(PRD, ROADMAP))
 
 
 def _committed_on_a_branch(ws):
@@ -168,7 +170,7 @@ BAD = {
     "deleted the cut feature's PRD": _deleted_the_cut_features_prd,
     "regenerated the PRD instead of amending it": _regenerated,
     "deprioritised order tracking instead of cutting it": _only_deprioritised,
-    "dropped the Release versions table": _dropped_the_release_table,
+    "re-planned the roadmap, which is manage-roadmap's": _replanned_the_roadmap_itself,
     "committed the amendment on a delivery branch": _committed_on_a_branch,
     "committed the amendment on main": _committed_on_main,
     "pushed a delivery branch": _pushed,

@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Skip the C4 diagrams and architecture docs for now; those come later. First we need the product-level document: vision, personas, goals with success metrics, and a roadmap.
+Skip the C4 diagrams and architecture docs for now; those come later. First we need the product-level document: vision, personas, goals with success metrics, and the prioritized features.

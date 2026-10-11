@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-We need a PRD for this product — problem statement, target personas, success metrics and a phased roadmap.
+We need a PRD for this product — problem statement, target personas, success metrics and prioritized features.

@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Leadership just cut offline mode from the mobile app's scope and pushed the analytics dashboard to Q1. Our product doc still lists offline as a P0 — update it and the roadmap to match.
+Leadership just cut offline mode from the mobile app's scope and pushed the analytics dashboard to Q1. Our product doc still lists offline as a P0 — update it to match.
