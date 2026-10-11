@@ -19,11 +19,15 @@ analysis, LLD and tickets.
 
 ## The hub — `prd.md`
 
-EXACTLY these eight sections, in this order, each non-empty (`required_sections`):
-**Vision**, **Problem statement**, **Target users & personas**, **Goals &
-success metrics**, **Features (prioritized)**, **Non-functional requirements**,
-**Constraints & assumptions**, **Out of scope**. What changed from the single-file
-PRD is only **Features (prioritized)** — it is the *index*:
+EXACTLY the `required_sections`, in order, each non-empty: the `## ` headings
+of the hub template (`acs.py prd template`, ADR-0147) — the repo's
+`.acs/templates/prd-default.md`, else the built-in, whose eight are **Vision**,
+**Problem statement**, **Target users & personas**, **Goals & success
+metrics**, **Features (prioritized)**, **Non-functional requirements**,
+**Constraints & assumptions**, **Out of scope**. A new hub starts from the
+template: its title and headings in order, each section written to the
+template's guidance comment; the comments are not kept. **Features
+(prioritized)** is the *index*:
 
 - `### Must have`, `### Should have`, `### Could have`, `### Won't have` groups;
   every feature one top-level bullet, in exactly one group:
@@ -42,8 +46,13 @@ PRD is only **Features (prioritized)** — it is the *index*:
 
 ## A feature PRD — `features/<slug>/prd.md`
 
-EXACTLY these sections, in this order, each non-empty (`feature_required_sections`);
-the document opens at its `# <Feature name>` title:
+EXACTLY the `feature_required_sections`, in order, each non-empty — the `## `
+headings of the feature template (`.acs/templates/prd-feature-default.md`,
+else the built-in, whose six are below) — starting from the template like the
+hub; the document opens at its `# <Feature name>` title. A repo template may add
+sections or rename others, never drop **Goals served** or **Requirements**
+(`acs.py prd template` refuses one that does: tickets link `R<n>` ids, ADR-0144,
+and the implemented status is derived from them, ADR-0146):
 
 | Section | Holds |
 |---|---|

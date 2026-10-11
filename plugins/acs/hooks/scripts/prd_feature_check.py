@@ -47,11 +47,13 @@ from collections import namedtuple
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import markdown_headings  # noqa: E402
 import structure_lint  # noqa: E402
+from acs_lib import prd_template  # noqa: E402
 
 Finding = namedtuple("Finding", ["source", "line", "rule", "message"])
 
-DEFAULT_FEATURE_SECTIONS = ("Summary; Goals served; Requirements; "
-                            "Acceptance criteria; Dependencies; Out of scope")
+#: The built-in feature template's sections (ADR-0147); /acs:create-prd passes
+#: the resolved template's -- a repo's own when it has one -- explicitly.
+DEFAULT_FEATURE_SECTIONS = "; ".join(prd_template.builtin_sections("feature"))
 
 _LINK = re.compile(r"\]\(\s*(?:\./)?features/([a-z0-9]+(?:-[a-z0-9]+)*)/prd\.md\s*\)")
 _GOAL = re.compile(r"\bG\d+\b")

@@ -36,10 +36,9 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
 ## Check dimensions — run ALL of them, every iteration
 
-1. **Required sections** — `prd.md` contains exactly the eight sections from
-   `required_sections` (Vision; Problem statement; Target users & personas; Goals &
-   success metrics; Features (prioritized); Non-functional requirements; Constraints
-   & assumptions; Out of scope), each present AND non-empty; every feature PRD has exactly the `feature_required_sections`, in
+1. **Required sections** — `prd.md` contains exactly the sections of
+   `required_sections` (the hub template's `## ` headings, ADR-0147), each present
+   AND non-empty; every feature PRD has exactly the `feature_required_sections`, in
    order, each non-empty. Check mechanically: `grep -n '^#'` and compare.
 2. **Feature -> goal traceability** — every feature names at least one goal it
    serves, in the hub's bullet and in its own **Goals served**, and that goal exists in

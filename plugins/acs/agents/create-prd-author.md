@@ -38,7 +38,9 @@ slice="<id>" iteration="n">` element (schema: `the SubagentStop hook's message c
   writing a word;
 - `<constraints>` — at least `partition` (the absolute run-partition path),
   `prd`, `features_dir`, `required_sections`,
-  `feature_required_sections`, `amend_rule` and the classified mode;
+  `feature_required_sections`, `prd_template` and `feature_template` (the
+  templates those sections come from, ADR-0147), `amend_rule` and the classified
+  mode;
 - `<context>` — `$ARGUMENTS`, the user's recorded answers and, on iteration 2+,
   the reviewer findings addressed to your files, verbatim.
 
@@ -48,7 +50,10 @@ The shapes you write — the hub's Features index, a feature PRD's sections and
 
 ## The hub author
 
-1. `<prd>` with EXACTLY the eight `required_sections`, in order, each non-empty:
+1. `<prd>` with EXACTLY the `required_sections`, in order, each non-empty. A new
+   hub starts from `prd_template` — its title and headings, each section written
+   to the template's guidance comment, the comments not kept. With the built-in
+   template the sections are:
    - **Vision** — one tight paragraph: what the product is and why it wins;
    - **Problem statement** — the user/business pain, grounded in the notes' evidence;
    - **Target users & personas** — named personas with goals and frustrations;
@@ -72,7 +77,8 @@ The shapes you write — the hub's Features index, a feature PRD's sections and
 
 ## A feature author
 
-Write `<features_dir>/<slug>/prd.md`: the `feature_required_sections`, in order,
+Write `<features_dir>/<slug>/prd.md` — a new one starting from
+`feature_template`, as the hub does from its own: the `feature_required_sections`, in order,
 each non-empty, opening at its `# <Feature name>` title, with the goal ids your
 hub bullet names (the same set) and the requirement ids `R1`, `R2`, … each once.
 Ground every requirement in the notes, the answers or cited code — never invent

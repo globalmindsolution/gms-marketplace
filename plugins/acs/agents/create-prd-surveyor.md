@@ -44,10 +44,9 @@ iteration="1">` element (schema: `the SubagentStop hook's message check`) with:
    - **greenfield** — empty or near-empty repo. Plan the elicitation: the exact
      question set covering vision, problem statement, target users & personas, goals,
      prioritized features, product NFRs, constraints & assumptions, out-of-scope.
-2. **Outline `prd.md` section by section** — exactly the eight required sections from
-   the `required_sections` constraint: Vision; Problem statement; Target users &
-   personas; Goals & success metrics; Features (prioritized); Non-functional
-   requirements; Constraints & assumptions; Out of scope. For each section state what
+2. **Outline `prd.md` section by section** — exactly the sections of the
+   `required_sections` constraint (the hub template's `## ` headings, ADR-0147), in
+   order. For each section state what
    goes in it and where the content comes from (user answer, code evidence, or
    existing text preserved).
 3. **Make success metrics measurable at survey time.** For every goal, pre-draft at

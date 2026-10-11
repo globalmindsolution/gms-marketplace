@@ -44,6 +44,7 @@ Usage:
   acs.py ticket save --ticket MAR-1 --from ticket.json
   acs.py roadmap status [--write] [--no-git]
   acs.py prd status [--feature SLUG] [--no-git]
+  acs.py prd template [--kind prd|feature]
   acs.py ticket link-check --type story --features wishlist --requirements wishlist/R1
   acs.py pr metadata fill --ticket MAR-1 --pr 42
   acs.py pr plan-commits [--ticket MAR-1] [--run R] [--out plan.json]
