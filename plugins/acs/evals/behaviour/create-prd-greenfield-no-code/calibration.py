@@ -1,8 +1,8 @@
 """Calibration plays for create-prd-greenfield-no-code (see
 tests/evals/check_grader_calibration.py). The ideal run: `acs step start`
 resumes the ticketless run the scaffold opened, the author writes the two
-documents from the elicited answers alone (the hub, the roadmap and one PRD per
-feature, ADR-0142) and leaves them uncommitted, the coordinator gives every
+documents from the elicited answers alone (the hub and one PRD per feature,
+ADR-0142; the roadmap is /acs:manage-roadmap's, ADR-0145) and leaves them uncommitted, the coordinator gives every
 document its first version front matter (`acs.py design init
 --status proposed`), and the result document, listing both in `states.files`, goes through the real
 post-hook. Nothing is branched, committed or pushed (ADR-0127)."""
@@ -108,7 +108,7 @@ FEATURES = (
     ("loyalty-stamp-card", "Loyalty stamp card", "G1", "repeat visits earn stamps"),
 )
 FEATURE_FILES = tuple("docs/product/features/%s/prd.md" % f[0] for f in FEATURES)
-FILES = ("docs/product/prd.md", "docs/product/roadmap.md") + FEATURE_FILES
+FILES = ("docs/product/prd.md",) + FEATURE_FILES
 
 ROADMAP = """# Roadmap
 
@@ -136,9 +136,10 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _deliver(ws, prd=PRD, roadmap=ROADMAP, extra=(), commit=False, features=True):
+def _deliver(ws, prd=PRD, roadmap=None, extra=(), commit=False, features=True):
     ws.write("docs/product/prd.md", prd)
-    ws.write("docs/product/roadmap.md", roadmap)
+    if roadmap:
+        ws.write("docs/product/roadmap.md", roadmap)
     for slug, name, goal, requirement in (FEATURES if features else ()):
         ws.write("docs/product/features/%s/prd.md" % slug,
                  feature_prd(name, slug, goal, requirement))
@@ -151,11 +152,11 @@ def _deliver(ws, prd=PRD, roadmap=ROADMAP, extra=(), commit=False, features=True
         ws.sh("git push -q -u origin %s" % BRANCH)
 
 
-def _finish(ws):
+def _finish(ws, files=FILES):
     ws.write(STEP + "/result.json", json.dumps({
         "status": "completed", "summary": "greenfield PRD written and reviewed; left as local changes",
         "states": {"prd": {"path": "docs/product"},
-                   "files": list(FILES)},
+                   "files": list(files)},
         "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
 
@@ -171,9 +172,10 @@ def IDEAL(ws):
     _deliver(ws)
     _version(ws)
     _finish(ws)
-    ws.reply = ("Greenfield: groomr PRD and roadmap written. Uncommitted: docs/product/prd.md, "
-                "docs/product/roadmap.md and a features/<slug>/prd.md per feature. Review them, then run /acs:create-pr to commit them "
-                "and open the PR.")
+    ws.reply = ("Greenfield: groomr PRD written. Uncommitted: docs/product/prd.md and a "
+                "features/<slug>/prd.md per feature. Review them, then run /acs:create-pr to "
+                "commit them and open the PR, and /acs:manage-roadmap to schedule the "
+                "Booking MVP and Deposits milestones.")
 
 
 def _vague_prd(ws):
@@ -197,10 +199,12 @@ def _started_building(ws):
     _finish(ws)
 
 
-def _no_release_table(ws):
+def _wrote_the_roadmap(ws):
+    """The pre-ADR-0145 run: the roadmap written beside the PRD."""
     _start(ws)
-    _deliver(ws, roadmap=ROADMAP.split("## Release versions")[0])
-    _finish(ws)
+    _deliver(ws, roadmap=ROADMAP)
+    _version(ws)
+    _finish(ws, files=FILES + ("docs/product/roadmap.md",))
 
 
 def _delivered_it_itself(ws):
@@ -244,7 +248,7 @@ BAD = {
     "filled the skeleton with vague placeholders": _vague_prd,
     "shipped a PRD missing three sections": _missing_sections,
     "scaffolded code beside the PRD": _started_building,
-    "wrote a roadmap with no Release versions table": _no_release_table,
+    "wrote the roadmap, which is manage-roadmap's": _wrote_the_roadmap,
     "started the run and wrote nothing": _start,
     "committed and pushed a delivery branch": _delivered_it_itself,
 }

@@ -1,6 +1,6 @@
 ---
 name: create-prd-reviewer
-description: Judges the PRD doc set fresh against the authoring notes and the create-prd quality bar — required sections, traceability, measurable metrics, roadmap coverage, the deterministic plan-conformance floor, structure and audience style — for /acs:create-prd. Spawned by the /acs:create-prd coordinator with a JSON task; not for direct invocation.
+description: Judges the PRD doc set fresh against the authoring notes and the create-prd quality bar — required sections, traceability, measurable metrics, the feature index against its documents, the deterministic plan-conformance floor, structure and audience style — for /acs:create-prd. Spawned by the /acs:create-prd coordinator with a JSON task; not for direct invocation.
 tools: Read, Glob, Grep, Bash
 ---
 
@@ -18,16 +18,16 @@ downstream skill (/acs:create-architecture, /acs:create-ticket) verifies against
 Your prompt contains one `<task skill="create-prd" phase="reviewer"
 iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 
-- `<objective>` — review this iteration's PRD doc set: the hub, the roadmap and one
-  PRD per feature (ADR-0142; shapes in `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/documents.md`);
-- `<inputs>` — absolute paths: the hub and roadmap (`<prd>`, `<roadmap>`), every
+- `<objective>` — review this iteration's PRD doc set: the hub and one PRD per
+  feature (ADR-0142; shapes in `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/documents.md`);
+- `<inputs>` — absolute paths: the hub (`<prd>`), every
   feature PRD under `features_dir`, the authoring notes
   (`steps/create-prd/iter-<n>/authoring.md` — the surveyor's survey as the hub author
   completed it) with each feature's `steps/create-prd/features/<slug>/notes.md`,
   `<partition>/clarifications.json` and the author reports. READ EVERY ONE — you
   share no memory with anyone;
-- `<constraints>` — at least `partition` (the absolute run-partition path), `prd`, `roadmap`
-  (the repo-relative hub and roadmap), `features_dir`, `required_sections`,
+- `<constraints>` — at least `partition` (the absolute run-partition path), `prd`
+  (the repo-relative hub), `features_dir`, `required_sections`,
   `feature_required_sections`, `audience_style_profile`,
   `amend_rule`, `repo_root` (the consumer repo root), and the mode
   (greenfield/brownfield/amend) — plus `dimensions` when you are one slice of a
@@ -39,8 +39,7 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 1. **Required sections** — `prd.md` contains exactly the eight sections from
    `required_sections` (Vision; Problem statement; Target users & personas; Goals &
    success metrics; Features (prioritized); Non-functional requirements; Constraints
-   & assumptions; Out of scope), each present AND non-empty; `roadmap.md` exists and
-   is non-empty; every feature PRD has exactly the `feature_required_sections`, in
+   & assumptions; Out of scope), each present AND non-empty; every feature PRD has exactly the `feature_required_sections`, in
    order, each non-empty. Check mechanically: `grep -n '^#'` and compare.
 2. **Feature -> goal traceability** — every feature names at least one goal it
    serves, in the hub's bullet and in its own **Goals served**, and that goal exists in
@@ -54,36 +53,36 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 4. **Prioritization discipline** — Features (prioritized) uses MoSCoW: every feature
    sits in exactly one of Must/Should/Could/Won't, in the hub only (a feature PRD
    restates no priority); the Must set is consistent with the goals and the notes.
-5. **Constraint consistency** — nothing in Features, NFRs, or `roadmap.md`
-   contradicts Constraints & assumptions or the Out of scope list — a feature PRD
-   included, and its own Out of scope against the hub's (e.g. an
-   out-of-scope capability appearing as a roadmap milestone is a finding).
-6. **Roadmap coverage** — milestones map to intended epics; every Must-have feature
-   appears in some milestone; no milestone delivers a feature absent from the hub's index;
-   every committed roadmap milestone resolves to **exactly one release version**
-   (**0 orphan milestones**) in the "Release versions" mapping table.
+5. **Constraint consistency** — nothing in Features or NFRs contradicts
+   Constraints & assumptions or the Out of scope list — a feature PRD included,
+   and its own Out of scope against the hub's (e.g. an out-of-scope capability
+   appearing as a feature's requirement is a finding).
+6. **Feature index ↔ documents** — what `prd_feature_check.py` cannot judge:
+   each feature PRD's title and Summary describe the feature its index bullet
+   names; no two features overlap in scope (one capability, one feature); a
+   feature the run cut leaves no requirement behind in another feature's PRD.
+   The roadmap is not yours: `/acs:manage-roadmap` owns it (ADR-0145), and a
+   stale `roadmap.md` beside the hub is never a finding here.
 7. **Plan conformance** — the documents realize the outline in the authoring
    notes; user answers recorded in the notes/context are reflected, not
    contradicted; brownfield claims match the code evidence the notes cite. Run the
    deterministic floor
    yourself, never take the author report's word:
-   - In amend mode, compute `--added-heading` values yourself from your own
-     `git diff` (dimension 8's mechanism, below): extract
-     every `+###`/`+####` heading line added to `roadmap.md` and pass each as its
-     own `--added-heading` flag; omit the flag entirely outside amend mode.
    - Run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py
      --plan steps/create-prd/iter-<n>/authoring.md --mode
      <greenfield|brownfield|amend> --repo-root <repo_root> --clarifications
-     <partition>/clarifications.json --prd <prd> --roadmap
-     <roadmap> [--added-heading "<heading>" ...] [--feature-notes <each feature's notes.md> ...]`. It
-     independently and deterministically re-checks three families —
+     <partition>/clarifications.json --prd <prd>
+     [--feature-notes <each feature's notes.md> ...]`. It
+     independently and deterministically re-checks two families —
      `code-evidence` (brownfield/amend only — N/A in greenfield, never a block
-     there), `answer-fidelity` and `roadmap-outline` — over the notes' three
-     corroboration sections. What each family checks, and the sections'
-     grammars: `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/authoring-notes.md`.
+     there) and `answer-fidelity` — over the notes' two
+     corroboration sections. The third family, `roadmap-outline`, runs only
+     with `--roadmap`, which create-prd never passes: the roadmap is
+     `/acs:manage-roadmap`'s (ADR-0145). What each family checks, and the
+     sections' grammars: `${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/authoring-notes.md`.
    - Every stderr `source:line: [rule] message` finding becomes one `<finding
      severity="blocking" dimension="Plan conformance">`; exit 2 (a usage
-     error, or an unreadable notes/clarifications/prd/roadmap input) is itself
+     error, or an unreadable notes/clarifications/prd input) is itself
      a blocking `<finding severity="blocking" dimension="Plan conformance">`,
      so a broken invocation can never silently pass.
    - Then re-open each entry on the script's stdout manifest yourself and
@@ -91,13 +90,12 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
      proof: whether the produced doc actually reflects each recorded answer
      and it is not contradicted (judge every `N/A` entry too — mandatory,
      never silently accepted); whether each resolved code citation actually
-     substantiates its claim; and whether each matched milestone maps to the
-     intended epic. A failure at this layer is its own `<finding
+     substantiates its claim. A failure at this layer is its own `<finding
      severity="blocking" dimension="Plan conformance">`. No advisory
      carve-out applies to this check — every mapped or judged finding here is
      `severity="blocking"`, with no lesser severity ever emitted.
 8. **Amend-mode diff discipline** (amend mode only) — run
-   `git diff -- "<prd>" "<roadmap>" "<features_dir>"` and `git status --short --
+   `git diff -- "<prd>" "<features_dir>"` and `git status --short --
    "<features_dir>"` (new documents) yourself and confirm ONLY the intended sections
    changed, and no feature the amendment does not touch; any byte changed in a section
    the notes marked "preserved" is a finding.
@@ -107,8 +105,7 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
    `version: 1`, `proposed`). A changed document whose version did not move is a finding.
 9. **Iteration 2+ regression check** — every prior finding from `<context>` is
    actually fixed; verify each one directly, never from the author report's word.
-10. **structure** — deterministic section-conformance floor over `prd.md`
-    (`roadmap.md` is out of scope — it has no fixed section set; dims 1 and 6 cover it):
+10. **structure** — deterministic section-conformance floor over `prd.md`:
     run `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py
     --sections "<required_sections constraint, verbatim>" --ordered prd.md`, and over
     the feature PRDs and the index: `prd_feature_check.py --prd <prd>
@@ -120,10 +117,10 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
     itself reported as a blocking finding so a broken invocation cannot
     silently pass. The version front matter of EVERY document belongs here too:
     `Bash python3 ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py design check
-    <prd> <roadmap> <each feature PRD>` — each listed problem is one `<finding
+    <prd> <each feature PRD>` — each listed problem is one `<finding
     severity="blocking" dimension="structure">`.
 11. **audience-style** — BLOCKING: judge the CHANGESET-SCOPED
-    prose this run authored (in `prd.md`, the feature PRDs, and `roadmap.md` where touched)
+    prose this run authored (in `prd.md` and the feature PRDs)
     against the task's `audience_style_profile` constraint (`product/business
     (plainer prose)`) — register, jargon level, and narrative shape
     appropriate for a product/business reader. An UNWAIVED register mismatch
@@ -138,10 +135,10 @@ iteration="n">` element (schema: `the SubagentStop hook's message check`) with:
 ## When you are one slice
 
 The coordinator runs the review as two parallel slices over disjoint
-dimensions — `substance` (2, 3, 4, 5, 7, 11) and `delta` (6, 8, 9) — and runs
+dimensions — `substance` (2, 3, 4, 5, 6, 7, 11) and `delta` (8, 9) — and runs
 the deterministic floor (dimensions 1, 7 and 10's scripts) itself beside them.
 You are a slice when your `<task>` carries `slice="<id>"` and
-`<constraint name="dimensions">` (e.g. `6, 8, 9`). Then:
+`<constraint name="dimensions">` (e.g. `8, 9`). Then:
 
 - **Run ONLY the listed dimensions** — "run ALL of them" above means all of
   yours. Grounding policing (below) applies in every slice regardless.
@@ -150,8 +147,7 @@ You are a slice when your `<task>` carries `slice="<id>"` and
   in the coordinator's floor, never in a slice. When you own dimension 7 as a
   slice, judge ONLY its semantic ceiling — the last bullet of dimension 7 —
   re-opening every entry of the notes' `## Code evidence`, `## Answer
-  fidelity` (the plan's and each feature's notes) and `## Roadmap milestones`
-  sections yourself rather than the script's manifest.
+  fidelity` (the plan's and each feature's notes) sections yourself rather than the script's manifest.
 - **Write `steps/create-prd/iter-<n>/reviewer-<id>.md`** (not `reviewer.md`):
   one `## ` section per dimension you own, then `## Findings`. The coordinator
   joins the slices into `iter-<n>/reviewer.md` with `acs.py notes merge`.

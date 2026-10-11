@@ -12,10 +12,10 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 30 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 40 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `breakdown-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 20 pre + 20 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,prd_feature_check,record-external,release_notes,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 20 pre + 20 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 17 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 31 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 43 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `breakdown-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 21 pre + 21 post |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,prd_feature_check,record-external,release_notes,roadmap_check,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 21 pre + 21 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 18 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
@@ -514,7 +514,8 @@ copy of the writing, so no skill runs a planning pass before its writer
 (ADR-0092). Where a skill's work genuinely has two jobs — a read-only survey
 that ends in questions, then a write after the answers — the jobs are two
 roles (ADR-0109): `create-prd` runs a surveyor on iteration 1 only, and its
-authors — a `hub` author, then one per feature (ADR-0142) — write from the frozen notes. Every other skill's writer surveys
+authors — a `hub` author, then one per feature (ADR-0142) — write from the frozen notes;
+`manage-roadmap` does the same with one author (ADR-0145). Every other skill's writer surveys
 first and records the survey in its authoring notes. On iteration 2+ the
 judge's findings feed straight into the next write role's `<context>`, and
 the writer authors the remediation. `/acs:create-impl-plan`'s `planner` is the
@@ -765,7 +766,7 @@ analysts survey and nothing is written for a judge to judge, and
 findings with no writer between them — the unhooked utilities
 (`setup`, `update`, `test`, `release`, `set-doc-status`, `handoff`), and the orchestrator that drives other skills'
 loops without running one of its own (`ship`). The
-twelve skills that run a write → judge loop over their own subagents
+thirteen skills that run a write → judge loop over their own subagents
 report it, with a constant `<cap>` of **3** (`create-ticket`'s is **2**,
 ADR-0138). `/acs:code` reports the
 iteration of ship.yaml's review-code → code loop it is on, whose ceiling is
@@ -777,7 +778,7 @@ one-line label naming what the run covered — **Scope** for the
 configuration utilities (`setup`, `update`) and for `set-doc-status`, **Run** for the
 two run-oriented ones (`test`, `release`), whose subject is an execution
 rather than a scope. The ticketless document skills — the audits,
-`create-prd` and `create-architecture` (ADR-0127) — put their scope or mode in
+`create-prd`, `manage-roadmap` and `create-architecture` (ADR-0127) — put their scope or mode in
 the heading's place and keep the **Ticket** label, reading `none — …`. `/acs:handoff receive` additionally puts the `continue_with` command in **Next**. No other label
 substitution is sanctioned; per-skill Results/Next content is fixed in each
 SKILL.md's "Completion report" section.
@@ -842,7 +843,8 @@ every other key below is persisted verbatim from the result document:
 
 | Skill | Required `states` keys on success |
 |-------|-----------------------------------|
-| create-prd | `prd` `{path}`, `files: [...]` (the hub, the roadmap and the feature PRDs, left uncommitted for `/acs:create-pr`) |
+| create-prd | `prd` `{path}`, `files: [...]` (the hub and the feature PRDs, left uncommitted for `/acs:create-pr`) |
+| manage-roadmap | `roadmap` `{path, mode}`, `files: [...]` (`roadmap.md` when written, left uncommitted; a `status` run lists it only when the derived status changed it — ADR-0145) |
 | create-architecture | `architecture` `{path, hld:[...]}`, `files: [...]` (every HLD path written, left uncommitted) |
 | create-ticket | `ticket_id`, `type`, `children: [ids]`, `prd_trace` `{feature, divergence}` (`divergence` always null since ADR-0144: the post-hook refuses a completed run whose ticket does not link the PRD) |
 | breakdown-ticket | `ticket_id`, `type` (always `epic` after the run), `converted_from` (`story`/`task` when a split converted the ticket, else `null`), `children: [ids]` (the parent's full list), `minted: [ids]` (this run's), `design_status` (the tech design's status, or `null`) — ADR-0138 |
@@ -933,7 +935,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-40 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 40 reachable —
+43 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 43 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -955,6 +957,7 @@ setting.
 |---|---|
 | `analyze-requirements` | `analyst` (write — a `requirements` survey lane, a `synthesis` pass, then a `draft` pass after the user's answers) · `impact-analyst` (survey — one per code area, on the `executor` tier) · `impact-reviewer` (judge); the loop is run by a controller, `acs.py analysis` (ADR-0114) |
 | `create-prd` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
+| `manage-roadmap` | `surveyor` (survey) · `author` (write) · `reviewer` (judge); its `status` mode spawns none (ADR-0145) |
 | `create-architecture` | `architect` (write) · `gap-analyst` (survey — one per survey area, spawned beside the survey only when `hld/` already holds documents; ADR-0122) · `reviewer` (judge) |
 | `create-tech-design` | `designer` (write) · `reviewer` (judge — adds flows ↔ api ↔ data consistency and snapshot freshness; ADR-0135) |
 | `create-data-design` | `designer` (write — a survey pass, then ONE write pass over both documents, which must agree) · `gap-analyst` (survey — one per survey area, spawned beside the survey only when the feature's `data/` already holds documents; ADR-0126) · `reviewer` (judge — three slices) |
@@ -1914,9 +1917,10 @@ A refused write verb exits 2 and writes nothing for the document it refused;
 `/acs:create-architecture`'s architect inits a new HLD file `implemented`
 when it documents the code as built and `proposed` when it designs ahead of it,
 and bumps a file it changes; its reviewer runs `design check` on every in-scope
-file. `/acs:create-prd`'s coordinator inits a new `prd.md` or `roadmap.md`
-`proposed`, bumps a changed one and runs `design check` on both in its $0
-floor; its author's byte-for-byte rule and its reviewer exempt the leading
+file. `/acs:create-prd`'s coordinator inits a new `prd.md` or feature PRD
+`proposed`, bumps a changed one and runs `design check` on every one in its $0
+floor, and `/acs:manage-roadmap`'s does the same for `roadmap.md` — a status
+refresh alone bumps nothing (ADR-0145); its author's byte-for-byte rule and its reviewer exempt the leading
 block, and `/acs:code`'s implementer bumps either when it reconciles a factual
 claim in it. `/acs:create-tech-design` inits a new
 `tech-design.md` `proposed` and bumps a revised one (ADR-0135). Approval is recorded with `/acs:set-doc-status` — an unhooked,

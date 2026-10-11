@@ -42,6 +42,7 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-impl-plan.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-prd.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-manage-roadmap.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-test-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-docs-sync.py
@@ -62,6 +63,7 @@ omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-impl-plan.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-prd.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-manage-roadmap.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-test-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-docs-sync.py

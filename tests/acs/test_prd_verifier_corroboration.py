@@ -45,7 +45,7 @@ HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py"
 PRD_VERIFIER_DIMENSIONS = (
     "Required sections", "Feature -> goal traceability",
     "Measurable success metrics", "Prioritization discipline",
-    "Constraint consistency", "Roadmap coverage", "Plan conformance",
+    "Constraint consistency", "Feature index ↔ documents", "Plan conformance",
     "Amend-mode diff discipline", "Iteration 2+ regression check",
 )
 
@@ -147,21 +147,22 @@ class Dimension7ContractTest(unittest.TestCase):
     def test_invokes_the_new_script(self):
         self.assertIn(HELPER_PATH, self.block)
 
-    def test_all_six_flags_named(self):
-        for flag in ("--plan", "--mode", "--repo-root", "--clarifications",
-                     "--prd", "--roadmap"):
+    def test_all_five_flags_named(self):
+        for flag in ("--plan", "--mode", "--repo-root", "--clarifications", "--prd"):
             with self.subTest(flag=flag):
                 self.assertIn(flag, self.block)
 
-    def test_added_heading_flag_scoped_to_amend(self):
-        self.assertIn("--added-heading", self.block)
-        self.assertIn("amend", self.block.lower())
+    def test_no_roadmap_flags_since_adr_0145(self):
+        """The roadmap is /acs:manage-roadmap's: create-prd passes no
+        --roadmap and so no --added-heading."""
+        self.assertNotIn("--added-heading", self.block)
+        self.assertIn("with `--roadmap`, which create-prd never passes", self.block)
 
     def test_maps_findings_and_exit_two_to_blocking_plan_conformance(self):
         self.assertIn('severity="blocking" dimension="Plan conformance"', self.block)
         self.assertIn("exit 2", self.block)
 
-    def test_names_all_three_families(self):
+    def test_names_the_families(self):
         for family in ("code-evidence", "answer-fidelity", "roadmap-outline"):
             with self.subTest(family=family):
                 self.assertIn(family, self.block)
@@ -169,7 +170,7 @@ class Dimension7ContractTest(unittest.TestCase):
     def test_states_mandatory_semantic_ceiling(self):
         self.assertIn("not contradicted", self.block)
         self.assertIn("substantiates", self.block)
-        self.assertIn("maps to the intended epic", self.block)
+        self.assertNotIn("maps to the intended epic", self.block)
 
     def test_every_na_must_be_judged_never_silently_accepted(self):
         lowered = self.block.lower()
@@ -217,13 +218,14 @@ class SurveyorContractTest(unittest.TestCase):
         self.assertIn("${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/authoring-notes.md",
                       self.charter)
 
-    def test_required_heading_list_names_three_new_sections(self):
+    def test_required_heading_list_names_the_corroboration_sections(self):
         m = re.search(r"(?s)Required headings:.*?\n\n", self.charter)
         self.assertIsNotNone(m, "surveyor 'Required headings:' paragraph not found")
         paragraph = _norm(m.group(0))
-        for heading in ("## Code evidence", "## Answer fidelity", "## Roadmap milestones"):
+        for heading in ("## Code evidence", "## Answer fidelity"):
             with self.subTest(heading=heading):
                 self.assertIn(heading, paragraph)
+        self.assertNotIn("Roadmap", paragraph)  # ADR-0145
 
     def test_code_evidence_grammar_line_verbatim(self):
         self.assertIn(
@@ -235,14 +237,14 @@ class SurveyorContractTest(unittest.TestCase):
             "Code evidence: N/A — greenfield, no code to cite", _norm(self.body))
 
     def test_answer_fidelity_grammar_lines_verbatim(self):
-        self.assertIn('- C-<n> — <prd.md|roadmap.md> — "<verbatim anchor text>"', self.body)
+        self.assertIn('- C-<n> — prd.md — "<verbatim anchor text>"', self.body)
         self.assertIn("- C-<n> N/A: <why this answer produces no anchor>", self.body)
 
-    def test_roadmap_milestones_grammar_line_verbatim(self):
-        self.assertIn(
-            '- Milestone: "### M2.6 — v0.3.5–v0.3.7 fast-follows — '
-            'complete tracker & PR metadata sync; dynamic lane correctness"',
-            self.body)
+    def test_roadmap_milestones_grammar_moved_to_manage_roadmap(self):
+        """ADR-0145: the milestone grammar is manage-roadmap's notes now."""
+        self.assertNotIn("- Milestone:", self.body)
+        notes = read(os.path.join(SKILLS, "manage-roadmap", "references", "authoring-notes.md"))
+        self.assertIn('- Milestone: "M1 Booking MVP — v0.1.0"', notes)
 
     def test_adr_0012_canonical_block_untouched(self):
         # md5-identical across six planners (test_doc_consistency_step.py);
@@ -269,22 +271,24 @@ class SkillMirrorTest(unittest.TestCase):
         cls.body = skill_contract("create-prd")
         cls.verify_region = verify_phase_region(cls.body, "create-prd")
 
-    def test_plan_task_example_names_three_new_sections(self):
+    def test_plan_task_example_names_the_corroboration_sections(self):
         m = re.search(r"(?m)^\s*<objective>.*</objective>\s*$", self.body)
         self.assertIsNotNone(m, "plan-task <objective> line not found")
-        for heading in ("Code evidence", "Answer fidelity", "Roadmap milestones"):
+        for heading in ("Code evidence", "Answer fidelity"):
             with self.subTest(heading=heading):
                 self.assertIn(heading, m.group(0))
+        self.assertNotIn("Roadmap milestones", m.group(0))
 
     def test_verify_paragraph_names_clarifications_and_repo_root(self):
         norm = _norm(self.verify_region)
         self.assertIn("clarifications.json", norm)
         self.assertIn("repo_root", norm)
 
-    def test_verify_paragraph_names_added_heading_git_diff_derivation(self):
+    def test_verify_paragraph_passes_no_roadmap(self):
+        """ADR-0145: no --roadmap, so no --added-heading derivation."""
         norm = _norm(self.verify_region)
-        self.assertIn("--added-heading", norm)
-        self.assertIn('git diff -- "<prd>" "<roadmap>"', norm)
+        self.assertIn("No `--roadmap` and no `--added-heading`", norm)
+        self.assertNotIn('"<roadmap>"', norm)
         self.assertNotIn("prd_path", norm)
 
     def test_loop_topology_migrated_by_mar305(self):

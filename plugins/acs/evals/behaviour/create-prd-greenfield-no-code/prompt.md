@@ -5,7 +5,8 @@ description: >-
   should write docs/product/prd.md (the hub) with the eight required sections
   carrying exactly the stated facts and a Features index linking one PRD per
   feature, a features/<slug>/prd.md for each of the four features (ADR-0142),
-  a roadmap mapping the two milestones to v0.1.0 and v0.2.0, write no code,
+  no roadmap -- the stated milestones are /acs:manage-roadmap's to schedule
+  (ADR-0145), and the reply points there -- write no code,
   and leave every document as an uncommitted local change listed in
   states.files -- no ticket, branch, commit, push or PR
   (ADR-0127).
@@ -14,8 +15,7 @@ expected_outcome: >-
   no-show metrics, the 2 s and 99.5% NFRs and the Won't item, its Features
   index linking docs/product/features/<slug>/prd.md for online-booking,
   sms-reminders, deposits and loyalty-stamp-card; each feature PRD with its
-  six sections and R1 ids; docs/product/roadmap.md with a Release versions
-  table mapping v0.1.0 and v0.2.0; every document opens with version front
+  six sections and R1 ids; no docs/product/roadmap.md; every document opens with version front
   matter at status proposed, version 1; no source file created; HEAD still
   the scaffold's commit on main and nothing pushed; the step finished with
   the documents in states.files and no PR.
@@ -49,6 +49,6 @@ answered below. Treat all of it as confirmed and do not ask me anything.
 - Out of scope: native mobile apps; payments beyond deposits.
 - Feature slugs (the folder names of each feature's own PRD): online-booking,
   sms-reminders, deposits, loyalty-stamp-card.
-- Roadmap: milestone "Booking MVP" delivers online booking and SMS reminders
-  in release v0.1.0; milestone "Deposits" delivers deposits in release
-  v0.2.0.
+- Later, once the PRD is done: milestone "Booking MVP" will deliver online
+  booking and SMS reminders in release v0.1.0, and milestone "Deposits" will
+  deliver deposits in release v0.2.0.

@@ -221,7 +221,7 @@ class LiveDocsTest(unittest.TestCase):
         breakdown = next(l for l in lines if l.startswith("| `/acs:breakdown-ticket` |"))
         self.assertIn(LINK.strip("()"), breakdown)
         self.assertIn("keeps its id", breakdown)
-        self.assertIn("## The 30 skills", _read(PLUGIN_README))
+        self.assertIn("## The 31 skills", _read(PLUGIN_README))
 
     def test_requirements_sections(self):
         skills = _norm(_read(SKILLS_MD))

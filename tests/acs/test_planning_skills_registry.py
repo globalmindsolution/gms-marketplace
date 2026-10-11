@@ -50,7 +50,8 @@ PINNED_SORTED_HOOKED_SKILLS = [
     "create-architecture", "create-data-design",
     "create-e2e-tests", "create-flows", "create-impl-plan",
     "create-pr", "create-prd", "create-tech-design",
-    "create-test-docs", "create-ticket", "docs-sync", "merge-pr", "review-code",
+    "create-test-docs", "create-ticket", "docs-sync", "manage-roadmap", "merge-pr",
+    "review-code",
     "run-e2e-tests",
 ]
 HOOKED_SKILL_COUNT = len(PINNED_SORTED_HOOKED_SKILLS)

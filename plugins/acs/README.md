@@ -73,7 +73,9 @@ one PR when you are ready ([ADR-0127](../../docs/architecture/adr/0127-only-crea
 
 ```text
 /acs:create-prd            # reverse-engineers a baseline PRD from code + docs
-                           # → docs/product/prd.md + roadmap.md, uncommitted
+                           # → docs/product/prd.md + features/<slug>/prd.md, uncommitted
+/acs:manage-roadmap        # schedules the features into versioned milestones
+                           # → docs/product/roadmap.md, uncommitted
 /acs:create-architecture   # reverse-engineers the HLD (C4 1–3, data model,
                            #   API landscape, deployment), all Mermaid
                            # → docs/architecture/hld/*.md, uncommitted
@@ -167,7 +169,7 @@ The ticket id argument is optional
 when context is unambiguous: explicit argument → session context → branch
 name.
 
-## The 30 skills
+## The 31 skills
 
 The tables group the skills by phase — Discovery, Design, Development, Audit
 or Utility ([ADR-0129](../../docs/architecture/adr/0129-discovery-design-development-regroup.md)). There is no registry file and no per-skill manifest: a skill is its
@@ -207,7 +209,8 @@ phase: it is one container of requirements, made with `/acs:create-ticket`
 
 | Skill | Gate | What it does |
 |-------|----------------------|--------------|
-| `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`; `prd.md` and `roadmap.md` are versioned (`proposed` when new, the version bumped on each change — approve them with `/acs:set-doc-status`); runs without a ticket and leaves the documents uncommitted, listed in `states.files`, for `/acs:create-pr "<prompt>"`. |
+| `/acs:create-prd` | Settings exist | Elicits (greenfield) or reverse-engineers (brownfield) the PRD doc set — the repo's own, else `docs/product/`: the hub `prd.md` and one PRD per feature, each versioned (`proposed` when new, the version bumped on each change — approve them with `/acs:set-doc-status`); runs without a ticket and leaves the documents uncommitted, listed in `states.files`, for `/acs:create-pr "<prompt>"`. The roadmap is `/acs:manage-roadmap`'s. |
+| `/acs:manage-roadmap` | Settings exist | Plans, amends and re-plans `roadmap.md` beside the PRD — milestones each with its release version, the feature PRDs it delivers and the epics behind it, and the Release versions table — through a surveyor, an author and a reviewer, with `roadmap_check.py` as its floor; `status` refreshes each milestone's delivery status, derived from its tickets by `acs.py roadmap status` and never asserted, without a new version ([ADR-0145](../../docs/architecture/adr/0145-roadmap-is-its-own-skill.md)). Ticketless; the roadmap stays uncommitted for `/acs:create-pr`. |
 | `/acs:analyze-requirements` | Subject resolves (a ticket, documents, a prompt or a mix); not an epic ticket | Reads the run's requirements, the product docs and the codebase and writes an `analysis/` folder ([ADR-0133](../../docs/architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)): a `README.md` with the scope, refined acceptance criteria (recorded with `acs.py requirements refine`), cross-cutting risks, questions and assumptions, and a table of contexts — an interface change is named in its next steps as work for `/acs:create-api-contract` — plus one file per bounded context with its impact map, rules, risks, open questions and API notes. Run on its own with no ticket — a PRD feature, a prompt, an attached spec — it writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis/` (proposing the PRD's feature slugs when the feature is not named); as `/acs:ship`'s first step, or on a ticket, it writes `docs/development/<feature>/<id>/analysis/`, starting from the feature's analysis ([ADR-0128](../../docs/architecture/adr/0128-requirements-from-any-container.md)). |
 
 ### Design — how to build it

@@ -60,7 +60,7 @@ VERIFIERS = {
         (
             "Required sections", "Feature -> goal traceability",
             "Measurable success metrics", "Prioritization discipline",
-            "Constraint consistency", "Roadmap coverage", "Plan conformance",
+            "Constraint consistency", "Feature index ↔ documents", "Plan conformance",
             "Amend-mode diff discipline", "Iteration 2+ regression check",
         ),
     ),

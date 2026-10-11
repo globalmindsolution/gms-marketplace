@@ -25,7 +25,8 @@ import claude_code_adapter as cc  # noqa: E402
 # Registry
 # ---------------------------------------------------------------------------
 
-PRODUCT_SKILLS = ["create-prd", "create-architecture"]
+# ADR-0145: manage-roadmap owns roadmap.md beside the PRD, ticketless like them.
+PRODUCT_SKILLS = ["create-prd", "manage-roadmap", "create-architecture"]
 # The ticket-flow skills. The Build/Test additions (analyze-ticket,
 # create-impl-plan, create-test-docs, create-e2e-tests) join here rather than
 # in a sixth list: they are ticket-scoped like the rest, so
@@ -107,7 +108,7 @@ DELIVERY_TICKET_TITLES = {}
 # PR. Read-only: nothing records one any more, but a delivery ticket still in
 # review when acs was upgraded is still mergeable by its id (`gates`), and
 # still derives `in_review` (`artifacts`).
-LEGACY_DELIVERY_TICKET_SKILLS = list(PRODUCT_SKILLS)
+LEGACY_DELIVERY_TICKET_SKILLS = ["create-prd", "create-architecture"]
 
 # The skills that run ticketless, in a run of their own (ADR-0122/0123/0127):
 # `step start` opens (or resumes) a run over the invocation, and the post-hook

@@ -88,13 +88,13 @@ _PROJECT_RESPONSES = {
     "gh project item-edit": (0, "", ""),
 }
 
-# The 19 hooked skills. The skills-independence refactor added the five
+# The 21 hooked skills. The skills-independence refactor added the five
 # Build/Test coordinators (analyze-requirements, create-impl-plan,
 # create-api-contract, create-test-docs, create-e2e-tests); ADR-0126 added the
 # two low-level Design skills (create-data-design, create-flows) beside
 # create-design; ADR-0134 moved create-api-contract among them; ADR-0135
-# renamed create-design to create-tech-design.
-HOOKED_SKILLS = ["create-prd", "create-architecture", "create-ticket",
+# renamed create-design to create-tech-design; ADR-0145 added manage-roadmap.
+HOOKED_SKILLS = ["create-prd", "manage-roadmap", "create-architecture", "create-ticket",
                  "breakdown-ticket", "create-tech-design", "create-api-contract", "create-data-design",
                  "create-flows", "analyze-requirements", "create-impl-plan",
                  "create-test-docs", "code",
@@ -130,6 +130,8 @@ EXPECTED_AGENTS = {
     "create-ticket": ["bug-author", "epic-author", "reviewer", "story-author",
                       "task-author"],
     "create-prd": ["surveyor", "author", "reviewer"],
+    # ADR-0145: the roadmap, out of create-prd into a skill of its own.
+    "manage-roadmap": ["surveyor", "author", "reviewer"],
     "create-architecture": ["architect", "gap-analyst", "reviewer"],
     # ADR-0135: renamed from create-design, its judge from design-reviewer.
     "create-tech-design": ["designer", "reviewer"],
@@ -1125,7 +1127,8 @@ class TestProductSkillConventionWiring(unittest.TestCase):
 
     def test_no_regression_create_prd(self):
         body = read_skill_contract("create-prd")
-        self.assertIn('"files": ["docs/product/prd.md", "docs/product/roadmap.md"]', body)
+        self.assertIn('"files": ["docs/product/prd.md", "docs/product/features/wishlist/prd.md"]',
+                      body)
         self.assertIn("uncommitted changes", body)
         self.assertIn("/acs:create-pr", body)
         self.assertIn('/acs:create-pr "', body)
@@ -3303,10 +3306,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **34 agents**", body,
+        self.assertIn("— **37 agents**", body,
                       "c4-component.md must count the reflection-loop "
                       "skills' agents (ADR-0109/ADR-0122/ADR-0123/ADR-0124/ADR-0126/"
-                      "ADR-0134/ADR-0137/ADR-0138: 34 = 40 files less code's implementer, review-code's two "
+                      "ADR-0134/ADR-0137/ADR-0138/ADR-0145: 37 = 43 files less code's implementer, review-code's two "
                       "roles, audit-design's gap analyst and audit-security's "
                       "auditor and adjudicator)")
         self.assertNotIn("8 active triads (24 agents)", body,
@@ -3319,10 +3322,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **34 agents**")
+        triad_idx = body.index("— **37 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("40 agent files, all reachable", window,
-                      "c4-component.md must read '40 agent files, all reachable' "
+        self.assertIn("43 agent files, all reachable", window,
+                      "c4-component.md must read '43 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3427,7 +3430,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **34 agents**", body,
+        self.assertIn("— **37 agents**", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143/MAR-160)")
@@ -3441,10 +3444,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **34 agents**")
+        triad_idx = body.index("— **37 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("40 agent files, all reachable", window,
-                      "c4-component.md must advance to '40 agent files, all reachable' "
+        self.assertIn("43 agent files, all reachable", window,
+                      "c4-component.md must advance to '43 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,

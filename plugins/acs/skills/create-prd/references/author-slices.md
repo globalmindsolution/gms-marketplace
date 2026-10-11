@@ -8,14 +8,13 @@ the slice ids, the cap and the plan file are `fan-out.md`. Author spawns are
 
 | Slice | Owns (and writes nothing else) | Runs |
 |---|---|---|
-| `hub` | `<prd>`, `<roadmap>`, `iter-<n>/authoring.md` | first, alone |
+| `hub` | `<prd>`, `iter-<n>/authoring.md` | first, alone |
 | `feature-<slug>` | `<prd_dir>/features/<slug>/prd.md` and `steps/create-prd/features/<slug>/notes.md` | after `hub`, every one together in ONE message |
 
-**Why this partition.** `prd.md` and `roadmap.md` are one coupled deliverable —
-every roadmap milestone lists PRD features, every Must-have must land in a
-milestone, a feature renamed in the hub is renamed in the roadmap, and amend
-mode's diff discipline spans both — so the hub is ONE writer; nothing can own
-half of it. The feature PRDs, by contrast, are disjoint files that each derive
+**Why this partition.** The hub is one document whose Features index every
+other document hangs from, so it is ONE writer; nothing can own half of it.
+(The roadmap that schedules the features is `/acs:manage-roadmap`'s, ADR-0145.)
+The feature PRDs, by contrast, are disjoint files that each derive
 from the hub's **Features (prioritized)** entry for their slug (title, MoSCoW
 group, goals served), so they cannot be written until the hub has settled that
 index, and once it has they cannot collide. The hub also owns the synthesis of a
@@ -25,9 +24,9 @@ list of slugs, titles, groups and goals the feature writers are cut from.
 ## The sequence, per iteration
 
 1. **Hub.** Spawn one `hub` author with the notes, the answers and — from
-   iteration 2 — the findings whose `file` is the hub, the roadmap or the notes.
-   It writes `<prd>` and `<roadmap>`, finalizes `## Feature set` and completes
-   the notes' lines that anchor in `prd.md` or `roadmap.md`, and reports in
+   iteration 2 — the findings whose `file` is the hub or the notes.
+   It writes `<prd>`, finalizes `## Feature set` and completes
+   the notes' lines that anchor in `prd.md`, and reports in
    `iter-<n>/author-hub.json` the slugs whose documents must be (re)written:
    `features_to_write` — every feature on iteration 1; later, each one it added,
    renamed, re-prioritised or re-pointed at other goals, beside the ones the
@@ -54,7 +53,7 @@ the user (User interaction) and re-run only that slice.
 ## Findings go to the slice that owns the file
 
 Route each finding verbatim to the `<context>` of the slice that owns its
-`file`: a feature PRD → that feature's slice; the hub, the roadmap, a finding
+`file`: a feature PRD → that feature's slice; the hub, a finding
 about the feature set or one without a file → `hub`. A finding the hub's fix
 turns into a change of the index is picked up by `features_to_write`.
 
@@ -69,7 +68,7 @@ feature replaces only its own lines and nothing is joined by hand.
 
 ## Amend mode
 
-`git diff` discipline spans the whole set (`git diff -- "<prd>" "<roadmap>"
+`git diff` discipline spans the whole set (`git diff -- "<prd>"
 "<prd_dir>/features"` plus `git status --short -- "<prd_dir>"` for the new
 documents). A feature slice edits its existing document in place, preserving
 untouched sections byte-for-byte; a new feature's slice creates its document.

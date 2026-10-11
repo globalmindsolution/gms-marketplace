@@ -96,7 +96,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
         agents = len([n for n in os.listdir(
             os.path.join(REPO_ROOT, "plugins", "acs", "agents")) if n.endswith(".md")])
         self.assertIn("%d x agent .md (all reachable)" % agents, body)
-        self.assertNotIn("43 x agent .md (all reachable)", body)
+        self.assertNotIn("40 x agent .md (all reachable)", body)
         self.assertNotIn("39 x agent .md (33 reachable)", body)
 
     def test_c4_component_triad_and_reachable_counts(self):
@@ -112,7 +112,7 @@ class C4CountAndListFilesTest(unittest.TestCase):
         self.assertNotIn("12 authoring pairs (24 agents", body)
         self.assertNotIn("12 active triads (36 agents", body)
         self.assertIn("%d agent files, all reachable" % agents, body)
-        self.assertNotIn("43 agent files, all reachable", body)
+        self.assertNotIn("40 agent files, all reachable", body)
         self.assertNotIn("36 reachable agents", body)
 
     def test_tech_stack_skill_and_agent_counts(self):
@@ -126,11 +126,12 @@ class C4CountAndListFilesTest(unittest.TestCase):
         agents = len([n for n in os.listdir(
             os.path.join(REPO_ROOT, "plugins", "acs", "agents")) if n.endswith(".md")])
         self.assertIn("%d files, all reachable" % agents, body)
-        self.assertNotIn("43 files, all reachable", body)
+        self.assertNotIn("40 files, all reachable", body)
         self.assertNotIn("39 files, 33 reachable", body)
         # Nine through ADR-0125; ADR-0126's two Design skills make eleven;
-        # ADR-0138's create-ticket (type authors + reviewer) makes twelve.
-        self.assertIn("the twelve authoring skills (%d agents" % loop_agent_count(), body)
+        # ADR-0138's create-ticket (type authors + reviewer) makes twelve;
+        # ADR-0145's manage-roadmap makes thirteen.
+        self.assertIn("the thirteen authoring skills (%d agents" % loop_agent_count(), body)
         self.assertNotIn("the nine authoring skills", body)
         self.assertNotIn("twelve authoring skills (24 agents)", body)
         self.assertNotIn("twelve triad-keeping skills (36 agents)", body)

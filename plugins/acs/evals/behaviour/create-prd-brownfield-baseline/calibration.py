@@ -1,8 +1,8 @@
 """Calibration plays for create-prd-brownfield-baseline (see
 tests/evals/check_grader_calibration.py). The ideal run does what the skill
 does, through its own writers: `acs step start` resumes the ticketless run the
-scaffold opened, the author writes the two documents and leaves them
-uncommitted, the coordinator gives every document its first version front matter
+scaffold opened, the authors write the hub and the feature PRDs (no roadmap:
+it is /acs:manage-roadmap's, ADR-0145) and leave them uncommitted, the coordinator gives every document its first version front matter
 (`acs.py design init --status proposed`), and the result document, listing them all in `states.files`, goes
 through the real post-hook. Nothing is branched, committed or pushed
 (ADR-0127)."""
@@ -16,7 +16,7 @@ STEP = ".acs/state-machine/example-shop/runs/write-the-first-prd-96bb/steps/crea
 BRANCH = "task/EVAL-1-product-definition-prd"
 FEATURES = (("customer-listing", "G2"), ("card-checkout", "G1"),
             ("order-tracking", "G1"), ("saved-carts", "G1"))
-FILES = ("docs/product/prd.md", "docs/product/roadmap.md") + tuple(
+FILES = ("docs/product/prd.md",) + tuple(
     "docs/product/features/%s/prd.md" % slug for slug, _goal in FEATURES)
 
 PRD = """# PRD — shop
@@ -100,9 +100,10 @@ def _start(ws):
     assert started.returncode == 0, started.stderr
 
 
-def _write_docs(ws, prd=PRD, roadmap=ROADMAP, features=True):
+def _write_docs(ws, prd=PRD, roadmap=None, features=True):
     ws.write("docs/product/prd.md", prd)
-    ws.write("docs/product/roadmap.md", roadmap)
+    if roadmap:
+        ws.write("docs/product/roadmap.md", roadmap)
     for slug, goal in (FEATURES if features else ()):
         name = slug.replace("-", " ").capitalize()
         ws.write("docs/product/features/%s/prd.md" % slug, (
@@ -139,9 +140,9 @@ def IDEAL(ws):
     _write_docs(ws)
     _version(ws)
     _finish(ws)
-    ws.reply = ("PRD and roadmap written. Uncommitted: docs/product/prd.md, "
-                "docs/product/roadmap.md. Review them, then run /acs:create-pr to commit them "
-                "and open the PR.")
+    ws.reply = ("PRD written. Uncommitted: docs/product/prd.md and the feature PRDs. Review "
+                "them, then run /acs:create-pr to commit them and open the PR, and "
+                "/acs:manage-roadmap to schedule the Checkout and Order tracking milestones.")
 
 
 def _allocated_only(ws):
@@ -165,7 +166,7 @@ def _template_prd(ws):
     _start(ws)
     generic = PRD.replace("3.5%", "a higher rate").replace("300 ms", "fast").replace(
         "**Won't**", "**Later**")
-    _write_docs(ws, prd=generic, roadmap="# Roadmap\n\n- Checkout\n- Order tracking\n")
+    _write_docs(ws, prd=generic)
     _finish(ws)
 
 
@@ -190,6 +191,14 @@ def _invented_pr(ws):
     _finish(ws, pr={"number": 1, "url": "https://github.com/example/shop/pull/1"})
 
 
+def _wrote_the_roadmap(ws):
+    """The pre-ADR-0145 run: the roadmap written beside the PRD."""
+    _start(ws)
+    _write_docs(ws, roadmap=ROADMAP)
+    _version(ws)
+    _finish(ws, files=FILES + ("docs/product/roadmap.md",))
+
+
 def _recorded_no_files(ws):
     _start(ws)
     _write_docs(ws)
@@ -197,6 +206,7 @@ def _recorded_no_files(ws):
 
 
 BAD = {
+    "wrote the roadmap, which is manage-roadmap's": _wrote_the_roadmap,
     "kept every feature in prd.md, writing no feature PRDs": _single_file_prd,
     "left the new documents without version front matter": _unversioned,
     "started the run and wrote nothing": _allocated_only,

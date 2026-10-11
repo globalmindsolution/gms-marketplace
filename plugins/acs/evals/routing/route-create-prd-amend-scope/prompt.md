@@ -10,4 +10,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Scope has changed: we are dropping the marketplace feature and adding subscriptions. Amend the product requirements document and the roadmap to match.
+Scope has changed: we are dropping the marketplace feature and adding subscriptions. Amend the product requirements document to match.
