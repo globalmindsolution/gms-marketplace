@@ -42,6 +42,7 @@ Usage:
   acs.py result validate --skill code result.json
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py roadmap status [--write] [--no-git]
   acs.py ticket link-check --type story --features wishlist --requirements wishlist/R1
   acs.py pr metadata fill --ticket MAR-1 --pr 42
   acs.py pr plan-commits [--ticket MAR-1] [--run R] [--out plan.json]
@@ -121,6 +122,7 @@ import acs_model_commands  # noqa: E402
 import acs_design_commands  # noqa: E402
 import acs_job_commands  # noqa: E402
 import acs_changes_commands  # noqa: E402
+import acs_roadmap_commands  # noqa: E402
 import acs_requirements_commands  # noqa: E402
 import acs_handoff_commands  # noqa: E402
 import acs_docs_commands  # noqa: E402
@@ -443,6 +445,7 @@ def build_parser():
     acs_design_commands.add_parser(group)
     acs_job_commands.add_parser(group)
     acs_changes_commands.add_parser(group)
+    acs_roadmap_commands.add_parser(group)
     acs_requirements_commands.add_parser(group)
     acs_handoff_commands.add_parser(group)
     acs_docs_commands.add_parser(group)
