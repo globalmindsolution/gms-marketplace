@@ -168,6 +168,9 @@ class CliTest(AcsWorkspaceCase):
 
     def test_merged_on_the_default_branch_counts(self):
         tid = self.story("wishlist/R1", "wishlist/R2")
+        # CI runners have no git identity: give the fixture repo one, as the other suites do.
+        for key, value in (("user.name", "acs-test"), ("user.email", "acs-test@example.com")):
+            subprocess.run(["git", "-C", self.repo, "config", key, value], check=True)
         subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", "%s Wishlist" % tid],
                        cwd=self.repo, check=True, capture_output=True)
         out = self.run_script("acs.py", "prd", "status")
