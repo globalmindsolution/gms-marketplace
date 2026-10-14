@@ -595,6 +595,17 @@ why ([ADR-0130](../../architecture/adr/0130-prd-versions-and-set-doc-status.md),
   analyst finds the code matching (ADR-0122,
   [ADR-0137](../../architecture/adr/0137-docs-sync-keeps-the-feature-lld-current.md));
   this skill offers it only where `allowed` does.
+- A feature's own PRD is `implemented` only when its tickets say so
+  ([ADR-0146](../../architecture/adr/0146-feature-prd-implemented-is-derived.md)):
+  `design list` gives it a `delivery` derived from the tickets that name each
+  requirement `<feature>/R<n>` (done in the tickets index, or merged on the
+  default branch), and this skill MUST offer `implemented` for it only when
+  `delivery.state` is `implemented`, naming the open requirements otherwise.
+  `design status --set implemented` refuses it anyway; `--override-delivery`
+  with a reason is for work delivered outside acs tickets, only when the user
+  says so. A feature PRD marked implemented whose delivery no longer says so
+  (`drift`, e.g. a bug reopened a requirement) is reported under Findings.
+  `acs.py prd status` reports every feature's delivery, read-only.
 
 ## Product-level delivery (no ticket)
 

@@ -64,6 +64,14 @@ analysis`, `HLD` and `LLD <f>`; a feature's groups carry `feature`. Paths are
 repo-relative: run every command from the checkout root. `allowed` lists the
 legal moves OTHER than the document's current status; `problems` is non-empty
 when its front matter is missing or invalid (and `allowed` is then empty).
+A feature's own PRD also carries `delivery` — `{state, agreement, open}` —
+derived from its tickets, never asserted (ADR-0146): `state` is `implemented`
+only when every requirement `<f>/R<n>` is named by tickets that are all done
+(in the tickets index or merged on the default branch); `open` lists the
+requirements that are not; `agreement` is `ready` (approved, and delivery says
+implemented), `drift` (marked implemented, but delivery no longer says so — a
+ticket on one of its requirements reopened, e.g. a bug) or `consistent`.
+`acs.py prd status --feature <f>` shows the tickets behind it.
 
 If the command exits non-zero, STOP and surface its stderr verbatim. If
 `groups` is empty, there is nothing to move: report status `completed` with
@@ -114,7 +122,9 @@ per phase that has an offerable document (`Discovery`, then `Design`):
   e.g. `features/wishlist/analysis.md · proposed v2` or
   `api/wishlist-api.md · proposed v1; flows/add-item.md · proposed v1;
   SHOP-7/tech-design.md · proposed v1`. Always
-  show the status and the version — the user is approving a specific version.
+  show the status and the version — the user is approving a specific version —
+  and for a feature PRD its delivery (`prd.md · approved v2 · delivery
+  implemented`, or `· delivery in progress (open: wishlist/R3)`).
 - **A single document** — a group of one is that document's option. To pick
   one document out of a larger group, the user types its path in the
   question's free-text answer; say so in the question text.
@@ -141,6 +151,15 @@ mixes documents no single move fits (a `proposed` document cannot become
 `implemented` before it is approved): say which documents block which moves
 and go back to Step 3 once.
 
+**`implemented` for a feature PRD is derived.** Offer it only when the
+feature PRD's `delivery.state` is `implemented`; otherwise say which
+requirements are still open (`delivery.open`) and that the move waits on
+their tickets. `acs.py design status` refuses it anyway (Step 5). The one
+exception is work delivered outside acs tickets — shipped before acs, or
+tracked elsewhere — when the user says so: then the move carries
+`--override-delivery` and a reason is required (ask for it, as for
+`deprecated`), recorded as `status_reason`.
+
 **Reason.** A move to `deprecated` needs one — ask for it again when the
 answer was `No reason`; still none → stop with status `failed`, "deprecation
 needs a reason", and change nothing. For any other move it is optional.
@@ -164,7 +183,7 @@ ONE command over every document in the plan:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design status --set <target> \
-  [--by "<name>"] [--reason "<reason>"] <doc> <doc> …
+  [--by "<name>"] [--reason "<reason>"] [--override-delivery] <doc> <doc> …
 ```
 
 It validates every document first — it exists, its front matter is valid, the
@@ -204,7 +223,7 @@ ticket or run is involved, and Metrics carries no iterations (no loop runs):
 - **Scope**: <n> document(s) across <the picked features / design areas / single documents>
 - **Status**: <completed|failed|interrupted> — <one line; `stop_reason` when interrupted>
 - **Results**: <one line per document: `<path>`: <from> v<version> → <target>; "already <status>" lines; or "nothing changed">
-- **Findings**: <refusals verbatim, documents not offered because of `problems`, or "none">
+- **Findings**: <refusals verbatim, documents not offered because of `problems`, feature PRDs whose `delivery.agreement` is `drift` (marked implemented, delivery says otherwise — name the open requirements), an `--override-delivery` move with its reason, or "none">
 - **Artifacts**: <the uncommitted repo paths `git status` listed, or "none">
 - **Metrics**: <n> moved · <wall time>
 - **Next**: review the listed files, then `/acs:create-pr "<what the status change is>"` to commit them and open the PR
