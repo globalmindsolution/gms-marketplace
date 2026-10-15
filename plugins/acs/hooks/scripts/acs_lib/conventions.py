@@ -42,6 +42,9 @@ DESIGN_TEMPLATE = "design-default"
 #: The report each Audit skill writes (ADR-0123); acs_lib.audit_report checks it.
 AUDIT_TEMPLATES = {"audit-design": "audit-design-report",
                    "audit-security": "audit-security-report"}
+#: The PRD doc set's templates (ADR-0147): the hub and one feature's own PRD.
+#: Their `## ` headings are the documents' required sections (acs_lib.prd_template).
+PRD_TEMPLATES = {"prd": "prd-default", "feature": "prd-feature-default"}
 TICKET_TEMPLATES = {"epic": "epic-default", "story": "story-default", "task": "task-default",
                     "bug": "bug-default"}
 

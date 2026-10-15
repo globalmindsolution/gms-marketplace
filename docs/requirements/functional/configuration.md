@@ -177,6 +177,24 @@ template; any other value is resolved as a **file path** —
 `<repo>/.acs/templates/<value>.md` first, then as an absolute path. Custom
 templates may use the same placeholder vocabulary.
 
+### Document templates
+
+The documents some skills write start from a template too, whose `## `
+headings are the document's required sections — the structure gate checks
+exactly that list, in order. A repo replaces a template by adding a file of
+the same name under `<repo>/.acs/templates/`; nothing scaffolds that folder.
+
+| Template | Used by | Built-in sections |
+|----------|---------|-------------------|
+| `prd-default` | `/create-prd` (the hub `prd.md`) | Vision, Problem statement, Target users & personas, Goals & success metrics, Features (prioritized), Non-functional requirements, Constraints & assumptions, Out of scope |
+| `prd-feature-default` | `/create-prd` (each `features/<slug>/prd.md`) | Summary, Goals served, Requirements, Acceptance criteria, Dependencies, Out of scope — a repo template may add or rename sections but never drop Goals served or Requirements ([ADR-0147](../../architecture/adr/0147-prd-templates.md)) |
+| `design-default` | `/create-tech-design` (`tech-design.md`) | Decision & options, HLD views affected, LLD, NFRs, Risks, Open questions |
+| `audit-design-report`, `audit-security-report` | `/audit-design`, `/audit-security` | the report's sections |
+
+`acs.py prd template` prints the PRD templates in force (the repo's or the
+built-in) and their sections. The roadmap has no template: its shape is a
+grammar `acs.py roadmap status` parses (ADR-0145).
+
 ### Tracker mapping
 
 - **GitHub** (`tracker.github`): `{ "owner": "<org-or-user>",

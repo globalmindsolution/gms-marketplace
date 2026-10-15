@@ -56,6 +56,15 @@ Parse the printed context JSON. Key fields: `partition`, `run_id`,
 `settings` (`ticket_prefix`, `parallel.max_agents`), `agents` (agent name to
 spawn per role), `reconcile`, `handoff_summary`, `checkout_root`.
 
+**Templates (ADR-0147).** Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py"
+prd template`: it resolves the hub template and the feature template — the
+repo's `.acs/templates/prd-default.md` and `prd-feature-default.md` when it has
+them, else the built-ins — and prints each one's `path` and `joined` sections
+(exit 2, an unusable repo template: STOP and surface it). `required_sections` is
+the hub template's `joined`, `feature_required_sections` the feature template's
+— pass them verbatim, never a list of your own — and every author task carries
+both `path`s as `prd_template` and `feature_template`.
+
 **Requirements: `context.requirements` / `acs.py requirements show` — a ticket
 id, documents and a prompt are only where they came from.** The product notes or
 amendment request (the prompt), any documents `$ARGUMENTS` named — a brief, a
@@ -176,7 +185,8 @@ branch is checked out, and the documents stay there as uncommitted changes
 
 The authors — the only roles that mutate the repo — write:
 
-- `<prd>`, the hub, with EXACTLY the eight `required_sections`; **Features
+- `<prd>`, the hub, with EXACTLY the `required_sections` (the hub template's
+  `## ` headings; a new document starts from the template); **Features
   (prioritized)** (MoSCoW: Must/Should/Could/Won't) is the index, one bullet per
   feature linking its PRD and naming the goal(s) it serves.
 - `<prd_dir>/features/<slug>/prd.md` for each feature — one document each,

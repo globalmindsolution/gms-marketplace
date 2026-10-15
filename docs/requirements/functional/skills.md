@@ -658,6 +658,12 @@ else is verified against.
   [`/manage-roadmap`](#manage-roadmap-product-level)'s
   ([ADR-0145](../../architecture/adr/0145-roadmap-is-its-own-skill.md)), and a
   run that adds, cuts or re-prioritises a feature points the user at it.
+- **Templates** ([ADR-0147](../../architecture/adr/0147-prd-templates.md)): the
+  hub and each feature PRD start from `prd-default` and `prd-feature-default`
+  — a repo's `.acs/templates/<name>.md` replacing either — and their `## `
+  headings are the `required_sections` and `feature_required_sections` the
+  authors, the reviewer and the structure floor all use; the coordinator MUST
+  take them from `acs.py prd template`, never from a list of its own.
 - Reflection cycle (survey → author → review — ADR-0109):
   `create-prd-surveyor` (iteration 1 only: mode, outline, feature set, open
   questions), `create-prd-author` (a `hub` author for `prd.md`
