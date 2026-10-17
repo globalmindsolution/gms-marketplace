@@ -10,7 +10,7 @@ expected_outcome: >-
   docs/product/features/card-checkout/prd.md is implemented at version 1;
   docs/product/features/order-tracking/prd.md is still approved at version 1
   with no status_reason; nothing committed or pushed; the reply says order
-  tracking waits on order-tracking/R1 (EVAL-2).
+  tracking waits on order-tracking/R1.
 tags: [behaviour]
 max_turns: 40
 timeout_seconds: 900
