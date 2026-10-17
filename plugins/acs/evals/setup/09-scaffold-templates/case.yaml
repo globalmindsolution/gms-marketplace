@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: 09-scaffold-templates
+context:
+  scaffold_script: scaffold.sh

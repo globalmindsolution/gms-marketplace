@@ -182,7 +182,11 @@ templates may use the same placeholder vocabulary.
 The documents some skills write start from a template too, whose `## `
 headings are the document's required sections — the structure gate checks
 exactly that list, in order. A repo replaces a template by adding a file of
-the same name under `<repo>/.acs/templates/`; nothing scaffolds that folder.
+the same name under `<repo>/.acs/templates/`. `/acs:setup` scaffolds a copy of
+every one there on request (recommended), with `templates.lock.json` recording
+the built-in each copy came from: a re-run refreshes a copy nobody edited when
+the plugin's built-in changed, never overwrites an edited one, and warns when
+an edited one's built-in moved on ([ADR-0148](../../architecture/adr/0148-setup-scaffolds-templates.md)).
 
 | Template | Used by | Built-in sections |
 |----------|---------|-------------------|

@@ -95,25 +95,25 @@ asking again.
    (`.claude/settings.json`), me (`.claude/settings.local.json`) or skip. Say they pre-approve only
    acs's scripts and read-only git, and a shell pattern is a convenience, not a sandbox; either yes
    also adds the sandbox write rule for the state folder (`sandbox_rule`) to the main checkout's local settings.
+8. **Document templates** (ADR-0148, recommended: yes) — copy every template (`detect`'s `templates`) into
+   `.acs/templates/` for the team to edit; an unedited copy follows the plugin, an edited one is kept.
 
 ## Step 3 — Apply
 
 Pass the answers on stdin — never as a file in the repo, where it would be left
 behind untracked. They carry only what the user chose — `settings` (e.g. `ticket_prefix`,
 `tests`), `ci` (any of `conventions`, `tests`, `e2e`), `launch` (`{"configurations":
-[...]}`, item 4) and `claude_permissions` (`team`, `user` or `skip`, item 7):
+[...]}`, item 4), `claude_permissions` (`team`/`user`/`skip`, 7) and `templates` (bool, 8):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" setup apply --answers - <<'JSON'
 {"settings": {"ticket_prefix": "SHOP", "tests": {"unit": {"command": "python3 -m pytest -q --cov --cov-fail-under=$ACS_COVERAGE"}}},
- "ci": ["conventions", "tests"],
+ "ci": ["conventions", "tests"], "templates": true,
  "launch": {"configurations": [{"name": "web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000}]}}
 JSON
 ```
 
-`--dry-run` reports what would change and writes nothing.
-
-**Read the result.** `changed` vs `unchanged` is the point: on a re-run most lines land
+`--dry-run` reports what would change and writes nothing. **Read the result.** `changed` vs `unchanged` is the point: on a re-run most lines land
 in `unchanged`, which is how you show the run was safe. `defaulted` lists answers that
 equal the built-in default and were therefore not written (or removed from the file,
 when an earlier run had written them). `warnings` is what you relay but must not fix for
@@ -121,7 +121,9 @@ them — a conflicting `!.acs/` negation, or a broad rule swallowing `.acs/setti
 is their configuration to decide (an `env` name that looks like a secret is warned about
 too). `launch` reports the configurations `added` and `kept`; a launch.json with
 comments is refused, since a rewrite would drop them, so tell the user what to add by
-hand; `claude_permissions` names the rules `added` and the file. `errors` non-empty
+hand; `claude_permissions` names the rules `added` and the file. `templates` lists copies `added`,
+`refreshed`, `customised` (kept) and `drift` (customised, built-in since changed: tell the user
+to compare). `errors` non-empty
 means apply refused and **wrote nothing** — an answer that does not validate, or a gate
 missing the command it runs: say why, settle the answer with the user, and apply again.
 `stage_for_commit` lists what to stage (never commit unless asked);
@@ -165,19 +167,16 @@ reference. Both are written for you; neither survives being deleted by hand.
 
 ## Step 5 — Summary and next steps
 
-Print a table of each setting you touched (ticket prefix, unit-test command, models, run
+Print a table of each setting you touched (ticket prefix, unit-test command, models, templates, run
 documents, doc folders, permission rules), its value, and where it landed
 (`.acs/settings.json`, or "default — not written"). The next steps come from `commands`
 — run it now (`--cwd .` is enough) if Step 4 did not: `next_steps` carries the
 greenfield/brownfield call, the pipeline read from `ship.yaml` and the solo-maintainer
 caveat, so you report them rather than re-deriving them.
 
-Repeat any unmet toolchain install hint, and confirm the workflow is ready: Design is
-`/acs:create-prd` → `/acs:create-architecture` → `/acs:create-ticket`, then
-`/acs:create-tech-design` → `/acs:code` is not one fixed chain: `/acs:create-tech-design` runs
-when the user asks for a design (a ticket carries no design flag), and the Build/Test/Ship order is declared in
-`workflows/ship.yaml` (`acs.py workflow show` prints it) and walked by `/acs:ship
-<ticket-id>` to the PR, then `/acs:merge-pr <id>`.
+Repeat any unmet toolchain install hint. The workflow: `/acs:create-prd` → `/acs:manage-roadmap` →
+`/acs:create-architecture` → `/acs:create-ticket`; `/acs:create-tech-design` → `/acs:code` when a design
+is wanted (no fixed chain); `/acs:ship <ticket-id>` walks `workflows/ship.yaml` to the PR, and `/acs:merge-pr <id>` lands it.
 
 ## Completion report (normative)
 
