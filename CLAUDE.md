@@ -85,8 +85,8 @@ holding `prompt.md` and `graders/*.md`, grouped under `routing/`, `behaviour/`, 
 and `setup/`. Every shipped skill has a behaviour case (ADR-0113): what it writes, records
 and replies, with free graders calibrated by `tests/evals/check_grader_calibration.py` and a
 `baseline` grader once `scripts/record_baseline.py` has recorded the case's reference
-transcript — which needs a host where Claude Code's Bash sandbox starts (not the cloud
-container). **The case files are the source of truth**: there is no dataset
+transcript — which needs a host where Claude Code's Bash sandbox starts (in the cloud
+container, after `apt install bubblewrap socat`). **The case files are the source of truth**: there is no dataset
 they are rendered from and no generator.
 Edit a case by editing its files. `plugins/acs/evals/README.md` is the reference for tags,
 grading, and the suite's known limits — read it before quoting a number.

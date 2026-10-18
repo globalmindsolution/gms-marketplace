@@ -230,17 +230,22 @@ Pilot with `--runs 1 --no-publish` first.
 
 ## Known limits — read before quoting a number
 
-- **No behaviour case has run yet, and none has a baseline.** Every behaviour
+- **Few behaviour cases have run, and 4 have a baseline.** Every behaviour
   case (`behaviour/`, `setup/`, `artifacts/`) is authored, shape-checked and
-  calibrated for free, and states its baseline criteria. None has run end to
-  end: they grant Bash, and the cloud container they were written in cannot
-  start Claude Code's Bash sandbox. Record baselines with
-  `scripts/record_baseline.py` on a host that can (see `behaviour/README.md`).
-  Two things only that first run will settle: whether the CLI lets a
-  `{ source: file }` grader read inside `.git/` (about 60 graders read `HEAD`,
-  a reflog, a hook or `.git/config`), and whether the sandbox leaves the
-  run's stand-in origin `.eval-origin.git` alone — the CLI scrubs "planted
-  bare-repo" files in some sandbox paths.
+  calibrated for free, and states its baseline criteria. On 2026-10-17 the
+  22 cases touching create-prd, set-doc-status, setup and update ran 3 times
+  each, and the 4 cases ADR-0146–0148 added were recorded with
+  `scripts/record_baseline.py`; the rest have neither run nor a baseline.
+  Those runs settled one question: a `{ source: file }` grader can read
+  inside `.git/` (`HEAD`, the reflog). Still open: whether the sandbox
+  leaves the stand-in origin `.eval-origin.git` alone (`nothing-pushed`
+  passes either way). Bash needs bubblewrap and socat
+  (`apt install bubblewrap socat`; the cloud container runs it once they
+  are installed), and `--trust-plugin` where no terminal can answer the
+  trust prompt. One CLI limit stays: `claude` 2.1.302 refuses writes to
+  `.pre-commit-config.yaml` and `.claude/launch.json` even when Write is
+  granted, so `setup/08-neg-pre-commit` and `behaviour/setup-preview-server`
+  cannot pass on it.
 
 - **Auto-memory is off for routing runs.** With it on, the model sometimes
   spends its one turn listing Claude Code's memory directory, which is always
