@@ -78,9 +78,13 @@ class ProbeSetTest(unittest.TestCase):
                                 "no case may route to the deleted create-spec")
         # Nothing anywhere in the eval suite may mention the deleted skill
         # (AC-1, scope extension): scan every file of it, not just the graders.
+        # A recorded baseline.jsonl is exempt: it is a session transcript,
+        # which quotes the plugin's own files rather than anything authored here.
         for dirpath, dirnames, filenames in os.walk(eval_cases.EVALS):
             dirnames[:] = [d for d in dirnames if d != "results"]
             for name in filenames:
+                if name == "baseline.jsonl":
+                    continue
                 path = os.path.join(dirpath, name)
                 with open(path, encoding="utf-8") as fh:
                     self.assertNotIn(
