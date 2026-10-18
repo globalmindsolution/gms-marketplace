@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run resolves the PRD templates with `acs.py prd template` (the repo's prd-feature-default, the built-in hub template), passes their sections as required_sections and feature_required_sections, writes docs/product/prd.md with the built-in eight sections and one feature PRD per feature (online-booking, sms-reminders) with the repo template's seven sections in order -- Rollout filled from the stated beta group and feature flag -- gives every document its first version front matter, leaves them uncommitted in states.files, and points at /acs:create-pr, without asking anything.
+FAIL if a feature PRD follows the built-in six sections (no Rollout) or puts Rollout out of order, the hub gains a Rollout section, a document is missing, the run commits, pushes or opens a PR, or stops to ask a question.
