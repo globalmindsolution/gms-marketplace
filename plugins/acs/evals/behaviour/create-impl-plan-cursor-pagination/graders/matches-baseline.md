@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run plans EVAL-1 through /acs:create-impl-plan without asking anything, publishes docs/development/customer-listing/EVAL-1/plan.md (uncommitted, on main) with concrete steps against src/shop/__init__.py, every acceptance criterion mapped to a test, the pytest and 90% coverage commands, naming the approved API contract (lld/customer-listing/api/customers.md) it implements, and a closing Contract block (delivery_path, owes test_cases and e2e with no api_contract key, an executor file map), declares that file map with acs.py filemap set, and finishes the step through its post-hook.
+FAIL if the run asks the user a question, writes production code or tests, publishes nowhere or outside docs/development/customer-listing/EVAL-1/, omits the Contract block, ignores or re-designs the approved contract, owes the retired api_contract step, splits the ticket, commits anything (to main or a new branch), creates or switches a branch, or stops before the post-hook closes the step.

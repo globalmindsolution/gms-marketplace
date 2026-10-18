@@ -230,22 +230,25 @@ Pilot with `--runs 1 --no-publish` first.
 
 ## Known limits — read before quoting a number
 
-- **Few behaviour cases have run, and 4 have a baseline.** Every behaviour
-  case (`behaviour/`, `setup/`, `artifacts/`) is authored, shape-checked and
-  calibrated for free, and states its baseline criteria. On 2026-10-17 the
-  22 cases touching create-prd, set-doc-status, setup and update ran 3 times
-  each, and the 4 cases ADR-0146–0148 added were recorded with
-  `scripts/record_baseline.py`; the rest have neither run nor a baseline.
+- **84 of 120 behaviour cases have a baseline.** Every behaviour case
+  (`behaviour/`, `setup/`, `artifacts/`) is authored, shape-checked and
+  calibrated for free, and states its baseline criteria. On 2026-10-17/18
+  each was run once by `scripts/record_baseline.py`, which records only a
+  run that passes every grader of its case: 84 did. The other 36 have no
+  baseline yet, and each failing grader is a finding to triage (a plugin
+  bug, a stale grader, or the sandbox), not a pass. The 22 cases touching
+  create-prd, set-doc-status, setup and update also ran 3 times each.
   Those runs settled one question: a `{ source: file }` grader can read
   inside `.git/` (`HEAD`, the reflog). Still open: whether the sandbox
   leaves the stand-in origin `.eval-origin.git` alone (`nothing-pushed`
   passes either way). Bash needs bubblewrap and socat
   (`apt install bubblewrap socat`; the cloud container runs it once they
   are installed), and `--trust-plugin` where no terminal can answer the
-  trust prompt. One CLI limit stays: `claude` 2.1.302 refuses writes to
-  `.pre-commit-config.yaml` and `.claude/launch.json` even when Write is
-  granted, so `setup/08-neg-pre-commit` and `behaviour/setup-preview-server`
-  cannot pass on it.
+  trust prompt. Two sandbox limits on `claude` 2.1.302: the Write tool is
+  refused `.pre-commit-config.yaml` (a run that writes it through Bash
+  passes, so `setup/08-neg-pre-commit` passes only some runs), and every
+  write under `.claude/` is refused, so `behaviour/setup-preview-server`
+  cannot pass.
 
 - **Auto-memory is off for routing runs.** With it on, the model sometimes
   spends its one turn listing Claude Code's memory directory, which is always

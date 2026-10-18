@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run starts /acs:code for EVAL-1, dispatches the code-small leg from the plan's recorded path, gives its implementer test-cases.md as the test contract, writes tests/test_list_customers.py first with one test per case whose docstring names TC-1, TC-2 and TC-3, makes a limit below 1 raise ValueError in list_customers, leaves the work uncommitted on main (no branch, no commit), and finishes the code step as completed without asking the user anything.
+FAIL if the run asks a question, drops a TC-n case without reporting it as a problem, invents cases the document does not list, names a test module after the ticket id, clamps the limit instead of raising, writes outside the plan's file map, runs /acs:review-code or opens a PR, commits anything, creates or switches a branch, or leaves the code step unfinished.
