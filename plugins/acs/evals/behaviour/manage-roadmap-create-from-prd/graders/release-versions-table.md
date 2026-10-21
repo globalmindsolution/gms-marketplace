@@ -1,7 +1,7 @@
 ---
 type: regex
 target: { source: file, path: docs/product/roadmap.md }
-pattern: '^(?=[\s\S]*\n## Release versions\n)(?=[\s\S]*\|\s*v2\.4\.0\s*\|\s*Storefront\s*\|)(?=[\s\S]*\|\s*v2\.5\.0\s*\|\s*Checkout\s*\|)(?=[\s\S]*\|\s*v2\.6\.0\s*\|\s*Order tracking\s*\|)'
+pattern: '^(?=[\s\S]*\n## Release versions\n)(?=[\s\S]*\|\s*v2\.4\.0\s*\|\s*(?:M\d+\s+)?Storefront\s*\|)(?=[\s\S]*\|\s*v2\.5\.0\s*\|\s*(?:M\d+\s+)?Checkout\s*\|)(?=[\s\S]*\|\s*v2\.6\.0\s*\|\s*(?:M\d+\s+)?Order tracking\s*\|)'
 ---
 
 Every milestone resolves to exactly one release version: one Release versions

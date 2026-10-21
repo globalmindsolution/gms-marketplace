@@ -581,6 +581,35 @@ class UnitTest(TwoClonesCase):
         self.assertNotIn("160000 ", listing)
         self.assertIn("\tkeep.py", listing)
 
+    @unittest.skipUnless(shutil.which("bwrap") and sys.platform.startswith("linux"),
+                         "needs bubblewrap, as Claude Code's Linux sandbox uses")
+    def test_the_sandbox_dotfile_mounts_do_not_make_the_tree_dirty(self):
+        # Claude Code's Linux sandbox bind-mounts /dev/null over protected
+        # dotfiles in the checkout; `git status` lists them as untracked files.
+        # They are not work a receive could clobber, so the tree stays clean
+        # -- while a real untracked file still makes it dirty.
+        write(self.bob, ".bashrc", "")
+        dotfile = os.path.join(self.bob, ".bashrc")
+        code = ("import sys; sys.path.insert(0, %r); "
+                "from acs_lib import team_handoff_receive as thr; "
+                "print(thr._dirty_paths(%r))" % (SCRIPTS, self.bob))
+
+        def dirty():
+            out = subprocess.run(
+                ["bwrap", "--bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
+                 "--bind", "/dev/null", dotfile, sys.executable, "-c", code],
+                capture_output=True, text=True)
+            if out.returncode and "Creating new namespace" in out.stderr:
+                self.skipTest("bwrap cannot create a namespace here")
+            self.assertEqual(out.returncode, 0, out.stderr)
+            return out.stdout.strip()
+
+        self.assertEqual(dirty(), "[]")
+        os.remove(dotfile)
+        write(self.bob, ".bashrc", "")
+        write(self.bob, "notes.txt", "mine\n")
+        self.assertEqual(dirty(), "['notes.txt']")
+
     def test_counters_are_raised_never_lowered(self):
         rpath = self.rpath(self.bob)
         self.assertIsNone(thr.raise_counters(rpath, None))
