@@ -1,7 +1,8 @@
 ---
 type: regex
 target: last_message
-pattern: '(?i)\bkept\b[^\n]{0,40}\blocal\b'
+pattern: '\bkept\b[^\n]{0,40}\blocal\b'
+flags: i
 ---
 
 The completion report names where the analysis went -- "kept local (team
