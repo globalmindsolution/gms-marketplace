@@ -230,11 +230,14 @@ Pilot with `--runs 1 --no-publish` first.
 
 ## Known limits — read before quoting a number
 
-- **84 of 120 behaviour cases have a baseline.** Every behaviour case
+- **90 of 120 behaviour cases have a baseline.** Every behaviour case
   (`behaviour/`, `setup/`, `artifacts/`) is authored, shape-checked and
   calibrated for free, and states its baseline criteria. On 2026-10-17/18
   each was run once by `scripts/record_baseline.py`, which records only a
-  run that passes every grader of its case: 84 did. The other 36 have no
+  run that passes every grader of its case: 84 did. On 2026-10-21 six more
+  did, once a snapshot no longer failed on the sandbox's device-node
+  dotfiles and create-pr again stopped before pushing on a failed GitHub
+  call. The other 30 have no
   baseline yet, and each failing grader is a finding to triage (a plugin
   bug, a stale grader, or the sandbox), not a pass. The 22 cases touching
   create-prd, set-doc-status, setup and update also ran 3 times each.
@@ -244,7 +247,12 @@ Pilot with `--runs 1 --no-publish` first.
   passes either way). Bash needs bubblewrap and socat
   (`apt install bubblewrap socat`; the cloud container runs it once they
   are installed), and `--trust-plugin` where no terminal can answer the
-  trust prompt. Two sandbox limits on `claude` 2.1.302: the Write tool is
+  trust prompt. From `claude` 2.1.305 a run whose temp folder sits under
+  `/tmp` can write nowhere (the sandbox's deny on `/tmp` wins over its
+  allow on the run's own folders, so every acs state write fails with
+  "Read-only file system"): set `TMPDIR` to a folder outside `/tmp`. The
+  review-code cases' final gate also needs `pytest` and `coverage` importable
+  by `python3`. Two sandbox limits on `claude` 2.1.302: the Write tool is
   refused `.pre-commit-config.yaml` (a run that writes it through Bash
   passes, so `setup/08-neg-pre-commit` passes only some runs), and every
   write under `.claude/` is refused, so `behaviour/setup-preview-server`

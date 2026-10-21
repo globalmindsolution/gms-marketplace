@@ -75,8 +75,11 @@ anything. A fresh run skips it.
    pushes nothing and finishes `interrupted`. With no groups but `ahead`
    commits, `pr commit` just cuts the branch at HEAD (detached HEAD, or the
    default branch with commits ahead).
-3. **Push** the branch unless `pushed`. Never force-push; never push the
-   default branch.
+3. **Push** the branch unless `pushed` — but first read the default branch
+   from GitHub (e.g. `gh api repos/{owner}/{repo} --jq .default_branch`). It
+   is a critical call (below): with no working route, stop failed BEFORE
+   anything is pushed, so a session that cannot reach GitHub never leaves a
+   pushed branch with no PR. Never force-push; never push the default branch.
 4. **Open or update the PR** against the default branch, ready for review
    (never a draft): a concise title (normally the ticket's title), and a body
    from the `pr-default` template (a repo's `.acs/templates/pr-default.md`

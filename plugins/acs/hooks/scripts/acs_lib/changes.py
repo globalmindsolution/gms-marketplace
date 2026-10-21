@@ -23,6 +23,7 @@ commits or moves HEAD.
 
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 
@@ -109,6 +110,29 @@ def _untracked_repos(root):
     return [p for p in raw.decode("utf-8", "surrogateescape").split("\0") if p.endswith("/")]
 
 
+def _special_files(root):
+    """Untracked or modified paths that are neither a regular file, a symlink
+    nor a directory -- a device node, FIFO or socket, which `git add` refuses
+    ("can only add regular files, symbolic links or git-directories") and
+    which no commit can hold. Claude Code's Linux sandbox mounts /dev/null
+    character devices over the protected dotfiles of the working directory
+    (`.bashrc`, `.gitconfig`, ...), so a sandboxed session sees them in every
+    checkout root; a snapshot leaves them out rather than failing."""
+    raw = _run_git(root, ["ls-files", "-z", "--others", "--modified",
+                          "--exclude-standard"]).stdout
+    out = []
+    for path in raw.decode("utf-8", "surrogateescape").split("\0"):
+        if not path or path.endswith("/"):
+            continue
+        try:
+            mode = os.lstat(os.path.join(root, path)).st_mode
+        except OSError:
+            continue  # deleted: `add -A` records the deletion
+        if not (stat.S_ISREG(mode) or stat.S_ISLNK(mode) or stat.S_ISDIR(mode)):
+            out.append(path)
+    return sorted(set(out))
+
+
 def _gitlinks(root, args, env=None):
     """{path: record} of the mode-160000 entries `git <args> -z` prints."""
     raw = _run_git(root, list(args) + ["-z"], env=env).stdout
@@ -147,7 +171,9 @@ def snapshot(root):
     A repository inside the checkout is never part of it: an untracked one is
     excluded from the `add` (staged, it would be a gitlink; with no commit, it
     would fail the `add`), and any gitlink HEAD does not already track -- one
-    the real index staged -- is dropped from the copy (`drop_new_gitlinks`)."""
+    the real index staged -- is dropped from the copy (`drop_new_gitlinks`).
+    Nor is a device node, FIFO or socket (`_special_files`), which would fail
+    the `add`."""
     git_index = os.path.join(root, _out(root, ["rev-parse", "--git-path", "index"]))
     tmpdir = tempfile.mkdtemp(prefix="acs-snapshot-")
     try:
@@ -163,7 +189,8 @@ def snapshot(root):
             _run_git(root, ["read-tree", "HEAD"], env=env)
         # Pathspec magic is off under GIT_LITERAL_PATHSPECS, so this one call
         # turns it back on and spells every path `literal` itself.
-        excludes = [":(exclude,literal)" + p for p in _untracked_repos(root)]
+        excludes = [":(exclude,literal)" + p
+                    for p in _untracked_repos(root) + _special_files(root)]
         _run_git(root, ["add", "-A", "--", ":(literal)."] + excludes,
                  env=dict(env, GIT_LITERAL_PATHSPECS="0"))
         drop_new_gitlinks(root, env, "HEAD" if head_sha(root) else None)
