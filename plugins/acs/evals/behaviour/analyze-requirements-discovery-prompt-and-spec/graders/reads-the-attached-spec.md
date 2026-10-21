@@ -1,7 +1,8 @@
 ---
 type: regex
 target: { source: file, path: docs/product/features/order-tracking/analysis/README.md }
-pattern: '(?i)opt[- ]?out|unsubscrib'
+pattern: 'opt[- ]?out|unsubscrib'
+flags: i
 ---
 
 The per-order opt-out from tracking emails exists only in the attached spec

@@ -230,14 +230,16 @@ Pilot with `--runs 1 --no-publish` first.
 
 ## Known limits — read before quoting a number
 
-- **99 of 120 behaviour cases have a baseline.** Every behaviour case
+- **113 of 120 behaviour cases have a baseline.** Every behaviour case
   (`behaviour/`, `setup/`, `artifacts/`) is authored, shape-checked and
   calibrated for free, and states its baseline criteria. On 2026-10-17/18
   each was run once by `scripts/record_baseline.py`, which records only a
   run that passes every grader of its case: 84 did. On 2026-10-21 six more
   did, once a snapshot no longer failed on the sandbox's device-node
   dotfiles and create-pr again stopped before pushing on a failed GitHub
-  call; on a re-run that day nine more did. The other 21 have no
+  call; on a re-run that day nine more did, and after a triage of the rest
+  (stale graders, unclear skill text, one plugin bug) fourteen more. The
+  other 7 have no
   baseline yet, and each failing grader is a finding to triage (a plugin
   bug, a stale grader, or the sandbox), not a pass. The 22 cases touching
   create-prd, set-doc-status, setup and update also ran 3 times each.

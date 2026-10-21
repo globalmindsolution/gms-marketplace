@@ -120,17 +120,19 @@ def _special_files(root):
     checkout root; a snapshot leaves them out rather than failing."""
     raw = _run_git(root, ["ls-files", "-z", "--others", "--modified",
                           "--exclude-standard"]).stdout
-    out = []
-    for path in raw.decode("utf-8", "surrogateescape").split("\0"):
-        if not path or path.endswith("/"):
-            continue
-        try:
-            mode = os.lstat(os.path.join(root, path)).st_mode
-        except OSError:
-            continue  # deleted: `add -A` records the deletion
-        if not (stat.S_ISREG(mode) or stat.S_ISLNK(mode) or stat.S_ISDIR(mode)):
-            out.append(path)
-    return sorted(set(out))
+    return sorted({path for path in raw.decode("utf-8", "surrogateescape").split("\0")
+                   if path and not path.endswith("/") and is_special(root, path)})
+
+
+def is_special(root, path):
+    """True when `path` (under `root`) is a device node, FIFO or socket --
+    nothing git can store, and, in a sandboxed session, a /dev/null mount
+    rather than the user's work. A missing path is not special."""
+    try:
+        mode = os.lstat(os.path.join(root, path)).st_mode
+    except OSError:
+        return False
+    return not (stat.S_ISREG(mode) or stat.S_ISLNK(mode) or stat.S_ISDIR(mode))
 
 
 def _gitlinks(root, args, env=None):
