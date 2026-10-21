@@ -3,8 +3,9 @@ description: >-
   A raw request with no ticket, shipped with one command: cap the customer
   page size at 100. ship starts a run over the request (a free-text subject)
   and drives workflows/ship.yaml from its cursor -- the cap implemented
-  (uncommitted until create-pr) and reviewed -- until create-pr fails at its
-  critical gh base detection before any push. ship stops there, reports it,
+  (uncommitted until create-pr) and reviewed -- until create-pr, committing
+  with the approval the request gives, fails at its critical gh base
+  detection before any push. ship stops there, reports it,
   and never merges.
 expected_outcome: >-
   A run's steps/review-code/verdict.json and steps/create-pr/state.json
@@ -22,3 +23,5 @@ list_customers must refuse a limit above 100 with a ValueError naming the
 maximum; a limit of exactly 100 is still served, and the default page size
 stays 20." Where a step would ask me something, decide it yourself and record
 it as an assumption. Do not ask me anything; I will not be able to answer.
+At the pull request, commit the change the way create-pr splits it: that is
+my approval of its commit plan.
