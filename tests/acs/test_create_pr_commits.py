@@ -81,6 +81,9 @@ class TheContractTheSystemDependsOn(unittest.TestCase):
     def test_the_safety_rules(self):
         text = flat(skill())
         self.assertIn("Never force-push; never push the default branch", text)
+        # A failed critical GitHub call stops the run before the push (#605
+        # dropped this once; the gh-unavailable eval cases caught it).
+        self.assertIn("stop failed BEFORE anything is pushed", text)
         self.assertIn("never a draft", text)
         self.assertIn("Never report a PR, label or comment that was not actually made", text)
 
