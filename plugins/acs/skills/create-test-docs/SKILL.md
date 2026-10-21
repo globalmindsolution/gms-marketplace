@@ -511,7 +511,9 @@ be covered by any case — it has no observable outcome, it contradicts the plan
 or the contract, or it names behaviour nothing in the repo can exercise — do NOT
 drop it and do NOT invent a case that only appears to cover it:
 
-1. Record it as an open ledger question naming the criterion.
+1. Record it as an open ledger question naming the criterion (`clarify.py
+   add` with no `--answer`) — `open` even when the user is unreachable: this is the one question the assumption rule
+   above does not cover, because an assumed answer is an invented measure.
 2. Publish the document anyway when it verified — a document with a named gap
    is what the answer comes back to.
 3. Write result.json with `"status": "interrupted"`,
