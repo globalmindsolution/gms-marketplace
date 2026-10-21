@@ -67,6 +67,11 @@ class RecordTest(unittest.TestCase):
         source = next(c for c in ec.all_cases() if c.name == "01-keep-defaults")
         self.case_dir = os.path.join(self.tmp, "01-keep-defaults")
         shutil.copytree(source.path, self.case_dir)
+        # The source case may carry its own recorded baseline: start unrecorded.
+        for path in (os.path.join(self.case_dir, rb.BASELINE_FILE),
+                     os.path.join(self.case_dir, "graders", rb.GRADER_FILE)):
+            if os.path.exists(path):
+                os.remove(path)
         self.case = ec.Case(self.case_dir)
 
     @staticmethod

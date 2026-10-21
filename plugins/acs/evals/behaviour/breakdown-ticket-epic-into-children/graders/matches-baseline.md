@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run breaks EVAL-1 down through /acs:breakdown-ticket without asking anything and without allocating a new id, reads the approved design, takes the request's confirmation as the one grouped confirmation, mints exactly the three confirmed children with new-ticket.py --parent EVAL-1 (two stories and a task, each with parent EVAL-1, no design flag, the epic's order-tracking feature inherited, its confirmed acceptance criteria and points, and its references recorded, the epic's tech design among them), leaves the epic's own title, description and criteria untouched while its children list becomes EVAL-2..EVAL-4, finishes the step through its post-hook, and names each child's own pipeline (/acs:ship or /acs:analyze-requirements on the child) as the next step.
+FAIL if the run asks the user a question, re-analyzes or rewrites the epic, mints a child the user did not confirm or misses one, leaves a child without its criteria, its feature or its references, mints a placeholder ticket, writes production code, or stops before the post-hook closes the step.
