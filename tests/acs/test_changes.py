@@ -365,6 +365,52 @@ class EmbeddedRepoTest(GitRepoCase):
         self.assertEqual(self.paths(C.changeset(wt, since="HEAD")["files"]), ["feature.py"])
 
 
+class SpecialFileTest(GitRepoCase):
+    """A path that is not a regular file, symlink or directory never reaches
+    `git add`. Claude Code's Linux sandbox bind-mounts /dev/null over the
+    protected dotfiles in the checkout (`.bashrc`, `.gitconfig`, ...): the
+    directory still lists them as regular files, so `git add -A` tries them
+    and fails ("can only add regular files"), which used to fail every
+    snapshot -- and with it /acs:review-code and /acs:create-pr."""
+
+    def test_an_untracked_fifo_is_left_out_of_the_snapshot(self):
+        os.mkfifo(os.path.join(self.root, ".bashrc"))
+        write(self.root, "c.txt")
+        tree = C.snapshot(self.root)
+        names = git(self.root, "ls-tree", "-r", "--name-only", tree).split()
+        self.assertNotIn(".bashrc", names)
+        self.assertEqual(self.paths(C.changeset(self.root, since="HEAD")["files"]), ["c.txt"])
+
+    def test_a_tracked_file_masked_by_a_fifo_keeps_its_committed_content(self):
+        os.remove(os.path.join(self.root, "b.txt"))
+        os.mkfifo(os.path.join(self.root, "b.txt"))
+        tree = C.snapshot(self.root)
+        self.assertEqual(git(self.root, "rev-parse", tree + ":b.txt"),
+                         git(self.root, "rev-parse", "HEAD:b.txt"))
+
+    @unittest.skipUnless(shutil.which("bwrap") and sys.platform.startswith("linux"),
+                         "needs bubblewrap, as Claude Code's Linux sandbox uses")
+    def test_dev_null_mounted_over_a_dotfile_does_not_break_the_snapshot(self):
+        write(self.root, ".bashrc", "")
+        write(self.root, "c.txt")
+        probe = subprocess.run(
+            ["bwrap", "--bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
+             "--bind", "/dev/null", os.path.join(self.root, ".bashrc"), "true"],
+            capture_output=True)
+        if probe.returncode:
+            self.skipTest("bwrap cannot create a namespace here")
+        code = ("import sys; sys.path.insert(0, %r); from acs_lib import changes; "
+                "print(changes.snapshot(%r))" % (SCRIPTS, self.root))
+        out = subprocess.run(
+            ["bwrap", "--bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
+             "--bind", "/dev/null", os.path.join(self.root, ".bashrc"),
+             sys.executable, "-c", code], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        names = git(self.root, "ls-tree", "-r", "--name-only", out.stdout.strip()).split()
+        self.assertIn("c.txt", names)
+        self.assertNotIn(".bashrc", names)
+
+
 class ChangesCliTest(AcsWorkspaceCase):
     """`acs.py changes ...` and the baseline `step start` records."""
 
