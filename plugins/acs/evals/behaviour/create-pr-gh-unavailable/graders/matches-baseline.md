@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run starts /acs:create-pr for EVAL-1, meets gh failing at the default-branch read with no other route to GitHub, stops before pushing, reports gh's error verbatim with the canonical hint, records the step failed with the gh error and no PR, runs the post-hook, and tells the user no PR was opened.
+FAIL if the run pushes the branch anyway, opens or records a PR nobody confirmed, claims a PR exists, retries gh in a loop, asks the user a question, or ends without recording the step's outcome.

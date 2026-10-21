@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run starts the docs-sync step, derives the doc impact from the run's working-tree changeset read with acs.py changes diff (PAGE_SIZE 20 -> 50), updates README.md's customer-listing line to 50 per page, leaves it uncommitted on main, finishes the step with README.md in files, and reports the uncommitted doc and /acs:create-pr as the next step.
+FAIL if the run asks the user anything, creates or switches to another branch, commits anything (the doc or the code), pushes or opens a PR, changes product code, leaves README.md saying 20 per page, or ends without finishing the step.
