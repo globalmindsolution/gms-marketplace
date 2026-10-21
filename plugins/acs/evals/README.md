@@ -244,7 +244,12 @@ Pilot with `--runs 1 --no-publish` first.
   passes either way). Bash needs bubblewrap and socat
   (`apt install bubblewrap socat`; the cloud container runs it once they
   are installed), and `--trust-plugin` where no terminal can answer the
-  trust prompt. Two sandbox limits on `claude` 2.1.302: the Write tool is
+  trust prompt. From `claude` 2.1.305 a run whose temp folder sits under
+  `/tmp` can write nowhere (the sandbox's deny on `/tmp` wins over its
+  allow on the run's own folders, so every acs state write fails with
+  "Read-only file system"): set `TMPDIR` to a folder outside `/tmp`. The
+  review-code cases' final gate also needs `pytest` and `coverage` importable
+  by `python3`. Two sandbox limits on `claude` 2.1.302: the Write tool is
   refused `.pre-commit-config.yaml` (a run that writes it through Bash
   passes, so `setup/08-neg-pre-commit` passes only some runs), and every
   write under `.claude/` is refused, so `behaviour/setup-preview-server`
