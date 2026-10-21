@@ -138,8 +138,9 @@ question, merge two into one entry, or auto-answer one outside the
 preview is the only routine question. Ask something else only when reality
 diverges from state (the branch carries commits the plan does not account for,
 or an open PR for the branch was authored outside ACS with a conflicting base).
-Under /acs:ship, or when you cannot reach the user and the request holds no
-approval of the plan, commit nothing: record the question as `open`, finish
+When you cannot reach the user (under /acs:ship, or told not to ask) and the
+request holds no approval of the plan ("commit it the way you split it" is
+one: record it `--source user`), commit nothing: record the question as `open`, finish
 `interrupted` with `stop_reason: needs_input`, and return a `<handoff
 skill="create-pr" status="needs_input">` carrying the plan in a `<question>`.
 
