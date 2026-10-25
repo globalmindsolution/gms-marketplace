@@ -30,6 +30,7 @@ from ._common import GateError, _ensure_state_root_ignored, now_iso, read_json, 
 from .changes import _run_git, drop_new_gitlinks, empty_tree, head_sha, is_special, name_status
 from .repo import repo_dir, repo_guard, ticket_dir
 from . import run as run_mod
+from . import step as step_mod
 from . import sessions
 from . import team_handoff as th
 
@@ -309,6 +310,8 @@ def receive(ctx, ticket_id, replace=False, keep_ref=False, remote="origin"):
     doc = run_mod.load_run(rdir) if rdir else None
     if doc is not None:
         run_mod.index_run(rpath, doc)
+        for open_step in run_mod.in_progress_steps(doc):
+            step_mod.mark_handed_off(rdir, open_step, run_id, "received")
     counters = raise_counters(rpath, manifest.get("counters_next"))
     if doc is not None:
         sessions.save_pointer(rpath, ctx["checkout_id"], run_id=run_id,

@@ -359,6 +359,50 @@ class RoundTripTest(TwoClonesCase):
         self.assertEqual(sent["attachments"], [self.spec])
 
 
+class OpenStepTest(TwoClonesCase):
+    """A handoff is a copy, not a pause (ADR-0131): the open step stays
+    `in_progress` on both machines, and neither session is made to finish a
+    step it is not working -- until it starts the step again."""
+
+    def stop(self, root):
+        return subprocess.run([sys.executable, os.path.join(SCRIPTS, "dispatch.py"), "stop"],
+                              input=json.dumps({"cwd": root, "hook_event_name": "Stop"}),
+                              cwd=root, capture_output=True, text=True)
+
+    def note(self, root, ticket):
+        entry = lib.step.last_invocation(lib.step.load_state(self.rdir(root, ticket), "code"))
+        return entry.get("status"), (entry.get("handed_off") or {}).get("direction")
+
+    def test_neither_side_is_made_to_finish_the_handed_off_step(self):
+        self.seed_counters(self.alice, 5)
+        ticket = self.new_ticket(self.alice)
+        self.walk(self.alice, ticket)
+        out = self.acs(self.alice, "step", "start", "--step", "code", "--ticket", ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        write(self.alice, "app.py", "line1\nline2 alice\nline3\n")
+        self.assertEqual(self.stop(self.alice).returncode, 2)  # the open step is Alice's
+
+        self.ok(self.alice, "handoff", "send", "--ticket", ticket, "--note", "next: tests")
+        self.assertEqual(self.note(self.alice, ticket), ("in_progress", "sent"))
+        self.assertEqual(self.stop(self.alice).returncode, 0)
+        # Nor does the SessionEnd net interrupt it when Alice's session ends.
+        end = subprocess.run([sys.executable, os.path.join(SCRIPTS, "dispatch.py"), "session-end"],
+                             input=json.dumps({"cwd": self.alice}), cwd=self.alice,
+                             capture_output=True, text=True)
+        self.assertEqual(end.returncode, 0, end.stderr)
+        self.assertEqual(self.note(self.alice, ticket), ("in_progress", "sent"))
+
+        self.ok(self.bob, "handoff", "receive", ticket)
+        self.assertEqual(self.note(self.bob, ticket), ("in_progress", "received"))
+        self.assertEqual(self.stop(self.bob).returncode, 0)
+
+        # Starting the step again is working it: the Stop hook holds Bob to it.
+        out = self.acs(self.bob, "step", "start", "--step", "code", "--ticket", ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(self.note(self.bob, ticket), ("in_progress", None))
+        self.assertEqual(self.stop(self.bob).returncode, 2)
+
+
 class LeftBehindTest(TwoClonesCase):
 
     def test_work_in_progress_from_before_the_run_is_not_sent(self):
