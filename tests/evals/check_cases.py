@@ -135,6 +135,12 @@ class ShapeTest(unittest.TestCase):
                     continue
                 with self.subTest(case=c.name, grader=g.name):
                     re.compile(pattern)
+                    # Python-only inline flags -- `(?i)`, `(?s)`, `(?i:...)` --
+                    # are a SyntaxError in a JavaScript RegExp: the CLI throws
+                    # and the grader can never pass. Use the `flags` key.
+                    self.assertIsNone(
+                        re.search(r"\(\?[aiLmsux-]+[):]", pattern),
+                        "inline regex flags are Python-only; use `flags:`")
 
 
 class RoutingShapeTest(unittest.TestCase):

@@ -1,7 +1,8 @@
 ---
 type: regex
 target: { source: file, path: docs/product/features/order-tracking/analysis/README.md }
-pattern: '(?i)\bguest'
+pattern: '\bguest'
+flags: i
 ---
 
 Guest orders exist only in the prompt's addition. An analysis whose README

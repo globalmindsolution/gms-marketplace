@@ -27,7 +27,7 @@ import subprocess
 import tempfile
 
 from ._common import GateError, _ensure_state_root_ignored, now_iso, read_json, write_json
-from .changes import _run_git, drop_new_gitlinks, empty_tree, head_sha, name_status
+from .changes import _run_git, drop_new_gitlinks, empty_tree, head_sha, is_special, name_status
 from .repo import repo_dir, repo_guard, ticket_dir
 from . import run as run_mod
 from . import sessions
@@ -57,8 +57,12 @@ def _dirty_paths(root):
     # GIT_OPTIONAL_LOCKS=0: a read, so git must not refresh-write the index.
     raw = _run_git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
                    env={"GIT_OPTIONAL_LOCKS": "0"}).stdout
+    # An untracked device node is the sandbox's /dev/null mount over a protected
+    # dotfile (`.bashrc`, `.claude/hooks`, ...), never work a handoff could
+    # clobber: it does not make the tree dirty (changes.is_special).
     return [rec[3:] for rec in raw.decode("utf-8", "surrogateescape").split("\0")
-            if len(rec) > 3 and rec[2] == " "]
+            if len(rec) > 3 and rec[2] == " "
+            and not (rec[:2] == "??" and is_special(root, rec[3:]))]
 
 
 def _tree_at(root, commit, path):

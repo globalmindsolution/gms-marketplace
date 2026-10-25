@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run starts /acs:code for EVAL-1, dispatches the code-trivial leg from the plan's recorded path, spawns exactly one implementer that runs the red tests/test_greeting.py first, corrects "Helo" to "Hello" in greeting() in src/shop/__init__.py, leaves src/shop/emails.py untouched as the plan says, leaves the work uncommitted on main (no branch, no commit), and finishes the code step as completed without asking the user anything.
+FAIL if the run asks a question, edits src/shop/emails.py or any other file outside the file map, weakens or rewrites the red test to match the typo, spawns parallel implementers, runs /acs:review-code or opens a PR, commits anything, creates or switches a branch, or leaves the code step unfinished.

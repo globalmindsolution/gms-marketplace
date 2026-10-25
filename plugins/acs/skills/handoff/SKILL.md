@@ -136,7 +136,8 @@ yourself.
 
 **2e. Say what the sender keeps.** Nothing on this machine changes: the work
 stays in the working tree, the run, its lock and its state stay as they are.
-The package is a copy. If the sender keeps working, a later send with
+Do not finish, interrupt or close the run's open step afterwards: a handoff
+is not a pause, and the step stays `in_progress`. The package is a copy. If the sender keeps working, a later send with
 `--replace` updates the waiting package; once the teammate has received it,
 the two copies diverge and the team decides whose continues.
 

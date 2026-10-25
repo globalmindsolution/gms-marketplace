@@ -72,7 +72,8 @@ un-namespaced name only if the runtime rejects it).
 background anyway, wait for its completion notification — never poll with `sleep`
 loops.
 
-**Join deterministically** — never merge prose by hand:
+**Join deterministically** — never merge prose by hand, and always, even with
+one slice: the report is written from `gaps.md`, never from a slice file:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \
