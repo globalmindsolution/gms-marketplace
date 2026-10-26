@@ -43,6 +43,7 @@ from . import changes
 from .changes import _run_git, current_branch, empty_tree, head_sha
 from .repo import find_ticket_partition, repo_dir
 from . import run as run_mod
+from . import step as step_mod
 
 REF_PREFIX = "refs/acs/handoff/"
 #: The receiver keeps the fetched commit here, so the trees it cites stay
@@ -509,7 +510,9 @@ def _message(ticket_id, sender, note):
 
 def send(ctx, ticket_id, note="", attach=(), replace=False, dry_run=False, remote="origin"):
     """Package `ticket_id` and push it to refs/acs/handoff/<ID>. Returns the
-    report the CLI prints. Nothing in the workspace or the checkout changes."""
+    report the CLI prints. Nothing in the checkout changes; in the workspace only
+    the run's open step notes it was sent (`step.mark_handed_off`), so this
+    session is not held to finishing a step it handed over."""
     root = ctx["checkout_root"]
     plan = plan_send(ctx, ticket_id, attach)
     ref = handoff_ref(ticket_id)
@@ -545,6 +548,9 @@ def send(ctx, ticket_id, note="", attach=(), replace=False, dry_run=False, remot
                                         ensure_ascii=False) + "\n").encode("utf-8")))
     sha = build_commit(root, plan, blobs, _message(ticket_id, manifest["sender"], note))
     push_ref(root, remote, sha, ref, existing)
+    if plan["rdir"]:
+        for open_step in run_mod.in_progress_steps(run_mod.load_run(plan["rdir"]) or {}):
+            step_mod.mark_handed_off(plan["rdir"], open_step, plan["run_id"], "sent")
     report.update(commit=sha, replaced=bool(existing), pushed=True,
                   rewritten=manifest["rewritten"], sender=manifest["sender"],
                   withheld_attachments=[w["ref"] for w in manifest["withheld_attachments"]])

@@ -692,9 +692,12 @@ def stop(payload):
     # and its own absence is what the next gate reports -- not this hook's call
     # to make. With a parallel group, the reminder names the first member that
     # has no result yet.
+    # A step a team handoff sent or received is not this session's to finish.
+    from .step import handed_off
     unfinished = [s for s in running
                   if not ((result_document(rdir, s) or {}).get("status")
-                          in ("completed", "failed", "interrupted"))]
+                          in ("completed", "failed", "interrupted"))
+                  and not handed_off(rdir, s)]
     if not unfinished:
         return 0
     step = unfinished[0]

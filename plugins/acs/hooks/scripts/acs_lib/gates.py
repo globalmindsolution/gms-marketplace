@@ -712,7 +712,10 @@ def session_end(payload):
         # Every open step, not the first: a parallel group's members are all
         # in progress at once, and each one left open would claim to be
         # running in a session that no longer exists.
-        running = run_machine.in_progress_steps(doc)
+        # A step a team handoff sent or received stays in progress (a copy,
+        # not a pause): it is not this session's to interrupt.
+        running = [s for s in run_machine.in_progress_steps(doc)
+                   if not step_machine.handed_off(rdir, s)]
         wf = _workflow_for(ctx) if running else None
         for step in running:
             step_machine.finalize_invocation(rdir, step, run_id, {

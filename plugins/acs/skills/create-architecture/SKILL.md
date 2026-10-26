@@ -290,7 +290,8 @@ per survey area (slice id = the area's id; `repo` when the survey is un-sliced),
 each `<constraint name="area">` the same directory, its `<inputs>` the existing
 `hld/` files and the PRD — counted against the same cap,
 `settings.parallel.max_agents` per wave. They run
-while the survey runs. Join their notes once all have returned:
+while the survey runs. Join their notes once all have returned -- always,
+even with the one `repo` slice: the authors and the report read `gaps.md`:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" notes merge \

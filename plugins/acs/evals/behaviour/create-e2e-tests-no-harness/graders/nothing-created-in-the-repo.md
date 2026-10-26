@@ -1,7 +1,7 @@
 ---
 type: regex
 target: files
-pattern: '^(?!\.acs/|\.claude/|\.[^/\n]+$)(?![^\n]*__pycache__)[^\n]+$'
+pattern: '^(?!\.acs/|\.claude/|\.git/|\.[^/\n]+$)(?![^\n]*__pycache__)[^\n]+$'
 flags: m
 match: not_contains
 ---
@@ -14,3 +14,7 @@ A root-level dot-entry (`.bashrc`, `.gitconfig`, `.idea`, ...) is not the run's
 either: Claude Code's Linux sandbox bind-mounts /dev/null over those paths
 in the working directory, so they appear in every run's file list. A suite,
 harness or runner config would live in a folder or carry a non-dot name.
+
+Nor is anything under `.git/`: the step's own baseline snapshot
+(`acs.py step start`, ADR-0127) writes blob and tree objects into the
+object store, and the CLI lists each as a created path.
