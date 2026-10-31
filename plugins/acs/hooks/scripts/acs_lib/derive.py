@@ -41,6 +41,7 @@ GH_TIMEOUT_SECONDS = 10
 
 from ._common import read_json
 from .repo import gh_failure_hint
+from . import gh_rest
 from .run import iteration_dir, step_dir
 from .step import load_state, state_path
 from . import verdict as verdict_mod
@@ -364,12 +365,13 @@ def gh_pr_for_branch(branch, runner=None):
     run = runner or (lambda argv: subprocess.run(argv, capture_output=True, text=True,
                                                  timeout=GH_TIMEOUT_SECONDS))
     try:
-        # baseRefName is requested because states.pr's documented shape is
-        # {number, url, branch, base} and this value REPLACES the coordinator's;
-        # without it, `base` was silently dropped. state is requested because
-        # rows[0] of a --state all answer can be a CLOSED PR.
-        proc = run(["gh", "pr", "list", "--head", branch, "--state", "all",
-                    "--json", "number,url,headRefName,baseRefName,state"])
+        # REST, not `gh pr list` (ADR-0149): the porcelain runs on GraphQL,
+        # which a Claude Code session refuses. pr_row keeps the keys the
+        # value below reads -- `base` included, because states.pr's documented
+        # shape is {number, url, branch, base} and this value REPLACES the
+        # coordinator's -- and `state`, because a state=all answer can lead
+        # with a CLOSED PR.
+        proc = run(gh_rest.pr_list(branch, "all"))
     except FileNotFoundError:
         return None, "gh is not on PATH, so the PR reference could not be verified"
     except (OSError, subprocess.SubprocessError) as exc:
@@ -378,18 +380,20 @@ def gh_pr_for_branch(branch, runner=None):
         # TimeoutExpired. Either used to propagate out of a derivation that
         # runs BEFORE finalize_run, stranding the run in_progress with the lock
         # still held and losing the coordinator's result document entirely.
-        return None, ("gh pr list could not run (%s), so the PR reference could not "
+        return None, ("gh api could not run (%s), so the PR reference could not "
                       "be verified" % type(exc).__name__)
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "").strip()
         first = detail.splitlines()[0] if detail else "no output"
         hint = gh_failure_hint(detail)
-        return None, ("gh pr list failed (%s), so the PR reference could not be "
-                      "verified%s" % (first, ". %s" % hint if hint else ""))
+        return None, ("listing the PRs for the branch failed (%s), so the PR reference "
+                      "could not be verified%s" % (first, ". %s" % hint if hint else ""))
     try:
         rows = json.loads(proc.stdout or "[]")
     except (ValueError, TypeError):
-        return None, "gh pr list returned no parseable JSON"
+        return None, "gh api returned no parseable JSON"
+    if isinstance(rows, list):
+        rows = [gh_rest.pr_row(r) for r in rows if isinstance(r, dict)]
     if not isinstance(rows, list) or not rows:
         return None, "no PR on the forge for %s" % branch
     # Prefer an OPEN PR. rows[0] of a --state all answer is whatever the forge
@@ -403,7 +407,7 @@ def gh_pr_for_branch(branch, runner=None):
              "branch": row.get("headRefName") or branch}
     if row.get("baseRefName"):
         value["base"] = row["baseRefName"]
-    return value, "gh pr list --head %s (%s)" % (
+    return value, "gh api pulls?head=%s (%s)" % (
         branch, "open" if open_rows else "no open PR; reporting %s" % row.get("state"))
 
 

@@ -35,7 +35,7 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   excluding it means only the newly minted children (whose `external` is
   still null) enter the sync set, the same split MAR-69's own fan-out
   produced (issue kept, new issues created for the children only). **For each ticket to
-  sync**, run the `gh issue create` sequence below once per ticket — this is
+  sync**, run the issue-create sequence below once per ticket — this is
   a **critical (per ticket), soft (per batch)** gh call: a failed `gh`
   call for any one ticket is never silently swallowed: it produces an
   **error**-severity finding naming that ticket's id + error + the canonical
@@ -81,7 +81,7 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   command, never a failed ticket.
 
   **Read the printed JSON.** `synced` maps a ticket id to its `external`;
-  `failed` lists the ids whose `gh issue create` failed. Those are
+  `failed` lists the ids whose issue create failed. Those are
   **error**-severity findings carrying the ticket id, the error and the
   canonical `gh_failure_hint`, `replayable: false` — surfaced in `errors` and
   the `<handoff>`, never silently swallowed, and **never aborting the batch**:

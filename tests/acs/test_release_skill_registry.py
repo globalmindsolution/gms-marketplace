@@ -236,10 +236,13 @@ class Mar129ReleaseSafetyProseCase(unittest.TestCase):
 
     def test_pr_open_step_labeled_and_branched(self):
         fences = self._bash_fences()
-        pr_create_fences = [f for f in fences if "gh pr create" in f]
-        self.assertTrue(pr_create_fences, "no ```bash fence contains 'gh pr create'")
+        # REST (ADR-0149): `gh pr create` runs on GraphQL, which a Claude Code
+        # session refuses, so the PR is opened through `gh api …/pulls`.
+        pr_create_fences = [f for f in fences if "/pulls -X POST" in f]
+        self.assertTrue(pr_create_fences, "no ```bash fence opens the PR via `gh api …/pulls`")
         for fence in pr_create_fences:
-            self.assertIn("--label ACS", fence)
+            self.assertNotIn("gh pr create", fence)
+            self.assertIn("labels[]=ACS", fence)
             self.assertRegex(
                 fence, r"(?i)release[_-]?branch",
                 msg="the gh pr create fence must reference the "
@@ -250,9 +253,9 @@ class Mar129ReleaseSafetyProseCase(unittest.TestCase):
         self.assertNotIn("--force", self.body)
         self.assertNotIn("push origin main", self.body)
         for fence in self._bash_fences():
-            if "gh pr create" in fence:
+            if "/pulls -X POST" in fence:
                 self.assertNotRegex(
-                    fence, r"--base main\b",
+                    fence, r"base=main\b",
                     msg="main must never be hardcoded as the PR base — only "
                         "reachable via the <base_branch> placeholder",
                 )

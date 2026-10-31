@@ -1,7 +1,7 @@
 """acs_lib.readiness — is this PR mergeable? (MAR-524)
 
 merge-pr/SKILL.md spelled out four readiness dimensions as prose, leaving the
-model to re-derive a decision table from `gh pr view --json` on every run. The
+model to re-derive a decision table from the PR's JSON on every run. The
 table is a pure function of that JSON, and a pure function is exactly the thing
 a coordinator should not be re-deriving: two runs over the same PR could reach
 different verdicts, and neither would be reviewable.
@@ -11,9 +11,10 @@ reviewer, what to tell the user when a merge is refused, and the ADR-0028
 rationale for requiring an approving review at all. What lives here is only the
 part with one right answer.
 
-Nothing in this module performs I/O — it takes a parsed `gh pr view` document
-and the exit status of `gh pr checks --required`, so a verdict is reproducible
-from a recorded fixture with no network.
+Nothing in this module performs I/O — it takes the PR document
+`gh_rest.view_pr` reads over REST (the `gh pr view --json` shape, ADR-0149) and
+the required-checks answer `gh_rest.required_checks` derives from it, so a
+verdict is reproducible from a recorded fixture with no network.
 """
 
 
@@ -42,8 +43,9 @@ PENDING_STATES = frozenset({"PENDING", "EXPECTED"})
 #: re-exported, and read by nothing.)
 PENDING_STATUSES = frozenset({"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"})
 
-#: The `gh pr view --json` fields this module reads. The CLI asks for exactly
-#: these, so a fixture recorded by one is complete for the other.
+#: The PR-document fields this module reads (the `gh pr view --json` names,
+#: which `gh_rest.view_pr` keeps), so a fixture recorded by one is complete for
+#: the other.
 PR_VIEW_FIELDS = ("state", "isDraft", "mergeable", "mergeStateStatus", "reviewDecision",
                   "statusCheckRollup", "baseRefName", "headRefName", "url", "number")
 
@@ -89,9 +91,10 @@ def classify_checks(rollup):
     """Split a statusCheckRollup into required/optional x pass/fail/pending.
 
     `isRequired` is what GitHub reports for the PR's base-branch protection.
-    An entry without it counts as NOT required — the `gh pr checks --required`
-    exit code is the second, independent signal for that case, and the `ci`
-    dimension consults both.
+    An entry without it counts as NOT required — the required-checks answer
+    (every context the base's protection names reported and passed) is the
+    second, independent signal for that case, and the `ci` dimension consults
+    both.
     """
     out = {"required": {"pass": [], "fail": [], "pending": []},
            "optional": {"pass": [], "fail": [], "pending": []}}
@@ -103,8 +106,9 @@ def classify_checks(rollup):
     return out
 
 
-#: What `gh pr checks --required` says when the --required filter selects
-#: nothing. Both strings are present in the shipped gh binary. A repo with no
+#: What the required-checks answer says when the base requires nothing
+#: (`gh_rest.NO_REQUIRED`, worded as `gh pr checks --required` worded it, so
+#: recorded answers from either still read the same). A repo with no
 #: branch protection is explicitly supported (/acs:setup documents enforcement
 #: as advisory until an admin enables it, and acs never wires protection
 #: itself), so treating this
@@ -130,7 +134,7 @@ def _ci(pr, required_checks_ok):
         lowered = (detail or "").lower()
         if any(marker in lowered for marker in NO_REQUIRED_CHECKS_MARKERS):
             return "pass", checks  # nothing required is not something failing
-        return ("fail: `gh pr checks --required` exited non-zero: %s"
+        return ("fail: required checks are not green: %s"
                 % (detail.strip().splitlines()[0] if detail.strip() else "no output")), checks
     return "pass", checks
 
@@ -192,9 +196,9 @@ def _protections(pr, others_pass):
 def merge_readiness(pr, required_checks_ok=None):
     """The four readiness dimensions and one overall verdict, as data.
 
-    `pr` is the parsed `gh pr view --json <PR_VIEW_FIELDS>` document.
-    `required_checks_ok` is the exit status of `gh pr checks --required` as a
-    bool, or None when it was not run — the rollup's own `isRequired` flags
+    `pr` is the PR document carrying PR_VIEW_FIELDS (`gh_rest.view_pr`).
+    `required_checks_ok` is the required-checks answer (True, or a
+    (False, detail) pair), or None when it was not read — the rollup's own `isRequired` flags
     decide on their own in that case.
 
     Returns {"dimensions", "failed", "verdict", "ready", "behind",

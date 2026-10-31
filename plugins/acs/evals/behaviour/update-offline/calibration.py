@@ -17,7 +17,7 @@ def _installed():
 def IDEAL(ws):
     ws.skill("update")
     ws.reply = (
-        "Installed acs %s. The latest release could not be determined: `gh release list` "
+        "Installed acs %s. The latest release could not be determined: the `gh api` releases read "
         "is unauthenticated and raw.githubusercontent.com is unreachable.\n\n"
         "Run these yourself when online:\n\n"
         "    claude plugin marketplace update gms-marketplace\n"

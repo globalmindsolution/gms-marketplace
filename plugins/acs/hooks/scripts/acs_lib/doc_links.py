@@ -38,7 +38,7 @@ import tempfile
 from urllib.parse import quote
 
 from ._common import GateError, _git
-from . import changes, doc_layout, yamlsubset
+from . import changes, doc_layout, gh_rest, yamlsubset
 from .doc_sets import LLD_LIVING
 from .forge import _render_command, finding
 from .repo import remote_segments
@@ -546,7 +546,7 @@ def refresh_issue(gh, key, block, dry_run=False):
     findings}."""
     findings = []
     out = {"changed": False, "edited": False, "findings": findings}
-    view = ["gh", "issue", "view", str(key), "--json", "body"]
+    view = gh_rest.issue_view(key)
     code, stdout, stderr = gh(view)
     body = None
     if code == 0:
@@ -568,13 +568,12 @@ def refresh_issue(gh, key, block, dry_run=False):
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(updated)
-        edit = ["gh", "issue", "edit", str(key), "--body-file", tmp]
+        edit = gh_rest.issue_edit_body(key, tmp)
         code, stdout, stderr = gh(edit)
         if code != 0:
             findings.append(finding(
                 "info", "references", "updating issue %s's References section failed" % key,
-                command=_render_command(["gh", "issue", "edit", str(key), "--body-file",
-                                         "<body>"]),
+                command=_render_command(gh_rest.issue_edit_body(key, "<body>")),
                 error=(stderr or stdout or "").strip(), replayable=False))
         else:
             out["edited"] = True

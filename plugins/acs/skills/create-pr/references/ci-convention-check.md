@@ -21,7 +21,7 @@ labels before anything else.
 `.github/workflows/acs-conventions.yml` reads `ACS_PR_BODY`, `ACS_PR_BRANCH`,
 and `ACS_PR_LABELS` from `github.event.pull_request.*` in its `env:` block —
 the webhook payload as it was FROZEN at the moment that specific triggering
-event fired, never a live `gh pr view`/API call. A body or label change
+event fired, never a live API call. A body or label change
 applied via a separate call AFTER a given event fired is invisible to that
 event's own check run; only a later event (its own
 `edited`/`labeled`/`synchronize` run) observes it.

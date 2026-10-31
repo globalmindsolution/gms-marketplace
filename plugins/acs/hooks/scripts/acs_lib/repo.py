@@ -82,62 +82,69 @@ GH_UNEVALUABLE_MARKERS = (
 )
 
 
+#: The fields only the full read can answer: reviews, checks, protection.
+_FULL_VIEW_FIELDS = frozenset({"mergeable", "mergeStateStatus", "reviewDecision",
+                               "statusCheckRollup"})
+
+
 def gh_pr_view(number, fields):
-    """`gh pr view <number> --json <fields>`, parsed. Raises GateError with a
-    clean message when gh is missing, the lookup fails, or the output does not
-    parse -- callers surface that verbatim rather than a traceback.
+    """The `gh pr view --json <fields>` document, read over REST. Raises
+    GateError with a clean message when gh is missing, a read fails, or the
+    output does not parse -- callers surface that verbatim rather than a
+    traceback.
 
-    The one gh-shell-out helper: `acs step start --pr` (merge-pr's exempt-pr
-    mode) and `acs readiness` both need it, and a second copy would be a
-    second place for the
-    missing-gh message and the failure classification to drift. Isolating the
-    call here is also what lets tests stub it with a fake gh on PATH.
+    The one PR-read helper: `acs step start --pr` (merge-pr's exempt-pr mode)
+    and `acs readiness` both need it, and a second copy would be a second
+    place for the missing-gh message and the failure classification to drift.
+    The reads are `gh api` REST (ADR-0149) -- `gh pr view` runs on GraphQL,
+    which a Claude Code session refuses -- reshaped by `gh_rest.view_pr` into
+    the porcelain's keys, so the readiness table and recorded fixtures keep
+    their meaning. Asking only for the PR's own fields skips the review,
+    check and protection reads.
     """
+    from . import gh_rest
+    wanted = set(fields.split(",") if isinstance(fields, str) else fields or ())
     try:
-        proc = subprocess.run(
-            ["gh", "pr", "view", str(number), "--json", fields],
-            capture_output=True, text=True,
-        )
-    except FileNotFoundError:
-        raise GateError(
-            "gh (the GitHub CLI) is required for --pr mode but was not found on PATH; "
-            "install and authenticate it (gh auth login) first.")
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "").strip() or "gh pr view failed"
-        raise GateError("could not look up PR %s via gh: %s" % (number, detail))
-    try:
-        return json.loads(proc.stdout)
-    except (json.JSONDecodeError, ValueError):
-        raise GateError("gh pr view returned no parseable JSON for PR %s" % number)
+        return gh_rest.view_pr(gh_rest.run, number, full=bool(wanted & _FULL_VIEW_FIELDS))
+    except gh_rest.GhError as exc:
+        if exc.detail == gh_rest.NOT_ON_PATH:
+            raise GateError(
+                "gh (the GitHub CLI) is required for --pr mode but was not found on PATH; "
+                "install and authenticate it (gh auth login) first.")
+        raise GateError("could not look up PR %s via gh: %s" % (number, exc.detail))
 
 
-def gh_pr_required_checks_ok(number):
-    """`gh pr checks <number> --required` as a tri-state.
+def gh_pr_required_checks_ok(number, pr=None):
+    """Are the base's REQUIRED checks green, as a tri-state.
 
-    True (all required checks green), None (gh absent -- unknown, not failing),
-    or `(False, detail)` carrying gh's own output so the caller can tell an
+    True (all required checks reported and passed), None (gh absent --
+    unknown, not failing), or `(False, detail)` so the caller can tell an
     unevaluable read from a red check.
 
-    The second, independent CI signal: GitHub's own answer to "are the REQUIRED
-    checks green", which does not depend on `isRequired` being populated in the
-    rollup. A missing gh yields None (unknown) rather than False, so a machine
-    without the CLI does not report a PR as CI-failing.
+    The second, independent CI signal: every context the base branch's
+    protection requires must have reported and passed, which also catches a
+    required check that never ran -- the rollup alone cannot show that. `pr`
+    is a `gh_pr_view` document already read (its `requiredContexts` and
+    rollup answer without a second round of reads). A missing gh yields None
+    rather than False, so a machine without the CLI does not report a PR as
+    CI-failing.
+
+    The detail travels with the answer. Discarding it made an UNEVALUABLE read
+    (expired auth, a 403 session restriction, a rate limit) indistinguishable
+    from a red check. ADR-0088 classifies this read as CRITICAL -- an
+    unevaluable gate is never treated as passed, and the caller needs the text
+    to tell the two apart (and to recognise "no required checks reported",
+    which is neither).
     """
-    try:
-        proc = subprocess.run(["gh", "pr", "checks", str(number), "--required"],
-                              capture_output=True, text=True)
-    except FileNotFoundError:
-        return None
-    if proc.returncode == 0:
-        return True
-    # The detail travels with the answer. Discarding stderr made an
-    # UNEVALUABLE read (expired auth, a 403 session restriction, a rate limit)
-    # indistinguishable from a red check: both became False, and readiness
-    # reported "fail: exited non-zero" naming no check and carrying no gh
-    # output. ADR-0088 classifies this read as CRITICAL -- an unevaluable gate
-    # is never treated as passed, and the caller needs the text to tell the two
-    # apart (and to recognise "no required checks reported", which is neither).
-    return (False, (proc.stderr or proc.stdout or "").strip())
+    from . import gh_rest
+    if not (isinstance(pr, dict) and "requiredContexts" in pr):
+        try:
+            pr = gh_rest.view_pr(gh_rest.run, number)
+        except gh_rest.GhError as exc:
+            if exc.detail == gh_rest.NOT_ON_PATH:
+                return None
+            return (False, exc.detail)
+    return gh_rest.required_checks(pr)
 
 
 # ---------------------------------------------------------------------------

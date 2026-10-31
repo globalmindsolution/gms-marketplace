@@ -46,10 +46,25 @@ FIELDS = {"fields": [
 ITEMS = {"items": [{"id": "item-9", "projectId": "PVT_1",
                     "content": {"url": "https://example.invalid/issues/9"}}]}
 
+#: The REST endpoints acs drives (ADR-0149), as Gh fixture prefixes.
+R = "gh api repos/{owner}/{repo}"
+CREATE = R + "/issues -X POST"          # the issue create
+ISSUE9 = R + "/issues/9"                # every write to issue 9 (labels, assignees, PATCH)
+LABEL_CREATE = R + "/labels -X POST"
+MILESTONES = R + "/milestones"
+PR42 = R + "/issues/42"                 # a PR's labels/assignees go through its issue
+REVIEWERS = R + "/pulls/42/requested_reviewers"
+PR_FILES = R + "/pulls/42/files"
+USER = "gh api user"
+MILESTONE_ROWS = "\n".join(json.dumps(m) for m in (
+    {"title": "v1", "number": 1}, {"title": "Q3", "number": 2},
+    {"title": "Q3 2026; touch pwned", "number": 3})) + "\n"
+
 RECORDED = {
-    "gh issue create": (0, "https://example.invalid/issues/9\n", ""),
-    "gh issue edit": (0, "", ""),
-    "gh label create": (0, "", ""),
+    CREATE: (0, "https://example.invalid/issues/9\n", ""),
+    ISSUE9: (0, "", ""),
+    LABEL_CREATE: (0, "", ""),
+    MILESTONES: (0, MILESTONE_ROWS, ""),
     "gh project item-add": (0, "", ""),
     "gh project item-list": (0, json.dumps(ITEMS), ""),
     "gh project field-list": (0, json.dumps(FIELDS), ""),
@@ -67,15 +82,15 @@ class RecordedRunnerTest(unittest.TestCase):
     """The seam the fixtures rest on."""
 
     def test_the_longest_matching_prefix_wins(self):
-        """A fixture answers `gh project field-list` once and still tells
-        `gh pr edit --add-label` from `gh pr edit --add-assignee`."""
-        gh = lib.Gh(responses={"gh pr edit": (0, "generic", ""),
-                               "gh pr edit 1 --add-label": (0, "specific", "")})
-        self.assertEqual(gh(["gh", "pr", "edit", "1", "--add-label", "task"])[1], "specific")
-        self.assertEqual(gh(["gh", "pr", "edit", "1", "--add-assignee", "@me"])[1], "generic")
+        """A fixture answers `gh project field-list` once and still tells an
+        issue's label write from its assignee write."""
+        gh = lib.Gh(responses={R + "/issues/1": (0, "generic", ""),
+                               R + "/issues/1/labels": (0, "specific", "")})
+        self.assertEqual(gh(lib.gh_rest.add_labels(1, ["task"]))[1], "specific")
+        self.assertEqual(gh(lib.gh_rest.add_assignees(1, ["me"]))[1], "generic")
 
     def test_an_unrecorded_call_fails_loudly_rather_than_silently_passing(self):
-        gh = lib.Gh(responses={"gh pr edit": (0, "", "")})
+        gh = lib.Gh(responses={PR42: (0, "", "")})
         code, _out, err = gh(["gh", "project", "item-add", "7"])
         self.assertEqual(code, 1)
         self.assertIn("no recorded response", err)
@@ -151,7 +166,7 @@ class TrackerSyncBatchTest(unittest.TestCase):
 
         class Flaky(lib.Gh):
             def __call__(self, argv):
-                if argv[:3] == ["gh", "issue", "create"]:
+                if " ".join(argv).startswith(CREATE):
                     calls["n"] += 1
                     if calls["n"] == 1:
                         self.calls.append(" ".join(argv))
@@ -174,7 +189,7 @@ class TrackerSyncBatchTest(unittest.TestCase):
                       "the canonical hint must ride along with the error")
 
     def test_a_failed_ticket_keeps_its_external_unset_so_it_can_be_retried(self):
-        gh = self._gh(**{"gh issue create": (1, "", "boom")})
+        gh = self._gh(**{CREATE: (1, "", "boom")})
         out = lib.tracker_sync(gh, SETTINGS, [ticket()], self._bodies("SHOP-1"))
         self.assertEqual(out["synced"], {})
         self.assertEqual(out["failed"], ["SHOP-1"])
@@ -182,7 +197,7 @@ class TrackerSyncBatchTest(unittest.TestCase):
     def test_everything_after_the_create_is_non_critical(self):
         """Labels, assignee, milestone and Projects are best-effort: the ticket
         still syncs, and each failure is one info finding with its command."""
-        gh = self._gh(**{"gh issue edit": (1, "", "no permission"),
+        gh = self._gh(**{ISSUE9: (1, "", "no permission"),
                          "gh project item-add": (1, "", "no project")})
         out = lib.tracker_sync(gh, SETTINGS, [ticket(assignee="dana")],
                                self._bodies("SHOP-1"))
@@ -200,15 +215,17 @@ class TrackerSyncBatchTest(unittest.TestCase):
     def test_labels_are_ensured_then_applied_together(self):
         gh = self._gh()
         lib.tracker_sync_one(gh, SETTINGS, ticket(), self.body)
-        self.assertIn("gh label create ACS --description Created by the acs pipeline", gh.calls)
-        self.assertIn("gh label create task --description Created by the acs pipeline", gh.calls)
-        self.assertIn("gh issue edit 9 --add-label ACS,task", gh.calls)
+        self.assertIn(LABEL_CREATE + " -f name=ACS -f description=Created by the acs pipeline",
+                      gh.calls)
+        self.assertIn(LABEL_CREATE + " -f name=task -f description=Created by the acs pipeline",
+                      gh.calls)
+        self.assertIn(ISSUE9 + "/labels -X POST -f labels[]=ACS -f labels[]=task", gh.calls)
 
     def test_a_null_assignee_and_no_milestone_are_silent(self):
         gh = self._gh()
         _external, findings = lib.tracker_sync_one(gh, SETTINGS, ticket(), self.body)
-        self.assertFalse([c for c in gh.calls if "--add-assignee" in c])
-        self.assertFalse([c for c in gh.calls if "--milestone" in c])
+        self.assertFalse([c for c in gh.calls if "/assignees" in c])
+        self.assertFalse([c for c in gh.calls if "milestone" in c])
         self.assertFalse([f for f in findings if "assignee" in f["message"]])
 
     def test_the_ticket_status_is_the_boards_in_progress_column(self):
@@ -251,11 +268,11 @@ class TrackerSyncBatchTest(unittest.TestCase):
         calls went out with empty arguments, and record-external persisted the
         empty key — which is exactly what `sync_candidates` reads to exclude a
         ticket from every future retry."""
-        gh = self._gh(**{"gh issue create": (0, "Creating issue in acme/shop\n", "")})
+        gh = self._gh(**{CREATE: (0, "Creating issue in acme/shop\n", "")})
         out = lib.tracker_sync(gh, SETTINGS, [ticket()], self._bodies("SHOP-1"))
         self.assertEqual(out["failed"], ["SHOP-1"])
         self.assertEqual(out["synced"], {})
-        self.assertFalse([c for c in gh.calls if "--add-label" in c],
+        self.assertFalse([c for c in gh.calls if "/labels -X POST -f labels[]" in c],
                          "nothing is edited when the issue number is unknown")
 
     def test_an_unexpected_exception_fails_one_ticket_not_the_batch(self):
@@ -266,7 +283,7 @@ class TrackerSyncBatchTest(unittest.TestCase):
 
         class Exploding(lib.Gh):
             def __call__(self, argv):
-                if "explode" in argv:
+                if "title=explode" in argv:
                     raise RuntimeError("unexpected tracker shape")
                 return lib.Gh.__call__(self, argv)
 
@@ -284,7 +301,7 @@ class TrackerSyncBatchTest(unittest.TestCase):
         """One flat list for the whole batch: two tickets failing the same
         best-effort step produced byte-identical entries the coordinator was
         nonetheless told to record per ticket."""
-        gh = self._gh(**{"gh issue edit": (1, "", "no permission")})
+        gh = self._gh(**{ISSUE9: (1, "", "no permission")})
         out = lib.tracker_sync(gh, SETTINGS,
                                [ticket(id="SHOP-1"), ticket(id="SHOP-2")],
                                self._bodies("SHOP-1", "SHOP-2"))
@@ -297,41 +314,50 @@ class TrackerSyncBatchTest(unittest.TestCase):
         `settings.tracker.milestone` — so the arm has something to read."""
         gh = self._gh()
         lib.tracker_sync_one(gh, SETTINGS, ticket(milestone="v1"), self.body)
-        self.assertIn("gh issue edit 9 --milestone v1", gh.calls)
+        self.assertIn(ISSUE9 + " -X PATCH -F milestone=1", gh.calls)
 
         gh = self._gh()
         settings = {"tracker": dict(SETTINGS["tracker"], milestone="Q3")}
         lib.tracker_sync_one(gh, settings, ticket(), self.body)
-        self.assertIn("gh issue edit 9 --milestone Q3", gh.calls)
+        self.assertIn(ISSUE9 + " -X PATCH -F milestone=2", gh.calls)
 
     def test_a_replayable_command_survives_a_round_trip_through_the_shell(self):
         """`command` is documented as ready to re-run, so it is executed by a
         human sooner or later. The executed calls were always argv, but this
         rendering was a bare join: a milestone of `Q3; rm -rf /tmp/x` produced
         a line that runs the `rm` when replayed."""
-        gh = self._gh(**{"gh issue edit": (1, "", "no such milestone")})
+        gh = self._gh(**{MILESTONES: (1, "", "rate limited")})
         _external, findings = lib.tracker_sync_one(
             gh, SETTINGS, ticket(milestone="Q3 2026; touch pwned"), self.body)
-        rendered = [f["command"] for f in findings if "--milestone" in (f["command"] or "")]
+        rendered = [f["command"] for f in findings if "milestones" in (f.get("command") or "")]
         self.assertEqual(len(rendered), 1)
         self.assertEqual(shlex.split(rendered[0]),
-                         ["gh", "issue", "edit", "9", "--milestone", "Q3 2026; touch pwned"],
+                         ["gh", "api", "repos/{owner}/{repo}/milestones?state=all&per_page=100",
+                          "--paginate", "--jq", ".[]"],
                          "re-running the line must issue the call that failed, "
                          "and nothing else")
-        self.assertNotEqual(rendered[0],
-                            "gh issue edit 9 --milestone Q3 2026; touch pwned",
-                            "the bare join is a second command to the shell")
+        self.assertNotIn("&per_page=100 ", rendered[0],
+                         "an unquoted & is a second command to the shell")
+
+        # The title itself never reaches an argv: REST takes the number.
+        gh = self._gh(**{ISSUE9 + " -X PATCH": (1, "", "no such milestone")})
+        _external, findings = lib.tracker_sync_one(
+            gh, SETTINGS, ticket(milestone="Q3 2026; touch pwned"), self.body)
+        rendered = [f["command"] for f in findings if "milestone=" in (f.get("command") or "")]
+        self.assertEqual([shlex.split(c) for c in rendered],
+                         [["gh", "api", "repos/{owner}/{repo}/issues/9", "-X", "PATCH",
+                           "-F", "milestone=3"]])
 
     def test_a_degraded_call_carries_the_hint_that_names_the_remedy(self):
         """ADR-0088 requires the hint on every degraded gh call. Without it a
         403 "GitHub access is not enabled for this session" — the one failure
         with a specific remedy — read the same as a mistyped label."""
-        gh = self._gh(**{"gh issue edit": (1, "", lib.GH_ACCESS_DENIED_MARKER)})
+        gh = self._gh(**{ISSUE9: (1, "", lib.GH_ACCESS_DENIED_MARKER)})
         _external, findings = lib.tracker_sync_one(gh, SETTINGS, ticket(), self.body)
         self.assertTrue(findings)
         self.assertEqual(findings[0]["hint"], lib.GH_ACCESS_HINT)
 
-        gh = self._gh(**{"gh issue edit": (1, "", "label not found")})
+        gh = self._gh(**{ISSUE9: (1, "", "label not found")})
         _external, findings = lib.tracker_sync_one(gh, SETTINGS, ticket(), self.body)
         self.assertEqual(findings[0]["hint"], lib.GH_GENERIC_HINT)
 
@@ -434,10 +460,11 @@ class PrMetadataFillArmsTest(unittest.TestCase):
     """Non-critical THROUGHOUT: each of the four sub-steps can fail on its own
     without stopping the next, and a failed one is never reported as applied."""
 
-    RESPONSES = {"gh pr edit": (0, "", ""),
-                 "gh pr diff": (0, "src/a.py\n", ""),
-                 "gh label create": (0, "", ""),
-                 "gh api user": (0, "alice\n", ""),
+    RESPONSES = {PR42: (0, "", ""),
+                 REVIEWERS: (0, "", ""),
+                 PR_FILES: (0, "src/a.py\n", ""),
+                 LABEL_CREATE: (0, "", ""),
+                 USER: (0, "alice\n", ""),
                  "gh project item-add": (0, "", ""),
                  "gh project item-list": (0, json.dumps(
                      {"items": [{"id": "item-4", "projectId": "PVT_1",
@@ -462,19 +489,19 @@ class PrMetadataFillArmsTest(unittest.TestCase):
 
     def test_a_ticket_with_no_type_skips_the_label_and_keeps_going(self):
         gh, out = self._fill(ticket_doc={"id": "SHOP-1"})
-        self.assertFalse([c for c in gh.calls if "--add-label" in c])
+        self.assertFalse([c for c in gh.calls if "/labels -X POST -f labels[]" in c])
         self.assertNotIn("label:task", out["applied"])
         self.assertIn("reviewers:@bob", out["applied"],
                       "a skipped sub-step must not stop the ones after it")
 
     def test_a_failed_label_write_is_a_finding_and_not_an_applied_step(self):
-        _gh, out = self._fill(**{"gh pr edit 42 --add-label": (1, "", "denied")})
+        _gh, out = self._fill(**{PR42 + "/labels": (1, "", "denied")})
         self.assertNotIn("label:task", out["applied"])
         self.assertIn("reviewers:@bob", out["applied"])
         self.assertTrue(any(f.get("error") == "denied" for f in out["findings"]))
 
     def test_a_failed_reviewer_request_is_a_finding_and_not_an_applied_step(self):
-        _gh, out = self._fill(**{"gh pr edit 42 --add-reviewer": (1, "", "denied")})
+        _gh, out = self._fill(**{REVIEWERS: (1, "", "denied")})
         self.assertNotIn("reviewers:@bob", out["applied"])
         self.assertIn("project-item:item-4", out["applied"])
         self.assertTrue(all(f["severity"] == "info" for f in out["findings"]))
@@ -501,7 +528,7 @@ class PureResolversTest(unittest.TestCase):
     def test_the_real_codeowners_resolver_is_what_runs_without_an_injection(self):
         """Every other case injects `resolver`; this is the one that proves the
         default is wired to the real module rather than to nothing."""
-        gh = lib.Gh(responses={"gh pr diff": (0, "src/a.py\n", "")})
+        gh = lib.Gh(responses={PR_FILES: (0, "src/a.py\n", "")})
         findings = []
         workdir = tracker_body(self)  # any empty checkout: no CODEOWNERS in it
         owners = lib.reviewers_for(gh, 42, os.path.dirname(workdir), "alice", findings)
@@ -518,10 +545,11 @@ class ReviewerAuthorTest(unittest.TestCase):
     OWNERS = {"owners": ["@alice", "@bob"], "reason": "matched"}
 
     def _fill(self, author=None, resolved=None, **over):
-        responses = {"gh pr edit": (0, "", ""),
-                     "gh pr diff": (0, "src/a.py\n", ""),
-                     "gh label create": (0, "", ""),
-                     "gh api user": (0, "alice\n", "")}
+        responses = {PR42: (0, "", ""),
+                     REVIEWERS: (0, "", ""),
+                     PR_FILES: (0, "src/a.py\n", ""),
+                     LABEL_CREATE: (0, "", ""),
+                     USER: (0, "alice\n", "")}
         responses.update(over)
         gh = lib.Gh(responses=responses)
         out = lib.pr_metadata_fill(
@@ -532,8 +560,8 @@ class ReviewerAuthorTest(unittest.TestCase):
     def test_the_author_is_dropped_however_their_login_is_spelled(self):
         for spelling in ("alice", "@alice", "Alice", "@me"):
             gh, _out = self._fill(author=spelling)
-            requested = [c for c in gh.calls if "--add-reviewer" in c]
-            self.assertEqual(requested, ["gh pr edit 42 --add-reviewer @bob"],
+            requested = [c for c in gh.calls if c.startswith(REVIEWERS)]
+            self.assertEqual(requested, [REVIEWERS + " -X POST -f reviewers[]=bob"],
                              "author spelled %r" % spelling)
 
     def test_an_absent_author_is_resolved_rather_than_compared_against_none(self):
@@ -541,15 +569,15 @@ class ReviewerAuthorTest(unittest.TestCase):
         invocation compared every owner against None and dropped nobody."""
         gh, _out = self._fill(author=None)
         self.assertIn("gh api user --jq .login", gh.calls)
-        self.assertEqual([c for c in gh.calls if "--add-reviewer" in c],
-                         ["gh pr edit 42 --add-reviewer @bob"])
+        self.assertEqual([c for c in gh.calls if c.startswith(REVIEWERS)],
+                         [REVIEWERS + " -X POST -f reviewers[]=bob"])
 
     def test_an_unresolvable_author_is_a_finding_not_a_silent_self_request(self):
-        gh, out = self._fill(author=None, **{"gh api user": (1, "", "not logged in")})
+        gh, out = self._fill(author=None, **{USER: (1, "", "not logged in")})
         messages = [f["message"] for f in out["findings"]]
         self.assertTrue(any("author could not be resolved" in m for m in messages), messages)
-        self.assertEqual([c for c in gh.calls if "--add-reviewer" in c],
-                         ["gh pr edit 42 --add-reviewer @alice,@bob"],
+        self.assertEqual([c for c in gh.calls if c.startswith(REVIEWERS)],
+                         [REVIEWERS + " -X POST -f reviewers[]=alice -f reviewers[]=bob"],
                          "the request is still attempted; it is the operator's call")
 
     def test_the_author_being_the_only_owner_is_its_own_reason(self):
@@ -568,8 +596,8 @@ class ReviewerAuthorTest(unittest.TestCase):
                             for f in out["findings"]))
 
     def test_a_failed_pr_diff_requests_nobody_rather_than_everybody(self):
-        gh, _out = self._fill(author="alice", **{"gh pr diff": (1, "", "denied")})
-        self.assertFalse([c for c in gh.calls if "--add-reviewer" in c])
+        gh, _out = self._fill(author="alice", **{PR_FILES: (1, "", "denied")})
+        self.assertFalse([c for c in gh.calls if c.startswith(REVIEWERS)])
 
 
 class RealSubprocessRunnerTest(unittest.TestCase):
@@ -616,9 +644,11 @@ class ForgeCliTest(AcsWorkspaceCase):
         self.ticket = self.new_ticket("Bulk import", "task")
         self.replay = os.path.join(self.tmp, "gh.json")
         recorded = dict(RECORDED)
-        recorded["gh pr edit"] = (0, "", "")
-        recorded["gh pr diff"] = (0, "src/a.py\n", "")
-        recorded["gh pr view"] = (0, "https://example.invalid/pull/42\n", "")
+        recorded[PR42] = (0, "", "")
+        recorded[REVIEWERS] = (0, "", "")
+        recorded[PR_FILES] = (0, "src/a.py\n", "")
+        recorded[USER] = (0, "me-login\n", "")
+        recorded[R + "/pulls/42 --jq .html_url"] = (0, "https://example.invalid/pull/42\n", "")
         with open(self.replay, "w", encoding="utf-8") as fh:
             json.dump({k: list(v) for k, v in recorded.items()}, fh)
 
@@ -652,8 +682,8 @@ class ForgeCliTest(AcsWorkspaceCase):
         body = json.loads(out.stdout)
         self.assertFalse(body["skipped"])
         calls = " | ".join(body["calls"])
-        self.assertIn("gh pr edit 42 --add-assignee @me", calls)
-        self.assertIn("gh pr edit 42 --add-label task", calls)
+        self.assertIn(PR42 + "/assignees -X POST -f assignees[]=me-login", calls)
+        self.assertIn(PR42 + "/labels -X POST -f labels[]=task", calls)
         self.assertIn("gh project item-add 7 --owner acme", calls)
 
     def test_exit_zero_means_the_pass_ran_not_that_every_field_landed(self):

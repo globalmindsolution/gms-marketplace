@@ -89,6 +89,6 @@ def render_labels():
     return [
         "%s 2>/dev/null || true" % " ".join(
             shlex.quote(a) for a in
-            ["gh", "label", "create", name, "--description", description])
+            lib.gh_rest.label_create(name, description))
         for name, description in SETUP_LABELS
     ]

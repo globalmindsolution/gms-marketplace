@@ -5,7 +5,7 @@ Pure stdlib (unittest, tempfile, json, os, subprocess, contextlib, unittest.mock
 status/draft/bump subcommands both as pure functions and through the CLI (main()), always via a
 `--release-config` block (no test constructs a hardcoded-path invocation). `git` is exercised
 against real, fully-offline scratch git repos (a working checkout plus a local bare "origin");
-the single `gh pr list` seam (release_notes.gh_pr_list) is monkeypatched so no test depends on
+the single open-PR seam (release_notes.gh_pr_list, a `gh api` REST read) is monkeypatched so no test depends on
 `gh` authentication or network.
 """
 
@@ -1478,7 +1478,7 @@ class ForgeUnevaluableTest(unittest.TestCase):
 
     def test_an_open_pr_is_still_reported(self):
         code, out, _err = self._status(self._gh(
-            0, stdout='[{"number": 42, "url": "https://example/pull/42"}]'))
+            0, stdout='[{"number": 42, "html_url": "https://example/pull/42"}]'))
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out)["open_pr"],
                          {"number": 42, "url": "https://example/pull/42"})

@@ -62,8 +62,7 @@ def _sync_calls():
     `TestCreateTicketSyncFixtureIsAValidTicket`), so the calls below are the
     calls a real ticket produces, not ones a fixture-invented key conjures."""
     responses = dict(_PROJECT_RESPONSES)
-    responses["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
-    responses["gh issue edit"] = (0, "", "")
+    responses.update(_ISSUE_RESPONSES)
     gh = lib.Gh(responses=responses)
     workdir = tempfile.mkdtemp(prefix="acs-sync-calls-")
     try:
@@ -78,10 +77,21 @@ def _sync_calls():
     return gh.calls
 
 
+#: The REST calls (ADR-0149) as Gh fixture prefixes.
+_R = "gh api repos/{owner}/{repo}"
+_ISSUE_CREATE = _R + "/issues -X POST"
+_ISSUE_RESPONSES = {
+    _ISSUE_CREATE: (0, "https://example.invalid/issues/9\n", ""),
+    _R + "/issues/9": (0, "", ""),
+    _R + "/milestones": (0, json.dumps({"title": "v1", "number": 1}) + "\n", ""),
+}
+
 _PROJECT_RESPONSES = {
-    "gh pr edit": (0, "", ""),
-    "gh label create": (0, "", ""),
-    "gh pr diff": (0, "src/a.py\ndocs/b.md\n", ""),
+    _R + "/issues/42": (0, "", ""),
+    _R + "/pulls/42/requested_reviewers": (0, "", ""),
+    "gh api user": (0, "me-login\n", ""),
+    _R + "/labels -X POST": (0, "", ""),
+    _R + "/pulls/42/files": (0, "src/a.py\ndocs/b.md\n", ""),
     "gh project item-add": (0, "", ""),
     "gh project item-list": (0, json.dumps(_PROJECT_ITEMS), ""),
     "gh project field-list": (0, json.dumps(_PROJECT_FIELDS), ""),
@@ -1057,7 +1067,7 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         self.assertIn('"base"', body)
         self.assertIn('post-create-pr.py" --result-file', body,
                       "AC-5 [create-pr]: the finish transition must survive")
-        self.assertIn("gh issue comment", body,
+        self.assertIn("/issues/<external.key>/comments", read_skill_contract("create-pr"),
                       "AC-5 [create-pr]: github tracker-sync invocation must survive")
         self.assertNotIn("acli", body,
                          "AC-5 [create-pr]: Jira is removed; gh is the only tracker transport")
@@ -2396,9 +2406,9 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         # the tracker provider is github or jira -- so read the contract.
         body = read_skill_contract("create-ticket")
         self.assertIsNotNone(
-            re.search(r"(?s)gh issue create.{0,1200}acs-ticket:|acs-ticket:.{0,1200}gh issue create", body),
+            re.search(r"(?s)issue[- ]create.{0,1200}acs-ticket:|acs-ticket:.{0,1200}issue[- ]create", body),
             "create-ticket/SKILL.md Step 5 must co-locate 'acs-ticket:' with "
-            "'gh issue create' within a bounded window (MAR-75 AC-1)")
+            "the issue create within a bounded window (MAR-75 AC-1)")
         for name in ("task-default", "story-default", "epic-default"):
             tmpl = read(self.template_path(name))
             self.assertIn("acs-ticket: {ticket_id}", tmpl,
@@ -2414,11 +2424,11 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         # MAR-525: the enumeration moved into `acs.py tracker sync`, so AC-6 is
         # read from the calls it makes; the skill states the same coverage.
         calls = " | ".join(_sync_calls())
-        self.assertIn("gh label create ACS", calls)
-        self.assertIn("gh label create task", calls)
-        self.assertIn("--add-label ACS,task", calls)
-        self.assertIn("--add-assignee dana", calls)
-        self.assertIn("--milestone v1", calls)
+        self.assertIn(_R + "/labels -X POST -f name=ACS", calls)
+        self.assertIn(_R + "/labels -X POST -f name=task", calls)
+        self.assertIn("/issues/9/labels -X POST -f labels[]=ACS -f labels[]=task", calls)
+        self.assertIn("/issues/9/assignees -X POST -f assignees[]=dana", calls)
+        self.assertIn("/issues/9 -X PATCH -F milestone=1", calls)  # the v1 milestone
         for word in ("labels", "assignee", "milestone", "Project"):
             self.assertIn(word, body)
         self.assertIsNotNone(
@@ -2453,8 +2463,8 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         body = read(self.skill_path("merge-pr"))
         self.assertIsNotNone(
             re.search(
-                r"(?s)gh issue close.{0,300}\{ticket_id\}.{0,300}(PR #|\{pr\.url\}|\{pr\.number\})|"
-                r"gh issue close.{0,300}(PR #|\{pr\.url\}|\{pr\.number\}).{0,300}\{ticket_id\}",
+                r"(?s)issues/<external\.key>/comments.{0,300}\{ticket_id\}.{0,300}(PR #|\{pr\.url\}|\{pr\.number\})|"
+                r"issues/<external\.key>/comments.{0,300}(PR #|\{pr\.url\}|\{pr\.number\}).{0,300}\{ticket_id\}",
                 body),
             "merge-pr/SKILL.md Step 2 gh issue close comment must co-occur with "
             "both {ticket_id} and a PR back-reference (MAR-75 AC-3, AC-5)")
@@ -2540,8 +2550,8 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
         with a Status set."""
         gh, _out = self.fill(_PROJECT_RESPONSES)
         calls = " | ".join(gh.calls)
-        self.assertIn("gh pr edit 42 --add-assignee @me", calls)
-        self.assertIn("gh pr edit 42 --add-label task", calls)
+        self.assertIn(_R + "/issues/42/assignees -X POST -f assignees[]=me-login", calls)
+        self.assertIn(_R + "/issues/42/labels -X POST -f labels[]=task", calls)
         self.assertIn("gh project item-add 7 --owner acme", calls)
         self.assertIn("--single-select-option-id opt-in-review", calls)
 
@@ -2578,14 +2588,14 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
         """AC-5: a failed gh metadata call is a finding carrying the command,
         and the flow continues to the next sub-step."""
         responses = dict(_PROJECT_RESPONSES)
-        responses["gh pr edit 42 --add-assignee"] = (1, "", "denied")
+        responses[_R + "/issues/42/assignees"] = (1, "", "denied")
         gh, out = self.fill(responses)
         failure = [f for f in out["findings"] if f.get("error") == "denied"]
         self.assertEqual(len(failure), 1)
         self.assertEqual(failure[0]["severity"], "info")
         self.assertTrue(failure[0]["replayable"])
-        self.assertIn("--add-assignee", failure[0]["command"])
-        self.assertIn("gh pr edit 42 --add-label task", " | ".join(gh.calls),
+        self.assertIn("/assignees", failure[0]["command"])
+        self.assertIn(_R + "/issues/42/labels -X POST -f labels[]=task", " | ".join(gh.calls),
                       "a failed sub-step must not abort the ones after it")
 
     def test_create_pr_deviates_from_item_add_format_json(self):
@@ -2627,7 +2637,7 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
             return {"owners": ["@alice"], "reason": None}
 
         gh, _out = self.fill(_PROJECT_RESPONSES, resolver=resolver)
-        self.assertIn("gh pr diff 42 --name-only", gh.calls)
+        self.assertIn(_R + "/pulls/42/files?per_page=100 --paginate --jq .[].filename", gh.calls)
         self.assertEqual(seen["files"], ["src/a.py", "docs/b.md"])
         self.assertEqual(seen["root"], "/repo")
 
@@ -2638,7 +2648,8 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
             _PROJECT_RESPONSES,
             resolver=lambda root, files: {"owners": ["@me-login", "@alice", "@org/team"],
                                           "reason": None})
-        self.assertIn("gh pr edit 42 --add-reviewer @alice,@org/team", gh.calls)
+        self.assertIn(_R + "/pulls/42/requested_reviewers -X POST -f reviewers[]=alice "
+                      "-f team_reviewers[]=team", gh.calls)
         self.assertIn("reviewers:@alice,@org/team", out["applied"])
 
     def test_create_pr_reviewer_graceful_skip_info_finding(self):
@@ -2710,8 +2721,7 @@ class TestCreateTicketGroupBFields(unittest.TestCase):
 
     def sync(self, ticket, responses=None):
         merged = dict(_PROJECT_RESPONSES)
-        merged["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
-        merged["gh issue edit"] = (0, "", "")
+        merged.update(_ISSUE_RESPONSES)
         merged.update(responses or {})
         gh = lib.Gh(responses=merged)
         external, findings = lib.tracker_sync_one(
@@ -2913,14 +2923,13 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
         """The same AC, one layer down: the command creates one issue per
         ticket, in the order it was given."""
         responses = dict(_PROJECT_RESPONSES)
-        responses["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
-        responses["gh issue edit"] = (0, "", "")
+        responses.update(_ISSUE_RESPONSES)
         gh = lib.Gh(responses=responses)
         body = tracker_body(self)
         out = lib.tracker_sync(
             gh, {}, [{"id": "SHOP-1", "type": "task"}, {"id": "SHOP-2", "type": "story"}],
             {"SHOP-1": body, "SHOP-2": body})
-        self.assertEqual(len([c for c in gh.calls if c.startswith("gh issue create")]), 2)
+        self.assertEqual(len([c for c in gh.calls if c.startswith(_ISSUE_CREATE)]), 2)
         self.assertEqual(sorted(out["synced"]), ["SHOP-1", "SHOP-2"])
 
     def test_record_external_co_occurs_with_external(self):
@@ -2979,10 +2988,10 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
             "create-ticket/SKILL.md Step 5 must reach issue creation through "
             "`acs.py tracker sync` (MAR-84 AC-5 / MAR-75 AC-1, MAR-525)")
         calls = " | ".join(_sync_calls())
-        self.assertIn("gh issue create", calls)
-        self.assertIn("--add-label ACS,task", calls)
-        self.assertIn("--add-assignee", calls)
-        self.assertIn("--milestone", calls)
+        self.assertIn(_ISSUE_CREATE, calls)
+        self.assertIn("-f labels[]=ACS -f labels[]=task", calls)
+        self.assertIn("/assignees -X POST", calls)
+        self.assertIn("-F milestone=", calls)
 
 
 class TestCreatePrInReviewStatus(unittest.TestCase):

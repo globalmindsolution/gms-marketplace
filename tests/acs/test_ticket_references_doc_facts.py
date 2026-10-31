@@ -203,7 +203,7 @@ class LiveDocsTest(unittest.TestCase):
         self.assertIn("references, default_branch, web_base, web_base_reason, remote_checked, written}`", refs)
         self.assertIn("## Forge metadata: three commands, two failure policies", lines)
         refresh = next(l for l in lines if l.startswith("| `acs.py tracker refresh "))
-        for fact in ("`gh issue view <key> --json body`", "`gh issue edit <key> --body-file <tmp>`",
+        for fact in ("`gh api …/issues/<key>`", "`gh api -X PATCH …/issues/<key> -F body=@<tmp>`",
                      "**non-critical** (ADR-0088)", "`--pending`", "`--dry-run`"):
             self.assertIn(fact, refresh, fact)
         self.assertIn("a `local` ticket or one with no issue is `skipped`", refresh)

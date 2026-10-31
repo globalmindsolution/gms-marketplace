@@ -35,7 +35,7 @@ def _refused(ws):
         "states": {"merged": False, "merge_strategy": "squash"},
         "findings": [],
         "errors": [{"severity": "error", "area": "github",
-                    "command": "acs.py readiness --pr 7 (gh pr view / gh pr checks)",
+                    "command": "acs.py readiness --pr 7 (gh api pulls/7, reviews, checks)",
                     "error": error, "hint": "check `gh auth status` and repo access",
                     "replayable": False}],
     })

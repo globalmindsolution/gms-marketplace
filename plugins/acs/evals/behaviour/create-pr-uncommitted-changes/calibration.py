@@ -14,7 +14,7 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 RUN = ".acs/state-machine/example-shop/runs/EVAL-1"
 PLAN = RUN + "/steps/create-pr/iter-1/commit-plan.json"
-BASE_DETECT = "gh repo view --json defaultBranchRef --jq .defaultBranchRef.name"
+BASE_DETECT = "gh api repos/{owner}/{repo} --jq .default_branch"
 WIP = "src/shop/pagination.py"
 
 

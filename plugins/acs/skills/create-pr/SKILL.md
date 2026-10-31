@@ -112,15 +112,14 @@ anything. A fresh run skips it.
    the Write tool.
 6. **Fill the metadata and sync the tracker (github tracker, ticket only).**
    Once the PR number is known, run `acs.py pr metadata fill --pr <number>` and
-   comment on the remote issue with `gh issue comment`
-   (`references/publish.md`). Skipped with no ticket or an unsynced ticket;
+   comment on the remote issue (`references/publish.md`). Skipped with no ticket or an unsynced ticket;
    best-effort otherwise: a failure is a finding with its command, never a stop.
 
-Use whatever GitHub access works in this session — normally `gh`. The
-`gh pr …` and `gh repo view` commands use GraphQL, which a Claude Code session
-refuses (HTTP 403), so prefer `gh api repos/{owner}/{repo}/...` REST calls
-there; if `gh` is blocked altogether, use the GitHub tools the session
-provides (ADR-0141). A failed critical call (default branch, finding the open
+Every GitHub call is `gh api` REST (`gh api repos/{owner}/{repo}/...`,
+ADR-0149): `gh pr …`, `gh issue …`, `gh label …` and `gh repo view` run on
+GraphQL, which a Claude Code session refuses (HTTP 403), so never use them. If
+`gh` is blocked altogether, use the GitHub tools the session provides
+(ADR-0141). A failed critical call (default branch, finding the open
 PR, create/update) means: surface the verbatim error plus
 `acs_lib.gh_failure_hint(stderr)`, try another working route once, and stop if
 there is none. Everything else (labels, assignee, reviewers, Project, tracker

@@ -18,7 +18,7 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 RUN = ".acs/state-machine/example-shop/runs/EVAL-1"
 BRANCH = "task/EVAL-1-cap-the-customer-page-size-at-100"
-BASE_DETECT = "gh repo view --json defaultBranchRef --jq .defaultBranchRef.name"
+BASE_DETECT = "gh api repos/{owner}/{repo} --jq .default_branch"
 
 CAPPED = '''PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100

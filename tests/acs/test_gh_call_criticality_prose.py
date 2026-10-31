@@ -57,13 +57,15 @@ HEADINGS = {
 
 # Rows 1, 3-5, 13-16 of the plan's classification table: calls whose failure
 # leaves a gate input unevaluable, so they stop the run.
+# Named by REST endpoint since ADR-0149: the porcelain these rows used to name
+# (`gh issue view`, `gh pr view/checks/update-branch/merge`) runs on GraphQL.
 CRITICAL_TOKENS = {
-    "create-ticket": ["gh issue view"],
+    "create-ticket": ["remote-import issue read"],
     "merge-pr": [
-        "gh pr view",
-        "gh pr checks",
-        "gh pr update-branch",
-        "gh pr merge",
+        "pulls/<number>`",
+        "acs.py readiness",
+        "pulls/<number>/update-branch",
+        "pulls/<number>/merge",
     ],
 }
 
@@ -75,7 +77,7 @@ CRITICAL_TOKENS = {
 # absent from both CRITICAL_TOKENS and NONCRITICAL_TOKENS here.
 HYBRID_LABEL = "Critical (per ticket, soft per batch)"
 HYBRID_TOKENS = {
-    "create-ticket": ["gh issue create"],
+    "create-ticket": ["issue create (`acs.py tracker sync`)"],
 }
 
 # Rows 8-9 (create-ticket) / 6-12 (create-pr): plain metadata/best-effort
@@ -83,7 +85,7 @@ HYBRID_TOKENS = {
 NONCRITICAL_TOKENS = {
     # `acs.py tracker refresh` rewrites only an issue's `## References` block
     # (ADR-0140): best-effort, so a failure is a finding, never a stop.
-    "create-ticket": ["gh label list", "gh project item-add", "acs.py tracker refresh"],
+    "create-ticket": ["…/labels", "gh project item-add", "acs.py tracker refresh"],
     "merge-pr": ["acs.py tracker refresh --pending"],
 }
 
@@ -150,6 +152,10 @@ def extract_bullet(section, label):
     nxt = re.search(r"\n-\s+\*\*", rest)
     end = m.end() + (nxt.start() if nxt else len(rest))
     return section[m.start():end]
+
+
+#: The REST endpoint prefix acs_lib.gh_rest builds (ADR-0149).
+R = "gh api repos/{owner}/{repo}"
 
 
 class HintDriftTest(unittest.TestCase):
@@ -310,14 +316,14 @@ class CreateTicketRowTwoClassificationTest(unittest.TestCase):
         )
         norm_body = norm(body)
         self.assertIsNotNone(
-            re.search(r"(?i)gh issue create.{0,400}gh_failure_hint", norm_body)
-            or re.search(r"(?i)gh_failure_hint.{0,400}gh issue create", norm_body),
+            re.search(r"(?i)issue create.{0,400}gh_failure_hint", norm_body)
+            or re.search(r"(?i)gh_failure_hint.{0,400}issue create", norm_body),
             "the gh issue create guard must gain the canonical hint nearby",
         )
 
     def test_gh_issue_create_call_site_states_error_severity_not_info(self):
         body = skill_contract("create-ticket")
-        idx = body.index("run the `gh issue create` sequence below once per ticket")
+        idx = body.index("run the issue-create sequence below once per ticket")
         window_norm = norm(body[idx: idx + 500])
         self.assertRegex(window_norm, r"(?i)error.{0,60}severity finding")
         self.assertIn("replayable: false", window_norm)
@@ -374,10 +380,11 @@ class MergePrExemptModeTest(unittest.TestCase):
         norm_body = norm(merge_pr_contract())
         # Target only the two REAL command invocations (Step 1's and the
         # exempt path's), not the classification section's own abbreviated
-        # mention of the same command (`gh pr merge <number> --<strategy>`).
+        # mention of the same endpoint (`pulls/<number>/merge`).
         matches = [
             m.start()
-            for m in re.finditer(r"gh pr merge <(?:number|pr\.number)> --<settings\.merge_strategy>", norm_body)
+            for m in re.finditer(r"pulls/<(?:number|pr\.number)>/merge -f "
+                                 r"merge_method=<settings\.merge_strategy>", norm_body)
         ]
         self.assertGreaterEqual(
             len(matches), 2,
@@ -483,19 +490,19 @@ class RuleX1Test(unittest.TestCase):
         self.assertNotIn("gh label create", create_ticket_body)
 
     def test_rule_x1_holds_for_create_prs_label_create_that_moved_into_code(self):
-        gh = acs_lib.Gh(responses={"gh label create": (1, "", "already exists"),
-                               "gh pr edit": (0, "", ""),
-                               "gh api user": (0, "me\n", ""),
-                               "gh pr diff": (0, "", "")})
+        gh = acs_lib.Gh(responses={R + "/labels -X POST": (1, "", "already exists"),
+                                   R + "/issues/42": (0, "", ""),
+                                   "gh api user": (0, "me\n", ""),
+                                   R + "/pulls/42/files": (0, "", "")})
         out = acs_lib.pr_metadata_fill(
             gh, {}, {"id": "SHOP-1", "type": "task"},
             {"number": 42, "url": "u"}, "/repo", author="@me",
             resolver=lambda root, files: {"owners": [], "reason": "no_codeowners_file"})
-        self.assertIn("gh label create task --description Created by the acs pipeline",
-                      gh.calls)
+        self.assertIn(R + "/labels -X POST -f name=task -f description=Created by the acs "
+                      "pipeline", gh.calls)
         self.assertIn("label:task", out["applied"],
                       "a failing label create must not stop the label from being applied")
-        self.assertFalse([f for f in out["findings"] if "label create" in (f.get("command") or "")],
+        self.assertFalse([f for f in out["findings"] if "name=" in (f.get("command") or "")],
                          "a label create that fails is not a finding -- it is expected "
                          "when the label already exists")
 
@@ -507,18 +514,18 @@ class RuleX1Test(unittest.TestCase):
         with open(body, "w", encoding="utf-8") as fh:
             fh.write("body\n")
         gh = acs_lib.Gh(responses={
-            "gh label create": (1, "", "already exists"),
-            "gh issue create": (0, "https://example.invalid/issues/9\n", ""),
-            "gh issue edit": (0, "", "")})
+            R + "/labels -X POST": (1, "", "already exists"),
+            R + "/issues -X POST": (0, "https://example.invalid/issues/9\n", ""),
+            R + "/issues/9": (0, "", "")})
         external, findings = acs_lib.tracker_sync_one(gh, {}, {"id": "SHOP-1",
                                                                "type": "task"}, body)
         self.assertEqual(external["key"], "9",
                          "a failing label create must not fail the ticket")
-        self.assertIn("gh label create ACS --description Created by the acs pipeline",
-                      gh.calls)
-        self.assertIn("gh issue edit 9 --add-label ACS,task", gh.calls,
+        self.assertIn(R + "/labels -X POST -f name=ACS -f description=Created by the acs "
+                      "pipeline", gh.calls)
+        self.assertIn(R + "/issues/9/labels -X POST -f labels[]=ACS -f labels[]=task", gh.calls,
                       "the labels are applied even though creating them failed")
-        self.assertFalse([f for f in findings if "label create" in (f.get("command") or "")])
+        self.assertFalse([f for f in findings if "name=" in (f.get("command") or "")])
 
 
 if __name__ == "__main__":

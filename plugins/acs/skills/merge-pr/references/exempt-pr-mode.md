@@ -13,7 +13,7 @@ one-off non-ticket PR** — a hotfix, a chore, a doc tweak that never went
 through the pipeline — without inventing a ticket for it. It is the sanctioned
 counterpart to the CI ticket-link check's fixed exemptions (the `acs-exempt`
 label, or `release/*`, `dependabot/*`, `renovate/*` branches): instead of a raw
-`gh pr merge` (which the gate fights), the user labels the PR `acs-exempt` and
+merge (which the gate fights), the user labels the PR `acs-exempt` and
 merges it here. Like
 the ticket path, it runs the same readiness brakes (including the
 approved-review requirement) and branch-protection checks before merging;
@@ -59,9 +59,9 @@ is written, and no ticket for its tracker step to sync:
 2. **Merge (only when all four pass, or after the BEHIND carve-out succeeds)**
    — when `mergeStateStatus == BEHIND` and all other three dimensions pass,
    apply the identical BEHIND carve-out as the ticket path (user-confirmed
-   extension C-10): run `gh pr update-branch <pr.number>` (merge-update — no
-   `--rebase`, no force-push), then poll `gh pr checks <pr.number> --required`
-   at 15-second intervals for up to 5 minutes (same C-6/C-8 parameters as the
+   extension C-10): run `gh api -X PUT repos/{owner}/{repo}/pulls/<pr.number>/update-branch`
+   (merge-update — no rebase, no force-push), then re-run `acs.py readiness
+   --pr <pr.number>` at 15-second intervals for up to 5 minutes (same C-6/C-8 parameters as the
    ticket path — up to 2 total update-branch attempts). On conflict: REPORT-ONLY
    with `summary: "update-branch conflict — base cannot be merged into PR
    branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`. On
@@ -74,13 +74,14 @@ is written, and no ticket for its tracker step to sync:
    remote branch:
 
    ```bash
-   gh pr merge <pr.number> --<settings.merge_strategy> --delete-branch
+   gh api -X PUT repos/{owner}/{repo}/pulls/<pr.number>/merge -f merge_method=<settings.merge_strategy>
+   gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/<pr.branch>
    ```
 
    **Critical**, identically to the ticket path's Step 1: a non-zero exit is
    gh's verbatim stderr plus the canonical hint, then STOP — before the
    Cleanup step (3, below) ever runs, no retry, no fallback to any other
-   transport. Never re-merge a PR `gh pr view` already reports `MERGED`.
+   transport. Never re-merge a PR the PR read already reports merged.
 3. **Cleanup** — from the main checkout (resolve it via
    `git rev-parse --git-common-dir`), remove the worktree if one holds
    `pr.branch` (`git worktree remove <path>`) and delete the local branch if it

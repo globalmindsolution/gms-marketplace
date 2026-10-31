@@ -811,7 +811,7 @@ before persisting the document, and the computed value wins:
 |---|---|---|
 | `verifier_passed` | `/acs:review-code`'s `iter-<n>/verdict.json` for the highest iteration (MAR-527), whose own `passed` is derived from its findings | **`false`** — this key answers "may the next step run", and with no evidence the answer is no |
 | `tests` | the review's own suite run, else the last iteration's `iter-<n>/implementer*.json` reports (`coverage_target` from `tests.coverage`; a run started before ADR-0109 has `execute*.json`, read the same way) | the coordinator's value is kept |
-| `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
+| `pr` | `gh api repos/{owner}/{repo}/pulls?head={owner}:<branch>&state=all` | the coordinator's value is kept, flagged unverified |
 | `review.iterations` | `/acs:review-code`'s verdict, lens and adjudication artifacts on disk | the coordinator's value is kept |
 | `review.guard_denials` | the length of `invocations[-1].guard_events` on `steps/<skill>/state.json` | **absent, not `0`** — a run that never tripped the file-map guard carries no key |
 | `implemented` (`docs-sync` only, `IMPLEMENTED_SKILLS`) | each listed design document's own version front matter, read from the checkout: only a document that reads `status: implemented` is kept; one missing, unversioned or at another status is dropped (ADR-0137) | the listed paths are kept unchecked when there is no checkout root, and the provenance says so |
@@ -2023,8 +2023,8 @@ membership and fields, and an issue's `## References` block — goes through
 | Command | Performs | Policy |
 |---|---|---|
 | `acs.py pr metadata fill --pr N` | create-pr step 6a: assignee, the ticket-type label alongside `ACS`, CODEOWNERS reviewers minus the author, the Project item, Status, and Priority / Story Points / Parent | **non-critical throughout** — the PR already exists, so every failure is one `info` finding carrying the command, and the next sub-step still runs |
-| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch (and `/acs:breakdown-ticket`'s, through the same `references/tracker-sync.md`): issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed `gh issue create` is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
-| `acs.py tracker refresh (--ticket ID \| --pending) [--dry-run]` | ADR-0140: one fetch of the default branch, then per ticket recompute its references, store them when they changed, and — on the `github` tracker, for a ticket with `external.key` — `gh issue view <key> --json body`, `doc_links.apply_block`, and `gh issue edit <key> --body-file <tmp>` only when the body changed; a `local` ticket or one with no issue is `skipped`. `--pending` covers every open ticket with `external.key` whose stored references hold an unpublished entry (`/acs:merge-pr` runs it after a merge); `--dry-run` reads the issue and stores or edits nothing. stdout `{ok, dry_run, tickets: [{ticket_id, references, pending, stored, changed, edited, key \| skipped}], findings, calls, remote_checked, default_branch}` | **non-critical** (ADR-0088) — a failed `gh issue view` or `gh issue edit` is one `info` finding carrying the command and `gh_failure_hint`; the next ticket still runs and the command never stops a skill |
+| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch (and `/acs:breakdown-ticket`'s, through the same `references/tracker-sync.md`): issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed issue create (`POST …/issues`) is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
+| `acs.py tracker refresh (--ticket ID \| --pending) [--dry-run]` | ADR-0140: one fetch of the default branch, then per ticket recompute its references, store them when they changed, and — on the `github` tracker, for a ticket with `external.key` — `gh api …/issues/<key>` for the body, `doc_links.apply_block`, and `gh api -X PATCH …/issues/<key> -F body=@<tmp>` only when the body changed; a `local` ticket or one with no issue is `skipped`. `--pending` covers every open ticket with `external.key` whose stored references hold an unpublished entry (`/acs:merge-pr` runs it after a merge); `--dry-run` reads the issue and stores or edits nothing. stdout `{ok, dry_run, tickets: [{ticket_id, references, pending, stored, changed, edited, key \| skipped}], findings, calls, remote_checked, default_branch}` | **non-critical** (ADR-0088) — a failed issue read or body edit is one `info` finding carrying the command and `gh_failure_hint`; the next ticket still runs and the command never stops a skill |
 
 Both resolve Project fields the same way: **the board's own spelling wins.** A
 field is matched case-insensitively against a fixed table of accepted names
@@ -2045,13 +2045,20 @@ Four rules keep the two flows honest about what they did:
 - **The issue body is a precondition, not an argument.** `tracker sync` posts
   each partition's `tracker-body.md`, and `/acs:create-ticket`'s
   `references/materialize.md` is what tells its coordinator to write it
-  (`/acs:breakdown-ticket` writes each child's, ADR-0140). Before `gh issue
-  create`, the sync applies the ticket's `## References` block to the body
+  (`/acs:breakdown-ticket` writes each child's, ADR-0140). Before the issue
+  create, the sync applies the ticket's `## References` block to the body
   (`doc_links.apply_block`, fresh references after one fetch, stored on the
   ticket too), so every synced issue carries real links; a block that cannot
-  be written is an `info` finding and the issue is still created. The issue
-  URL `gh issue create` prints is kept as `external.url`
+  be written is an `info` finding and the issue is still created. The issue's
+  `html_url` the create answers with is kept as `external.url`
   (`record-external.py --url`).
+- **Every call is `gh api` REST (ADR-0149).** `acs_lib.gh_rest` builds each
+  argv against `repos/{owner}/{repo}/…` and reshapes the answers into the
+  `gh pr view --json` keys callers read; `gh pr`, `gh issue`, `gh label`,
+  `gh repo view` and `gh release list` run on GraphQL, which a Claude Code
+  session refuses with HTTP 403, and `tests/acs/test_gh_rest_only.py` fails on
+  any of them in shipped code or skill text. Projects v2 (`gh project …`) has
+  no REST surface, so those calls stay GraphQL and non-critical.
 - **The failure class is declared once.** `forge.GH_FLOW_CRITICALITY` maps
   each gh-driven command to its ADR-0088 class — `pr metadata fill`
   non-critical, `tracker sync` critical per ticket and soft per batch,
@@ -2059,7 +2066,7 @@ Four rules keep the two flows honest about what they did:
   this table quote it. A partition without one is reported under `failed`
   with an `error` finding naming the missing path — never a bodiless issue,
   and never N opaque per-ticket gh errors for one missed step.
-- **A create that cannot be parsed is a failure.** `gh issue create` exiting 0
+- **A create that cannot be parsed is a failure.** An issue create exiting 0
   without printing an issue URL leaves the issue number unknown, so the ticket
   fails and keeps `external` unset. Recording an empty key would have been
   worse than failing: `sync_candidates` excludes any ticket that carries an
@@ -2082,7 +2089,7 @@ sides, because CODEOWNERS writes owners `@`-prefixed while `--author` is passed
 bare. `--author` is optional and `@me` is accepted; when it is absent the login
 is resolved with `gh api user`, and when even that fails the flow says so in one
 info finding rather than silently requesting the author as their own reviewer —
-the owners are comma-joined into ONE `gh pr edit --add-reviewer` call, so a set
+the owners go into ONE `POST …/pulls/<n>/requested_reviewers` call, so a set
 that names the author is rejected whole and nobody is requested.
 
 The milestone the sync writes comes from `ticket.milestone`, falling back to

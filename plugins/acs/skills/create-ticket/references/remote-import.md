@@ -7,7 +7,7 @@ Decide BEFORE planning whether `$ARGUMENTS` is a remote key for
 `settings.tracker.provider`:
 
 - provider `github` and `$ARGUMENTS` is `#123`, a bare integer, or a GitHub issue
-  URL: pull with `gh issue view 123 --json number,title,body,labels,assignees,url`.
+  URL: pull with `gh api repos/{owner}/{repo}/issues/123 --jq '{number, title, body, labels: [.labels[].name], assignees: [.assignees[].login], url: .html_url}'`.
 - provider `local`, or no match: not an import — the requirements
   (`requirements.path`) are the request.
 

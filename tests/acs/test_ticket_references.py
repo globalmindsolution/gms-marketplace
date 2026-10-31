@@ -64,6 +64,13 @@ def write(root, rel, text):
 # The field
 # ---------------------------------------------------------------------------
 
+#: The REST calls the tracker commands make (ADR-0149), as replay prefixes.
+R = "gh api repos/{owner}/{repo}"
+ISSUE_CREATE = R + "/issues -X POST"
+ISSUE_VIEW = R + "/issues/9"
+ISSUE_EDIT = R + "/issues/9 -X PATCH"
+
+
 class TicketFieldTest(unittest.TestCase):
 
     def doc(self, **extra):
@@ -257,10 +264,10 @@ class TrackerCliCase(CliCase):
 
     def record(self, **over):
         recorded = {
-            "gh issue create": [0, "https://github.com/acme/shop/issues/9\n", ""],
-            "gh issue view": [0, json.dumps({"body": ISSUE_BODY}), ""],
-            "gh issue edit": [0, "", ""],
-            "gh label create": [0, "", ""],
+            ISSUE_CREATE: [0, "https://github.com/acme/shop/issues/9\n", ""],
+            ISSUE_VIEW: [0, json.dumps({"body": ISSUE_BODY}), ""],
+            ISSUE_EDIT: [0, "", ""],
+            R + "/labels -X POST": [0, "", ""],
         }
         recorded.update(over)
         with open(self.replay, "w", encoding="utf-8") as fh:
@@ -309,14 +316,14 @@ class TrackerRefreshTest(TrackerCliCase):
         self.assertEqual((row["ticket_id"], row["changed"], row["edited"]), (ticket, True, True))
         self.assertTrue(row["stored"])
         self.assertEqual(row["pending"], 1)
-        self.assertIn("gh issue view 9 --json body", out["calls"])
-        self.assertTrue([c for c in out["calls"] if c.startswith("gh issue edit 9 --body-file")])
+        self.assertIn(ISSUE_VIEW, out["calls"])
+        self.assertTrue([c for c in out["calls"] if c.startswith(ISSUE_EDIT + " -F body=@")])
         stored = self.ticket_doc(ticket)["references"]
         self.assertIn("docs/architecture/lld/wishlist/flows/share.md",
                       [r["path"] for r in stored if not r["published"]])
 
     def test_a_failed_gh_call_is_a_finding_not_a_stop(self):
-        self.record(**{"gh issue view": [1, "", "HTTP 404: Not Found"]})
+        self.record(**{ISSUE_VIEW: [1, "", "HTTP 404: Not Found"]})
         ticket = self.synced()
         out = self.json_of("tracker", "refresh", "--ticket", ticket, "--gh-replay", self.replay)
         self.assertEqual([f["severity"] for f in out["findings"]], ["info"])
@@ -330,7 +337,7 @@ class TrackerRefreshTest(TrackerCliCase):
                            "--gh-replay", self.replay)
         self.assertTrue(out["dry_run"])
         self.assertTrue(out["tickets"][0]["changed"])
-        self.assertFalse([c for c in out["calls"] if c.startswith("gh issue edit")])
+        self.assertFalse([c for c in out["calls"] if c.startswith(ISSUE_EDIT)])
         self.assertNotIn("references", self.ticket_doc(ticket))
 
     def test_pending_selects_open_synced_tickets_with_a_pending_entry(self):

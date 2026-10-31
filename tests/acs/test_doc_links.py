@@ -531,12 +531,12 @@ class RefreshIssueTest(unittest.TestCase):
 
         def gh(argv):
             gh.calls.append(" ".join(argv))
-            if argv[:3] == ["gh", "issue", "view"]:
+            if argv == ["gh", "api", "repos/{owner}/{repo}/issues/9"]:
                 code, out, err = view
                 return code, (out if out is not None else
                               '{"body": %s}' % __import__("json").dumps(self.BODY)), err
-            if argv[:3] == ["gh", "issue", "edit"]:
-                with open(argv[argv.index("--body-file") + 1], encoding="utf-8") as fh:
+            if argv[:5] == ["gh", "api", "repos/{owner}/{repo}/issues/9", "-X", "PATCH"]:
+                with open(argv[-1][len("body=@"):], encoding="utf-8") as fh:
                     written["body"] = fh.read()
                 return edit
             return 1, "", "unexpected"
@@ -561,14 +561,14 @@ class RefreshIssueTest(unittest.TestCase):
         out = doc_links.refresh_issue(gh, "9", block)
         self.assertFalse(out["edited"])
         self.assertFalse(out["changed"])
-        self.assertFalse([c for c in gh.calls if c.startswith("gh issue edit")])
+        self.assertFalse([c for c in gh.calls if " -X PATCH " in c])
 
     def test_dry_run_reads_but_never_edits(self):
         gh, _written = self.fake_gh()
         out = doc_links.refresh_issue(gh, "9", "- new", dry_run=True)
         self.assertTrue(out["changed"])
         self.assertFalse(out["edited"])
-        self.assertFalse([c for c in gh.calls if c.startswith("gh issue edit")])
+        self.assertFalse([c for c in gh.calls if " -X PATCH " in c])
 
     def test_a_failed_view_or_edit_is_an_info_finding(self):
         gh, _written = self.fake_gh(view=(1, "", "HTTP 404"))

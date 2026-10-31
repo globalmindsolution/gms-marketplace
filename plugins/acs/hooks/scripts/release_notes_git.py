@@ -2,14 +2,13 @@
 (extracted from release_notes.py by MAR-531).
 
 Every shell-out lives here: tag lookup and creation time, the release branch,
-and `gh pr list`. Isolating them is what lets the enumeration
+and the open-PR read (`gh api`, ADR-0149). Isolating them is what lets the enumeration
 (`release_notes_tickets`) and the rendering be exercised from recorded output
 instead of a live repo.
 """
 
 
 import datetime
-import json
 import os
 import re
 import subprocess
@@ -95,34 +94,25 @@ def gh_pr_list(repo_root, rendered_branch):
     "no cut in flight", an unevaluable probe is exactly the state in which a
     second release PR gets opened for a version that already has one. ADR-0088
     classifies a gate-input read that could not be evaluated as CRITICAL for
-    that reason -- an unevaluable gate is never treated as passed -- and
-    `gh pr list` is named there among them.
+    that reason -- an unevaluable gate is never treated as passed.
+
+    The read is REST (`gh api repos/{owner}/{repo}/pulls?head=…`, ADR-0149):
+    `gh pr list` runs on GraphQL, which a Claude Code session refuses, so the
+    probe could never answer there and every cut stopped at it.
     """
-    argv = ["gh", "pr", "list", "--head", rendered_branch, "--state", "open",
-            "--json", "number,url"]
+    from acs_lib import gh_rest as _gh_rest
+    what = "cannot resolve whether a release PR is already open for %s" % rendered_branch
+    runner = lambda argv: _gh_rest.run(argv, cwd=repo_root)  # noqa: E731
     try:
-        result = subprocess.run(argv, cwd=repo_root, capture_output=True, text=True)
-    except OSError as exc:
-        raise ReleaseNotesError(
-            "cannot resolve whether a release PR is already open for %s: "
-            "`gh pr list` could not be run (%s). gh (the GitHub CLI) is acs's "
-            "only GitHub transport (ADR-0088); install and authenticate it "
-            "(gh auth login), or confirm by hand that no PR is open for that "
-            "branch before cutting." % (rendered_branch, exc))
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
-        raise ReleaseNotesError(
-            "cannot resolve whether a release PR is already open for %s: "
-            "`gh pr list` exited %d%s"
-            % (rendered_branch, result.returncode, ": " + detail if detail else ""))
-    try:
-        data = json.loads(result.stdout)
-    except ValueError:
-        raise ReleaseNotesError(
-            "cannot resolve whether a release PR is already open for %s: "
-            "`gh pr list` returned output that is not JSON" % rendered_branch)
-    if isinstance(data, list) and data:
-        entry = data[0]
-        if isinstance(entry, dict) and "number" in entry:
-            return {"number": entry["number"], "url": entry.get("url")}
+        rows = _gh_rest.list_prs(runner, rendered_branch, "open")
+    except _gh_rest.GhError as exc:
+        if exc.detail == _gh_rest.NOT_ON_PATH or exc.detail.startswith("gh could not be run"):
+            raise ReleaseNotesError(
+                "%s: gh could not be run (%s). gh (the GitHub CLI) is acs's only "
+                "GitHub transport (ADR-0088); install and authenticate it (gh auth "
+                "login), or confirm by hand that no PR is open for that branch "
+                "before cutting." % (what, exc.detail))
+        raise ReleaseNotesError("%s: `gh api` %s" % (what, exc.detail))
+    if rows:
+        return {"number": rows[0]["number"], "url": rows[0]["url"]}
     return None

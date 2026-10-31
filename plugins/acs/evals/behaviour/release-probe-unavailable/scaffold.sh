@@ -6,7 +6,7 @@
 # committed check script that leaves build/pre-release.ok when it runs.
 #
 # /acs:release's MANDATORY first CLI call is `release_notes.py status`, whose
-# open-PR probe is `gh pr list` -- critical: a probe that cannot answer is a
+# open-PR probe is a `gh api` REST read -- critical: a probe that cannot answer is a
 # STOP, never a fresh cut. gh has no forge here (and the remote resolves to
 # the local bare repository, so even an authenticated gh finds no GitHub
 # remote), so the correct run stops before the gate, before any draft, bump,
