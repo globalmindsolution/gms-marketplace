@@ -30,8 +30,8 @@ version is the source of truth for the update check). Older
 get the latest release:
 
 ```bash
-gh release list --repo globalmindsolution/gms-marketplace --json tagName,publishedAt \
-  --jq '[.[] | select(.tagName | test("^v[0-9]"))] | sort_by(.publishedAt) | last | "\(.tagName) \(.publishedAt)"'
+gh api 'repos/globalmindsolution/gms-marketplace/releases?per_page=100' \
+  --jq '[.[] | select(.tag_name | test("^v[0-9]"))] | sort_by(.published_at) | last | "\(.tag_name) \(.published_at)"'
 ```
 
 Fallback when `gh` is unavailable or unauthenticated:

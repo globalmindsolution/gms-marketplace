@@ -9,7 +9,7 @@ description: >-
 expected_outcome: >-
   The run's create-ticket step state records a failed or interrupted
   invocation; the minted ticket.json keeps external null and no acceptance
-  criteria; no gh issue create call was made; the final reply reports that the
+  criteria; no remote issue create was made; the final reply reports that the
   gh pull failed.
 tags: [behaviour]
 max_turns: 100

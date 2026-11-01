@@ -33,6 +33,7 @@ import shlex
 import subprocess
 
 from ._common import read_json  # noqa: F401  (re-exported for callers' convenience)
+from . import gh_rest
 from .repo import gh_failure_hint
 
 #: Each gh-driven flow's failure class under ADR-0088, by its `acs.py` command.
@@ -371,7 +372,7 @@ def resolve_author(gh, author, findings):
     normalized = normalize_login(author)
     if normalized and normalized != "me":
         return normalized
-    code, out, err = gh(["gh", "api", "user", "--jq", ".login"])
+    code, out, err = gh(gh_rest.user_login())
     login = normalize_login((out or "").strip().splitlines()[-1] if (out or "").strip() else "")
     if code == 0 and login:
         return login
@@ -380,7 +381,7 @@ def resolve_author(gh, author, findings):
         "info", "reviewers",
         "the PR author could not be resolved, so the author cannot be dropped from "
         "their own reviewer set; pass --author <login> if GitHub rejects the request",
-        command=_render_command(["gh", "api", "user", "--jq", ".login"]),
+        command=_render_command(gh_rest.user_login()),
         error=detail or "no --author was passed and `gh api user` returned no login",
         replayable=True))
     return ""
@@ -392,7 +393,7 @@ def reviewers_for(gh, pr_number, repo_root, author, findings, resolver=None):
     An empty set is never an empty `--add-reviewer` call: it is one info
     finding naming WHICH of the three reasons applies, because "no CODEOWNERS
     file" and "you are the only owner" call for different things."""
-    ok, listed = _guarded(gh, ["gh", "pr", "diff", str(pr_number), "--name-only"],
+    ok, listed = _guarded(gh, gh_rest.pr_files(pr_number),
                           "reviewers", findings, "reading the PR's changed files")
     if not ok:
         return []
@@ -424,6 +425,42 @@ def _codeowners_resolve(repo_root, changed):
     return codeowners.resolve(repo_root, changed)
 
 
+def self_login(gh, findings):
+    """The authenticated user's login, for the PR's assignee, or "".
+
+    REST takes a login where `gh pr edit --add-assignee @me` took `@me`, so it
+    is resolved once; a failure is the assignee's info finding, ready to re-run."""
+    code, out, err = gh(gh_rest.user_login())
+    login = (out or "").strip().splitlines()[-1].strip() if (out or "").strip() else ""
+    if code == 0 and login:
+        return login
+    findings.append(finding(
+        "info", "assignee", "assigning failed: the authenticated login could "
+        "not be resolved", command=_render_command(gh_rest.user_login()),
+        error=(err or out or "").strip() or "`gh api user` returned no login",
+        replayable=True))
+    return ""
+
+
+def set_milestone(gh, number, title, findings):
+    """Set issue `number`'s milestone by title. REST takes the milestone's
+    number, so the title is looked up first; an unknown title is one info
+    finding, never a create."""
+    try:
+        milestone = gh_rest.find_milestone(gh, title)
+    except gh_rest.GhError as exc:
+        findings.append(finding("info", "milestone", "setting the milestone failed",
+                                command=_render_command(gh_rest.milestones()),
+                                error=exc.detail, replayable=True))
+        return
+    if milestone is None:
+        findings.append(finding("info", "milestone",
+                                "the repository has no milestone titled %r; left unset" % title))
+        return
+    _guarded(gh, gh_rest.issue_set_milestone(number, milestone), "milestone", findings,
+             "setting the milestone")
+
+
 def pr_metadata_fill(gh, settings, ticket, pr, repo_root, author=None, resolver=None):
     """create-pr step 6a, as one call. Returns {"findings": [...], "applied": [...]}.
 
@@ -433,23 +470,24 @@ def pr_metadata_fill(gh, settings, ticket, pr, repo_root, author=None, resolver=
     findings, applied = [], []
     number = pr.get("number")
 
-    ok, _out = _guarded(gh, ["gh", "pr", "edit", str(number), "--add-assignee", "@me"],
-                        "assignee", findings, "assigning the PR")
-    if ok:
-        applied.append("assignee")
+    me = self_login(gh, findings)
+    if me:
+        ok, _out = _guarded(gh, gh_rest.add_assignees(number, [me]),
+                            "assignee", findings, "assigning the PR")
+        if ok:
+            applied.append("assignee")
 
     ttype = ticket.get("type")
     if ttype:
-        gh(["gh", "label", "create", ttype, "--description", "Created by the acs pipeline"])
-        ok, _out = _guarded(gh, ["gh", "pr", "edit", str(number), "--add-label", ttype],
+        gh(gh_rest.label_create(ttype, "Created by the acs pipeline"))
+        ok, _out = _guarded(gh, gh_rest.add_labels(number, [ttype]),
                             "labels", findings, "applying the %s label" % ttype)
         if ok:
             applied.append("label:%s" % ttype)
 
     owners = reviewers_for(gh, number, repo_root, author, findings, resolver=resolver)
     if owners:
-        ok, _out = _guarded(gh, ["gh", "pr", "edit", str(number),
-                                 "--add-reviewer", ",".join(owners)],
+        ok, _out = _guarded(gh, gh_rest.request_reviewers(number, owners),
                             "reviewers", findings, "requesting review")
         if ok:
             applied.append("reviewers:%s" % ",".join(owners))
@@ -476,20 +514,17 @@ def tracker_sync_one(gh, settings, ticket, body_path):
             "%s did not sync: the issue body %s does not exist. The executor "
             "writes it from the rendered description before this command."
             % (ticket.get("id"), body_path),
-            command=_render_command(["gh", "issue", "create", "--title", title,
-                                     "--body-file", body_path]),
+            command=_render_command(gh_rest.issue_create(title, body_path)),
             error="missing body file", replayable=False))
         return None, findings
 
-    code, out, err = gh(["gh", "issue", "create", "--title", title,
-                         "--body-file", body_path])
+    code, out, err = gh(gh_rest.issue_create(title, body_path))
     if code != 0:
         detail = (err or out or "").strip()
         findings.append(finding(
             "error", "tracker",
             "%s did not sync: %s\n%s" % (ticket.get("id"), detail, gh_failure_hint(detail)),
-            command=_render_command(["gh", "issue", "create", "--title", title,
-                                     "--body-file", body_path]),
+            command=_render_command(gh_rest.issue_create(title, body_path)),
             error=detail, replayable=False))
         return None, findings
 
@@ -504,30 +539,31 @@ def tracker_sync_one(gh, settings, ticket, body_path):
         # no record is worse than a failed one with a record.
         findings.append(finding(
             "error", "tracker",
-            "%s did not sync: `gh issue create` exited 0 but printed no issue "
+            "%s did not sync: the issue create exited 0 but printed no issue "
             "URL (got %r), so the issue number is unknown. Check the tracker "
             "before re-running -- an issue may exist."
             % (ticket.get("id"), (out or "").strip()[:200]),
-            command=_render_command(["gh", "issue", "create", "--title", title,
-                                     "--body-file", body_path]),
+            command=_render_command(gh_rest.issue_create(title, body_path)),
             error="unparseable create output", replayable=False))
         return None, findings
     external = {"provider": "github", "key": number, "url": url}
 
     labels = ["ACS"] + ([ticket["type"]] if ticket.get("type") else [])
     for label in labels:
-        gh(["gh", "label", "create", label, "--description", "Created by the acs pipeline"])
-    _guarded(gh, ["gh", "issue", "edit", number, "--add-label", ",".join(labels)],
-             "labels", findings, "applying labels")
+        gh(gh_rest.label_create(label, "Created by the acs pipeline"))
+    _guarded(gh, gh_rest.add_labels(number, labels), "labels", findings, "applying labels")
 
-    if ticket.get("assignee"):
-        _guarded(gh, ["gh", "issue", "edit", number, "--add-assignee", ticket["assignee"]],
+    assignee = ticket.get("assignee")
+    if assignee and normalize_login(assignee) == "me":
+        # `gh issue edit --add-assignee @me` took `@me`; REST takes a login.
+        assignee = self_login(gh, findings)
+    if assignee:
+        _guarded(gh, gh_rest.add_assignees(number, [assignee]),
                  "assignee", findings, "assigning the issue")
 
     milestone = ticket.get("milestone") or ((settings or {}).get("tracker") or {}).get("milestone")
     if milestone:
-        _guarded(gh, ["gh", "issue", "edit", number, "--milestone", milestone],
-                 "milestone", findings, "setting the milestone")
+        set_milestone(gh, number, milestone, findings)
 
     project_fill(gh, settings, ticket, url, TICKET_STATUS_OPTIONS, "project", findings,
                  item_add_json=True)

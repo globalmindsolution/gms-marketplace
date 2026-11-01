@@ -220,7 +220,7 @@ out impossible to write as confirmed, stop and say so (Finish, failure path).
    exclusion rule keeps its issue from being re-created; refresh its References
    block instead with `acs.py tracker refresh --ticket <id>` (non-critical: an
    `info` finding on failure). On a split, the parent's remote issue is
-   **updated** to the Epic type with links to its children. A failed `gh issue create` is critical per ticket and soft per batch:
+   **updated** to the Epic type with links to its children. A failed issue create is critical per ticket and soft per batch:
    an `error` finding naming that child, `replayable: false`, and the batch
    continues (`gh` is the only transport, ADR-0088).
 6. **Write the materialize report** to

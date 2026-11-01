@@ -81,10 +81,11 @@ request.
 ### GitHub call failure policy
 
 `gh` is the only tracker transport this skill uses — no MCP-based transport, no second
-credential path (ADR-0088). Three classes apply to every call below: **critical** (a gate
+credential path (ADR-0088) — and only `gh api` REST, since `gh issue`/`gh label` run on
+GraphQL, which a Claude Code session refuses (ADR-0149). Three classes apply to every call below: **critical** (a gate
 input this step cannot proceed without — gh's verbatim stderr plus ONE canonical hint from
 `acs_lib.gh_failure_hint(stderr)`, then STOP, no fallback to any other transport),
-**critical (per ticket), soft (per batch)** (Step 5's `gh issue create` only — an error
+**critical (per ticket), soft (per batch)** (Step 5's issue create only — an error
 finding naming that ticket, `replayable: false`, but the batch continues to the next
 ticket), and **non-critical** (metadata/best-effort — one `info` finding plus a replayable
 command block, never abort). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected when the
@@ -101,14 +102,14 @@ hint, replayable}` — `info` / `replayable: true` for non-critical, `error` /
 `replayable: false` for critical and for critical (per ticket), soft (per
 batch). Per-call classification:
 
-- **Critical**: the remote-import `gh issue view` above.
-- **Critical (per ticket, soft per batch)**: Step 5's `gh issue create`
-  tracker-sync call — a failed create for one ticket is an **error**-severity
+- **Critical**: the remote-import issue read above.
+- **Critical (per ticket, soft per batch)**: Step 5's issue create
+  (`acs.py tracker sync`) — a failed create for one ticket is an **error**-severity
   finding for that ticket (naming that ticket's id + error + the canonical
   hint), `replayable: false`, but does NOT abort the batch: the loop
   continues to the next ticket, and that ticket's `external` stays null.
 - **Non-critical**: the labels/assignee/milestone/Projects v2 field-fill
-  checklist (`gh label list`, `gh api …/milestones`, `gh project
+  checklist (`…/labels`, `…/milestones`, `gh project
   item-add` / `field-list` / `item-edit`) and an import's `acs.py tracker
   refresh` — one `info` finding, `replayable: true`, continue.
 

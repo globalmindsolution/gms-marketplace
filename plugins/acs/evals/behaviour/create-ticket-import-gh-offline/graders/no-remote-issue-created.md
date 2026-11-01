@@ -1,7 +1,7 @@
 ---
 type: tool_used
 tool: Bash
-input_match: 'gh\s+issue\s+create|tracker\s+sync'
+input_match: 'gh\s+issue\s+create|/issues\s+-X\s+POST|-X\s+POST\s+\S*/issues\b|tracker\s+sync'
 min: 0
 max: 0
 ---

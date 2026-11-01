@@ -164,6 +164,7 @@ from . import skills as skills_registry  # noqa: F401,E402
 from . import models  # noqa: F401,E402
 from . import launch_config  # noqa: F401,E402
 from . import design_types  # noqa: F401,E402
+from . import gh_rest  # noqa: F401,E402
 from . import claude_permissions  # noqa: F401,E402
 from . import design_docs  # noqa: F401,E402
 from . import audit_report  # noqa: F401,E402

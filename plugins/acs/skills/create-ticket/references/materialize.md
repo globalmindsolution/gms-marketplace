@@ -34,7 +34,7 @@ paraphrase of them. Before writing anything, re-read:
 Canon lives in `create-ticket/SKILL.md`'s own "GitHub call failure policy"
 section — this reference classifies no `gh` call itself, it only
 follows that classification (critical for the remote-import read; critical per
-ticket, soft per batch for Step 5's `gh issue create` tracker-sync call;
+ticket, soft per batch for Step 5's issue create (`acs.py tracker sync`);
 non-critical for the labels/assignee/milestone/Projects v2 field-fill
 checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 `acs_lib.gh_failure_hint(stderr)`):

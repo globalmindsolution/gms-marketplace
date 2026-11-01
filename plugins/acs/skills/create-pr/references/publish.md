@@ -21,7 +21,7 @@ every field landed. Copy the printed `findings` (each an `info` finding with the
 ready to re-run) into the publish report and never fail the PR over one.
 
 Then, for a synced ticket on the github tracker, comment on the remote issue:
-`gh issue comment <external.key> --body "ACS: PR #<number> opened for <ticket-id> — <url>"`.
+`gh api repos/{owner}/{repo}/issues/<external.key>/comments -f body="ACS: PR #<number> opened for <ticket-id> — <url>"`.
 Skip it for `local` and for a run with no ticket; for a configured but unsynced ticket record
 an info finding instead.
 

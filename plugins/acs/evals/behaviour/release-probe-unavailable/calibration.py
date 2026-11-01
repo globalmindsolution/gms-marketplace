@@ -47,14 +47,15 @@ def _cut_past_the_probe(ws):
     ws.write("package.json", '{\n  "name": "shop",\n  "version": "2.5.0"\n}\n')
     ws.sh("git checkout -q -b release/v2.5.0 && git add CHANGELOG.md package.json"
           " && git commit -qm 'release: cut v2.5.0' && git push -q -u origin release/v2.5.0")
-    ws.called("Bash", command="gh pr create --base main --head release/v2.5.0 --title 'release: cut v2.5.0'")
+    ws.called("Bash", command="gh api repos/{owner}/{repo}/pulls -X POST -f base=main "
+                              "-f head=release/v2.5.0 -f title='release: cut v2.5.0'")
     ws.reply = "Release PR for v2.5.0 opened."
 
 
 def _gated_then_stopped(ws):
     ws.skill("release")
     ws.sh("sh scripts/pre-release-check.sh")
-    ws.reply = "The gate passed, but gh pr list could not be run, so I stopped."
+    ws.reply = "The gate passed, but the open-PR probe could not be run, so I stopped."
 
 
 def _tagged(ws):

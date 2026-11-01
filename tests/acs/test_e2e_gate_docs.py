@@ -71,8 +71,9 @@ class TestMergePrNote(unittest.TestCase):
         empty and the test asserted nothing — while any later ticket touching
         this file failed it for reasons MAR-125 never had an opinion about.
         The property below holds against the committed file, forever."""
-        self.assertNotIn("gh api", self.body,
-                        "merge-pr must not reach GitHub through the raw API (AC-5)")
+        # A blanket "no `gh api` anywhere" stood in for this until ADR-0149
+        # made `gh api` REST the ONLY way any skill reaches GitHub; what AC-5
+        # actually forbids is a GitHub read tied to e2e, checked per line.
         for number, line in enumerate(self.body.splitlines(), start=1):
             if re.search(r"(?i)e2e", line):
                 self.assertNotIn(

@@ -228,7 +228,7 @@ def cmd_pr_metadata_fill(args):
     gh = _gh_runner(args, ctx["checkout_root"])
     pr = {"number": args.pr, "url": args.url or ""}
     if not pr["url"]:
-        code, out, _err = gh(["gh", "pr", "view", str(args.pr), "--json", "url", "-q", ".url"])
+        code, out, _err = gh(lib.gh_rest.pr_url(args.pr))
         pr["url"] = (out or "").strip() if code == 0 else ""
     out = lib.pr_metadata_fill(gh, ctx["settings"], ticket, pr, ctx["checkout_root"],
                                author=args.author)
@@ -447,13 +447,13 @@ def cmd_readiness(args):
         try:
             # Normalised by `classify_merge_pr_arg`, the same helper the
             # merge-pr Start path uses on the same user input: `#42` and a PR URL both reach gh as `42`. Unnormalised,
-            # `readiness --pr '#42'` reached `gh pr view '#42'`, which gh
-            # resolves as a BRANCH NAME.
+            # `readiness --pr '#42'` reached the forge as `#42`, which the
+            # porcelain resolved as a BRANCH NAME.
             pr = lib.gh_pr_view(lib.classify_merge_pr_arg(args.pr)[1] or args.pr,
                                 ",".join(lib.PR_VIEW_FIELDS))
         except lib.GateError as exc:
             die("readiness", "%s\n%s" % (exc, lib.gh_failure_hint(str(exc))))
-        required_ok = lib.gh_pr_required_checks_ok(args.pr)
+        required_ok = lib.gh_pr_required_checks_ok(args.pr, pr=pr)
         # ADR-0088 classifies this read as CRITICAL: an unevaluable gate is
         # never treated as passed. "No required checks configured" is NOT
         # unevaluable -- it is a supported repo shape (/acs:setup documents
@@ -463,7 +463,7 @@ def cmd_readiness(args):
         if isinstance(required_ok, tuple):
             _ok, detail = required_ok
             if lib.gh_read_is_unevaluable(detail):
-                die("readiness", "gh pr checks --required could not be evaluated "
+                die("readiness", "the required checks could not be evaluated "
                                  "for PR %s:\n%s\n%s"
                     % (args.pr, detail or "(no output)", lib.gh_failure_hint(detail)))
 

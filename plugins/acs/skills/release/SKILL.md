@@ -216,12 +216,18 @@ Only reached when Step 2 found no in-flight/done cut.
 4. **Open the PR:**
 
    ```bash
-   gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true
-   gh pr create --base <base_branch> --head <release_branch> --title "release: cut <release_tag>" --body-file <coverage-report + draft_section body> --label ACS
+   gh api repos/{owner}/{repo}/labels -X POST -f name=ACS -f description="Created by the acs pipeline" 2>/dev/null || true
+   gh api repos/{owner}/{repo}/pulls -X POST -f base=<base_branch> -f head=<release_branch> -f title="release: cut <release_tag>" -F body=@<coverage-report + draft_section body file> --jq '.number, .html_url'
+   gh api repos/{owner}/{repo}/issues/<number>/labels -X POST -f 'labels[]=ACS'
    ```
 
+   Every call is `gh api` REST (ADR-0149): `gh pr create` and `gh label
+   create` run on GraphQL, which a Claude Code session refuses (HTTP 403), so
+   they are never used here. A failed PR create is critical — gh's verbatim
+   stderr plus `acs_lib.gh_failure_hint()`, then stop with the branch pushed
+   and say so; the label is best-effort.
    `<base_branch>` = the block's `base_branch` field (profile #1: `main`).
-   No `--draft` — the PR is ready for review immediately. The PR title is
+   Not a draft — the PR is ready for review immediately. The PR title is
    the fixed `"release: cut <release_tag>"` convention (matching prior real
    cuts, tag portion block-rendered), written directly — there is no ticket
    to derive a title from and `release/*` is already exempt from the CI

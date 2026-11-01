@@ -253,13 +253,13 @@ class PrFromTheForgeTest(unittest.TestCase):
     """The PR reference is the forge's answer, not the coordinator's."""
 
     def test_reads_the_pr_gh_reports_for_the_branch(self):
-        rows = json.dumps([{"number": 7, "url": "https://example.invalid/pull/7",
-                            "headRefName": "task/SHOP-1-x"}])
+        rows = json.dumps([{"number": 7, "html_url": "https://example.invalid/pull/7",
+                            "state": "open", "head": {"ref": "task/SHOP-1-x"}}])
         value, why = lib.gh_pr_for_branch(
             "task/SHOP-1-x", runner=lambda argv: _Proc(stdout=rows))
         self.assertEqual(value, {"number": 7, "url": "https://example.invalid/pull/7",
                                  "branch": "task/SHOP-1-x"})
-        self.assertIn("gh pr list --head", why)
+        self.assertIn("gh api pulls?head=", why)
 
     def test_no_pr_derives_nothing_and_says_so(self):
         value, why = lib.gh_pr_for_branch("b", runner=lambda argv: _Proc(stdout="[]"))
