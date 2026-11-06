@@ -19,6 +19,62 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-06
+
+### Added
+
+- **`/acs:manage-roadmap`: the roadmap is its own skill** (ADR-0145, #609). It writes and amends
+  `roadmap.md` from the PRD's features. Each milestone's delivery status is derived from the
+  tickets linked to it (`acs.py roadmap status`), never asserted. `/acs:create-prd` no longer
+  writes the roadmap.
+- **PRD templates** (ADR-0147, #611). The PRD hub and each feature PRD are written from the
+  built-in `prd-default` and `prd-feature-default`. A repo's `.acs/templates/<name>.md`
+  replaces either one, and its `## ` headings are the sections the authors must fill.
+- **`/acs:setup` scaffolds the document templates** into `.acs/templates/` (ADR-0148, #612).
+  `templates.lock.json` records which built-in each copy came from. A re-run refreshes a copy
+  nobody edited, never overwrites an edited one, and reports a copy whose built-in has since
+  changed as drift.
+
+### Changed
+
+- **The PRD is a hub plus one PRD per feature, written by parallel authors** (ADR-0142, #607).
+- **Product tickets are made from the PRD and link to it; technical tasks may be unlinked**
+  (ADR-0144, #608).
+- **A feature PRD's `implemented` status is derived from its tickets** (ADR-0146, #610).
+- **A PR with no ticket says so in its description** (ADR-0143). The convention check accepts
+  `Ticket: none — <reason>`.
+- **Narrow requests now reach their skills** (#621). `/acs:audit-security` routes a scoped ask
+  (injection only, secrets only, vulnerable dependencies only, one directory). `/acs:code`
+  routes "make the change" or "red-green-refactor" on any platform. `/acs:docs-sync` routes a
+  doc fix folded into a ticket's branch before its PR is opened.
+
+### Fixed
+
+- **acs reaches GitHub through `gh api` REST only, so it works in a Claude Code session**
+  (ADR-0149, #620). gh's porcelain commands (`gh pr`, `gh issue`, `gh label`, `gh repo view`,
+  `gh release list`) run on GraphQL, which a Claude Code session refuses with HTTP 403.
+  `/acs:release` stopped at its open-PR probe, and merge-pr readiness, create-pr metadata,
+  create-ticket sync and import, and `/acs:update` had the same problem.
+  - `acs_lib.gh_rest` now builds every call.
+  - Projects v2 (`gh project …`) has no REST equivalent, so it stays the one GraphQL
+    exception and remains non-critical.
+  - `tests/acs/test_gh_rest_only.py` fails CI if a porcelain command is added back.
+- **The handoff no longer fights the Stop hook** (#619). A handed-off step is marked, so
+  neither the sender nor the receiver is forced to finish it, and the next invocation clears
+  the mark.
+- **Handoff receive and change snapshots work inside the Claude Code sandbox** (#616, #618).
+  The device-node dotfiles the sandbox mounts are ignored, both by the snapshot and by the
+  clean-tree check.
+- **`/acs:create-pr` stops before pushing when a GitHub call fails**, and under `/acs:ship` it
+  counts a commit approval given in the request (#616, #617).
+- Four skills were clarified where paid evals showed them misread: handoff, create-test-docs,
+  audit-design and create-architecture (#618).
+
+### Evals
+
+- 116 of 120 behaviour cases now have a recorded baseline (#614, #615, #617, #618, #619), and
+  several graders the paid runs showed were wrong were fixed (#613, #618).
+
 ## [0.6.2] - 2026-10-09
 
 ### Changed
