@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run designs EVAL-1's interface change through /acs:create-api-contract without asking anything and without a plan: it records the supplied answers, revises docs/architecture/lld/customer-listing/api/customers.md in place (Scope, Surface, Error model, Compatibility & versioning, Examples, Traceability; GET /customers gains the optional cursor and next_cursor, invalid_cursor as HTTP 400 in the Error model, a backward-compatible in-place verdict keeping offset deprecated, every item traced to AC-1..AC-3) and bumps it through `acs.py design bump --ticket EVAL-1` to proposed v2, publishes the run record docs/architecture/lld/customer-listing/EVAL-1/api-contract.md (front matter ticket, items, interfaces; Scope & sources, Interfaces, Compatibility & versioning, Traceability, Gaps) linking customers.md at v2, reviews them, and finishes through the post-hook with outcome contract_written and every written path in states.files, all left uncommitted on main.
+FAIL if the run asks the user a question, refuses for want of a plan, writes production code, tests, an OpenAPI document or anything under docs/api/, writes a second interface document instead of revising customers.md, hand-writes or skips the version bump, declares a breaking change or a new version, writes under data/, flows/ or hld/, commits anything or switches branch, or stops before the post-hook closes the step.

@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-We are onboarding a legacy Django monolith. Document how it is put together — context, containers, components and the main request flows — as Mermaid diagrams we keep in the repo.
+We are onboarding a legacy Django monolith. Document how it is put together — context, containers, components, data model and deployment — as Mermaid diagrams we keep in the repo.

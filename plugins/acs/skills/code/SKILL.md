@@ -1,7 +1,7 @@
 ---
 name: code
-description: Implement an approved implementation plan in the consumer repo using TDD, targeted tests only. Dispatches to the delivery-path leg the plan recorded — code-trivial, code-small, code-standard or code-complex. The changeset review is a separate step, /acs:review-code. Takes a ticket id, a prompt or a document. Use whenever a ticket's plan is approved and the user says to build, implement, execute or start writing it. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id | prompt | document]"
+description: Implement an approved implementation plan in the consumer repo using TDD, targeted tests only. Dispatches to the delivery-path leg the plan recorded — code-trivial, code-small, code-standard or code-complex. The changeset review is a separate step, /acs:review-code. Takes requirements from a ticket id, documents, a prompt or a mix of them. Use whenever a ticket's plan is approved and the user says to build, implement, execute, make the change, go ahead or start writing it — on any platform (web, mobile, backend, CLI) and however they name the test-first loop (TDD, red-green-refactor). Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -21,11 +21,11 @@ one file-map partition of the plan with strict TDD; a leg spawns one per
 partition — in parallel from iteration 1 whenever the partitions are disjoint:
 every implementer of a wave in ONE message, each a slice (`slice="<k>"` on its
 task and result, report `iter-<n>/implementer-<k>.json`), at most
-`max_parallel = 4` per wave
+`settings.parallel.max_agents` (default 4) per wave
 (`${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md`, **Parallel
 implementers**). There is no planner (the plan is `/acs:create-impl-plan`'s) and no
 verifier (the review is `/acs:review-code`'s). The implementer is a `write`
-role and runs on the `executor` model tier.
+role.
 
 Four legs implement this step:
 
@@ -77,16 +77,18 @@ instructions of your own, no interpretation of the plan.
 **No plan at all** → you were invoked standalone, on a subject rather than
 after `/acs:create-impl-plan` (§3.11). That is a supported way to run, not an
 error: nothing gates `/acs:code` on an upstream step. Derive an **implicit
-plan** from your own read-only survey of the repo and the subject (the
-ticket's acceptance criteria, the prompt, or the document), record it at
-`steps/code/plan.md`, then judge its path with
+plan** from your own read-only survey of the repo and the requirements
+(`context.requirements` / `acs.py requirements show` — a ticket id, documents
+and a prompt are only where they came from), record it at
+`steps/code/plan.md` through `acs.py write` (never the Write tool), then judge its path with
 `${CLAUDE_PLUGIN_ROOT}/skills/code/references/classify.md`.
 
 > **The implicit plan is for the cheap paths only.** If your survey judges the
 > work `standard` or `complex`, stop with `stop_reason: needs_input` and say:
 > *this needs a plan and an approval — run `/acs:create-impl-plan`*. Plan
 > approval is a real brake, and a plan you wrote for yourself and then approved
-> by implementing is not an approval. `--plan <file>` supplies one instead.
+> by implementing is not an approval. Plan it with `/acs:create-impl-plan`,
+> then approve it with `acs.py plan check` before re-running `/acs:code`.
 
 **No recorded path but a plan exists** → the plan predates the `## Contract`
 block. Judge the path yourself with the rubric above, and say in your handoff
@@ -100,8 +102,8 @@ judgement.
 - **Never review.** No verifier, no lenses, no full suite. The review is step 6
   and it reviews you.
 - **Never run the full test suite.** Targeted tests only — the tests your
-  change touches. `/acs:review-code`'s final gate runs the suite once, last,
-  exactly when it counts, and that is what makes this discipline safe.
+  change touches. `/acs:review-code`'s final gate runs the suite once per
+  iteration and reads it exactly when it counts, and that is what makes this discipline safe.
 - **Never pick a path to suit the work you expect.** A plan that looks bigger
   than its recorded path is a finding for `/acs:review-code` to raise, and
   ending `failed` with a `summary` naming the plan as superseded is the
@@ -120,7 +122,8 @@ The loop sent the cursor back here because `/acs:review-code` recorded
 from the review — not the lens reports, not the adjudication transcripts. Every
 **confirmed** finding must be answered by id in your `result.json`:
 
-- `fixed` — naming the commit, and for a behavioural finding the test you wrote
+- `fixed` — naming the files the fix changed (`files`; nothing is committed
+  before `/acs:create-pr`), and for a behavioural finding the test you wrote
   first. TDD holds inside the loop.
 - `disputed` — with the evidence that defeats the claim. This is not a way out:
   the next adjudicator receives your dispute and rules again, and a finding

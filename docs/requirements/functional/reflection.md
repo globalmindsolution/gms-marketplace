@@ -21,7 +21,7 @@ The workflow is built on a **coordinator–subagents** architecture:
 
 ## Reflection pattern: write → judge
 
-The twelve **authoring skills** and `create-docs` MUST apply the Reflection pattern as a
+The thirteen **authoring skills** MUST apply the Reflection pattern as a
 **write → judge cycle** over their own roles, with a **different subagent
 for each role** (ADR-0109):
 
@@ -29,17 +29,17 @@ for each role** (ADR-0109):
 |---|---|---|---|
 | analyze-requirements | `analyze-requirements-impact-analyst` | `analyze-requirements-analyst` | `analyze-requirements-impact-reviewer` |
 | create-prd | `create-prd-surveyor` | `create-prd-author` | `create-prd-reviewer` |
-| create-requirements | `create-requirements-surveyor` | `create-requirements-author` | `create-requirements-reviewer` |
-| create-architecture | — | `create-architecture-architect` | `create-architecture-reviewer` |
-| create-design | — | `create-design-designer` | `create-design-design-reviewer` |
-| create-docs | — | `create-docs-author` (one per doc set) | `create-docs-reviewer` |
+| manage-roadmap | `manage-roadmap-surveyor` | `manage-roadmap-author` | `manage-roadmap-reviewer` (ADR-0145) |
+| create-ticket | — | ONE of `create-ticket-epic-author`, `create-ticket-story-author`, `create-ticket-task-author`, `create-ticket-bug-author` — the author for the type the coordinator chose; it writes the draft only (ADR-0138) | `create-ticket-reviewer` (at most two iterations) |
+| create-architecture | `create-architecture-gap-analyst` (beside the architect's survey, when an HLD exists — ADR-0122) | `create-architecture-architect` | `create-architecture-reviewer` |
+| create-tech-design | — | `create-tech-design-designer` | `create-tech-design-reviewer` |
+| create-data-design | `create-data-design-gap-analyst` (beside the designer's survey, when the feature's `data/` holds documents — ADR-0126) | `create-data-design-designer` | `create-data-design-reviewer` |
+| create-flows | `create-flows-gap-analyst` (beside the designer's survey, when the feature's `flows/` or `components/` hold documents — ADR-0126) | `create-flows-designer` | `create-flows-reviewer` |
 | create-impl-plan | — | `create-impl-plan-planner` | `create-impl-plan-plan-reviewer` |
-| create-api-contract | — | `create-api-contract-contract-author` | `create-api-contract-contract-reviewer` |
+| create-api-contract | `create-api-contract-gap-analyst` (beside the contract-author's survey, when the feature's `api/` holds documents — ADR-0134) | `create-api-contract-contract-author` | `create-api-contract-contract-reviewer` |
 | create-test-docs | — | `create-test-docs-test-designer` | `create-test-docs-trace-reviewer` |
 | create-e2e-tests | — | `create-e2e-tests-test-writer` | `create-e2e-tests-suite-runner` |
-| docs-sync | — | `docs-sync-doc-updater` | `docs-sync-drift-reviewer` |
-| create-project | — | `create-project-scaffolder` | `create-project-build-checker` |
-| standardize-project | `standardize-project-auditor` | `standardize-project-scaffolder` | `standardize-project-additive-checker` |
+| docs-sync | `docs-sync-gap-analyst` (one per run feature, beside the doc-updaters in iteration 1, over the feature's living LLD documents — ADR-0137) | `docs-sync-doc-updater` | `docs-sync-drift-reviewer` |
 
 No skill has a plan phase before its writer (ADR-0092): for an authoring
 skill the deliverable IS the document, and a plan for it is a second copy of
@@ -71,14 +71,17 @@ review" below.
 ### Apply-work skills: inline shape (MAR-55 invariant (b))
 
 The **apply-work** group — `/acs:create-pr`, `/acs:merge-pr`, and
-`/acs:create-ticket` — does **not** apply the Reflection pattern. These skills
+`/acs:breakdown-ticket` — does **not** apply the Reflection pattern. These skills
 are inline and deterministic: the coordinator handles the work directly,
-following its `references/` (`materialize.md`, `publish.md`, `merge.md`), and
+following its SKILL.md and `references/` (`merge.md`), and
 spawns no subagent — this holds on every delivery path.
 Upstream
 quality is gated by `/acs:review-code` (before the PR is opened or merged) or by
-the user-confirmation gate (at ticket creation); there is no in-skill verify
-phase for these three skills.
+the user-confirmation gate (the one grouped confirmation of a breakdown); there
+is no in-skill verify phase for these three skills. `/acs:create-ticket` left
+this group with ADR-0138: its draft is written by a type author and judged by
+its reviewer, and only its materialisation (`references/materialize.md`) and
+tracker sync stay inline.
 
 Requirements:
 
@@ -97,7 +100,7 @@ Requirements:
   `/acs:code`; MAR-300 for `/acs:docs-sync`; MAR-301 for
   `/acs:create-project`; MAR-302 for `/acs:standardize-project`; MAR-305 for
   `/acs:create-prd` and the four doc-set legs since folded into
-  `/acs:create-docs` (ADR-0094); then `/acs:create-architecture`,
+  `/acs:create-docs` (ADR-0094, itself removed by ADR-0124); then `/acs:create-architecture`,
   `/acs:create-design`, and `/acs:create-requirements`); ADR-0092 then
   retired the plan phase itself. On iteration 2+ the writer's authoring
   notes carry a **Findings addressed** section mapping each finding to what
@@ -148,17 +151,23 @@ Requirements:
 
 - Subagent naming convention: `<skill>-<role>.md`, where the role is named
   for what it does for that skill and is listed, with its kind, in
-  `acs_lib.skills.ROLE_KINDS`. 33 agent files exist on disk in total — every
+  `acs_lib.skills.ROLE_KINDS`. 43 agent files exist on disk in total — every
   one resolves to a shipped skill and a known role, so none is orphaned, and
   a skill is a DIRECTORY rather than an entry in a registry file.
 
-  **Thirteen** skills run the write → judge cycle: the **twelve** authoring
+  **Thirteen** skills run the write → judge cycle: all **thirteen** authoring
   skills in the table above — which include the five Build/Test skills the
   skills-independence refactor added (`analyze-requirements`,
-  `create-impl-plan`, `create-api-contract`, `create-test-docs`,
-  `create-e2e-tests`) — plus `create-docs`. Two of them (`create-prd`, `create-requirements`) add
-  a surveyor, one (`standardize-project`) an auditor, and one
-  (`analyze-requirements`) an impact analyst per code area (ADR-0114).
+  `create-impl-plan`, `create-api-contract` — a Design skill since
+  ADR-0134 — `create-test-docs`, `create-e2e-tests`). Two of them
+  (`create-prd`, `manage-roadmap`) add a surveyor, one (`analyze-requirements`) an impact
+  analyst per code area (ADR-0114), four (`create-architecture`,
+  `create-api-contract`, `create-data-design`, `create-flows`) a gap analyst
+  beside their survey over the documents they revise (ADR-0122, ADR-0126,
+  ADR-0134), and one (`docs-sync`) a gap analyst per feature beside its
+  doc-updaters, over the living LLD documents the run implemented
+  (ADR-0137). One (`create-ticket`) owns four write roles, one per ticket
+  type, and spawns exactly one of them per run (ADR-0138).
 
   **One** prefix is write-only: `code`, whose implementers are judged by
   `/acs:review-code`, because an implementer that grades its own output gave
@@ -171,13 +180,21 @@ Requirements:
   finding tries to refute it, so the two roles fan out independently of each
   other.
 
+  **One** prefix is survey-only: `audit-design`, whose gap analysts compare
+  the architecture set with the code and report; the skill is read-only and
+  writes nothing for a judge to judge (ADR-0122).
+
+  **One** prefix pairs a survey with a judge and no writer: `audit-security`,
+  whose auditors raise candidate security findings and one fresh-context
+  adjudicator per candidate tries to refute it, as `review-code`'s
+  adjudicators do — a filter on findings, not a loop over a deliverable
+  (ADR-0123).
+
   The three **apply-work** skills own no agent file at all (see the
   "Apply-work skills" subsection above).
 - Each role's **model and reasoning effort are user-configurable** in
-  `settings.json` by tier: survey roles and `create-impl-plan`'s planner run
-  on `models.planner`, write roles on `models.executor`, judge roles on
-  `models.verifier`, each with per-skill overrides; unset values inherit the
-  parent context's model and effort
+  `settings.json` per skill and role (`models.<skill>.<role>`); unset
+  values inherit the parent context's model and effort
   ([configuration.md](configuration.md#subagent-models)).
 
 > **Note:** the **changeset review** carries the broadest scope, and it is a
@@ -332,7 +349,9 @@ Illustrative shape:
   plan-approval record (MAR-73, slice 3 of MAR-69) — a machine conformance
   verdict over the plan's own bytes, never an interactive gate. A survey or
   judge role's read-only discipline is enforced by its tool allowlist (read
-  tools + Write solely for its own phase artifacts); write roles may not spawn
+  tools and Bash, no `Write`: its own phase artifacts go through
+  `acs.py write`, like every state file —
+  [ADR-0136](../../architecture/adr/0136-state-is-written-through-acs-write.md)); write roles may not spawn
   agents or invoke skills, and their writes are bounded by the file-map
   guard, which is armed while any write role runs.
 - The coordinator MUST persist each role's output (authoring notes,
@@ -352,8 +371,8 @@ Illustrative shape:
   spawn its own sub-subagents. This keeps the state files and the message
   flow predictable.
 - The coordinator MAY run **multiple writers in parallel** within one
-  skill (e.g. one implementer per file-map partition in `/code`, one author
-  per doc set in `/create-docs`), provided their outputs do not conflict; the
+  skill (e.g. one implementer per file-map partition in `/code`, one
+  architect per HLD file in `/create-architecture`), provided their outputs do not conflict; the
   judge runs after all parallel writers complete and judges the combined
   result. Since ADR-0110 this is the default rather than an option — see
   below.
@@ -380,9 +399,17 @@ spawned in ONE message and awaited together before the next phase.
 - **Surveys** MUST be fanned out when the scope spans two or more disjoint
   top-level areas of the repo, one instance per area; the open questions of
   every slice MUST go to the user in ONE grouped clarification-ledger ask.
-- **Cap.** At most `max_parallel = 4` instances per phase, unless the skill
-  already sets its own cap (`/acs:create-docs` keeps 2 for doc sets); beyond
-  the cap, instances run in waves.
+- **Cap.** At most `settings.parallel.max_agents` (default 4) instances per
+  message ([ADR-0125](../../architecture/adr/0125-parallelism-in-skills.md)),
+  unless the skill already sets its own smaller cap (`/acs:code-small` 2,
+  `/acs:code-trivial` 1); beyond the cap,
+  instances run in waves of that size. `/acs:review-code`'s five lenses are one
+  message whatever the setting.
+- **Jobs.** A long deterministic command a coordinator needs beside its
+  agents (a build, a lint, a suite) MUST run as an `acs.py job` started in the
+  same turn as the spawn and collected with one blocking `job wait`, never a
+  `sleep` loop; a $0 check on a draft MUST run beside the judge spawn, its
+  failures that iteration's findings.
 - **Identity.** Each instance's task and result MUST carry `slice="<id>"` (an
   un-sliced instance omits it). A slice id is a short name of letters,
   digits, `_` and `-`; hyphens are allowed. A sliced instance writes
@@ -423,9 +450,10 @@ spawned in ONE message and awaited together before the next phase.
   iteration — never "pass with a missing slice".
 - **Resume.** A resumed iteration re-runs only the slices whose report is
   missing.
-- **Shared branch.** Parallel writers that commit on one branch MUST, on git
-  `index.lock` contention, wait briefly and retry — never delete the lock and
-  never force anything.
+- **Shared working tree.** Parallel writers commit nothing (ADR-0127): each
+  writes its own disjoint files into the one working tree and lists them in its
+  report; the join is the reports plus the write guard below, and
+  `/create-pr` commits the result.
 - **Write guard.** With several writers live — slices of one skill, or the
   writers of a parallel group's members — a write is judged against its own
   writer's file map when the hook payload names the agent, else against the

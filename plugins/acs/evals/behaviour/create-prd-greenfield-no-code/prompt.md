@@ -2,16 +2,23 @@
 description: >-
   /acs:create-prd greenfield: a repo with no code at all and every product
   fact supplied in the prompt, since the run cannot answer questions. It
-  should write docs/product/prd.md with the eight required sections carrying
-  exactly the stated facts, a roadmap mapping the two milestones to v0.1.0
-  and v0.2.0, write no code, push its delivery branch, and report the failed
-  gh PR step as a finding.
+  should write docs/product/prd.md (the hub) with the eight required sections
+  carrying exactly the stated facts and a Features index linking one PRD per
+  feature, a features/<slug>/prd.md for each of the four features (ADR-0142),
+  no roadmap -- the stated milestones are /acs:manage-roadmap's to schedule
+  (ADR-0145), and the reply points there -- write no code,
+  and leave every document as an uncommitted local change listed in
+  states.files -- no ticket, branch, commit, push or PR
+  (ADR-0127).
 expected_outcome: >-
   docs/product/prd.md with the eight sections, the 500-bookings and 5%
-  no-show metrics, the 2 s and 99.5% NFRs and the Won't item;
-  docs/product/roadmap.md with a Release versions table mapping v0.1.0 and
-  v0.2.0; no source file created; a task/EVAL-1-* branch pushed with upstream
-  set; result.json records the gh failure and no PR.
+  no-show metrics, the 2 s and 99.5% NFRs and the Won't item, its Features
+  index linking docs/product/features/<slug>/prd.md for online-booking,
+  sms-reminders, deposits and loyalty-stamp-card; each feature PRD with its
+  six sections and R1 ids; no docs/product/roadmap.md; every document opens with version front
+  matter at status proposed, version 1; no source file created; HEAD still
+  the scaffold's commit on main and nothing pushed; the step finished with
+  the documents in states.files and no PR.
 tags: [behaviour]
 max_turns: 150
 timeout_seconds: 2400
@@ -40,9 +47,8 @@ answered below. Treat all of it as confirmed and do not ask me anything.
 - Constraints and assumptions: EU customers only, so all personal data stays
   in an EU region under GDPR; SMS goes through a third-party SMS gateway.
 - Out of scope: native mobile apps; payments beyond deposits.
-- Roadmap: milestone "Booking MVP" delivers online booking and SMS reminders
-  in release v0.1.0; milestone "Deposits" delivers deposits in release
-  v0.2.0.
-
-Pushing to origin works from this machine, but there is no GitHub access
-here: when a gh call fails, handle it the way the skill says to, and finish.
+- Feature slugs (the folder names of each feature's own PRD): online-booking,
+  sms-reminders, deposits, loyalty-stamp-card.
+- Later, once the PRD is done: milestone "Booking MVP" will deliver online
+  booking and SMS reminders in release v0.1.0, and milestone "Deposits" will
+  deliver deposits in release v0.2.0.

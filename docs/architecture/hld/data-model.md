@@ -30,19 +30,25 @@ erDiagram
     TICKET {
         string id PK "SHOP-123"
         string title
-        enum type "epic|story|task"
+        enum type "epic|story|task|bug (bug since ADR-0138)"
         string description
         array acceptance_criteria
         enum priority "critical|high|medium|low"
         string parent FK "epic id or null"
         array children
         enum status "open|in_progress|in_review|done"
-        json external "tracker mapping or null"
+        json external "tracker mapping (provider, key, url since ADR-0140) or null"
         string assignee
         number story_points
-        bool needs_design "true for epics only; always false for story/task (MAR-76)"
         bool docs_only
         string due_date "ISO-8601 date or null (NEW, MAR-8 Child 3)"
+        array features "PRD feature slugs (ADR-0120); a child inherits its parent's (ADR-0138)"
+        array references "optional: the documents found for it in the standard layout, each kind, path, title, status, version, published and url (ADR-0140)"
+        enum severity "bug only: critical|high|medium|low, separate from priority (ADR-0138)"
+        string reproduction "bug only: steps to reproduce (ADR-0138)"
+        string expected "bug only (ADR-0138)"
+        string actual "bug only (ADR-0138)"
+        string environment "bug only: environment or version (ADR-0138)"
     }
     SKILL_STATE {
         string skill PK
@@ -260,7 +266,8 @@ longer exists. In its place each authoring skill's executor writes
 survey the deliverable was authored from (mode, inputs, evidence, open
 questions; the sections the deterministic floors parse, e.g.
 `/acs:create-prd`'s three corroboration sections and
-`/acs:standardize-project`'s frozen allowlist, live here now), iteration 2+
+`/acs:standardize-project`'s frozen allowlist until ADR-0118 removed that
+skill, live here now), iteration 2+
 the findings addressed — and the verifier's `authoring-conformance`
 dimension reads it. The `PHASE_ARTIFACT` relationship label above is
 re-narrowed accordingly. `PLAN` / `PLAN_APPROVAL` / `PLAN_SUPERSEDED` are
@@ -298,7 +305,7 @@ un-sliced run writes exactly what it wrote before.
 under is now `<main-checkout>/.acs/state-machine/<repo-id>/` —
 gitignored, anchored to the repo's main checkout (`git rev-parse
 --git-common-dir`) so every linked worktree resolves to the same on-disk
-tree, with no override ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)). No
+tree, with no override ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)). No
 entity, field, or relationship change (D6): only what `workspace` (the
 string) resolves to is different.
 
@@ -317,7 +324,7 @@ carry.
 **Amendment (ADR 0103) — supersedes the cost half of the MAR-1, MAR-3 and
 MAR-6 amendments above.** acs no longer ships a status line, and the
 statusLine-sourced cost and API-duration apportionment went with it
-([ADR 0103](../../adr/0103-no-status-line-no-cost-metering.md)).
+([ADR 0103](../adr/0103-no-status-line-no-cost-metering.md)).
 `COST_SAMPLE` and `COST_CURSOR` are gone, and so are `RUN_ENTRY`'s
 `cost_usd`/`cost_basis`/`cost_scope`/`excluded_cost_usd`/`excluded_token_share`
 and `api_duration_ms`/`api_duration_basis`/`api_duration_scope`, the cost and
@@ -332,7 +339,7 @@ keeps its cost fields, and nothing reads them.
 
 **Amendment (ADR 0104) — supersedes the MAR-1 and MAR-3 amendments above,
 and the tokens the ADR 0103 amendment kept.** acs records no usage
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)), so
+([ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)), so
 the diagram no longer draws `METRICS` (`metrics.json`), `SESSION_MARKER`
 (`sessions/<checkout_id>/session.json`), `ROLE_USAGE` or `MODEL_USAGE`, nor
 `RUN_ENTRY`'s `session_id`/`transcript_path`/`checkout_id`/`tokens` or
@@ -349,5 +356,5 @@ Invariants (enforced by `acs_lib` + schemas + tests):
 - `runs[-1]` is the only source of current status — nothing mirrored at top level.
 - Epic ↔ child links stored in **both** directions; epic status auto-managed.
 - Cross-partition writes limited to the defined parent-epic updates; reads
-  (e.g. a child consuming the epic's `design.md`) are allowed.
+  (e.g. a child consuming the epic's `tech-design.md`) are allowed.
 - Done partitions move to `archive/` — never deleted; the index keeps them.

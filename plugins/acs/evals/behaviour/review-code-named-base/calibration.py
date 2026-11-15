@@ -3,7 +3,8 @@
 IDEAL is what /acs:review-code does with `--base release/2.4`, through its
 real writers: `acs.py step start --step review-code`, the lens reports and the
 adjudication record under steps/review-code/iter-1/, the verdict (its
-`reviewed_sha` release/2.4's commit) at the step root and in iter-1/,
+`reviewed_sha` the working-tree snapshot it judged) at the step root and in
+iter-1/,
 result.json, and `post-review-code.py`. Stage 3's gate does not run: stage 2
 left a blocking finding.
 """
@@ -36,7 +37,18 @@ TOKEN = {
 }
 
 
+def _snapshot(ws):
+    """`reviewed_sha` is the working-tree snapshot the review judged
+    (`acs.py changes snapshot`, ADR-0127) -- not a commit: inside a pipeline
+    the reviewed change is uncommitted."""
+    done = ws.acs("changes", "snapshot")
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)["tree"]
+
+
+
 def _review(ws, findings, base="release/2.4", post=True, fix=False):
+    # `base` names the ref a play claims it reviewed against; only its findings show it.
     ws.skill("review-code")
     start = ws.acs("step", "start", "--step", "review-code")
     assert start.returncode == 0, start.stderr
@@ -51,7 +63,7 @@ def _review(ws, findings, base="release/2.4", post=True, fix=False):
         {"adjudications": [{"id": f["id"], "verdict": "confirmed"} for f in findings]}))
     verdict = json.dumps({
         "skill": "review-code", "run_id": "EVAL-1", "iteration": 1,
-        "reviewed_sha": ws.sh("git rev-parse %s" % base).strip(),
+        "reviewed_sha": _snapshot(ws),
         "passed": not blocking, "findings": findings}, indent=2)
     ws.write(REVIEW + "/verdict.json", verdict)
     ws.write(REVIEW + "/iter-1/verdict.json", verdict)

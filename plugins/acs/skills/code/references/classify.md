@@ -26,8 +26,8 @@ it. A reviewer can check that sentence against the diff, and the review's
 
 ## What to read
 
-Read `plan.md` — and only `plan.md`, plus the ticket document you already
-have. Not the diff (there isn't one), not the specs, not the repo. Four of its
+Read `plan.md` — and only `plan.md`, plus the requirements (`requirements.md`)
+you already have. Not the diff (there isn't one), not the specs, not the repo. Four of its
 sections carry the signal:
 
 - **Executor tasks & file map** — how many files, and are they one coherent
@@ -98,7 +98,9 @@ There is no recording call and no field on `run.json` or the ticket: the path
 (`acs_lib.plan_contract`), and the kernel reads it from there —
 `acs.py plan path` prints it, `/acs:code` dispatches on it, and the
 plan-approval brake (`acs_lib.brakes._brake_code`) reads it to decide whether
-an approval is owed. So recording it is an edit to the plan you are judging:
+an approval is owed. So recording it is an edit to the plan you are judging (a plan
+in the run's `steps/` is state: rewrite it whole through `acs.py write`, never the
+Write tool; a plan in the repo keeps the Write tool):
 
 ```markdown
 Delivery path: `standard` — adds a `status` column to `orders` and two
@@ -107,7 +109,6 @@ endpoints that read it; the migration is reversible but the shape is public.
 ## Contract
 delivery_path: standard
 owes:
-  api_contract: true
   test_cases:   true
   e2e:          false
   reason: "..."

@@ -24,6 +24,7 @@ import acs_lib as lib  # noqa: E402
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tests", "acs"))
 from acs_case import tracker_body  # noqa: E402
+from skill_text import acs_writes, skill_contract  # noqa: E402
 
 #: One recorded `gh` transcript, shared by the MAR-101/102/103 acceptance
 #: criteria below. MAR-525 moved their mechanism out of prose and into
@@ -61,8 +62,7 @@ def _sync_calls():
     `TestCreateTicketSyncFixtureIsAValidTicket`), so the calls below are the
     calls a real ticket produces, not ones a fixture-invented key conjures."""
     responses = dict(_PROJECT_RESPONSES)
-    responses["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
-    responses["gh issue edit"] = (0, "", "")
+    responses.update(_ISSUE_RESPONSES)
     gh = lib.Gh(responses=responses)
     workdir = tempfile.mkdtemp(prefix="acs-sync-calls-")
     try:
@@ -77,32 +77,43 @@ def _sync_calls():
     return gh.calls
 
 
+#: The REST calls (ADR-0149) as Gh fixture prefixes.
+_R = "gh api repos/{owner}/{repo}"
+_ISSUE_CREATE = _R + "/issues -X POST"
+_ISSUE_RESPONSES = {
+    _ISSUE_CREATE: (0, "https://example.invalid/issues/9\n", ""),
+    _R + "/issues/9": (0, "", ""),
+    _R + "/milestones": (0, json.dumps({"title": "v1", "number": 1}) + "\n", ""),
+}
+
 _PROJECT_RESPONSES = {
-    "gh pr edit": (0, "", ""),
-    "gh label create": (0, "", ""),
-    "gh pr diff": (0, "src/a.py\ndocs/b.md\n", ""),
+    _R + "/issues/42": (0, "", ""),
+    _R + "/pulls/42/requested_reviewers": (0, "", ""),
+    "gh api user": (0, "me-login\n", ""),
+    _R + "/labels -X POST": (0, "", ""),
+    _R + "/pulls/42/files": (0, "src/a.py\ndocs/b.md\n", ""),
     "gh project item-add": (0, "", ""),
     "gh project item-list": (0, json.dumps(_PROJECT_ITEMS), ""),
     "gh project field-list": (0, json.dumps(_PROJECT_FIELDS), ""),
     "gh project item-edit": (0, "", ""),
 }
 
-# The 20 hooked skills. The skills-independence refactor added the five
+# The 21 hooked skills. The skills-independence refactor added the five
 # Build/Test coordinators (analyze-requirements, create-impl-plan,
-# create-api-contract, create-test-docs, create-e2e-tests); `run-e2e-tests`
-# (today's `test`, renamed) stays UNHOOKED, and `test` is retained beside it
-# for one release as the alias directory.
-HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
-                 "create-docs", "create-requirements", "create-ticket",
-                 "create-design", "analyze-requirements", "create-impl-plan",
-                 "create-api-contract", "create-test-docs", "code",
+# create-api-contract, create-test-docs, create-e2e-tests); ADR-0126 added the
+# two low-level Design skills (create-data-design, create-flows) beside
+# create-design; ADR-0134 moved create-api-contract among them; ADR-0135
+# renamed create-design to create-tech-design; ADR-0145 added manage-roadmap.
+HOOKED_SKILLS = ["create-prd", "manage-roadmap", "create-architecture", "create-ticket",
+                 "breakdown-ticket", "create-tech-design", "create-api-contract", "create-data-design",
+                 "create-flows", "analyze-requirements", "create-impl-plan",
+                 "create-test-docs", "code",
                  "review-code", "run-e2e-tests",
                  "docs-sync", "create-e2e-tests", "create-pr",
-                 "merge-pr", "standardize-project"]
+                 "merge-pr", "audit-design", "audit-security"]
 # The unhooked skills, mirroring acs_lib.UNHOOKED_SKILLS (a second,
 # separately maintained copy by design -- this module never imports the
-# registry for it). `project` is the design-phase fold's umbrella over the
-# two project legs: no agents, no gate, no hook scripts.
+# registry for it).
 # `code`'s four delivery-path legs (ADR-0095). They are hooked -- each is a real
 # Skill call and passes `code`'s own gate -- but they are NOT in HOOKED_SKILLS:
 # that list drives the per-skill lifecycle-script assertions, and a leg runs
@@ -112,8 +123,7 @@ HOOKED_SKILLS = ["create-prd", "create-architecture", "create-project",
 # skills/code/references/.
 CODE_PATH_LEGS = ["code-trivial", "code-small", "code-standard", "code-complex"]
 ALL_SKILLS = (HOOKED_SKILLS + CODE_PATH_LEGS
-              + ["setup", "ship", "handoff", "update", "install-hooks", "release",
-                 "project"])
+              + ["setup", "ship", "handoff", "update", "release", "set-doc-status"])
 #: Every role acs spawns, and its kind (survey / write / judge).
 ROLES = list(lib.AGENT_ROLES)
 ROLE_KINDS = dict(lib.ROLE_KINDS)
@@ -125,20 +135,30 @@ ROLE_KINDS = dict(lib.ROLE_KINDS)
 #: (create-ticket, create-pr, merge-pr) owns none and runs inline.
 EXPECTED_AGENTS = {
     "analyze-requirements": ["analyst", "impact-analyst", "impact-reviewer"],
+    # ADR-0138: one draft author per ticket type, and a judge over the draft.
+    # breakdown-ticket owns none -- it runs inline, like the fan-out it absorbed.
+    "create-ticket": ["bug-author", "epic-author", "reviewer", "story-author",
+                      "task-author"],
     "create-prd": ["surveyor", "author", "reviewer"],
-    "create-requirements": ["surveyor", "author", "reviewer"],
-    "create-architecture": ["architect", "reviewer"],
-    "create-design": ["designer", "design-reviewer"],
-    "create-docs": ["author", "reviewer"],
+    # ADR-0145: the roadmap, out of create-prd into a skill of its own.
+    "manage-roadmap": ["surveyor", "author", "reviewer"],
+    "create-architecture": ["architect", "gap-analyst", "reviewer"],
+    # ADR-0135: renamed from create-design, its judge from design-reviewer.
+    "create-tech-design": ["designer", "reviewer"],
+    "create-data-design": ["designer", "gap-analyst", "reviewer"],
+    "create-flows": ["designer", "gap-analyst", "reviewer"],
     "create-impl-plan": ["planner", "plan-reviewer"],
-    "create-api-contract": ["contract-author", "contract-reviewer"],
+    # ADR-0134: a Design skill, so it surveys the code against the living
+    # api docs like data-design and flows do.
+    "create-api-contract": ["contract-author", "contract-reviewer", "gap-analyst"],
     "create-test-docs": ["test-designer", "trace-reviewer"],
     "code": ["implementer"],
     "review-code": ["lens", "adjudicator"],
     "create-e2e-tests": ["test-writer", "suite-runner"],
-    "docs-sync": ["doc-updater", "drift-reviewer"],
-    "create-project": ["scaffolder", "build-checker"],
-    "standardize-project": ["auditor", "scaffolder", "additive-checker"],
+    # ADR-0137: a gap analyst per feature over the living LLD it keeps current.
+    "docs-sync": ["doc-updater", "drift-reviewer", "gap-analyst"],
+    "audit-design": ["gap-analyst"],
+    "audit-security": ["adjudicator", "auditor"],
 }
 
 # Which agent roles each skill owns -- READ FROM THE TREE (ADR-0092), and
@@ -208,9 +228,13 @@ class TestSkillContracts(unittest.TestCase):
         for name in HOOKED_SKILLS + ["ship"]:
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$", name)
-        for name in ("setup", "handoff", "update", "install-hooks"):
+        for name in ("setup", "handoff", "update"):
             fm, _ = frontmatter(read(self.skill_path(name)), name)
             self.assertNotIn("disallowed-tools", fm, name)
+        # /acs:set-doc-status moves a status ONLY through `acs.py design
+        # status` (ADR-0130): it may not hand-edit a front-matter block.
+        fm, _ = frontmatter(read(self.skill_path("set-doc-status")), "set-doc-status")
+        self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit, Write$")
 
     def test_ship_no_per_step_subagent_spawn(self):
         # /acs:ship drives the pipeline by invoking each step skill DIRECTLY via
@@ -230,7 +254,7 @@ class TestSkillContracts(unittest.TestCase):
         # command working -- the exact opposite of what it was used for here.
         # Six of the eight skills that carried it are dispatched BY another
         # skill's Skill-tool call (see the next test), so the flag broke both
-        # folds: /acs:create-docs could not start one of its four doc legs and
+        # folds: /acs:create-docs (since removed, ADR-0124) could not start one of its four doc legs and
         # /acs:project could not start either of its two. The registry said so
         # all along -- skill_legs()'s own docstring is "stays Skill-invocable,
         # but whose only user-facing command is the entry point it serves" --
@@ -323,15 +347,16 @@ class TestAgentContracts(unittest.TestCase):
                 self.assertNotRegex(fm, r"(?m)^effort:")
 
     def test_role_tool_restrictions(self):
-        """Every role that surveys or JUDGES is read-only on the repo (it may
-        Write its own workspace files); only a `write` role mutates the repo.
-        A reviewer that can edit what it is reviewing is not a reviewer."""
+        """Every role that surveys or JUDGES is read-only on the repo: no Write
+        tool at all, since its own workspace files go through `acs.py write`
+        (ADR-0136); only a `write` role mutates the repo. A reviewer that can
+        edit what it is reviewing is not a reviewer."""
         for skill, roles in AGENT_ROLES.items():
             for role in roles:
                 name = "%s-%s" % (skill, role)
                 fm, _ = frontmatter(read(self.agent_path(skill, role)), name)
                 if ROLE_KINDS[role] in ("survey", "judge"):
-                    self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$", name)
+                    self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash$", name)
                 else:
                     self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$", name)
                     self.assertNotRegex(fm, r"(?m)^tools:", name)  # writers keep broad access
@@ -374,11 +399,30 @@ class TestAgentContracts(unittest.TestCase):
                                  "%s-%s missing iter-<n>/%s artifact" % (skill, role, kind))
 
     def test_no_stale_heredoc_claims(self):
-        # the drift this session actually found — keep it dead
+        # the drift this session actually found — keep it dead: no agent
+        # invents a shell-redirect write of its own (`cat > f <<EOF`); the one
+        # heredoc an agent uses is `acs.py write`'s (ADR-0136)
         for path in glob.glob(os.path.join(PLUGIN, "agents", "*.md")):
             body = read(path)
             self.assertNotIn("no Write tool", body, path)
             self.assertNotIn("heredoc", body, path)
+            self.assertNotRegex(body, r"cat\s*>[^\n]*<<", path)
+
+    def test_every_agent_writes_state_through_acs_write(self):
+        """ADR-0136: the workspace lives in the MAIN checkout's
+        .acs/state-machine, where a worktree session's Write/Edit is refused. Every agent writes its own
+        partition files through `acs.py write` (a quoted heredoc), and none
+        is told to use the Write tool for them."""
+        cmd = re.compile(r'`python3 "\$\{CLAUDE_PLUGIN_ROOT\}/hooks/scripts/acs\.py" write '
+                         r"(?:--append )?\S+ <<'ACS_EOF'`")
+        for path in glob.glob(os.path.join(PLUGIN, "agents", "*.md")):
+            body = read(path)
+            name = os.path.basename(path)
+            self.assertRegex(body, cmd, name)
+            self.assertIn("`ACS_EOF` alone on the last line", body, name)
+            self.assertIn("never the Write or Edit tool", body, name)
+            self.assertNotIn("with the Write tool", body, name)
+            self.assertNotIn("Write it with the Write", body, name)
 
     def test_result_is_final_message(self):
         for skill, roles in AGENT_ROLES.items():
@@ -709,17 +753,15 @@ class TestApplyTierInline(unittest.TestCase):
             "MAR-157 AC-2: Step 2 must state the ticket does not finalize "
             "with a flagged entry absent explicit user confirmation")
 
-    def test_create_ticket_names_no_subagent_token(self):
-        """AC-3 [create-ticket, defense-in-depth]: no create-ticket-<x>
-        agent token appears anywhere in SKILL.md (MAR-157). The one it used
-        to allow, -executor, went when the skill stopped spawning a subagent
-        and its charter became `references/materialize.md`."""
+    def test_create_ticket_names_only_its_own_agents(self):
+        """AC-3 [create-ticket, defense-in-depth]: the only create-ticket-<x>
+        agent tokens SKILL.md carries are the five roles it owns (ADR-0138) --
+        never a planner, executor or verifier."""
         body = read(self.skill_path("create-ticket"))
-        tokens = set(re.findall(r"create-ticket-[a-z]+", body))
+        tokens = set(re.findall(r"create-ticket-([a-z]+(?:-[a-z]+)?)", body))
         self.assertEqual(
-            tokens, set(),
-            "MAR-157 AC-3: SKILL.md must carry no create-ticket-<x> agent "
-            "token, found: %r" % (tokens,))
+            tokens, {"epic-author", "story-author", "task-author", "bug-author", "reviewer"},
+            "SKILL.md must name only its own five roles, found: %r" % (tokens,))
 
     # ------------------------------------------------------------------ Group 2
     # AC-2: no plan->execute->verify triad instruction in any apply-work SKILL.md.
@@ -743,9 +785,29 @@ class TestApplyTierInline(unittest.TestCase):
 
     #: The charter each apply skill's coordinator follows inline -- the file
     #: its executor agent used to be.
-    APPLY_REFERENCES = {"create-ticket": "materialize.md",
-                        "create-pr": "publish.md",
+    #: create-ticket left this set with ADR-0138: it spawns one type author and
+    #: a reviewer, and still materializes inline from `references/materialize.md`
+    #: (pinned below). breakdown-ticket is inline too, with no reference of its
+    #: own: tests/acs/test_breakdown_ticket.py pins it.
+    APPLY_REFERENCES = {"create-pr": "publish.md",
                         "merge-pr": "merge.md"}
+
+    def test_create_ticket_spawns_one_type_author_then_the_reviewer(self):
+        """ADR-0138: the draft is written by the chosen type's author and judged
+        by the reviewer; materialization stays the coordinator's, inline."""
+        body = read(self.skill_path("create-ticket"))
+        for role in ("epic-author", "story-author", "task-author", "bug-author", "reviewer"):
+            self.assertIn("`context.agents.%s`" % role, body, role)
+            self.assertTrue(os.path.isfile(os.path.join(
+                PLUGIN, "agents", "create-ticket-%s.md" % role)), role)
+        self.assertIn("ONE author per run", body)
+        self.assertIn("At most **2 iterations**", body)
+        self.assertIn("references/materialize.md", body)
+        self.assertRegex(body, r"(?i)\binline\b")
+        ref = read(os.path.join(PLUGIN, "skills", "create-ticket", "references",
+                                "materialize.md"))
+        for wire in ("<task", "<result", "FINAL message", "share no memory"):
+            self.assertNotIn(wire, ref)
 
     def test_apply_skills_spawn_no_subagent_and_follow_their_reference(self):
         """AC-1, tightened: planner, verifier AND executor counts are zero --
@@ -832,9 +894,11 @@ class TestApplyTierInline(unittest.TestCase):
                       "AC-4 [create-ticket]: Finish must name states.ticket_id key")
         self.assertIn("type", create_ticket_body,
                       "AC-4 [create-ticket]: Finish must name states.type key")
-        self.assertIn("needs_design", create_ticket_body,
-                      "AC-4 [create-ticket]: Finish must name states.needs_design key "
-                      "(also a confirmation-gate token)")
+        # ADR-0139: a ticket carries no design flag, so neither the Finish
+        # states nor the confirmation gate name one.
+        self.assertNotIn("needs_design", create_ticket_body,
+                         "ADR-0139 [create-ticket]: no states.needs_design key, no design "
+                         "flag at the confirmation gate")
         self.assertIn("children", create_ticket_body,
                       "AC-4 [create-ticket]: Finish must name states.children key")
         self.assertIn("prd_trace", create_ticket_body,
@@ -866,8 +930,9 @@ class TestApplyTierInline(unittest.TestCase):
         """AC-6: workflow/product skills must still reference the subagents
         they own -- every role EXPECTED_AGENTS names for them, by its
         namespaced agent name -- and never a generic executor/verifier."""
-        for skill in ("create-impl-plan", "create-prd", "create-requirements", "docs-sync",
-                      "create-design", "create-architecture", "create-project"):
+        for skill in ("create-impl-plan", "create-prd", "docs-sync",
+                      "create-tech-design", "create-architecture",
+                      "create-data-design", "create-flows"):
             body = read(self.skill_path(skill))
             self.assertIsNone(
                 re.search(r"acs:" + skill + r"-(?:executor|verifier)\b", body),
@@ -955,15 +1020,13 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         self.assertIn("pr-conventions.py", body,
                       "create-pr/SKILL.md must reference pr-conventions.py")
 
-    def test_title_rendered_via_helper_not_prose(self):
-        """AC-1: render-title co-occurs with pr_title within a bounded window,
-        and the result is passed verbatim to gh pr create/edit --title."""
+    def test_the_title_is_written_directly(self):
+        """The PR title is free text the author writes, so there is no renderer:
+        the helper offers only the pre-open body check, and no `formats.pr_title`
+        remains for a skill to name."""
         body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?s)render-title.{0,400}pr_title|pr_title.{0,400}render-title", body),
-            "AC-1 [create-pr]: render-title must co-occur with pr_title within a bounded window")
-        self.assertIn("verbatim", body,
-                      "AC-1 [create-pr]: rendered title must be stated as passed verbatim to gh pr")
+        self.assertNotIn("render-title", body)
+        self.assertNotIn("pr_title", body)
 
     def test_pre_open_self_check_present_and_blocks_or_retries(self):
         """AC-2: the check subcommand is present, and a mismatch blocks/retries."""
@@ -990,10 +1053,11 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         """AC-5: ACS label, base-branch detection, states.pr record,
         the finish transition, and tracker-sync invocations all survive."""
         body = read(self.skill_path("create-pr"))
-        self.assertIn("gh label create ACS", body,
-                      "AC-5 [create-pr]: ACS label creation must survive")
-        self.assertIn("defaultBranchRef", body,
-                      "AC-5 [create-pr]: base-branch detection must survive")
+        # ADR-0141: the skill names the outcomes, not the commands.
+        self.assertIn("Label it `ACS`", body,
+                      "AC-5 [create-pr]: the ACS label must survive")
+        self.assertIn("against the default branch", body,
+                      "AC-5 [create-pr]: the PR must target the default branch")
         self.assertIsNotNone(
             re.search(r'"states"\s*:\s*\{\s*"pr"\s*:', body),
             "AC-5 [create-pr]: states.pr object must survive")
@@ -1003,20 +1067,10 @@ class TestCreatePrConventionWiring(unittest.TestCase):
         self.assertIn('"base"', body)
         self.assertIn('post-create-pr.py" --result-file', body,
                       "AC-5 [create-pr]: the finish transition must survive")
-        self.assertIn("gh issue comment", body,
+        self.assertIn("/issues/<external.key>/comments", read_skill_contract("create-pr"),
                       "AC-5 [create-pr]: github tracker-sync invocation must survive")
-        self.assertIn("acli jira workitem comment", body,
-                      "AC-5 [create-pr]: jira tracker-sync invocation must survive")
-
-    def test_render_title_call_includes_provider(self):
-        """MAR-80 spec 03 AC-1/AC-2/AC-3: the render-title call site passes
-        --provider so build_title's compute_ticket_ref (spec 01) can compute
-        the tracker-native reference. Bounded-window co-occurrence pattern,
-        mirroring test_title_rendered_via_helper_not_prose."""
-        body = read(self.skill_path("create-pr"))
-        self.assertIsNotNone(
-            re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
-            "MAR-80 [create-pr]: render-title must co-occur with --provider within a bounded window")
+        self.assertNotIn("acli", body,
+                         "AC-5 [create-pr]: Jira is removed; gh is the only tracker transport")
 
     def test_the_pre_open_check_verifies_what_ci_checks(self):
         """ADR-0106: CI checks only that the description names its ticket, so
@@ -1042,84 +1096,68 @@ class TestCreatePrConventionWiring(unittest.TestCase):
 
 
 class TestProductSkillConventionWiring(unittest.TestCase):
-    """MAR-72 spec 03: pin the identical deterministic-render + pre-open
-    self-check wiring across create-prd, create-architecture, and
-    create-project. Structurally parallel to TestCreatePrConventionWiring
-    (spec 02) so the two read as a matched pair. Additive only. Written
-    TDD-first (RED before Spec 03's SKILL.md edits land)."""
+    """ADR-0127: the product skills no longer deliver anything themselves.
 
-    SKILLS = ("create-prd", "create-architecture", "create-project", "create-docs")
+    MAR-72 spec 03 pinned a deterministic PR render and pre-open self-check
+    in /acs:create-prd and /acs:create-architecture, because each minted a
+    delivery ticket, committed on its own branch and opened its own docs-only
+    PR. Only /acs:create-pr commits now: both skills run ticketless, leave
+    their documents as uncommitted changes listed in `states.files`, and point
+    at /acs:create-pr with a prompt -- it takes a ticket id or a prompt, and
+    has no docs-only mode. These pins hold that shape so the old
+    delivery machinery cannot creep back in through prose."""
+
+    SKILLS = ("create-prd", "create-architecture")
 
     def skill_path(self, name):
         return os.path.join(PLUGIN, "skills", name, "SKILL.md")
 
-    def test_references_helper_by_name(self):
-        """References the Spec-01 helper by name, per skill."""
+    def test_no_delivery_machinery_remains(self):
+        """No branch, commit, push, PR or delivery-ticket step in either skill."""
         for skill in self.SKILLS:
             body = read_skill_contract(skill)
-            self.assertIn("pr-conventions.py", body,
-                          "%s: SKILL.md must reference pr-conventions.py" % skill)
+            for retired in ("gh pr create", "gh label create", "git push",
+                            "git commit", "git add", "git checkout -b",
+                            "git switch -c", "pr-conventions.py", "--allocate",
+                            "delivery-pr.md", "render-title", "settings.formats"):
+                self.assertNotIn(retired, body, "%s: %s" % (skill, retired))
 
-    def test_renders_title_via_helper_not_prose(self):
-        """render-title co-occurs with pr_title within a bounded window, per skill."""
-        for skill in self.SKILLS:
-            body = read_skill_contract(skill)
-            self.assertIsNotNone(
-                re.search(r"(?s)render-title.{0,400}pr_title|pr_title.{0,400}render-title", body),
-                "%s: render-title must co-occur with pr_title within a bounded window" % skill)
+    def test_delivery_reference_is_gone(self):
+        """The shared delivery-PR reference had no reader left, so it went."""
+        self.assertFalse(os.path.exists(os.path.join(
+            PLUGIN, "skills", "create-prd", "references", "delivery-pr.md")))
 
-    def test_self_checks_before_gh_pr_create(self):
-        """The check subcommand token appears BEFORE the actual gh pr create
-        invocation in file order, and a mismatch blocks/retries within a
-        bounded window."""
+    def test_ticketless_start(self):
+        """`step start` with the invocation's arguments and no ticket."""
         for skill in self.SKILLS:
             body = read_skill_contract(skill)
-            check_match = re.search(r'pr-conventions\.py"?\s+check\b', body)
-            self.assertIsNotNone(check_match,
-                                 "%s: pre-open self-check (check subcommand) must be present" % skill)
-            # The actual invocation (as opposed to prose mentioning the
-            # phrase) always appears as the LAST occurrence in the Delivery
-            # section, inside a code fence.
-            create_idx = body.rindex("gh pr create")
-            self.assertLess(check_match.start(), create_idx,
-                            "%s: check must appear before gh pr create in file order" % skill)
-            self.assertIsNotNone(
-                re.search(r"(?s)check\b.{0,600}(blocks|retries)|(blocks|retries).{0,600}check\b", body,
-                          re.IGNORECASE),
-                "%s: a check mismatch must block or retry, within a bounded window" % skill)
+            self.assertIn('acs.py" step start --step %s --args "$ARGUMENTS"' % skill,
+                          body, skill)
+            self.assertNotIn("--ticket <", body, skill)
 
     def test_no_regression_create_prd(self):
         body = read_skill_contract("create-prd")
-        self.assertIn("gh label create ACS", body)
-        self.assertIn("--label ACS", body)
-        self.assertIn("Record the PR number, URL, and branch", body)
+        self.assertIn('"files": ["docs/product/prd.md", "docs/product/features/wishlist/prd.md"]',
+                      body)
+        self.assertIn("uncommitted changes", body)
+        self.assertIn("/acs:create-pr", body)
+        self.assertIn('/acs:create-pr "', body)
+        self.assertNotIn("--docs", body)
+        self.assertNotIn("docs-only mode", body)
+        self.assertNotIn('"pr":', body)
 
     def test_no_regression_create_architecture(self):
         body = read_skill_contract("create-architecture")
-        self.assertIn("git checkout -b", body)
-        self.assertIn("git diff --cached --name-only", body)
-        self.assertIn("gh label create ACS", body)
-        self.assertIn("{number, url, branch}", body)
-        self.assertIn("in_review", body)
-
-    def test_no_regression_create_project(self):
-        body = read_skill_contract("create-project")
-        self.assertIn("push -u origin", body)
-        self.assertIn("gh label create ACS", body)
-        self.assertIn("states.pr", body)
-        self.assertIn("gh pr checks", body)
-        self.assertIn("--watch", body)
-
-    def test_render_title_call_includes_provider(self):
-        """MAR-80 spec 03 AC-1/AC-2/AC-3: each product skill's render-title
-        call site passes --provider so build_title's compute_ticket_ref
-        (spec 01) can compute the tracker-native reference -- the same
-        uniform mechanism as create-pr, no per-skill carve-out."""
-        for skill in self.SKILLS:
-            body = read_skill_contract(skill)
-            self.assertIsNotNone(
-                re.search(r"(?s)render-title.{0,400}--provider|--provider.{0,400}render-title", body),
-                "%s: render-title must co-occur with --provider within a bounded window" % skill)
+        self.assertIn('names): `architecture` and `files`', body)
+        self.assertIn("uncommitted changes", body)
+        self.assertIn("/acs:create-pr", body)
+        self.assertIn('/acs:create-pr "', body)
+        self.assertNotIn("--docs", body)
+        self.assertNotIn("docs-only mode", body)
+        self.assertNotIn('"pr":', body)
+        # The clean-tree requirement belonged to the branch it was cut for.
+        self.assertNotIn("git status --porcelain", body)
+        self.assertNotIn("--ticket <delivery-ticket>", body)
 
 
 #: `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/references/<file>.md` as a SKILL.md
@@ -1234,7 +1272,9 @@ class TestGeneralizedFold(unittest.TestCase):
         return os.path.join(PLUGIN, "agents", name)
 
     def _code_body(self):
-        return read(self.skill_path("create-impl-plan"))
+        # What the skill SAYS: the plan's shape moved to `references/` under
+        # progressive disclosure, so the fold's obligations are read there too.
+        return read_skill_contract("create-impl-plan")
 
     def _planner_body(self):
         # the plan charter is the planner's survey
@@ -1261,9 +1301,9 @@ class TestGeneralizedFold(unittest.TestCase):
         obligations, and the coverage half is checked mechanically."""
         body = re.sub(r"\s+", " ", self._code_body())
         self.assertIn(
-            "every `ticket.acceptance_criteria` entry maps to at least one "
+            "every `requirements.acceptance_criteria` entry maps to at least one "
             "test the plan will write", body)
-        self.assertIn("`settings.test_coverage_percent` is stated explicitly", body)
+        self.assertIn("`settings.tests.coverage` is stated explicitly", body)
         self.assertNotIn(
             "no separate /acs:create-spec invocation and no separate "
             "create-spec planner subagent", body,
@@ -1314,18 +1354,18 @@ class TestGeneralizedFold(unittest.TestCase):
             "a decision, never blocks (MAR-156 C-5)")
 class TestAdr0042D3Section(unittest.TestCase):
     """MAR-108 (AC-6): pin the additive D3 section appended to
-    docs/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
+    docs/architecture/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
     defers D3 (:21-23); this class asserts the deferred section now exists."""
 
     def _adr_path(self):
-        return os.path.join(REPO_ROOT, "docs", "adr",
+        return os.path.join(REPO_ROOT, "docs", "architecture", "adr",
                             "0042-dynamic-mid-flight-lane-correctness.md")
 
     def _adr_body(self):
         return read(self._adr_path())
 
     def test_adr_0042_has_d3_heading_naming_writer_and_decision(self):
-        """AC-6: docs/adr/0042 must contain a '### D3' heading naming
+        """AC-6: docs/architecture/adr/0042 must contain a '### D3' heading naming
         confirm_deescalation and the boundary-only/user-confirmed decision."""
         body = self._adr_body()
         self.assertIsNotNone(
@@ -1334,7 +1374,7 @@ class TestAdr0042D3Section(unittest.TestCase):
                       r"### D3.{0,400}(boundary.only|user.confirmed).{0,300}"
                       r"confirm_deescalation",
                       body, re.DOTALL),
-            "docs/adr/0042 must contain a '### D3' heading naming "
+            "docs/architecture/adr/0042 must contain a '### D3' heading naming "
             "confirm_deescalation and the boundary-only/user-confirmed "
             "decision (MAR-108 AC-6)")
 
@@ -1350,7 +1390,7 @@ class TestAdr0042D3Section(unittest.TestCase):
                       r"clarify_ref|"
                       r"clarify_ref.{0,120}unreachable",
                       d3_section, re.DOTALL),
-            "docs/adr/0042 D3 section must state confirm_deescalation is "
+            "docs/architecture/adr/0042 D3 section must state confirm_deescalation is "
             "unreachable without a resolved clarify_ref (MAR-108 AC-6)")
 
 
@@ -1527,25 +1567,25 @@ class TestDeliveryPathContract(unittest.TestCase):
 
 class TestAdr0042D4Section(unittest.TestCase):
     """MAR-107 (AC-5): pin the additive D4 section appended to
-    docs/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
+    docs/architecture/adr/0042-dynamic-mid-flight-lane-correctness.md. The ADR's own text
     defers D4 (:22-23); this class asserts the deferred section now exists."""
 
     def _adr_path(self):
-        return os.path.join(REPO_ROOT, "docs", "adr",
+        return os.path.join(REPO_ROOT, "docs", "architecture", "adr",
                             "0042-dynamic-mid-flight-lane-correctness.md")
 
     def _adr_body(self):
         return read(self._adr_path())
 
     def test_adr_0042_has_d4_heading_naming_reselection_and_stage_reentry(self):
-        """AC-5: docs/adr/0042 must contain a '### D4' heading naming
+        """AC-5: docs/architecture/adr/0042 must contain a '### D4' heading naming
         verify_depth re-selection and stage re-entry."""
         body = self._adr_body()
         self.assertIsNotNone(
             re.search(r"(?i)### D4.{0,120}(verify_depth|re.selection).{0,120}"
                       r"(stage.re.entry|re.introduc)",
                       body, re.DOTALL),
-            "docs/adr/0042 must contain a '### D4' heading naming "
+            "docs/architecture/adr/0042 must contain a '### D4' heading naming "
             "verify_depth re-selection and stage re-entry (MAR-107 AC-5)")
 
     def test_adr_0042_d4_records_option_a_chosen(self):
@@ -1559,7 +1599,7 @@ class TestAdr0042D4Section(unittest.TestCase):
             re.search(r"(?i)option a.{0,300}(unchanged|formaliz)|"
                       r"(unchanged|formaliz).{0,300}option a",
                       d4_section, re.DOTALL),
-            "docs/adr/0042 D4 section must record Option A chosen "
+            "docs/architecture/adr/0042 D4 section must record Option A chosen "
             "(formalize the shipped detection point unchanged) (MAR-107 AC-5)")
 
 
@@ -1982,10 +2022,10 @@ class TestAdr0007Amendment(unittest.TestCase):
     induction loop to factual prd/roadmap content. Additive assertions only."""
 
     def _adr_path(self):
-        return os.path.join(REPO_ROOT, "docs", "adr", "0007-living-docs-by-induction.md")
+        return os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0007-living-docs-by-induction.md")
 
     def _adr_index_path(self):
-        return os.path.join(REPO_ROOT, "docs", "adr", "README.md")
+        return os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
 
     def _adr_body(self):
         return read(self._adr_path())
@@ -1996,17 +2036,17 @@ class TestAdr0007Amendment(unittest.TestCase):
     # --- AC-5: ADR-0007 names factual prd/roadmap content ---
 
     def test_adr_names_prd_md(self):
-        """AC-5: docs/adr/0007 must contain 'prd.md'."""
+        """AC-5: docs/architecture/adr/0007 must contain 'prd.md'."""
         body = self._adr_body()
         self.assertIn("prd.md", body,
-                      "docs/adr/0007-living-docs-by-induction.md must contain 'prd.md' "
+                      "docs/architecture/adr/0007-living-docs-by-induction.md must contain 'prd.md' "
                       "(MAR-65 AC-5 — extended scope)")
 
     def test_adr_names_roadmap_md(self):
-        """AC-5: docs/adr/0007 must contain 'roadmap.md'."""
+        """AC-5: docs/architecture/adr/0007 must contain 'roadmap.md'."""
         body = self._adr_body()
         self.assertIn("roadmap.md", body,
-                      "docs/adr/0007-living-docs-by-induction.md must contain 'roadmap.md' "
+                      "docs/architecture/adr/0007-living-docs-by-induction.md must contain 'roadmap.md' "
                       "(MAR-65 AC-5 — extended scope)")
 
     def test_adr_factual_prd_co_occurrence(self):
@@ -2014,7 +2054,7 @@ class TestAdr0007Amendment(unittest.TestCase):
         body = self._adr_body()
         self.assertIsNotNone(
             re.search(r"(?i)factual.{0,500}prd|prd.{0,500}factual", body, re.DOTALL),
-            "docs/adr/0007 must co-locate 'factual' and 'prd' within 500 chars "
+            "docs/architecture/adr/0007 must co-locate 'factual' and 'prd' within 500 chars "
             "(MAR-65 AC-5 — factual scope extension recorded)")
 
     def test_adr_intent_flag_co_occurrence(self):
@@ -2023,31 +2063,31 @@ class TestAdr0007Amendment(unittest.TestCase):
         self.assertIsNotNone(
             re.search(r"(?i)intent.{0,500}(flag|FLAGS)|(flag|FLAGS).{0,500}intent",
                       body, re.DOTALL),
-            "docs/adr/0007 must co-locate 'intent' and 'flag'/'FLAGS' within 500 chars "
+            "docs/architecture/adr/0007 must co-locate 'intent' and 'flag'/'FLAGS' within 500 chars "
             "(MAR-65 AC-5 — intent-flag rule recorded)")
 
     def test_adr_status_still_accepted(self):
         """AC-5: ADR-0007 status must remain 'Accepted'."""
         body = self._adr_body()
         self.assertIn("Accepted", body,
-                      "docs/adr/0007 status must remain 'Accepted' (MAR-65 AC-5)")
+                      "docs/architecture/adr/0007 status must remain 'Accepted' (MAR-65 AC-5)")
 
     # --- AC-5: ADR index consistent ---
 
     def test_adr_index_has_0007_entry(self):
-        """AC-5: docs/adr/README.md must contain '0007'."""
+        """AC-5: docs/architecture/adr/README.md must contain '0007'."""
         body = self._index_body()
         self.assertIn("0007", body,
-                      "docs/adr/README.md must contain '0007' entry (MAR-65 AC-5)")
+                      "docs/architecture/adr/README.md must contain '0007' entry (MAR-65 AC-5)")
 
     def test_adr_index_0007_mentions_product_or_prd(self):
         """AC-5: 'prd' or 'product' must appear within 200 chars of '0007' in
-        docs/adr/README.md."""
+        docs/architecture/adr/README.md."""
         body = self._index_body()
         self.assertIsNotNone(
             re.search(r"(?i)0007.{0,200}(prd|product)|(prd|product).{0,200}0007",
                       body, re.DOTALL),
-            "docs/adr/README.md must mention 'prd'/'product' within 200 chars of '0007' "
+            "docs/architecture/adr/README.md must mention 'prd'/'product' within 200 chars of '0007' "
             "(MAR-65 AC-5 — index summary updated)")
 
 
@@ -2366,9 +2406,9 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         # the tracker provider is github or jira -- so read the contract.
         body = read_skill_contract("create-ticket")
         self.assertIsNotNone(
-            re.search(r"(?s)gh issue create.{0,1200}acs-ticket:|acs-ticket:.{0,1200}gh issue create", body),
+            re.search(r"(?s)issue[- ]create.{0,1200}acs-ticket:|acs-ticket:.{0,1200}issue[- ]create", body),
             "create-ticket/SKILL.md Step 5 must co-locate 'acs-ticket:' with "
-            "'gh issue create' within a bounded window (MAR-75 AC-1)")
+            "the issue create within a bounded window (MAR-75 AC-1)")
         for name in ("task-default", "story-default", "epic-default"):
             tmpl = read(self.template_path(name))
             self.assertIn("acs-ticket: {ticket_id}", tmpl,
@@ -2384,11 +2424,11 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         # MAR-525: the enumeration moved into `acs.py tracker sync`, so AC-6 is
         # read from the calls it makes; the skill states the same coverage.
         calls = " | ".join(_sync_calls())
-        self.assertIn("gh label create ACS", calls)
-        self.assertIn("gh label create task", calls)
-        self.assertIn("--add-label ACS,task", calls)
-        self.assertIn("--add-assignee dana", calls)
-        self.assertIn("--milestone v1", calls)
+        self.assertIn(_R + "/labels -X POST -f name=ACS", calls)
+        self.assertIn(_R + "/labels -X POST -f name=task", calls)
+        self.assertIn("/issues/9/labels -X POST -f labels[]=ACS -f labels[]=task", calls)
+        self.assertIn("/issues/9/assignees -X POST -f assignees[]=dana", calls)
+        self.assertIn("/issues/9 -X PATCH -F milestone=1", calls)  # the v1 milestone
         for word in ("labels", "assignee", "milestone", "Project"):
             self.assertIn(word, body)
         self.assertIsNotNone(
@@ -2423,8 +2463,8 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
         body = read(self.skill_path("merge-pr"))
         self.assertIsNotNone(
             re.search(
-                r"(?s)gh issue close.{0,300}\{ticket_id\}.{0,300}(PR #|\{pr\.url\}|\{pr\.number\})|"
-                r"gh issue close.{0,300}(PR #|\{pr\.url\}|\{pr\.number\}).{0,300}\{ticket_id\}",
+                r"(?s)issues/<external\.key>/comments.{0,300}\{ticket_id\}.{0,300}(PR #|\{pr\.url\}|\{pr\.number\})|"
+                r"issues/<external\.key>/comments.{0,300}(PR #|\{pr\.url\}|\{pr\.number\}).{0,300}\{ticket_id\}",
                 body),
             "merge-pr/SKILL.md Step 2 gh issue close comment must co-occur with "
             "both {ticket_id} and a PR back-reference (MAR-75 AC-3, AC-5)")
@@ -2446,33 +2486,6 @@ class TestReconcileTicketIssueLinkage(unittest.TestCase):
             "clause — the Closes # bullet is omitted for unsynced tickets "
             "(MAR-75 AC-4)")
 
-    def test_init_documents_reconciliation_convention(self):
-        """AC-5 (prose proof + R-1 guard): setup/SKILL.md's formats section
-        notes the reconciliation convention. Since MAR-80 (which makes
-        pr_title provider-aware), the block must instead state that pr_title
-        renders the tracker's native reference when synced and the local id
-        when unsynced, while branch_name/commit_message stay id-based and
-        unconditional."""
-        body = read(self.skill_path("setup"))
-        self.assertIsNotNone(
-            re.search(r"(?s)acs-ticket:.{0,800}Closes #|Closes #.{0,800}acs-ticket:", body),
-            "setup/SKILL.md must document both the acs-ticket: issue-body "
-            "convention and the Closes # PR-body convention within a bounded "
-            "window (MAR-75 AC-5)")
-        self.assertIsNotNone(
-            re.search(r"(?is)pr_title.{0,200}(tracker|synced)|"
-                      r"(tracker|synced).{0,200}pr_title", body),
-            "setup/SKILL.md must explicitly state that pr_title renders the "
-            "tracker's native reference when synced (MAR-80 AC-1/AC-2/AC-3, "
-            "AC-6)")
-        self.assertIsNotNone(
-            re.search(r"(?is)branch_name.{0,200}commit_message.{0,120}"
-                      r"(id-based|unconditional)|"
-                      r"(id-based|unconditional).{0,200}branch_name.{0,120}"
-                      r"commit_message", body),
-            "setup/SKILL.md must explicitly state that branch_name and "
-            "commit_message remain id-based and unconditional in every case "
-            "(MAR-80 AC-4 scope-fence)")
 
 
 class TestCreateTicketSyncFixtureIsAValidTicket(unittest.TestCase):
@@ -2495,11 +2508,11 @@ class TestCreateTicketSyncFixtureIsAValidTicket(unittest.TestCase):
         self.assertEqual(undeclared, [],
                          "the sync fixture must be a ticket, not a wish list")
 
-    def test_the_milestone_the_sync_reads_has_both_of_its_declared_sources(self):
+    def test_the_milestone_the_sync_reads_comes_from_the_ticket_alone(self):
         self.assertIn("milestone", self._schema("ticket.schema.json")["properties"])
         tracker = self._schema("settings.schema.json")["properties"]["tracker"]
-        self.assertIn("milestone", tracker["properties"],
-                      "the settings-level default the sync falls back to")
+        self.assertNotIn("milestone", tracker["properties"],
+                         "a ticket carries its own milestone; there is no settings-level default")
 
 
 class TestCreatePrTrackerMetadataFill(unittest.TestCase):
@@ -2537,8 +2550,8 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
         with a Status set."""
         gh, _out = self.fill(_PROJECT_RESPONSES)
         calls = " | ".join(gh.calls)
-        self.assertIn("gh pr edit 42 --add-assignee @me", calls)
-        self.assertIn("gh pr edit 42 --add-label task", calls)
+        self.assertIn(_R + "/issues/42/assignees -X POST -f assignees[]=me-login", calls)
+        self.assertIn(_R + "/issues/42/labels -X POST -f labels[]=task", calls)
         self.assertIn("gh project item-add 7 --owner acme", calls)
         self.assertIn("--single-select-option-id opt-in-review", calls)
 
@@ -2560,8 +2573,8 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
         that both the create and the edit path reach -- the skill says so, and
         it takes --pr rather than branching on how the PR came to exist."""
         body = " ".join(read(self.skill_path("create-pr")).split())
-        self.assertLess(body.find("**Record.**"), body.find("pr metadata fill"))
-        self.assertIn("now that the PR number is known from step 6", body)
+        self.assertLess(body.find("**Record**"), body.find("pr metadata fill"))
+        self.assertIn("Once the PR number is known", body)
         self.assertNotIn("create-only", body)
 
     def test_create_pr_metadata_local_unsynced_noop(self):
@@ -2575,14 +2588,14 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
         """AC-5: a failed gh metadata call is a finding carrying the command,
         and the flow continues to the next sub-step."""
         responses = dict(_PROJECT_RESPONSES)
-        responses["gh pr edit 42 --add-assignee"] = (1, "", "denied")
+        responses[_R + "/issues/42/assignees"] = (1, "", "denied")
         gh, out = self.fill(responses)
         failure = [f for f in out["findings"] if f.get("error") == "denied"]
         self.assertEqual(len(failure), 1)
         self.assertEqual(failure[0]["severity"], "info")
         self.assertTrue(failure[0]["replayable"])
-        self.assertIn("--add-assignee", failure[0]["command"])
-        self.assertIn("gh pr edit 42 --add-label task", " | ".join(gh.calls),
+        self.assertIn("/assignees", failure[0]["command"])
+        self.assertIn(_R + "/issues/42/labels -X POST -f labels[]=task", " | ".join(gh.calls),
                       "a failed sub-step must not abort the ones after it")
 
     def test_create_pr_deviates_from_item_add_format_json(self):
@@ -2624,7 +2637,7 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
             return {"owners": ["@alice"], "reason": None}
 
         gh, _out = self.fill(_PROJECT_RESPONSES, resolver=resolver)
-        self.assertIn("gh pr diff 42 --name-only", gh.calls)
+        self.assertIn(_R + "/pulls/42/files?per_page=100 --paginate --jq .[].filename", gh.calls)
         self.assertEqual(seen["files"], ["src/a.py", "docs/b.md"])
         self.assertEqual(seen["root"], "/repo")
 
@@ -2635,7 +2648,8 @@ class TestCreatePrTrackerMetadataFill(unittest.TestCase):
             _PROJECT_RESPONSES,
             resolver=lambda root, files: {"owners": ["@me-login", "@alice", "@org/team"],
                                           "reason": None})
-        self.assertIn("gh pr edit 42 --add-reviewer @alice,@org/team", gh.calls)
+        self.assertIn(_R + "/pulls/42/requested_reviewers -X POST -f reviewers[]=alice "
+                      "-f team_reviewers[]=team", gh.calls)
         self.assertIn("reviewers:@alice,@org/team", out["applied"])
 
     def test_create_pr_reviewer_graceful_skip_info_finding(self):
@@ -2707,8 +2721,7 @@ class TestCreateTicketGroupBFields(unittest.TestCase):
 
     def sync(self, ticket, responses=None):
         merged = dict(_PROJECT_RESPONSES)
-        merged["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
-        merged["gh issue edit"] = (0, "", "")
+        merged.update(_ISSUE_RESPONSES)
         merged.update(responses or {})
         gh = lib.Gh(responses=merged)
         external, findings = lib.tracker_sync_one(
@@ -2910,14 +2923,13 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
         """The same AC, one layer down: the command creates one issue per
         ticket, in the order it was given."""
         responses = dict(_PROJECT_RESPONSES)
-        responses["gh issue create"] = (0, "https://example.invalid/issues/9\n", "")
-        responses["gh issue edit"] = (0, "", "")
+        responses.update(_ISSUE_RESPONSES)
         gh = lib.Gh(responses=responses)
         body = tracker_body(self)
         out = lib.tracker_sync(
             gh, {}, [{"id": "SHOP-1", "type": "task"}, {"id": "SHOP-2", "type": "story"}],
             {"SHOP-1": body, "SHOP-2": body})
-        self.assertEqual(len([c for c in gh.calls if c.startswith("gh issue create")]), 2)
+        self.assertEqual(len([c for c in gh.calls if c.startswith(_ISSUE_CREATE)]), 2)
         self.assertEqual(sorted(out["synced"]), ["SHOP-1", "SHOP-2"])
 
     def test_record_external_co_occurs_with_external(self):
@@ -2976,10 +2988,10 @@ class TestFanoutTrackerSyncLoop(unittest.TestCase):
             "create-ticket/SKILL.md Step 5 must reach issue creation through "
             "`acs.py tracker sync` (MAR-84 AC-5 / MAR-75 AC-1, MAR-525)")
         calls = " | ".join(_sync_calls())
-        self.assertIn("gh issue create", calls)
-        self.assertIn("--add-label ACS,task", calls)
-        self.assertIn("--add-assignee", calls)
-        self.assertIn("--milestone", calls)
+        self.assertIn(_ISSUE_CREATE, calls)
+        self.assertIn("-f labels[]=ACS -f labels[]=task", calls)
+        self.assertIn("/assignees -X POST", calls)
+        self.assertIn("-F milestone=", calls)
 
 
 class TestCreatePrInReviewStatus(unittest.TestCase):
@@ -3017,7 +3029,7 @@ class TestCreatePrInReviewStatus(unittest.TestCase):
         """AC-3: one call, reached identically however the PR came to exist --
         the skill places it after Record and passes the PR number."""
         body = " ".join(read(os.path.join(PLUGIN, "skills", "create-pr", "SKILL.md")).split())
-        self.assertIn("now that the PR number is known from step 6", body)
+        self.assertIn("Once the PR number is known", body)
 
     def test_create_pr_missing_in_review_option_is_info_finding(self):
         """AC-4: a board with neither option leaves Status UNCHANGED, adds one
@@ -3161,13 +3173,19 @@ class TestContractsMdDeliveryPathSection(unittest.TestCase):
     gone and this pins what took its place: the two fields the path is
     recorded in, and the refusal that keeps it single."""
 
+    #: contracts.md is one file per interface under lld/acs/api/ now; the
+    #: delivery-path section is api/delivery-path.md.
+    API_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api")
+
     def _contracts_body(self):
-        return re.sub(r"\s+", " ", read(os.path.join(
-            REPO_ROOT, "docs", "architecture", "lld", "contracts.md")))
+        return re.sub(r"\s+", " ", self._all_api())
+
+    def _all_api(self):
+        return "\n".join(read(os.path.join(self.API_DIR, n)) for n in sorted(os.listdir(self.API_DIR))
+                         if n.endswith(".md") and not n.endswith(".evidence.md"))
 
     def _section(self):
-        body = read(os.path.join(REPO_ROOT, "docs", "architecture", "lld",
-                                 "contracts.md"))
+        body = read(os.path.join(self.API_DIR, "delivery-path.md"))
         start = body.index("## Delivery path (ADR-0095)")
         nxt = re.search(r"\n## ", body[start + 1:])
         end = start + 1 + nxt.start() if nxt else len(body)
@@ -3197,9 +3215,7 @@ class TestContractsMdDeliveryPathSection(unittest.TestCase):
         self.assertRegex(section, r"(?i)All of it is retired")
 
     def test_the_retired_section_heading_is_gone(self):
-        self.assertNotIn("## Escalation-event audit trail",
-                         read(os.path.join(REPO_ROOT, "docs", "architecture",
-                                           "lld", "contracts.md")))
+        self.assertNotIn("## Escalation-event audit trail", self._all_api())
 
 
 class TestChangelogMar107Entry(unittest.TestCase):
@@ -3257,10 +3273,11 @@ def _hook_pair_count():
 
 class TestCreateQualityDocConformance(unittest.TestCase):
     """MAR-112 spec 04 (AC-7): doc-conformance for the quality doc-set
-    closure — skills.md's product-level section (since ADR-0094 the
-    /acs:create-docs section, which delivers the quality set), configuration.md's
-    quality default (a quality_path key row until ADR-0102 removed the key),
-    and c4-component.md's own reachable-agent/pre-post-pair arithmetic.
+    closure — skills.md's product-level section (the /acs:create-docs
+    section until ADR-0124 removed that skill and its section with it),
+    configuration.md's quality default (a quality_path key row until ADR-0102
+    removed the key), and c4-component.md's own reachable-agent/pre-post-pair
+    arithmetic.
     Structural string/regex assertions only."""
 
     def _skills_req(self):
@@ -3271,38 +3288,6 @@ class TestCreateQualityDocConformance(unittest.TestCase):
 
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
-
-    def test_skills_md_has_create_docs_section(self):
-        """AC-7, after ADR-0094: skills.md carries a '/acs:create-docs'
-        (product-level) section naming the quality set's default directory,
-        create-docs-author, and the step's state file — the quality set's
-        closure now lives in the one skill that delivers it. After ADR-0102
-        the set is found, not configured: the section names `docs/quality/`
-        as the default and never the removed `quality_path` key."""
-        body = self._skills_req()
-        heading = "## `/acs:create-docs` (product-level)"
-        self.assertIn(heading, body,
-                      "docs/requirements/functional/skills.md must have a "
-                      "'/acs:create-docs' (product-level) section (MAR-112 AC-7)")
-        section_start = body.index(heading)
-        next_heading = re.search(r"\n## ", body[section_start + 1:])
-        section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
-        section = body[section_start:section_end]
-        self.assertIn("`docs/quality/`", section,
-                      "the create-docs section must name the quality set's "
-                      "default directory docs/quality/ (MAR-112 AC-7, ADR-0102)")
-        self.assertNotIn("quality_path", section,
-                         "the create-docs section must not name the removed "
-                         "quality_path setting (ADR-0102)")
-        self.assertIn("create-docs-author", section,
-                      "the create-docs section must name create-docs-author (MAR-112 AC-7)")
-        # The state file moved with the run re-key (ADR-0097): the flat
-        # `create-docs-state.json` is `steps/create-docs/state.json`. What
-        # this pins is that the section still says WHERE the step's state
-        # lives, not the filename it had in 2026.
-        self.assertIn("steps/create-docs/state.json", section,
-                      "the create-docs section must name the step's state "
-                      "file (MAR-112 AC-7)")
 
     def test_configuration_md_documents_the_quality_default_not_a_key(self):
         """AC-7, inverted by ADR-0102: configuration.md used to carry a
@@ -3330,10 +3315,12 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **30 agents**", body,
+        self.assertIn("— **37 agents**", body,
                       "c4-component.md must count the reflection-loop "
-                      "skills' agents (ADR-0109: 30 = 33 files less code's "
-                      "implementer and review-code's two roles)")
+                      "skills' agents (ADR-0109/ADR-0122/ADR-0123/ADR-0124/ADR-0126/"
+                      "ADR-0134/ADR-0137/ADR-0138/ADR-0145: 37 = 43 files less code's implementer, review-code's two "
+                      "roles, audit-design's gap analyst and audit-security's "
+                      "auditor and adjudicator)")
         self.assertNotIn("8 active triads (24 agents)", body,
                          "c4-component.md must not retain the stale "
                          "'8 active triads (24 agents)' text (MAR-112/113 AC-7)")
@@ -3344,10 +3331,10 @@ class TestCreateQualityDocConformance(unittest.TestCase):
         (see test_c4_component_triad_count_advanced) -- a partial edit (triad
         line bumped, reachable line left stale) must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **30 agents**")
+        triad_idx = body.index("— **37 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("33 agent files, all reachable", window,
-                      "c4-component.md must read '33 agent files, all reachable' "
+        self.assertIn("43 agent files, all reachable", window,
+                      "c4-component.md must read '43 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-112/113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3426,24 +3413,6 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
     def _c4_component(self):
         return read(os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md"))
 
-    def test_skills_md_names_the_operations_set_in_the_create_docs_section(self):
-        """AC-7, after ADR-0094: the operations set's closure lives in the
-        '/acs:create-docs' (product-level) section, which names the set's
-        default directory (`docs/operations/`, ADR-0102 — never the removed
-        operations_path key), create-docs-author and the step's state
-        file."""
-        body = self._skills_req()
-        heading = "## `/acs:create-docs` (product-level)"
-        self.assertIn(heading, body)
-        section_start = body.index(heading)
-        next_heading = re.search(r"\n## ", body[section_start + 1:])
-        section_end = section_start + 1 + next_heading.start() if next_heading else len(body)
-        section = body[section_start:section_end]
-        self.assertIn("`docs/operations/`", section)
-        self.assertNotIn("operations_path", section)
-        self.assertIn("create-docs-author", section)
-        self.assertIn("steps/create-docs/state.json", section)
-
     def test_configuration_md_documents_the_operations_default_not_a_key(self):
         """AC-7, inverted by ADR-0102: configuration.md used to carry an
         operations_path row in its Keys table. No key locates a document now,
@@ -3470,7 +3439,7 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         assertion is updated in place to the superseding truth rather than
         asserting stale text."""
         body = self._c4_component()
-        self.assertIn("— **30 agents**", body,
+        self.assertIn("— **37 agents**", body,
                       "c4-component.md must advance to '12 active triads "
                       "(36 agents in triads)' (MAR-113 AC-7, superseded by "
                       "MAR-143/MAR-160)")
@@ -3484,10 +3453,10 @@ class TestCreateOperationsDocConformance(unittest.TestCase):
         -- a partial edit (triad line bumped, reachable line left stale)
         must fail loudly."""
         body = self._c4_component()
-        triad_idx = body.index("— **30 agents**")
+        triad_idx = body.index("— **37 agents**")
         window = body[triad_idx:triad_idx + 1600]
-        self.assertIn("33 agent files, all reachable", window,
-                      "c4-component.md must advance to '33 agent files, all reachable' "
+        self.assertIn("43 agent files, all reachable", window,
+                      "c4-component.md must advance to '43 agent files, all reachable' "
                       "in the window after the triad-count sentence "
                       "(MAR-113 AC-7, superseded by MAR-143/MAR-160)")
         self.assertNotIn("27 reachable agents", window,
@@ -3559,7 +3528,7 @@ class TestCreateTicketAcDodGateDocs(unittest.TestCase):
         finalization absent explicit confirmation, and no new subagent."""
         body = self._skills_req()
         section_start = body.index("## 1. `/create-ticket`")
-        section_end = body.index("## 2. `/create-design`")
+        section_end = body.index("## 2. `/create-tech-design`")
         section = body[section_start:section_end]
         self.assertIsNotNone(
             re.search(r"(?is)(concrete|testable).{0,300}acceptance_criteria"
@@ -3587,7 +3556,8 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
     """MAR-160 AC-1/AC-2/AC-3/AC-6: docs-sync is a new hooked triad skill
     (SKILL.md + 3 agents + pre-/post-docs-sync.py) standing up spec 01 --
     structural existence/shape, the AC-3 five-input contract documented in
-    the planner, the AC-2 same-branch/no-new-PR mechanics, and the AC-6
+    the planner, the AC-2 no-branch/no-commit/no-new-PR mechanics (ADR-0127:
+    only /acs:create-pr branches and commits), and the AC-6
     no-new-settings-keys guard."""
 
     def _skill_body(self):
@@ -3624,8 +3594,11 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
         reports, and -- since /acs:code has no verifier -- the changeset
         review's verdict in place of the old code-verify.md."""
         body = self._agent_body("doc-updater")
-        for token in ("git diff", "result.json", "docs_updated", "problems"):
+        for token in ("acs.py\" changes diff --patch", "result.json", "docs_updated", "problems"):
             self.assertIn(token, body, token)
+        # The committed-range diff is named only to forbid it: the change is
+        # uncommitted, so `git diff <default>...HEAD` is silently empty.
+        self.assertIn("Never `git diff <default_branch>...HEAD`", body)
         self.assertRegex(body, r"steps/code/iter-.*/implementer\*\.json")
         self.assertIn("steps/review-code/verdict.json", body)
 
@@ -3637,33 +3610,62 @@ class TestDocsSyncSkillStructure(unittest.TestCase):
         self.assertNotIn("create_branch", start)
         self.assertNotIn("gh pr create", start)
 
-    def test_start_section_confirms_same_branch(self):
+    def test_start_section_has_no_branch_precondition_and_never_commits(self):
+        """ADR-0127 replaced the AC-2 branch confirmation: docs-sync works on
+        whatever is checked out, refuses on no recorded branch, and never
+        creates a branch, commits or opens a PR."""
         body = self._skill_body()
         start = body[body.index("## Start"):body.index("## Resume & reconcile")]
+        self.assertIn("**No branch precondition.**", start)
+        self.assertNotIn("states.branch", start)
         self.assertIsNotNone(
-            re.search(r"(?i)branch", start),
-            "docs-sync/SKILL.md's Start section must confirm the branch "
-            "matches the ticket's recorded branch (AC-2)")
-        self.assertIsNotNone(
-            re.search(r"(?i)never (creates?|opens?) a (new )?(branch|.*PR)", start)
-            or re.search(r"(?i)same ticket branch", start),
+            re.search(r"(?i)never creates? a (new )?branch", start),
             "docs-sync/SKILL.md's Start section must state it never creates "
-            "a new branch or opens a new PR (AC-2)")
+            "a branch (AC-2)")
+        self.assertRegex(start, r"NEVER stages or commits")
+        self.assertRegex(start, r"NEVER opens a PR")
 
     # ------------------------------------------------------------------ AC-6
 
-    def test_settings_schema_gains_no_new_formats_or_enforcement_keys(self):
+    def test_settings_schema_has_no_formats_or_enforcement_block(self):
         schema_path = os.path.join(PLUGIN, "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        self.assertEqual(
-            set(schema["properties"]["formats"]["properties"].keys()),
-            {"branch_name", "commit_message", "pr_title",
-             "pr_description_template", "design_template", "tickets"})
-        self.assertEqual(
-            set(schema["properties"]["enforcement"]["properties"].keys()),
-            {"checks", "require_label", "exempt_label", "exempt_branches",
-             "pr_description_sections", "design_sections"})
+        for gone in ("formats", "enforcement"):
+            self.assertNotIn(gone, schema["properties"])
+
+
+class TestStateWritesGoThroughAcsWrite(unittest.TestCase):
+    """ADR-0136: acs's workspace lives in the MAIN checkout. A session in a
+    worktree is refused any Write/Edit there, so a coordinator writes every
+    workspace file -- its result document first -- through `acs.py write` and
+    a quoted heredoc, never the Write tool."""
+
+    HOOKED = sorted(
+        os.path.basename(p)[len("post-"):-len(".py")]
+        for p in glob.glob(os.path.join(PLUGIN, "hooks", "scripts", "post-*.py")))
+
+    def test_every_hooked_skill_writes_its_result_through_acs_write(self):
+        self.assertIn("code", self.HOOKED)
+        for skill in self.HOOKED:
+            with self.subTest(skill=skill):
+                paths = [path for path, _ in acs_writes(skill_contract(skill))]
+                self.assertIn("steps/%s/result.json" % skill, paths)
+
+    def test_the_finish_examples_are_json_documents(self):
+        for skill in self.HOOKED:
+            for path, body in acs_writes(skill_contract(skill)):
+                if path.endswith("result.json") and body.lstrip().startswith("{"):
+                    with self.subTest(skill=skill):
+                        self.assertIsInstance(json.loads(body), dict)
+
+    def test_no_skill_writes_state_with_the_write_tool(self):
+        for path in sorted(glob.glob(os.path.join(PLUGIN, "skills", "*", "SKILL.md"))
+                           + glob.glob(os.path.join(PLUGIN, "skills", "*", "references", "*.md"))):
+            body = read(path)
+            rel = os.path.relpath(path, PLUGIN)
+            self.assertNotIn("with the Write tool", body, rel)
+            self.assertNotIn("rewrite it (Write)", body, rel)
 
 
 if __name__ == "__main__":

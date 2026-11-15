@@ -1,8 +1,8 @@
-"""MAR-119 spec 02 — create-design-design-reviewer + create-design/SKILL.md
+"""MAR-119 spec 02 — create-tech-design-reviewer + create-tech-design/SKILL.md
 standards re-anchor.
 
-Prose-contract tests over `plugins/acs/agents/create-design-design-reviewer.md` and
-`plugins/acs/skills/create-design/SKILL.md`: the `consistency`/`nfr`
+Prose-contract tests over `plugins/acs/agents/create-tech-design-reviewer.md` and
+`plugins/acs/skills/create-tech-design/SKILL.md` (ADR-0135 renamed both): the `consistency`/`nfr`
 dimensions gain a `standards` sub-check reading the standards set at
 `standards_dir`, applied to the design decisions this design.md introduces,
 with the same changeset-scoped block/surface + graceful-degradation rule as
@@ -20,13 +20,17 @@ Stdlib-only (re, os, unittest). Run:
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
-VERIFIER = os.path.join(PLUGIN, "agents", "create-design-design-reviewer.md")
-SKILL = os.path.join(PLUGIN, "skills", "create-design", "SKILL.md")
+VERIFIER = os.path.join(PLUGIN, "agents", "create-tech-design-reviewer.md")
+SKILL = os.path.join(PLUGIN, "skills", "create-tech-design", "SKILL.md")
 
 
 def read(path):
@@ -73,7 +77,7 @@ class DimensionPreambleTest(unittest.TestCase):
     def test_preamble_names_standards_as_valid_dimension(self):
         body = read(VERIFIER)
         m = re.search(r"(?m)^Use these exact `dimension` attribute values:", body)
-        self.assertIsNotNone(m, "preamble line not found in create-design-design-reviewer.md")
+        self.assertIsNotNone(m, "preamble line not found in create-tech-design-reviewer.md")
         nxt = re.search(r"(?m)^1\.\s+`alternatives`", body[m.end():])
         self.assertIsNotNone(nxt, "numbered dimension list not found after preamble")
         window = body[m.end():m.end() + nxt.start()]
@@ -172,7 +176,7 @@ class InputContractWiringTest(unittest.TestCase):
 
 
 class SkillStartSettingsFieldsTest(unittest.TestCase):
-    """Design half of AC-4: create-design/SKILL.md's Start phase resolves the
+    """Design half of AC-4: create-tech-design/SKILL.md's Start phase resolves the
     standards set alongside the architecture set, the PRD and the ADR folder.
     Until ADR-0102 these were settings fields (architecture_path/prd_path/
     adr_path/standards_path) in the context-JSON bullet; now Start locates
@@ -207,8 +211,13 @@ class SkillVerifyPhaseWiringTest(unittest.TestCase):
     set."""
 
     def _window(self):
-        body = read(SKILL)
-        return section(body, "### Phase: design-reviewer —")
+        # ADR-0135: the reviewer phase reads its slices from references/,
+        # inlined at the pointer (skill_text.skill_contract).
+        # The inlined reference opens with its own `# ` title, so the window
+        # runs to the next coordinator heading, Publish.
+        body = skill_text.skill_contract("create-tech-design")
+        start = body.index("### Phase: reviewer —")
+        return body[start:body.index("### Publish —", start)]
 
     def test_standards_dir_present(self):
         window = self._window()

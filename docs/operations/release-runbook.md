@@ -31,11 +31,11 @@ the step-by-step the maintainer follows.
    with `partial: true`, which is an unfinished run, not a result.
 
    The CLI only measures (`--threshold 0`); `scripts/eval_gate.py` judges
-   ([ADR-0107](../adr/0107-routing-gated-by-skill-not-by-prompt.md)). Negatives
+   ([ADR-0107](../architecture/adr/0107-routing-gated-by-skill-not-by-prompt.md)). Negatives
    and controls must pass every run; each skill, pooling its ten phrasings,
    must route at least 9/10 of its runs and the suite at least 99/100
-   ([ADR-0111](../adr/0111-routing-gate-ten-phrasings-ten-runs.md),
-   [ADR-0112](../adr/0112-routing-suite-rate-99-percent.md)); `explicit`
+   ([ADR-0111](../architecture/adr/0111-routing-gate-ten-phrasings-ten-runs.md),
+   [ADR-0112](../architecture/adr/0112-routing-suite-rate-99-percent.md)); `explicit`
    cases, which are not reliably observable, are not run. Read a red verdict
    before acting on it: the script names each failing skill or case. It refuses
    rather than passes a run it cannot trust — a partial run, a missing case, a
@@ -55,34 +55,34 @@ the step-by-step the maintainer follows.
 2. **Cut the release — recommended: `/acs:release <version>`.** This
    one-command skill runs `release_notes.py status` → `draft` → `bump`
    (drafting and dating the CHANGELOG section from the merged-ticket archive
-   plus the `base_branch` git-history fallback), bumps all four manifests +
+   plus the `base_branch` git-history fallback), bumps all three manifests +
    the Devin meta-plugin's `ref`, and opens the exempt `release/*` PR, then
    stops for a mandatory human merge (ADRs 0050-0052). The manual steps below
    are the underlying mechanism it automates, and remain the documented
    fallback if the skill is unavailable:
-   1. **Bump the version** — set the same `version` in all four files
-      `release.version_locations` lists: `.claude-plugin/marketplace.json`,
+   1. **Bump the version** — set the same `version` in the three files
+      `release.version_locations` lists:
       `plugins/acs/.claude-plugin/plugin.json`,
       `plugins/acs/.devin-plugin/plugin.json`, and `.devin-plugin/plugin.json`.
-      CI checks each Devin manifest against `marketplace.json`, so skipping one
-      fails the cut (`.devin-plugin/plugin.json version != marketplace.json
-      version`). Leave the marketplace `acs` entry's `source` string
-      `"./plugins/acs"` **untouched** — that entry is no longer a pinned
-      `git-subdir` object, so there is nothing to repoint: the ref the
-      marketplace itself was installed at *is* the pin. Rewriting it back into
-      the pinned-object shape is what broke the install twice (recorded in
-      `.github/workflows/ci.yml`). The one ref to set is
+      `.claude-plugin/marketplace.json` carries **no version** and is not
+      touched by a cut: the marketplace is never released. Its `acs` entry's
+      `source` is a `git-subdir` object with `ref: "acs-stable"`, a branch the
+      Release workflow advances to each tag — leave it alone, and never
+      replace it with a tag or a SHA (`git clone --branch` rejects a bare SHA;
+      a version-named ref goes stale on the next cut). The one ref to set is
       `requiredPlugins[0].ref` in `.devin-plugin/plugin.json` → `v<version>`;
       this is what `release.extra_refs` automates.
    2. **Update the changelog** — add the matching section to
       [`plugins/acs/CHANGELOG.md`](../../plugins/acs/CHANGELOG.md) (Keep a Changelog
       format); this becomes the release notes.
    3. **Open the release PR**, get CI green, and merge (squash). On merge the
-      Release workflow cuts the immutable `v<version>` tag and publishes the
-      release from the changelog section.
-3. **Verify the tag** resolves and the plugin installs from it:
+      Release workflow cuts the immutable `v<version>` tag, publishes the
+      release from the changelog section and moves `acs-stable` to the tag.
+      The first release after this change creates the branch; run the
+      workflow by hand (`workflow_dispatch`) to seed or repair it.
+3. **Verify the release** resolves and the plugin installs from it:
    ```bash
-   claude plugin marketplace add globalmindsolution/gms-marketplace@v<version>
+   claude plugin marketplace add globalmindsolution/gms-marketplace
    claude plugin install acs@gms-marketplace
    ```
 
@@ -112,7 +112,7 @@ without any single cause being sufficient on its own:
    (ADR-0086), but this host's `.acs/settings.local.json` (gitignored)
    overrides it to an external, machine-local path
    (`/home/user/acs-workspace`, through the workspace override setting
-   [ADR-0102](../adr/0102-documents-are-found-not-configured.md) later
+   [ADR-0102](../architecture/adr/0102-documents-are-found-not-configured.md) later
    removed; as observed then, that
    directory was created 2026-09-01). That workspace holds exactly one
    ticket (`MAR-306`) and no
@@ -169,19 +169,19 @@ close.
 
 The `base_branch` commit-history fallback is a defensive recovery signal
 (already the sanctioned shape for PR-ref resolution per
-`docs/adr/0051-changelog-archive-primary-coverage-check.md:33-36`), not a
+`docs/architecture/adr/0051-changelog-archive-primary-coverage-check.md:33-36`), not a
 complete substitute for the archive. Its limitations are **accepted**, not
 open bugs to fix under this ticket:
 
 - **Tracker-ref-only squash subjects are not recoverable offline.** A
   subject like `[#399] Fix panel-6 ... (#413)` carries the tracker issue
   number the GitHub UI assigned, not the acs ticket id
-  (`docs/adr/0035-pr-title-ticket-ref-token.md`), and the acs id appears
+  (`docs/architecture/adr/0035-pr-title-ticket-ref-token.md`), and the acs id appears
   nowhere else in the commit (verified: `git log -1 --format=%B` on that
   commit shows no `MAR-N` token anywhere in subject or body). Such tickets
   under-count regardless of the fallback. The same holds whenever the squash
   subject is taken from a PR title rendered with the default `pr_title` of
-  `{title}` ([ADR-0105](../adr/0105-acs-runs-without-setup.md)): the subject
+  `{title}` ([ADR-0105](../architecture/adr/0105-acs-runs-without-setup.md)): the subject
   is the bare title plus `(#N)`, with no ticket id for the fallback to read,
   so such a ticket is recovered from the archive or not at all.
 - **A shallow clone bounds recall to whatever history was actually

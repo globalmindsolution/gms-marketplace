@@ -15,9 +15,9 @@ timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
-Run the /acs:create-test-docs skill for ticket EVAL-1 (document how to run
-the tests). The implementation plan is already published on the ticket branch
-that is checked out.
+Run the /acs:create-test-docs skill for ticket EVAL-1 (document how to run the
+tests). The implementation plan is already published in the ticket's docs
+folder, uncommitted, on main.
 
 I can't answer questions during this run, so don't ask me anything. If this
 step has nothing to do for this ticket, don't write anything — just tell me

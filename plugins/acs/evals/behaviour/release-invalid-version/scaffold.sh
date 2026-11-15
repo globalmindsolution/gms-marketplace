@@ -18,7 +18,7 @@ git add -A
 git commit -qm "Add package manifest"
 git tag v2.4.0
 
-acs_ticket "Cap the customer page size at 100" task false \
+acs_ticket "Cap the customer page size at 100" task \
   "list_customers must refuse a limit above 100 with ValueError."
 printf '\n- Customer pages are capped at 100.\n' >> README.md
 git commit -qam "EVAL-1 Cap the customer page size at 100 (#3)"

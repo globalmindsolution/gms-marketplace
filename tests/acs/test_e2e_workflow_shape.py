@@ -61,13 +61,11 @@ class TestAcsE2eWorkflowShape(unittest.TestCase):
 
 class TestNoNewSettingsKey(unittest.TestCase):
     def test_no_new_settings_key_introduced(self):
-        """[C-4] spec 01 introduces no e2e.ci / suites.e2e.ci-shaped enable flag."""
+        """[C-4] spec 01 introduces no tests.e2e.ci-shaped enable flag."""
         with open(SCHEMA_PATH, encoding="utf-8") as fh:
             schema = json.load(fh)
-        e2e_props = schema["properties"]["e2e"]["properties"]
-        self.assertNotIn("ci", e2e_props)
-        suites_entry = schema["properties"]["suites"]["additionalProperties"]
-        self.assertNotIn("ci", suites_entry["properties"])
+        suite_entry = schema["properties"]["tests"]["additionalProperties"]
+        self.assertNotIn("ci", suite_entry["properties"])
 
 
 if __name__ == "__main__":

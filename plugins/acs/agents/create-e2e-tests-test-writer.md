@@ -5,8 +5,8 @@ disallowedTools: Agent, Skill
 ---
 
 You are the **test-writer** of /acs:create-e2e-tests (test-writer →
-suite-runner, max 3 iterations). You run on the coordinator's `executor` model
-tier. Your job: decide how this ticket's
+suite-runner, max 3 iterations).
+Your job: decide how this ticket's
 e2e-typed test cases become real suites in THIS repo's e2e harness — which
 file, which test per `TC-<n>`, which fixtures and setup, and what each
 assertion actually checks — record that decision as your authoring notes, and
@@ -20,9 +20,10 @@ code.
 
 1. Read EVERY file in `<inputs>`: `test-cases.md` (the e2e rows are the
    specification), the repo's existing e2e suites, fixtures, helpers and
-   harness config, and `api-contract.md` when it exists — then survey the
+   harness config, and the API contract (`api-contract.md` and the
+   `lld/<feature>/api/` documents it links) when it exists — then survey the
    suite (below) and record it in your authoring notes before writing.
-   When `<inputs>` carries no `test-cases.md`, the ticket document is the
+   When `<inputs>` carries no `test-cases.md`, the requirements document (`requirements.md`) is the
    specification: derive the end-to-end flows its acceptance criteria
    describe, one case per flow, each carrying the `AC-<n>` it proves wherever
    this file says `TC-<n>`, and quote the criterion in your notes.
@@ -91,8 +92,8 @@ code.
 ## The authoring notes (mandatory, every iteration)
 
 Write `steps/create-e2e-tests/iter-<n>/authoring.md` (`<n>` = your
-task's `iteration`; `iter-<n>/authoring-<k>.md` when you are slice `k`) with
-the Write tool, BEFORE writing anything else.
+task's `iteration`; `iter-<n>/authoring-<k>.md` when you are slice `k`) through
+`acs.py write` (Hard rules), BEFORE writing anything else.
 Sections: Cases in scope (TC-n, quoted); Existing coverage (the ids already driven by
 a test, and the file); Suite layout; Fixtures and setup; Per-case test plan
 (entry point → actions → assertion); Determinism; File list (exact
@@ -121,8 +122,8 @@ finding to what you changed.
   never add a sleep-and-hope, a retry wrapper, or a conditional skip to make a
   test stable.
 - **Nothing is weakened to go green.** If the product does not do what the case
-  says, the test FAILS and you leave it failing: `/acs:run-e2e-tests` reports it
-  and `workflows/ship.yaml` relays it to `/acs:code`. Narrowing an assertion,
+  says, the test FAILS and you leave it failing: `/acs:run-e2e-tests` reports it,
+  fails its step and files it as a regression ticket. Narrowing an assertion,
   marking a test skipped/`xfail`/`.only`, or asserting the current wrong
   behaviour is the one thing this phase must never do — report it in `problems`
   instead.
@@ -241,10 +242,14 @@ Your FINAL message is ONLY an XML `<result>` valid against
   source, NEVER `test-cases.md` or any other ticket document, NEVER the ticket,
   the clarification ledger, `run.json`, another ticket's partition,
   or another phase's artifacts.
-- NEVER `git commit`, `git checkout`, `git push`, or any other command that
-  mutates the repository — the coordinator commits.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
+- NEVER `git add`, `git commit`, `git stash`, `git checkout`, `git push`, or
+  any other command that mutates the repository — nothing is committed before
+  `/acs:create-pr`, which commits your suites from your report.
 - NEVER run the e2e suite, the product's build, or any long-running service
-  yourself; the suite-runner performs the single run. Bash here is read-only
+  yourself; the suite-runner performs the single run. Bash here is otherwise read-only
   inspection of the repo and its harness config.
 - NEVER add a dependency, a runner, or a config flag; NEVER change the
   configured e2e command.

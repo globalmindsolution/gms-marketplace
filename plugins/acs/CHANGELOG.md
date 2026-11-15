@@ -19,6 +19,800 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/acs:merge-pr --pr` lands ticketless and release PRs again.** It refused every PR carrying
+  the `ACS` label as ticket-backed before checking `acs-exempt`, so a ticketless PR from
+  `/acs:create-pr` (labelled `ACS` and `acs-exempt`) and an `/acs:release` PR (`ACS` on
+  `release/*`) could not land through the exempt path. A PR is now ticket-backed when its
+  branch embeds a ticket id, or when it carries `ACS` with neither exemption.
+- **`/acs:create-e2e-tests` names a next step that exists.** It pointed to
+  `/acs:run-e2e-tests --for-ticket <id>`, a flag that was retired, and said `ship.yaml` relays an
+  e2e failure back to `/acs:code`. The next step is `/acs:run-e2e-tests <id>`; a red suite ends
+  that step `failed`, which stops the run, and is filed as a regression ticket.
+- **Plan approval has one documented owner.** The `/acs:create-impl-plan` references said both
+  that a human approves the plan and that the standard and complex `/acs:code` legs run
+  `plan-approval.py` at their Start. `/acs:code`'s pre-hook refuses those paths before any leg
+  starts, so a human approves with `acs.py plan check` before running `/acs:code`. The
+  plan-revocation steps now keep the superseded plan at `steps/create-impl-plan/iter-<n>/plan.md`
+  instead of the retired `steps/code/plan-superseded-<k>.md`, and `/acs:code` no longer mentions
+  a `--plan` argument it does not have.
+
+## [0.7.0] - 2026-11-06
+
+### Added
+
+- **`/acs:manage-roadmap`: the roadmap is its own skill** (ADR-0145, #609). It writes and amends
+  `roadmap.md` from the PRD's features. Each milestone's delivery status is derived from the
+  tickets linked to it (`acs.py roadmap status`), never asserted. `/acs:create-prd` no longer
+  writes the roadmap.
+- **PRD templates** (ADR-0147, #611). The PRD hub and each feature PRD are written from the
+  built-in `prd-default` and `prd-feature-default`. A repo's `.acs/templates/<name>.md`
+  replaces either one, and its `## ` headings are the sections the authors must fill.
+- **`/acs:setup` scaffolds the document templates** into `.acs/templates/` (ADR-0148, #612).
+  `templates.lock.json` records which built-in each copy came from. A re-run refreshes a copy
+  nobody edited, never overwrites an edited one, and reports a copy whose built-in has since
+  changed as drift.
+
+### Changed
+
+- **The PRD is a hub plus one PRD per feature, written by parallel authors** (ADR-0142, #607).
+- **Product tickets are made from the PRD and link to it; technical tasks may be unlinked**
+  (ADR-0144, #608).
+- **A feature PRD's `implemented` status is derived from its tickets** (ADR-0146, #610).
+- **A PR with no ticket says so in its description** (ADR-0143). The convention check accepts
+  `Ticket: none — <reason>`.
+- **Narrow requests now reach their skills** (#621). `/acs:audit-security` routes a scoped ask
+  (injection only, secrets only, vulnerable dependencies only, one directory). `/acs:code`
+  routes "make the change" or "red-green-refactor" on any platform. `/acs:docs-sync` routes a
+  doc fix folded into a ticket's branch before its PR is opened.
+
+### Fixed
+
+- **acs reaches GitHub through `gh api` REST only, so it works in a Claude Code session**
+  (ADR-0149, #620). gh's porcelain commands (`gh pr`, `gh issue`, `gh label`, `gh repo view`,
+  `gh release list`) run on GraphQL, which a Claude Code session refuses with HTTP 403.
+  `/acs:release` stopped at its open-PR probe, and merge-pr readiness, create-pr metadata,
+  create-ticket sync and import, and `/acs:update` had the same problem.
+  - `acs_lib.gh_rest` now builds every call.
+  - Projects v2 (`gh project …`) has no REST equivalent, so it stays the one GraphQL
+    exception and remains non-critical.
+  - `tests/acs/test_gh_rest_only.py` fails CI if a porcelain command is added back.
+- **The handoff no longer fights the Stop hook** (#619). A handed-off step is marked, so
+  neither the sender nor the receiver is forced to finish it, and the next invocation clears
+  the mark.
+- **Handoff receive and change snapshots work inside the Claude Code sandbox** (#616, #618).
+  The device-node dotfiles the sandbox mounts are ignored, both by the snapshot and by the
+  clean-tree check.
+- **`/acs:create-pr` stops before pushing when a GitHub call fails**, and under `/acs:ship` it
+  counts a commit approval given in the request (#616, #617).
+- Four skills were clarified where paid evals showed them misread: handoff, create-test-docs,
+  audit-design and create-architecture (#618).
+
+### Evals
+
+- 116 of 120 behaviour cases now have a recorded baseline (#614, #615, #617, #618, #619), and
+  several graders the paid runs showed were wrong were fixed (#613, #618).
+
+## [0.6.2] - 2026-10-09
+
+### Changed
+
+- **`/acs:create-pr` ships work in any git state, in a shorter skill that keeps the standards.**
+  `acs.py pr plan-commits` now reports `ahead` (commits past the default branch) and `pushed`
+  (origin has the branch at HEAD), and `pr commit` with no groups cuts the branch at HEAD for
+  work committed on the default branch or a detached HEAD. The push is skipped when already
+  pushed and the PR body lists every commit on the branch. `SKILL.md` goes from over 600 to
+  about 190 lines: the goal, the mandatory commands and CLIs, and the rules that protect the
+  user's history, with the lifecycle skeleton, clarification ledger, result document, post-hook
+  and completion report kept (ADR-0141).
+- **create-pr no longer prescribes one GitHub transport.** `gh repo view` and `gh pr …` use
+  GraphQL, which a Claude Code session refuses (HTTP 403), so the skill stopped at its first
+  critical call. It now names the operations and uses whatever access works (preferring
+  `gh api` REST, or the session's GitHub tools), tries one other route on a critical failure,
+  then stops. ADR-0141 relaxes ADR-0088 for create-pr only; `gh_failure_hint` knows the
+  GraphQL refusal.
+
+### Added
+
+- A rule that any change to a skill keeps the acs standards and adds or updates its evals in
+  the same change (`plugins/acs/docs/AUTHORING.md`, `CLAUDE.md`, the evals README), a new
+  behaviour case `create-pr-committed-on-main`, and a refreshed `create-pr-gh-unavailable`.
+
+## [0.6.1] - 2026-10-09
+
+### Fixed
+
+- **The marketplace is no longer released.** `marketplace.json` drops its
+  `version`, and the `acs` entry becomes a `git-subdir` source on the
+  `acs-stable` branch, which the Release workflow moves to each `v<version>`
+  tag. Consumers update the plugin alone (`claude plugin update
+  acs@gms-marketplace`); the release trigger is `plugin.json`, and the cut bumps
+  three manifests instead of four. Per-marketplace pinning
+  (`marketplace add …@v<x>`) no longer applies.
+
+## [0.6.0] - 2026-10-08
+
+### Added
+
+- **`/acs:create-data-design`** (ADR-0126): a ticket-scoped Design skill that writes
+  a ticket's data low-level design under `lld/<feature>/data/` — the logical ERD
+  (entities, attributes, keys, cardinalities, database-agnostic) and the physical
+  schema (tables or collections, types, indexes, constraints and a migration
+  *outline*), both Mermaid `erDiagram`, for the enabled `design.lld_types` only.
+  Documents only, never migration code; one designer writes both documents, a gap
+  analyst per survey area runs beside the survey when `data/` already holds
+  documents, and a reviewer judges in three slices beside the $0 checks. Owns
+  `create-data-design-designer`, `-gap-analyst` and `-reviewer`.
+- **`/acs:create-flows`** (ADR-0126): a ticket-scoped Design skill that writes a
+  ticket's behaviour low-level design under `lld/<feature>/flows/` — one file per
+  flow (sequence, and activity where it branches on business rules) and one per
+  entity state machine — and, when enabled, `components/`. The writers run in
+  parallel, one per flow group plus `write-states` and `write-components`, with an
+  integration pass only when a slice reports a seam. Documents only; owns
+  `create-flows-designer`, `-gap-analyst` and `-reviewer`. Both skills sit in
+  `PLANNING_SKILLS` beside `/acs:create-design`, version every file through
+  `acs.py design … --feature`, and take no run position. Neither branches,
+  commits or opens a PR: the documents stay as local uncommitted changes, every
+  path listed in the result's `states.files` for you to review and commit. 28
+  skills (19 hooked), 33 agent files, eleven write → judge loops.
+
+- **`acs.py job start|wait|status|stop`** (ADR-0125): a deterministic command
+  (a build, a lint, a test suite) runs detached under the run's `jobs/` directory,
+  started in the same turn as the subagents it runs beside; `job wait` is one
+  blocking call that returns when every named job has ended (exit 0 all passed, 1
+  one failed or stopped, 3 timed out still running — call it again, never `sleep`).
+- **`parallel.max_agents`** (ADR-0125): the most subagents a skill spawns in one
+  message, default 4, an integer from 1 to 16; beyond it, waves of that size.
+
+- **Design versions and design ↔ code gap detection** (ADR-0122). Every HLD/LLD
+  document carries version front matter (`status`: proposed → approved →
+  implemented, or deprecated; `version`; `tickets`; `feature` on LLD documents), set
+  only through the new `acs.py design check|init|bump|status`, which refuses an
+  illegal transition. `/acs:create-architecture` runs a new
+  `create-architecture-gap-analyst` beside its survey: every gap between the existing
+  HLD and the code is classified unimplemented, undocumented or drifted, cited on both
+  sides, and handled — documented as built, marked planned, or asked about — before
+  the review passes.
+- **`/acs:audit-design`** (ADR-0122): a read-only audit of the architecture set (or
+  one feature) against the code, reading each gap against the document's status, with
+  an offer to ticket what it finds.
+- **An Audit phase, and `/acs:audit-security`** (ADR-0123). Read-only skills that
+  run without a ticket, at any time, and write a report now form their own phase,
+  Audit, beside Design, Build, Test and Ship: `/acs:audit-design` moves there, and
+  the new `/acs:audit-security` joins it. It audits four categories, one
+  `audit-security-auditor` each in parallel — `code` (OWASP Top 10 weakness classes
+  with their CWE, one auditor per code area), `secrets-config` (hard-coded
+  credentials, insecure configuration, CI that exposes secrets), `dependencies`
+  (only through the scanners the repo already has installed — acs installs none and
+  never names a CVE from memory) and `threat-model` (the code against
+  `hld/data-flow.md` and `hld/cross-cutting.md`, when the architecture set has
+  them) — then hands every candidate to one fresh-context
+  `audit-security-adjudicator` that tries to refute it and defaults to refuted. The
+  report ranks the confirmed findings `critical` → `low`, each with CWE,
+  `file:line`, evidence, exploit scenario, fix guidance and `resolved_when`; an
+  unexamined category is reported as uncovered, never clean, and a secret's value
+  appears nowhere. It files no ticket and emits no SARIF. New role `auditor`
+  (survey); 27 skills (18 hooked), 29 agent files. Set its models under
+  `models.audit-security.auditor` / `.adjudicator`.
+- **Audit reports follow a template** (ADR-0123): `templates/audit-design-report.md`
+  and `templates/audit-security-report.md`, replaceable per repo with a copy in
+  `.acs/templates/`. The template is the contract — its `## ` sections, in order,
+  and the sections marked `acs:count <key>`, whose `### ` entries are counted. The
+  post-hook refuses a completed audit whose report breaks it, and `states.audit`'s
+  counts are derived from the report, overwriting what the result document claimed.
+- **`/acs:setup` asks which design documents to write** (ADR-0120). A new
+  `design` settings block — `hld_types` and `lld_types`, each a list from a fixed
+  catalog (C4 views, conceptual ERD, API landscape, deployment, project structure,
+  data-flow and capability maps; API contracts, logical and physical ERDs,
+  sequence, activity and state diagrams, component and class detail) — is chosen
+  with two multi-select questions. Defaults write nothing. The Design skills will
+  read it; nothing does yet.
+- **Tickets carry `features`** (ADR-0120): the slugs of the PRD features a ticket
+  traces to. `/acs:create-ticket` proposes them, `/acs:analyze-requirements`
+  confirms them, `new-ticket.py --features` sets them on a minted child, and the
+  index records them.
+- **`/acs:setup` writes `.claude/launch.json`**, the Claude Code Desktop app's
+  preview-server config (Code tab and Browser pane). `setup detect` reports the
+  file and guesses a dev server from `package.json` (npm, pnpm, yarn or bun), a
+  Django `manage.py` or `bin/rails`; `setup apply` takes a `launch` answer,
+  validates it against the documented schema, merges by configuration name
+  (an existing entry is never replaced), warns about secret-looking `env` names,
+  and refuses to rewrite a file that has comments.
+- **Skills take requirements from any container** (ADR-0128). A ticket id,
+  documents — in the repo, or attached from outside it (PDFs, images, markdown) —
+  and a prompt are only containers of requirements, and one invocation may mix
+  them: `/acs:analyze-requirements SHOP-12 ~/Downloads/spec.pdf "also bulk export"`
+  keeps all three (it used to keep only the ticket). Every run now writes
+  `subject/sources.json` (kind, ref, sha256, run copy), copies documents from
+  outside the repo into the run (`<run>/subject/`, hashed; nothing is added to the
+  repo) and generates `<run>/requirements.md` — the ticket's title, description and
+  acceptance criteria numbered `AC-1…`, the prompt verbatim, the documents, and a
+  `## Refined` section. New `acs.py requirements show|add|refine`; the step-start
+  context carries a `requirements` block for every run; `run.json`'s subject gains
+  an optional `sources` list. **No skill requires a ticket**: a ticketless run keeps
+  its clarification ledger at `runs/<run-id>/clarifications.json`, the analysis loop
+  is keyed by run, `/acs:create-design` reads `needs_design` from the requirements,
+  `/acs:create-data-design` and `/acs:create-flows` take a feature slug, a prompt
+  or documents, and `/acs:ship "<prompt>"` runs from its first step.
+- **`/acs:analyze-requirements` works in Discovery** (ADR-0128, ADR-0129). Run on
+  its own with no ticket — a PRD feature, a prompt, an attached specification — it
+  writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis.md`
+  (versioned front matter plus `feature`), choosing the feature from the PRD's slugs
+  in its one grouped ask. A later run on that feature — a ticket, or `/acs:ship` —
+  starts from it, and the Design skills read it.
+- **`/acs:set-doc-status`** (ADR-0130): a new unhooked Utility skill that approves,
+  or otherwise moves the status of, the versioned Discovery and Design documents —
+  the PRD, the roadmap, each feature's living analysis, the HLD and each feature's
+  living LLD. It lists them by phase and feature, picks whole features, design
+  areas or single documents in one grouped ask, offers only the legal targets
+  (`approved` first for a proposed document) and a reason (required for
+  `deprecated`), confirms, and runs one `acs.py design status --set`. Arguments skip the asks
+  (`/acs:set-doc-status approved wishlist`). It commits nothing: it lists the
+  changed files and points at `/acs:create-pr`. 29 skills.
+- **The PRD and roadmap are versioned** (ADR-0130). `prd.md` and `roadmap.md` carry
+  the design documents' version front matter: `/acs:create-prd` inits a new one
+  `proposed`, bumps a changed one and checks both in its $0 floor; its author's
+  byte-for-byte rule and its reviewer exempt the block, and a changed document must
+  show a bumped version. `/acs:code`'s implementer bumps either when it reconciles
+  a factual claim in it.
+- **`acs.py design status` records the approver and is all or nothing**
+  (ADR-0130). `--by NAME` (default `git config user.name <user.email>`) and
+  `--reason TEXT` write `status_by`, `status_at` and `status_reason` beside the
+  status; every document is validated before any is written, so a refused move
+  leaves all of them as they were (doc 1 used to be written before doc 2 was
+  refused).
+- **`acs.py design list [--phase P] [--feature F]`** (ADR-0130): the versioned
+  Discovery and Design documents grouped by phase and feature, each with its
+  `status`, `version`, `problems` and the `allowed` targets from its status; a
+  run's design-record folders (`lld/<feature>/<id>/`) are not listed.
+- **Ticket handoff between team members, across machines** (ADR-0131).
+  `/acs:handoff <ID>` sends a ticket in mid-flight to a teammate: one grouped
+  ask for the note (done, in flight, next, decisions), each outside-repo
+  attachment (include or skip — nothing outside the repo leaves unconfirmed)
+  and the push, then `acs.py handoff send` packages the ticket's resume set —
+  the uncommitted work, the ticket and its clarification ledger, the run ledger
+  and baseline, each step's state, result, current artifacts and verdict, the
+  trees the state cites, a manifest; absolute paths travel as tokens — as one commit on
+  the run's base, built through a temporary index, and pushes it to the hidden
+  ref `refs/acs/handoff/<ID>`. Audit trails, jobs, agents, locks, sessions and
+  logs stay behind; `--dry-run` shows the package without pushing. The sender
+  keeps everything. `/acs:handoff receive <ID>`
+  (`acs.py handoff receive`) refuses a dirty tree, checks the work applies with
+  `git apply --3way` in a temporary index before applying it, restores the run with local paths, raises the counters,
+  deletes the ref (`--keep-ref` keeps it) and prints the command to continue;
+  `/acs:handoff list` shows what is waiting. `--replace` re-sends over an
+  existing ref, or receives over an existing local run after backing it up.
+  The snapshot commit is the one commit outside `/acs:create-pr` — never on a
+  branch, never merged (amends ADR-0127). Anyone with read access to the
+  remote can fetch the ref.
+- **Share run documents or keep them local, asked once** (ADR-0132). A run's
+  own documents — a Development `analysis.md`, `plan.md`, `test-cases.md`,
+  `design.md`, `api-contract.md` — are either shared (published to the phase
+  folder and committed by `/acs:create-pr`, as before) or kept local (left in
+  the run's step folder in the gitignored workspace: later steps read them
+  through `acs.py artifacts show`, `/acs:handoff` carries them, and they never
+  reach the repo or the commit plan). The first skill that writes one asks, in
+  its one grouped ask, whether to share or keep local and whether to save that
+  for you (`.acs/settings.local.json`) or for the team (`.acs/settings.json`);
+  the new setting `docs.share_run_documents` records it, later runs follow it
+  silently and name it in their report, and `/acs:setup` shows and changes it.
+  The PRD, roadmap, HLD, LLD and a feature's living analysis are always shared.
+  A headless run with no saved choice keeps its documents local for that run
+  and saves nothing.
+- **acs asks before creating a docs folder** (ADR-0132). When a phase folder
+  resolves only to acs's built-in default — no `docs.*_dir` setting and no
+  existing folder found — the first skill that would write there asks: use the
+  proposed folder, give another repo-relative path (saved as `docs.<kind>_dir`
+  in `.acs/settings.json`), or keep documents local. The living documents'
+  first write into a missing folder (`/acs:create-prd`, a Discovery analysis,
+  `/acs:create-architecture`, `/acs:create-data-design`, `/acs:create-flows`)
+  asks the location only.
+- **`acs.py docs where|decide`** (ADR-0132). `docs where --doc <name>
+  [--run R]` (`analysis.md`, `plan.md`, `test-cases.md`, `design.md`,
+  `api-contract.md`, `living:prd`, `living:architecture`) prints where the
+  document goes, the saved share choice, the folder's resolution source
+  (`setting`, `discovered`, `default`), the questions still owed (`needs`) and
+  the proposed folder; `docs decide [--share yes|no --scope user|team]
+  [--location KIND=PATH]… [--doc <name>] [--run R]` merges the answers into the
+  settings file of that scope, creating it when absent and touching no other
+  key (a "for me" answer's `.acs/settings.local.json` is kept out of git), and
+  prints what it wrote and the new `where`. A publish
+  into the repo while an answer is owed (`analysis publish` and every other run
+  document write) exits 2 naming `acs.py docs decide`.
+
+- **`/acs:setup` offers acs's Claude Code permission rules.** One more question:
+  add `permissions.allow` rules for acs's own scripts (`Bash(python3
+  *acs/*hooks/scripts/*.py*)`) and read-only git (`status`, `diff`, `log`,
+  `rev-parse`, `ls-files`, `show`, `check-ignore`) to `.claude/settings.json`
+  (team), to the main checkout's `.claude/settings.local.json` (me — ignored if
+  nothing ignores it yet), or skip, which is the default. Nothing that writes is
+  pre-approved. Setup also ignores `.claude/worktrees/`, where Claude Code puts the
+  worktrees it creates. **Migration:** none — re-run `/acs:setup` to opt in.
+
+- **`/acs:breakdown-ticket`** (ADR-0138): a new Utility skill that breaks an
+  epic, or a story or task too large for one PR, into PR-sized children. It
+  reads the ticket's requirements, the feature analysis, the tech design and,
+  when there is one, the plan's oversize-split signal; proposes every child —
+  title, type (`story`, `task` or `bug`), acceptance criteria, `features`
+  inherited from the parent unless narrowed, `needs_design: false` and a size —
+  in one grouped confirmation; then mints them with `new-ticket.py --parent`,
+  saves their acceptance criteria and syncs them to the tracker through
+  create-ticket's tracker-sync reference. A story or task being split becomes an
+  epic that keeps its id. It warns, without blocking, when the epic's tech
+  design is not `approved`. It runs inline, with no subagent. 30 skills.
+- **`bug` is a ticket type** (ADR-0138). `/acs:create-ticket` files a defect as a
+  `bug`, `new-ticket.py --type bug` mints one, and `templates/bug-default.md`
+  describes it. A bug carries five optional fields — `severity` (`critical`,
+  `high`, `medium` or `low`, separate from `priority`), `reproduction`,
+  `expected`, `actual` and `environment` — and an acceptance criterion that a
+  regression test reproduces it and passes after the fix. It syncs to a GitHub
+  Project's `Bug` type option (a Project without one gets the usual "option
+  missing" finding). A bug runs like a story: `/acs:analyze-requirements`
+  reproduces it first, recording the reproduction or an open question saying it
+  could not, and `/acs:create-impl-plan` makes a failing reproduction test,
+  named for the bug, the first test of the first slice.
+- **A child ticket inherits its parent's `features`** (ADR-0138).
+  `new-ticket.py --parent` copies them unless `--features` is given.
+- **Tickets link their documents** (ADR-0140). Every ticket has a
+  `## References` section listing every document the repo holds for its
+  features, found from the standard layout with no selection step: the PRD
+  feature section (with its heading anchor), the feature's living analysis,
+  `hld/overview.md` and the HLD views that name the feature, the living LLD
+  (`api`, `data`, `flows`, `components`), the tech design and API contract of
+  the ticket and of its parent epic, and the ticket's development `analysis/`,
+  `plan.md` and `test-cases.md`. Each link points at the document on the
+  remote default branch (`https://<host>/<owner>/<repo>/blob/<default>/<path>`;
+  GitLab and Bitbucket URL forms too), so it is clickable in the tracker and
+  never 404s; a document not on `origin/<default>` yet is listed as *pending*,
+  with its path and no link. All four ticket templates carry the section, with
+  `<!-- acs:references -->` markers that code fills. `/acs:create-ticket` hands
+  the list to its type author, shows it in the confirmation and stores it;
+  `/acs:breakdown-ticket` stores each child's and now writes each child's
+  `tracker-body.md` before the sync, which a child was missing; `tracker sync`
+  puts the block in every new issue. Skills read the same list from the
+  step-start `context.references` and `requirements.md`'s new
+  `## References`, instead of searching the repo. It is derived at read time,
+  so tickets created before this change get it too. **Migration:** none.
+- **`acs.py ticket references`** (ADR-0140): `(--ticket ID | --features a,b
+  [--parent ID]) [--fetch] [--write] [--render]` prints the list with
+  `default_branch`, `web_base` (`null` with `web_base_reason: "no-web-remote"`
+  on a host acs cannot link to) and `remote_checked`; `--write` stores
+  `references` on the ticket (a new optional `ticket.json` field), `--render`
+  adds the markdown block as `block`.
+- **`acs.py tracker refresh (--ticket ID | --pending) [--dry-run]`**
+  (ADR-0140): recomputes a synced ticket's references and, when the rendered
+  block changed, rewrites only the `## References` marker block of its GitHub
+  issue (`gh issue view`, then `gh issue edit --body-file`); a ticket on the
+  `local` tracker is stored and skipped. `--pending` covers every open synced
+  ticket that still lists a pending document;
+  `/acs:merge-pr` runs it after a merge, best-effort. A failure is
+  non-critical (ADR-0088): one finding, never a stop.
+- **`record-external.py --url`** (ADR-0140) keeps the issue URL a sync returns
+  as `external.url`.
+
+### Changed
+
+- **⚠️ BREAKING: only `/acs:create-pr` branches, commits and pushes** (ADR-0127).
+  Every other skill now leaves its output as uncommitted changes in the working
+  tree, on whatever branch is checked out, and records every path it wrote in its
+  result's `states.files` — `/acs:analyze-requirements`' publish, the plan, the API
+  contract, the test cases, `/acs:code`'s implementers, `/acs:docs-sync` and
+  `/acs:create-e2e-tests` no longer commit, and parallel writers no longer meet
+  `index.lock`. `/acs:create-pr` turns the changeset into small reviewable commits —
+  the ticket's documents, the design documents, per plan slice its tests then its
+  code, the doc updates, the e2e suites — from the new `acs.py pr plan-commits`,
+  shows them as a preview you confirm (or edit), and commits them with `acs.py pr
+  commit` by pathspec before it pushes; changed files no step recorded are left out
+  and listed, and files already dirty when the run began are never swept in. Every
+  change, docs or code, goes through it, and it takes a ticket id or a prompt: with
+  no argument it continues this checkout's current run, and with a prompt and no
+  current run it groups every uncommitted change by layer (documents by doc set,
+  then tests, then code); the review brake applies only when the run has a code
+  step. `/acs:create-prd` and `/acs:create-architecture`
+  no longer mint a delivery ticket, cut a branch, commit or open a PR: they run
+  ticketless, like the audits, and leave their documents for `/acs:create-pr "<prompt>"`
+  (`--allocate` is `/acs:create-ticket`'s alone, `DELIVERY_TICKET_SKILLS` is empty,
+  and the shared `create-prd/references/delivery-pr.md` is deleted). A run records
+  `baseline.json` at its first `acs.py step start`; the new `acs.py changes
+  snapshot|diff` read the working-tree changeset in place of `git diff
+  <default>...HEAD`, and the verdict's `reviewed_sha` now holds the snapshot tree the
+  review judged. `/acs:release`'s `release/*` PR and `/acs:merge-pr`'s merge and
+  cleanup are unchanged. **Migration:** after updating, expect your working tree to
+  carry the pipeline's output until `/acs:create-pr` — do not commit it by hand
+  mid-run, or the commit plan has nothing left to group. Run two tickets at once in
+  a separate worktree each: one checkout has one working tree, so one changeset. A
+  ticket in flight across the update keeps the commits its earlier steps made; its
+  next step records a baseline and only later changes are grouped. Deliver a PRD or
+  architecture change with `/acs:create-pr "<what changed>"` and land it with
+  `/acs:merge-pr --pr <n>` (a PR with no ticket is labelled `acs-exempt`); stop
+  resuming product-level runs by a delivery-ticket id — re-run the skill, which
+  resumes this checkout's interrupted run. A script that read `states.pr` from `create-prd`/`create-architecture`, or
+  the `commits` of `/acs:code`, reads `states.files` instead.
+
+- **Skills run more in parallel** (ADR-0125). Every multi-agent skill caps a fan-out
+  at `settings.parallel.max_agents` instead of a literal four (`code-small` keeps 2,
+  `code-trivial` 1; `/acs:review-code`'s five lenses are one message).
+  `/acs:review-code` starts its gate — build and lint as separate jobs, the unit suite
+  with coverage as one — beside the lenses, waits for it only when adjudication leaves
+  nothing blocking, and stops it otherwise; the suite still runs once per iteration.
+  `/acs:create-impl-plan` runs the repo's existing suite once per run as a job beside
+  the planner, read by the `tests` plan-review slice. The $0 draft checks of
+  `/acs:create-test-docs`, `/acs:create-api-contract` and `/acs:analyze-requirements`
+  (now in `analysis record-draft`, folded into `record-review`; `analysis publish` no
+  longer runs them) and `/acs:create-e2e-tests`' TC-id coverage grep run beside the
+  judge, failing that iteration. `/acs:create-prd`'s review is two reviewer slices
+  plus a deterministic floor the coordinator runs itself. `/acs:create-architecture`
+  writes the HLD in up to four file-group slices with an integration pass only on a
+  reported seam (amends ADR-0121). `/acs:create-api-contract` skips iteration 2+'s
+  integration pass when no seam moved. `/acs:audit-design` runs `design check` beside
+  its gap analysts, and `/acs:create-pr` batches its independent `git`/`gh` calls.
+
+- **One `tests` block** (ADR-0117): `tests.coverage` replaces `test_coverage_percent`,
+  `tests.unit` the CI-gate `tests.command`/`setup`, and `tests.e2e` / `tests.<name>`
+  replace `e2e` and `suites`. `per_iteration` is gone. **Breaking:** an old-shape
+  file is refused by every skill until `acs.py settings migrate --write` rewrites it
+  (`/acs:update` runs this step).
+- **Jira is removed** (ADR-0117): `tracker.provider` is `local` or `github`;
+  `tracker.jira`, `acli` and Jira sync are gone, and a `jira` provider migrates to
+  `local`.
+
+- **Models are set per skill and role** (ADR-0115): `settings.models.<skill>.<role>`
+  is `{model, effort}`, both optional, scaffolded in full by
+  `acs.py settings scaffold --write` and inheriting where absent. `acs step start`
+  writes `.claude/agents/acs-<skill>-<role>.md` copies for the entries that set a
+  value and reports the names to spawn in `context.agents`; the SubagentStart and
+  SubagentStop hooks now match `^acs[:-]`. Replaces the `planner` / `executor` /
+  `verifier` tiers, `models.overrides` and `context.models` (**breaking**: an old
+  `models` block is rejected; run the scaffold).
+- **`formats` and `enforcement` are removed** (ADR-0116). Branch, commit and PR-title
+  style are the model's to follow; what a script must parse is fixed in
+  `acs_lib.conventions` (branch `<type>/<ticket_id>-<slug>`, the CI exemptions, the
+  `ACS` label, template names). The CI ticket-link check stays. Removed with them:
+  the local `commit-msg`/`pre-push` hooks and `install-hooks.sh`, the
+  `/acs:install-hooks` skill, `stacked-base.py`, `pr-conventions.py render-title`
+  and `tracker.milestone` (a ticket's own `milestone` stays). **Breaking** for a repo
+  that set a custom format; a leftover block is accepted and ignored.
+- **`hook_gates` is removed.** A run with no evidence that the gates fired always
+  warns; a gate that fired and refused still stops the step.
+- The retired `enforcement.checks.pr_title`, `pr_description`, `acs_label` and
+  `enforcement.pr_description_sections` are no longer declared in the schema
+  (they are still accepted and ignored).
+
+- **ADRs live under `docs/architecture/adr/`** (ADR-0119). When a repo has no ADR
+  folder, `/acs:create-design` and `/acs:docs-sync` create it there instead of
+  `docs/adr/`; an existing ADR folder is still found where it is, so nothing in a
+  consumer repo moves.
+
+- **⚠️ BREAKING: `/acs:create-architecture` writes the high-level design only**
+  (ADR-0121). It writes `hld/overview.md`, `hld/tech-stack.md` and the new
+  `hld/cross-cutting.md`, plus one file per enabled `design.hld_types` entry —
+  including the new `hld/integration-map.md` (the API landscape), on by default —
+  and nothing under `lld/`. One write architect replaces the write slices and the
+  integration pass; the reviewer drops `hld-lld-consistency` (ten dimensions); the
+  flow-list question is gone. **Migration:** existing `lld/flows/` and
+  `lld/contracts.md` stay where they are and `/acs:docs-sync` keeps them current;
+  the next re-run adds `cross-cutting.md` and `integration-map.md`. Turn types off
+  in `design.hld_types` (`/acs:setup`).
+- **`/acs:audit-design` runs without a ticket and writes its report from a
+  template** (ADR-0123). It is not a workflow step, so no pre-hook opened a run for
+  it and a first audit in a fresh checkout stopped at "no current run"; `acs step
+  start` now opens a run over the invocation (or resumes this checkout's interrupted
+  audit) and the post-hook concludes it. Its `report.md` follows
+  `templates/audit-design-report.md`, and the gap counts in `states.audit` are
+  counted from the report.
+- **⚠️ BREAKING: ticket documents are no longer written to `docs/tickets/`; a
+  run's documents live one folder per phase** (ADR-0128, superseding ADR-0090's
+  in-repo ticket docs tree). A ticket now lives only in the workspace and your
+  tracker — no `docs/tickets/<ID>/ticket.md` is rendered — and a run's documents
+  are filed under its PRD feature: Discovery `<prd_dir>/features/<feature>/analysis.md`
+  (the feature's living analysis); Design `<architecture_dir>/lld/<feature>/<id>/`
+  (`design.md`, `api-contract.md`); Development `docs/development/<feature>/<id>/`
+  (a Development run's `analysis.md`, `plan.md`, `test-cases.md`), where `<id>` is
+  the ticket id, else the run id. `acs.py artifacts show` resolves by run
+  (`--run`, or `--ticket` as before) and reports the phase folders;
+  `acs.py artifacts migrate` is retired (it reports and writes nothing). The
+  file-map guard now also denies an executor the run's Development and Design
+  folders, as it did `docs/tickets/`.
+  **Migration:** nothing to run — existing `docs/tickets/<ID>/` folders stay
+  readable: every reader falls back to them when a phase folder has no such file,
+  so tickets in flight keep their documents. Look for new tickets' documents in
+  the phase folders, and for a ticket's fields in `acs.py ticket show` or the
+  tracker rather than a `ticket.md`. To consolidate, `git mv` an old folder's
+  `plan.md`, `test-cases.md` and `analysis.md` to
+  `docs/development/<feature>/<ID>/` and its `design.md` and `api-contract.md` to
+  `lld/<feature>/<ID>/`; its `ticket.md` can then be deleted.
+- **The skills regroup into Discovery, Design, Development, Audit and Utility**
+  (ADR-0129, amending ADR-0118). Discovery is `/acs:create-prd` and
+  `/acs:analyze-requirements`; Design is `/acs:create-architecture`,
+  `/acs:create-api-contract`, `/acs:create-data-design`, `/acs:create-flows` and
+  `/acs:create-design`; Development is `/acs:ship` and its steps plus
+  `/acs:merge-pr`; Utility is `/acs:setup`, `/acs:update`, `/acs:release`,
+  `/acs:handoff` and `/acs:create-ticket` — a ticket is cut when the work needs one,
+  not as a phase. The README's skill tables follow; no skill, gate or step changes.
+- **An analysis is a folder, split by bounded context** (ADR-0133, amending
+  ADR-0114 and ADR-0128). `/acs:analyze-requirements` no longer writes one long
+  `analysis.md`: it always writes an `analysis/` folder — even for a change
+  that touches one context — in the same places (Discovery
+  `<prd_dir>/features/<feature>/analysis/`, Development
+  `<development_dir>/<feature>/<id>/analysis/`, kept local
+  `steps/analyze-requirements/local/analysis/`). Its `README.md`, which the
+  forge renders when the folder is opened, holds the scope and summary, the
+  refined acceptance criteria, the cross-cutting risks and decisions, the
+  questions and assumptions, the verdict and a table of contexts; beside it,
+  one plain-words kebab-case file per bounded context (`order-checkout.md`)
+  holds that context's impact map with `file:line` citations, rules and edge
+  cases, risks, open questions and API notes. `analysis record-draft` checks
+  the folder — README's front matter, headings in order and table links, each
+  context file's `context` key and headings, kebab-case names, no `index.md`;
+  `analysis publish` copies every file, removes context files the new analysis
+  dropped (inside the folder only) and records each file's sha. The skills
+  that read an analysis read its README first and then only the contexts they
+  need. `acs.py artifacts show` keeps `artifacts["analysis.md"]` (now the
+  README) and adds `analysis_files`; `acs.py design list` shows a feature's
+  analysis as one group of files, and `/acs:create-pr` commits the folder as
+  one documents group. **Migration:** nothing to run — an `analysis.md`
+  published earlier is still read, and the next analysis of that feature or
+  ticket starts from it and writes the folder beside it. A script that parsed
+  the single file reads `analysis_files` instead.
+- **Shorter skills, same behaviour.** `/acs:analyze-requirements`,
+  `/acs:create-api-contract` and `/acs:create-impl-plan` keep the steps every run
+  takes in their `SKILL.md` and move the procedures a run reads only in some
+  arms — templates, parallelism and messaging rules, the unreachable-user arm,
+  the reviewer and publish details — into `references/*.md`, each behind a
+  one-line pointer saying when to read it. The analyst agent reads the analysis
+  templates from the skill instead of carrying a copy. A new test holds every
+  `SKILL.md` to 400 lines and every agent to 200, with the files still over
+  named at a ceiling they may not grow past. **Migration:** none.
+- **⚠️ BREAKING: `/acs:create-api-contract` is a Design skill and writes
+  documents only** (ADR-0134). It leaves `workflows/ship.yaml` — eight steps
+  remain, and `/acs:ship` no longer runs it — and joins `/acs:create-data-design`
+  and `/acs:create-flows` in Design: it takes a ticket (an epic included), a
+  feature slug, documents or a prompt, needs no plan, and traces every item to
+  an acceptance criterion rather than to a plan item. It owns the `api-contract`
+  LLD type (disabled in `design.lld_types` → a recorded no-op) and writes the
+  living `<architecture_dir>/lld/<feature>/api/<interface>.md`, one file per
+  interface (a REST resource, a CLI command group, an event topic, a gRPC
+  service), versioned through `acs.py design init|bump`, plus the per-run
+  record `lld/<feature>/<id>/api-contract.md` that links each file at its
+  version; the files are listed in `states.files` and `/acs:create-pr` commits
+  them in its `design` layer. A new read-only `create-api-contract-gap-analyst`
+  compares the feature's existing api documents with the code beside the
+  survey (34 agent files). It no longer creates or edits OpenAPI, JSON Schema,
+  proto or AsyncAPI files — `contracts_mode` and the `<contracts_dir>`
+  detection are gone: `/acs:create-impl-plan` now reads the approved contract
+  and plans the items that make those files, and `/acs:code` implements them.
+  `/acs:analyze-requirements` no longer records `api_surface`; where an
+  interface changes, its report's Next says to design it with
+  `/acs:create-api-contract`. The plan's `owes` block is `test_cases` and `e2e`.
+  **Migration:** run `/acs:create-api-contract <ticket | feature>` in Design,
+  before `/acs:create-impl-plan`, for each change that adds or changes an
+  interface — `/acs:ship` will not do it for you. Machine-readable contract
+  files now change through `/acs:code`, from plan items; nothing edits them
+  from the contract step. Old state keeps loading: an analysis carrying
+  `api_surface:` still validates and the key is ignored, and a plan carrying
+  `owes.api_contract` still loads with that key ignored. A run that already
+  completed a `create-api-contract` step keeps the record; its cursor no
+  longer asks for one.
+- **⚠️ BREAKING: `/acs:create-design` is renamed `/acs:create-tech-design`, and
+  its document is a versioned hand-off for team review** (ADR-0135). The old name
+  is gone, with no alias. Its agents are `create-tech-design-designer` and
+  `create-tech-design-reviewer` (role `reviewer`, was `design-reviewer`), its
+  hooks `pre-`/`post-create-tech-design.py` and its gate
+  `gate_create_tech_design` — the same `needs_design` brake, epics allowed. The
+  document is `tech-design.md` in the run's Design folder
+  `lld/<feature>/<id>/`, written in six sections: Decision & options, HLD views
+  affected, LLD (API, Data, Flows and Components — snapshots of the feature's
+  living `lld/<feature>/` documents, each linked at its version), NFRs, Risks and
+  Open questions; a story marks the sections it does not need "n/a" with the
+  reason. The reviewer also checks that flows, api and data documents agree with
+  one another and that every snapshot links the document's current version. The
+  document opens with `status: proposed` front matter written through
+  `acs.py design init|bump`, `acs.py design list` now lists it from its per-run
+  folder, and the skill ends by pointing at `/acs:set-doc-status approved
+  <feature>`, then `/acs:create-impl-plan`, which states the document's status in
+  its report and warns, without blocking, when it is not approved. The run
+  artifact key stays `design` (`acs.py artifacts show design`; `tech-design` is
+  an alias). **Migration:** invoke `/acs:create-tech-design` wherever you invoked
+  `/acs:create-design`. A saved `models.create-design` block is migrated to
+  `models.create-tech-design` automatically on load, its `design-reviewer` key
+  becoming `reviewer` — nothing to edit. An existing `design.md`, and a run
+  started under the old name (`steps/create-design/`), are still read wherever
+  `tech-design.md` is looked for; a re-design writes `tech-design.md` beside it.
+  Approve a design with `/acs:set-doc-status approved <feature>` — the reviewer's
+  pass no longer stands in for the team's sign-off.
+
+- **State files are written through `acs.py write`, never the Write tool**
+  (ADR-0136), so a pipeline runs in a Claude Code worktree session. Such a
+  session (`claude --worktree`, `EnterWorktree`, an isolated subagent) is
+  refused the `Write` and `Edit` tools on any path in the main checkout, and
+  the workspace is there — so a pipeline started in a worktree could not
+  record a step. The workspace does not move: it stays at
+  `<main-checkout>/.acs/state-machine`, one folder at the main checkout's root
+  for every worktree. Now no skill or agent writes a state file with `Write`
+  or `Edit`: the new `acs.py write <path> [--append] [--run R]` takes the
+  content on stdin (through a quoted heredoc), writes it atomically, creates
+  parent folders, prints `{"ok", "path", "bytes", "appended", "total_bytes"}`,
+  and refuses with exit 2 any path outside the workspace root (`..` or a
+  symlink) and the machine-owned ledgers that have their own verbs
+  (`run.json`, `steps/<skill>/state.json`, `lock.json`, the indexes,
+  `sessions/`, `filemap.json`). A relative path resolves against the run
+  directory (`--run`, else the checkout's current run, which `acs.py context`
+  now reports as `run_id`/`run_dir`). Survey and judge agents lose `Write`
+  from their `tools:` allowlist; write roles still write repo files with
+  `Write`/`Edit`. Under the Bash sandbox, `/acs:setup` now offers, with its
+  permission rules, `sandbox.filesystem.allowWrite` for the workspace's
+  absolute path, merged into the main checkout's `.claude/settings.local.json`
+  (never the committed `.claude/settings.json`); `setup detect` reports it as
+  `sandbox_rule`.
+  **Migration:** none — no state moves and no stored path changes.
+
+- **`/acs:docs-sync` keeps each feature's low-level design current, and moves a
+  matching design to `implemented`** (ADR-0137). A new doc area, `lld`, owns
+  `<architecture_dir>/lld/<feature>/{api,data,flows,components}/**` for the
+  run's features (the requirements' `features`, else the ticket's); the
+  `architecture` area keeps the HLD and the flat `lld/flows/`, and a run's
+  record folder `lld/<feature>/<key>/` (`tech-design.md`, `api-contract.md`) is
+  never edited. A new read-only agent, `docs-sync-gap-analyst`, runs one per
+  feature beside the doc-updaters in iteration 1 and classifies every
+  operation, entity, flow and component of the feature's documents `matches`,
+  `unimplemented`, `undocumented` or `drifted`, with evidence, marking a
+  document `implemented-candidate` when all of it matches (35 agent files). A
+  `proposed` document is updated to match the code and bumped. Drift from an
+  `approved` or `implemented` document is never rewritten silently: it is a
+  question in docs-sync's one grouped ask — update the document (bumped, back
+  to `proposed` for re-approval) or keep it and fix the code (a blocking finding
+  for `/acs:code`); with no one to ask it is recorded as a blocking finding and
+  `needs_input`. A `deprecated` document is left alone. After the review
+  passes, each candidate moves `approved → implemented` in one
+  `acs.py design status --set implemented --by acs` call, recorded with
+  `status_by`, `status_at` and `status_reason` and listed in the result's
+  `states.implemented` — which the post-hook derives from the documents' own
+  front matter. A document with an element still unimplemented stays
+  `approved`. The drift reviewer gains a seventh dimension, `lld-currency`, in
+  its `placement` slice, and the scaffold gains `models.docs-sync.gap-analyst`.
+  Nothing to migrate: a run whose ticket names no feature behaves as before.
+
+- **⚠️ BREAKING: `/acs:create-ticket` drafts through a type author and a
+  reviewer, and its `--fan-out` and `split` modes move to
+  `/acs:breakdown-ticket`** (ADR-0138). The coordinator still parses the
+  request, sizes it, asks every question in one grouped ask, confirms and
+  materialises the ticket, but the draft is now written by one author for the
+  chosen type — `create-ticket-epic-author`, `create-ticket-story-author`,
+  `create-ticket-task-author` or `create-ticket-bug-author` — and checked by
+  `create-ticket-reviewer` (concrete, testable acceptance criteria, the PRD
+  trace and `features`, the type's own sections, an honest size, no invented
+  facts) in at most two iterations before you see it. The rules every type
+  shares live once, in `skills/create-ticket/references/authoring-rules.md`. An
+  epic gets problem and outcome, scope, success metrics and a breakdown outline;
+  a story its user value and Given/When/Then criteria; a task its technical
+  outcome and a done-when checklist. 40 agent files; the scaffold gains
+  `models.create-ticket.{epic-author,story-author,task-author,bug-author,reviewer}`.
+  `/acs:create-ticket <epic-id> --fan-out` and `/acs:create-ticket split <id>`
+  now refuse and name `/acs:breakdown-ticket`, and an epic's run ends with
+  *Next: `/acs:create-tech-design <id>` (when `needs_design`) →
+  `/acs:breakdown-ticket <id>`*. **Migration:** run
+  `/acs:breakdown-ticket <epic-id>` where you ran
+  `/acs:create-ticket <epic-id> --fan-out`, and `/acs:breakdown-ticket <id>`
+  where you ran `/acs:create-ticket split <id>`; the oversize-split question in
+  `/acs:create-impl-plan` now points there too. Existing tickets, partitions and
+  tracker issues need nothing; the refusing flags go in the next release.
+- **Shorter create-prd and create-ticket, same behaviour.** Both `SKILL.md` files
+  are now under 400 lines. `/acs:create-prd` moves resuming, the spawn and
+  fan-out rules, survey slices, the version front matter and the reviewer
+  slices into `references/*.md`. `/acs:create-ticket` moves remote import,
+  resuming, the headless confirmation arm and the detail of Steps 3-5 into
+  `references/*.md`. Each moved block leaves a one-line pointer saying when to
+  read it. The three corroboration grammars of create-prd's authoring notes now
+  live in one `references/authoring-notes.md`, which the surveyor, author and
+  reviewer read, so the surveyor and reviewer agents are shorter too.
+  **Migration:** none.
+- **⚠️ BREAKING: tickets carry no design flag; `/acs:create-tech-design` runs
+  when you ask for it** (ADR-0139). `needs_design` is gone from `ticket.json`,
+  the tickets index, `new-ticket.py`, `/acs:create-ticket` (no question, no
+  confirmation, no recommendation from the epic author) and the children
+  `/acs:breakdown-ticket` mints. `/acs:analyze-requirements` no longer judges
+  whether a change needs a design: `needs_design_recommendation` leaves its
+  `README.md` front matter (now `ticket` or `feature`, and
+  `ready_for_planning`), and no design question is asked. A run's requirements
+  carry no `needs_design`, so `context.requirements` and `acs.py requirements
+  show` drop the key. `/acs:create-tech-design` admits any ticket — epic,
+  story, task or bug — a prompt or documents; it refuses only an invocation with
+  no requirements, or a ticket that is missing or archived. A design is found,
+  not required: the step-start context's new `context.design = {exists, dir,
+  source}` names the ticket's own `tech-design.md`, else its parent epic's, and
+  `/acs:create-impl-plan`, `/acs:code`, `/acs:create-test-docs` and
+  `/acs:review-code` read it when it exists and go on without it, silently,
+  when it does not. An epic's run now ends *Next: `/acs:create-tech-design <id>`
+  (when you want a design) → `/acs:breakdown-ticket <id>`*.
+  **Migration:**
+  - `new-ticket.py --needs-design` was removed and exits 2: drop the flag from
+    any script that passes it.
+  - `acs.py requirements refine` refuses a `needs_design` key, naming ADR-0139:
+    drop it from the JSON you pass.
+  - Old tickets, index entries, refined requirements and analyses are fine:
+    one that still carries `needs_design` or `needs_design_recommendation`
+    validates, and the key is ignored. Nothing to rewrite.
+  - Run `/acs:create-tech-design <id>` (or with a prompt or documents) when you
+    want a design; nothing asks for one any more, and nothing refuses one.
+
+### Removed
+
+- **⚠️ BREAKING: the session-handoff skill is gone; `/acs:handoff` is now a
+  ticket handoff between members** (ADR-0131, superseding ADR-0003's
+  "cross-machine handoff is out of scope"). `/acs:handoff` no longer flushes,
+  finalizes and unlocks the current run for a fresh session on the same
+  checkout — "hand off" / "continue this in a new session" no longer route to
+  it. The context-pressure resume is **unchanged**: a step that runs low on
+  context still pauses itself through `handoff.py` (`interrupted`,
+  `stop_reason: context_pressure`, lock released, `continue_with` printed),
+  and the `PreCompact` hook still writes `handoff-context.md`. A phase
+  handoff needs no skill: approve the documents with `/acs:set-doc-status`,
+  open the docs PR with `/acs:create-pr`, tell the next team.
+  **Migration:** to stop a long session, just stop it (the `SessionEnd` hook
+  releases the lock) and re-run the same skill or `/acs:ship <ID>` later — it
+  resumes from the interrupted step as before. A script that ran
+  `/acs:handoff` for a session handoff should call `handoff.py --summary …`
+  directly, or drop the call. To pass a ticket to a teammate, push access to
+  `origin` is needed for `refs/acs/handoff/*`: a ruleset that restricts ref
+  creation outside `refs/heads/` must allow it.
+
+- **⚠️ BREAKING: `/acs:create-docs` is removed (ADR-0124).** The quality,
+  operations, principles and standards doc sets are no longer bootstrapped by
+  acs. Its `create-docs-author` and `create-docs-reviewer` agents, the
+  `pre-`/`post-create-docs.py` hooks, `templates/{quality,operations,principles,standards}/`,
+  the `DOC_SETS` table and its fan-out helpers, the `acs.py fanout batches`
+  command, `acs.py step start --doc-set` and the `doc_set` ticket field are
+  gone, with its ten routing and seven behaviour eval cases and its tests.
+  26 skills (hooked 18 → 17), 27 agent files. `citation_check.py` and
+  `structure_lint.py` stay; the scheduling recipe `/acs:run-e2e-tests` points
+  at moved to its own `references/test-scheduling.md`.
+  **Migration:** write and maintain the principles, standards, quality and
+  operations docs by hand — `/acs:create-design`, `/acs:create-impl-plan`,
+  `/acs:review-code` and `/acs:docs-sync` find them where they are, as before.
+  Merge any open create-docs delivery PR by hand (`gh pr merge`) —
+  `/acs:merge-pr` no longer reads that skill's state. Run
+  `acs.py settings migrate --write` to drop `models.create-docs` from
+  `.acs/settings.json`. The ADR-0118 note below that says to write principles and
+  standards with `/acs:create-docs` no longer applies: write them by hand.
+- **⚠️ BREAKING: `/acs:project`, `create-project`, `standardize-project` and
+  `/acs:create-requirements` are removed (ADR-0118).** Their skills, agents, hooks,
+  eval cases and tests are gone, with the `project_mode` detector and the
+  `auditor`, `scaffolder`, `build-checker` and `additive-checker` roles. 29 skills
+  → 25 (hooked 19 → 16, unhooked 6 → 5, legs 6 → 4), 33 agent files → 25. The
+  `models` settings for the three hooked skills go with them. This is the first
+  step of the Discovery / Design / Development regrouping ADR-0118 sets out.
+  **Migration:** merge or close any open scaffold, standardization or requirements
+  PR by hand (`gh pr merge`) before upgrading — `/acs:merge-pr` no longer reads
+  those skills' state — and drop their entries from `models` in
+  `.acs/settings.json`. Scaffold a greenfield repo with `/acs:create-ticket
+  "Scaffold the repository per the architecture docs"` and `/acs:ship`; install
+  CI gates and the e2e templates with `/acs:setup`; write principles and
+  standards with `/acs:create-docs`. An existing `requirements/` set stays
+  readable context.
+
+### Fixed
+
+- **A worktree inside the checkout no longer leaks into a run's changeset.** A
+  Claude Code worktree at `.claude/worktrees/<name>/` (or any embedded repository
+  never committed as a submodule) appeared in the main checkout's snapshot as a
+  gitlink: `acs changes diff` listed it, `/acs:create-pr` showed it as left out,
+  and `/acs:handoff` packaged it, so the receiver got a bogus submodule entry. The
+  snapshot now leaves such repositories out, `handoff receive` drops any gitlink a
+  package carries, and an embedded repository with no commit no longer breaks the
+  snapshot. **Migration:** none.
+- **`/acs:setup`'s suggested pipeline names `/acs:breakdown-ticket`.** The
+  pipeline in its next steps stopped at `/acs:create-tech-design`, so it skipped
+  the step that mints an epic's children (ADR-0138). It now runs
+  `/acs:create-tech-design` → `/acs:breakdown-ticket`, then the delivery steps.
+  **Migration:** none.
+- **Evidence sidecars are no longer treated as design documents.** A
+  `<doc>.evidence.md` sidecar inside `lld/<feature>/` (the architect charter writes
+  them) was listed by `acs.py design list` as a document with no front matter, and a
+  bulk `acs.py design status` that named one (a shell glob over a folder does)
+  refused the whole batch. The lister now leaves sidecars out, and `design status`
+  reports each one `skipped` and moves the documents beside it. **Migration:** none.
+
 ## [0.5.0] - 2026-09-30
 
 > ### ⚠️ v0.5.0 IS the implementation-pipeline redesign

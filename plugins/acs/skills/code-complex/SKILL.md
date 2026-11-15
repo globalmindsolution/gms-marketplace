@@ -1,13 +1,13 @@
 ---
 name: code-complex
 description: Implement a subject's plan on the COMPLEX delivery path — one implementer per disjoint file-map partition plus a final integration implementer for the seams between them, test-cases.md as the test contract, plan approval enforced. Dispatched by /acs:code after the plan records delivery_path complex; never chosen by hand.
-argument-hint: "[ticket-id | prompt | document]"
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of the **complex** delivery path of /acs:code — the deepest path.
 Your job: implement this run's existing plan in the consumer repo, tests first,
-committed on the run's branch.
+left as uncommitted changes in the working tree for `/acs:create-pr` to commit.
 
 You are a leg, not a command. `/acs:code` dispatches to you when the plan's
 `## Contract` block records `delivery_path: complex`. Nobody picks a path by
@@ -24,8 +24,8 @@ path only carries what makes it different:
 
 | Read | For |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Working tree, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the reported files |
 
 Everything below is what THIS path does differently. Where this file and a
 reference disagree about implementers, this file wins — that is the whole reason
@@ -57,11 +57,12 @@ slices never overlap.
 - Each `<task>` and its `<result>` carry `slice="<k>"`, so the SubagentStop
   snapshots of parallel slices do not collide, and each slice writes
   `iter-<n>/implementer-<k>.json`.
-- The cap is `max_parallel = 4` per message: more partitions run in waves of
-  at most four, each wave one message, the next only after the last returned.
+- The cap is `settings.parallel.max_agents` (default 4) per message: more
+  partitions run in waves of that size, each wave one message, the next only
+  after the last returned.
 
-The shared mechanics — commits on one branch, the `index.lock` retry, a failed
-slice re-run alone — are `execute.md`'s **Parallel implementers**.
+The shared mechanics — one working tree with no git writes, each slice's
+reported `files_changed`, a failed slice re-run alone — are `execute.md`'s **Parallel implementers**.
 
 ### The integration implementer
 
@@ -71,9 +72,9 @@ between them:
 
 - the call sites that cross a partition boundary
 - the shared type two partitions changed from different ends
-- the migration that has to land in one commit with the code that reads it
+- the migration that has to land in one change with the code that reads it
 
-Give it the **union of the partitions' diffs** as context and a file map that
+Give it the **union of the partitions' changes** (`acs.py changes diff`) as context and a file map that
 is the **intersection of their boundaries**, plus every slice's report (their
 `seams` entries name what each side saw). It runs alone, after the last wave
 and before the review, in a message of its own — it cannot start before the
@@ -99,14 +100,17 @@ review, and applied before the review rather than after.
 
 ### Inputs
 
-`test-cases.md` is the test contract, and `api-contract.md` when the subject
-owes public surface. The review's lens C judges conformance to both.
+`test-cases.md` is the test contract, and the API contract (`api-contract.md`
+and the `lld/<feature>/api/` documents it links) when the change has one. The
+review's lens C judges conformance to both.
 
 ### Plan approval
 
 **Enforced.** `/acs:code`'s pre-hook refuses this path when
 `steps/create-impl-plan/plan-approval.json` is absent or its `plan_sha256` does
-not match the plan on disk. An edited plan is an unapproved plan.
+not match the plan on disk. An edited plan is an unapproved plan. Approval is
+a human act before `/acs:code` runs, with `acs.py plan check`. This leg never
+runs it.
 
 ## You do not review your own work
 
@@ -124,8 +128,9 @@ implementation properties:
 - **the iteration ceiling** is now `ship.yaml`'s `loop.max_iterations`, the
   same cap on every path
 
-Run the tests your change touches, not the full suite: the gate runs it once,
-last, on the iteration that survives review. That discipline is safe precisely
+Run the tests your change touches, not the full suite: the gate runs it once
+per iteration, beside the review, and its result counts on the iteration that
+survives review. That discipline is safe precisely
 because the guarantee is unconditional and terminal rather than buried inside
 an iteration that may be discarded.
 
@@ -139,9 +144,9 @@ Answer **every** confirmed finding by id in your `result.json`, `fixed` or
 `disputed`; there is no third option:
 
 ```jsonc
-{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha>",
+{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha: the working-tree snapshot it judged>",
   "resolutions": [
-    { "id": "F-1-3", "status": "fixed", "commits": ["b7a2…"],
+    { "id": "F-1-3", "status": "fixed", "files": ["src/auth/session.py"],
       "tests": ["tests/auth/test_session.py::test_refresh_keeps_tenant"] },
     { "id": "F-1-5", "status": "disputed",
       "reason": "the lookback flagged a revert of a different function with the same name; evidence: …" }

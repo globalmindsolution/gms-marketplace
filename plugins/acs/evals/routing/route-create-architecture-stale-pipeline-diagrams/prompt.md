@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-New hires keep asking how our data pipeline hangs together, and the diagrams are two years stale. Rebuild the HLD and LLD docs from the current repo as a docs-only PR.
+New hires keep asking how our data pipeline hangs together, and the diagrams are two years stale. Rebuild the high-level design docs from the current repo as a docs-only PR.

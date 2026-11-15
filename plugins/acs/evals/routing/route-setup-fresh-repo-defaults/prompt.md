@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Get acs configured on this fresh repository. I'm happy with the default conventions.
+Get acs configured on this fresh repository. I'm happy with the default settings.

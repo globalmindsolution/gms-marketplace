@@ -3,7 +3,8 @@ allocation fail-closed reconciliation gate.
 
 Prose-contract tests over the doc set T3 amends/adds, mirroring the
 whitespace-normalized substring/regex discipline used elsewhere in this repo
-(tests/acs/test_create_docs_skill.py, tests/acs/test_create_requirements_skill.py):
+(tests/acs/test_create_docs_skill.py, tests/acs/test_create_requirements_skill.py,
+both since removed with their skills by ADR-0124 and ADR-0118):
 every assertion checks that a claim from the design/plan is actually present
 in the shipped doc, never a line-number match (prose is revised; line numbers
 drift). Kept in its own module so T3's file map stays disjoint from T1's
@@ -20,17 +21,18 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 
 CREATE_TICKET_SKILL = os.path.join(PLUGIN, "skills", "create-ticket", "SKILL.md")
-CONTRACTS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+CONTRACTS = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api", "cli.md")
 DATA_MODEL = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "data-model.md")
 C4_COMPONENT = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md")
-FLOW_DOC = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows", "ticket-id-reconciliation.md")
+FLOW_DOC = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "flows",
+                        "ticket-id-reconciliation.md")
 WORKSPACE_AND_STATE = os.path.join(
     REPO_ROOT, "docs", "requirements", "functional", "workspace-and-state.md"
 )
 ADR_0087 = os.path.join(
-    REPO_ROOT, "docs", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
+    REPO_ROOT, "docs", "architecture", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
 )
-ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
+ADR_README = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
 
 
 def read(path):
@@ -252,14 +254,14 @@ class Adr0087Test(unittest.TestCase):
 
 
 class Adr0087IndexTest(unittest.TestCase):
-    """AC-8 / K8: docs/adr/README.md indexes ADR-0087 (belt-and-braces over
+    """AC-8 / K8: docs/architecture/adr/README.md indexes ADR-0087 (belt-and-braces over
     test_doc_fact_pins.py's test_every_disk_file_has_a_row)."""
 
     def test_adr_0087_is_indexed(self):
         body = read(ADR_README)
         self.assertIsNotNone(
             re.search(r"\[0087\]\(0087-[a-z0-9-]+\.md\)", body),
-            "docs/adr/README.md must index ADR-0087",
+            "docs/architecture/adr/README.md must index ADR-0087",
         )
         self.assertTrue(os.path.isfile(ADR_0087))
 

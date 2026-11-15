@@ -3,8 +3,8 @@
 # (src/shop/web.py, /health only) and an e2e harness that drives it in process
 # (tests/e2e/, a stdlib unittest suite), configured as the `e2e` suite in
 # .acs/settings.json. Task EVAL-1 wires GET /customers; two of its criteria
-# are HTTP behaviour. The ticket branch carries the published plan (SKILL.md's
-# format, committed as the planning coordinator does with cp) owing test
+# are HTTP behaviour. The working tree (main, uncommitted -- ADR-0127) carries the published plan (SKILL.md's
+# format, left uncommitted as the planning coordinator does with cp) owing test
 # cases AND e2e.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -62,10 +62,11 @@ class HealthE2E(unittest.TestCase):
         status, _headers, body = get("/health")
         self.assertEqual((status, body), (200, "ok"))
 PY
-cat > .acs/settings.json <<'JSON'
+cat > .acs/settings.json <<JSON
 {
   "ticket_prefix": "EVAL",
-  "suites": {
+  $ACS_DOCS_ANSWERED,
+  "tests": {
     "e2e": {
       "command": "PYTHONPATH=src python3 -m unittest discover -s tests/e2e -p 'test_*.py'"
     }
@@ -75,7 +76,8 @@ JSON
 printf '__pycache__/\n' >> .gitignore
 git add -A
 git commit -qm "HTTP front with /health and its e2e harness"
-acs_ticket "Serve the customer listing over HTTP" task false \
+ACS_FEATURES=customer-listing
+acs_ticket "Serve the customer listing over HTTP" task \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit, so the storefront can page through customers."
 printf '%s' '{"acceptance_criteria": [
   "An HTTP GET /customers against the running WSGI app returns 200 with a JSON body listing customers, 20 per page by default",
@@ -83,9 +85,8 @@ printf '%s' '{"acceptance_criteria": [
   "list_customers rejects a negative offset with ValueError"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch task/EVAL-1-serve-the-customer-listing-over-http
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/plan.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Serve the customer listing over HTTP
 
 Planned from the ticket's criteria and the codebase (no analysis published).
@@ -108,7 +109,6 @@ Run `python3 -m pytest -q --cov=src --cov-fail-under=90`; coverage target
 ## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases: true
   e2e: true
   reason: "README already documents GET /customers; this wires the existing function to the WSGI front, and two criteria are HTTP behaviour"
@@ -116,5 +116,3 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/web.py, src/shop/__init__.py, tests/unit/test_customers.py
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan the HTTP customer listing"

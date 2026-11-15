@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-Our team renamed its ticket prefix from TKT to PAY. Change the acs conventions so branches and commits use the new prefix.
+Our team renamed its ticket prefix from TKT to PAY. Change the acs ticket prefix so new tickets use the new prefix.

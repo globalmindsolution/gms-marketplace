@@ -43,6 +43,11 @@ def cmd_context(args):
             out[key] = ctx[key]
     out["index_path"] = lib.index_path(ctx["workspace"], ctx["repo_id"])
     out["repo_dir"] = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    # This checkout's current run, so an agent can find the run dir a relative
+    # `acs.py write` path resolves against (ADR-0136). None when there is none.
+    run_id = lib.current_run_id(ctx)
+    out["run_id"] = run_id or None
+    out["run_dir"] = lib.run_dir(out["repo_dir"], run_id) if run_id else None
     if args.ticket:
         tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], args.ticket)
         # find_ticket_partition returns the ACTIVE path for a ticket that exists
@@ -121,7 +126,7 @@ def read_lines_arg(command, path):
 
 
 # ---------------------------------------------------------------------------
-# ticket / phase / slug / fanout / doctor
+# ticket / phase / slug / doctor
 # ---------------------------------------------------------------------------
 
 def cmd_ticket_show(args):
@@ -138,13 +143,18 @@ def cmd_ticket_save(args):
     the stored ticket. A caller that hand-builds a document — the model-driven
     caller this CLI exists to serve — would otherwise wipe every field it did
     not think to include, taking title, type, status, parent and children with
-    it and blanking the index row, which `gate_code`, `_epic_auto_done` and
-    `fanout_batches` all read.
+    it and blanking the index row, which `gate_code` and `_epic_auto_done`
+    both read.
 
     Refuses to write a delivery path: it is judged once, by
     `/acs:create-impl-plan`, and recorded in the plan's own `## Contract`
     block (ADR-0095). A ticket field holding a second copy is how one run ends
-    up on two rigors."""
+    up on two rigors.
+
+    Refuses a merged document `check_bug_fields` refuses (ADR-0138). A story or
+    task patched to `{"type": "epic"}` is
+    /acs:breakdown-ticket's split conversion: the id, description, priority and
+    features are kept, and `new-ticket.py --parent` then accepts it."""
     ticket_id, tdir, ctx = partition_or_die("ticket save", args.ticket)
     current = load_ticket_or_die("ticket save", tdir, ticket_id)
     incoming = read_json_arg("ticket save", args.source)
@@ -163,6 +173,22 @@ def cmd_ticket_save(args):
 
     updated = dict(current)
     updated.update(incoming)
+    try:
+        # The merged document, before anything is written: a type acs does not
+        # know, or a bug's fields on another type or out of shape (ADR-0138).
+        lib.check_bug_fields(updated)
+        if "references" in incoming:
+            lib.check_references(incoming["references"])
+        if "requirements" in incoming:
+            # A requirement link must name a real requirement of a linked
+            # feature's PRD (ADR-0144); other patches never re-judge the link.
+            lib.prd_link.parse_requirements(",".join(incoming["requirements"] or []))
+            if lib.prd_link.prd_path(ctx["checkout_root"], ctx["settings"]):
+                lib.prd_link.ensure_link(ctx["checkout_root"], updated.get("type"),
+                                         updated.get("features"), updated["requirements"],
+                                         ctx["settings"])
+    except lib.GateError as exc:
+        die("ticket save", str(exc))
     lib.save_ticket(tdir, updated)
     lib.update_index(ctx["workspace"], ctx["repo_id"], updated)
     emit({"ok": True, "ticket_id": ticket_id, "indexed": True,
@@ -202,7 +228,7 @@ def cmd_pr_metadata_fill(args):
     gh = _gh_runner(args, ctx["checkout_root"])
     pr = {"number": args.pr, "url": args.url or ""}
     if not pr["url"]:
-        code, out, _err = gh(["gh", "pr", "view", str(args.pr), "--json", "url", "-q", ".url"])
+        code, out, _err = gh(lib.gh_rest.pr_url(args.pr))
         pr["url"] = (out or "").strip() if code == 0 else ""
     out = lib.pr_metadata_fill(gh, ctx["settings"], ticket, pr, ctx["checkout_root"],
                                author=args.author)
@@ -240,10 +266,161 @@ def cmd_tracker_sync(args):
         emit({"ok": True, "dry_run": True, "would_sync": [t["id"] for t in candidates],
               "excluded": excluded, "synced": {}, "failed": [], "findings": []})
         return
+    remote_checked, ref_findings = _references_into_bodies(ctx, candidates, bodies)
     gh = _gh_runner(args, ctx["checkout_root"])
     out = lib.tracker_sync(gh, ctx["settings"], candidates, bodies)
-    out.update({"ok": True, "excluded": excluded, "dry_run": False})
+    out["findings"] = ref_findings + out["findings"]
+    out.update({"ok": True, "excluded": excluded, "dry_run": False,
+                "remote_checked": remote_checked})
     emit(out)
+
+
+def _references_into_bodies(ctx, tickets, bodies):
+    """Every issue is created with its `## References` section (ADR-0140): the
+    ticket's references, recomputed after one fetch of the default branch,
+    rendered into its `tracker-body.md` and stored on the ticket. A body that
+    is missing is left for the sync to report; anything else that goes wrong
+    here is an info finding -- the issue is still worth creating."""
+    remote_checked = lib.doc_links.fetch_default(ctx["checkout_root"])
+    findings = []
+    for ticket in tickets:
+        path = bodies.get(ticket.get("id"))
+        if not path or not os.path.isfile(path):
+            continue
+        try:
+            report = lib.doc_links.report(ctx, ticket=ticket)
+            lib.doc_links.write_body_block(path, report["references"], report["default_branch"])
+            ticket["references"] = report["references"]
+            lib.save_ticket(os.path.dirname(path), ticket)
+        except (lib.GateError, OSError) as exc:
+            findings.append(dict(lib.forge.finding(
+                "info", "references", "%s: the ## References section was not written: %s"
+                % (ticket.get("id"), exc)), ticket_id=ticket.get("id")))
+    return remote_checked, findings
+
+
+def cmd_ticket_link_check(args):
+    """Whether a ticket of `--type` may link `--features` and `--requirements`
+    (ADR-0144): {ok, problems}, exit 1 when there is any. /acs:create-ticket and
+    /acs:breakdown-ticket run it on a draft before the user confirms it."""
+    ctx = context_or_die("ticket link-check")
+    try:
+        features = lib.parse_features(args.features)
+        requirements = lib.prd_link.parse_requirements(args.requirements)
+    except lib.GateError as exc:
+        die("ticket link-check", str(exc))
+    problems = lib.prd_link.check_link(ctx["checkout_root"], args.ttype, features,
+                                       requirements, ctx["settings"])
+    emit({"ok": not problems, "type": args.ttype, "features": features,
+          "requirements": requirements, "problems": problems})
+    if problems:
+        sys.exit(1)
+
+
+def cmd_ticket_references(args):
+    """The documents that exist for a ticket's features, found in the standard
+    layout (ADR-0140): `--ticket ID` for a ticket (its own and its parent
+    epic's records included), `--features a,b [--parent ID]` for one not
+    minted yet. `--fetch` refreshes `origin/<default>` first, `--write` stores
+    the list on the ticket, `--render` adds the `## References` block text."""
+    if bool(args.ticket) == bool(args.features):
+        die("ticket references", "pass exactly one of --ticket ID or --features a,b")
+    if args.write and not args.ticket:
+        die("ticket references", "--write stores the list on a ticket: pass --ticket ID")
+    if args.ticket:
+        if args.parent:
+            die("ticket references", "--parent goes with --features; a ticket's own parent "
+                                     "is read from the ticket")
+        ticket_id, tdir, ctx = partition_or_die("ticket references", args.ticket)
+        ticket = load_ticket_or_die("ticket references", tdir, ticket_id)
+        report = lib.doc_links.report(ctx, ticket=ticket, fetch=args.fetch)
+        out = {"ok": True, "ticket_id": ticket_id}
+    else:
+        ctx = context_or_die("ticket references")
+        try:
+            features = lib.parse_features(args.features)
+        except lib.GateError as exc:
+            die("ticket references", str(exc))
+        report = lib.doc_links.report(ctx, features=features, parent=args.parent,
+                                      fetch=args.fetch)
+        out = {"ok": True, "features": features, "parent": args.parent}
+    out.update(report)
+    out["written"] = False
+    if args.write:
+        ticket["references"] = report["references"]
+        lib.save_ticket(tdir, ticket)
+        out["written"] = True
+    if args.render:
+        out["block"] = lib.doc_links.render_block(report["references"], report["default_branch"])
+    emit(out)
+
+
+def _pending_tickets(ctx):
+    """(id, tdir, ticket) for every open ticket synced to a tracker whose
+    stored references hold an entry not yet on the default branch."""
+    index = lib.read_json(lib.index_path(ctx["workspace"], ctx["repo_id"])) or {}
+    out = []
+    def by_number(ticket_id):
+        prefix, _dash, number = ticket_id.rpartition("-")
+        return (prefix, int(number) if number.isdigit() else 0, ticket_id)
+
+    for ticket_id in sorted(index.get("tickets") or {}, key=by_number):
+        tdir, archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)
+        ticket = lib.load_ticket(tdir) if not archived and os.path.isdir(tdir) else None
+        if not isinstance(ticket, dict) or ticket.get("status") == "done":
+            continue
+        if not (ticket.get("external") or {}).get("key"):
+            continue
+        if any(isinstance(r, dict) and not r.get("published")
+               for r in ticket.get("references") or []):
+            out.append((ticket_id, tdir, ticket))
+    return out
+
+
+def cmd_tracker_refresh(args):
+    """Bring tickets' references up to date and rewrite their issues'
+    `## References` block (ADR-0140): `--ticket ID`, or `--pending` for every
+    open synced ticket with an entry still waiting for the default branch.
+
+    NON-CRITICAL (ADR-0088): a failed gh call is an `info` finding and the next
+    ticket still runs; exit 0 means the pass ran. `--dry-run` reads the issue
+    but neither edits it nor stores anything."""
+    if bool(args.ticket) == bool(args.pending):
+        die("tracker refresh", "pass exactly one of --ticket ID or --pending")
+    if args.ticket:
+        ticket_id, tdir, ctx = partition_or_die("tracker refresh", args.ticket)
+        selected = [(ticket_id, tdir, load_ticket_or_die("tracker refresh", tdir, ticket_id))]
+    else:
+        ctx = context_or_die("tracker refresh")
+        selected = _pending_tickets(ctx)
+    provider = ((ctx["settings"].get("tracker") or {}).get("provider") or "local")
+    remote_checked = lib.doc_links.fetch_default(ctx["checkout_root"])
+    gh = _gh_runner(args, ctx["checkout_root"])
+    rows, findings, default = [], [], None
+    for ticket_id, tdir, ticket in selected:
+        report = lib.doc_links.report(ctx, ticket=ticket)
+        refs, default = report["references"], report["default_branch"]
+        row = {"ticket_id": ticket_id, "references": len(refs),
+               "pending": sum(1 for r in refs if not r["published"]),
+               "stored": False, "changed": False, "edited": False}
+        if not args.dry_run and refs != ticket.get("references"):
+            ticket["references"] = refs
+            lib.save_ticket(tdir, ticket)
+            row["stored"] = True
+        key = (ticket.get("external") or {}).get("key")
+        if provider != "github":
+            row["skipped"] = "tracker.provider is %r" % provider
+        elif not key:
+            row["skipped"] = "no tracker issue (external is unset)"
+        else:
+            row["key"] = key
+            done = lib.doc_links.refresh_issue(gh, key, lib.doc_links.render_block(refs, default),
+                                               dry_run=args.dry_run)
+            row.update(changed=done["changed"], edited=done["edited"])
+            findings += [dict(f, ticket_id=ticket_id) for f in done["findings"]]
+        rows.append(row)
+    emit({"ok": True, "dry_run": bool(args.dry_run), "tickets": rows, "findings": findings,
+          "calls": list(gh.calls), "remote_checked": remote_checked, "default_branch": default})
 def cmd_readiness(args):
     """merge-pr's four readiness dimensions and one verdict, as JSON.
 
@@ -270,13 +447,13 @@ def cmd_readiness(args):
         try:
             # Normalised by `classify_merge_pr_arg`, the same helper the
             # merge-pr Start path uses on the same user input: `#42` and a PR URL both reach gh as `42`. Unnormalised,
-            # `readiness --pr '#42'` reached `gh pr view '#42'`, which gh
-            # resolves as a BRANCH NAME.
+            # `readiness --pr '#42'` reached the forge as `#42`, which the
+            # porcelain resolved as a BRANCH NAME.
             pr = lib.gh_pr_view(lib.classify_merge_pr_arg(args.pr)[1] or args.pr,
                                 ",".join(lib.PR_VIEW_FIELDS))
         except lib.GateError as exc:
             die("readiness", "%s\n%s" % (exc, lib.gh_failure_hint(str(exc))))
-        required_ok = lib.gh_pr_required_checks_ok(args.pr)
+        required_ok = lib.gh_pr_required_checks_ok(args.pr, pr=pr)
         # ADR-0088 classifies this read as CRITICAL: an unevaluable gate is
         # never treated as passed. "No required checks configured" is NOT
         # unevaluable -- it is a supported repo shape (/acs:setup documents
@@ -286,7 +463,7 @@ def cmd_readiness(args):
         if isinstance(required_ok, tuple):
             _ok, detail = required_ok
             if lib.gh_read_is_unevaluable(detail):
-                die("readiness", "gh pr checks --required could not be evaluated "
+                die("readiness", "the required checks could not be evaluated "
                                  "for PR %s:\n%s\n%s"
                     % (args.pr, detail or "(no output)", lib.gh_failure_hint(detail)))
 
@@ -431,13 +608,6 @@ def cmd_slug(args):
     emit({"text": args.text, "slug": lib.slugify(args.text, args.max_len)})
 
 
-def cmd_fanout_batches(args):
-    ctx = context_or_die("fanout batches")
-    index = lib.read_json(lib.index_path(ctx["workspace"], ctx["repo_id"])) or {}
-    present = [name.strip() for name in (args.present or "").split(",") if name.strip()]
-    emit({"batches": lib.fanout_batches(index, present=present)})
-
-
 def cmd_doctor(args):
     ctx = None
     try:
@@ -453,9 +623,21 @@ def cmd_doctor(args):
     required_missing = lib.missing_tools(settings, kinds=("required",), rows=rows)
     # `ok` is the verdict the module contract tells callers to read, so it must
     # answer "is the toolchain usable?" — not be a constant.
+    # Where state lives (the main checkout's .acs/state-machine, from any
+    # worktree): informational, never part of `ok`.
     emit({"ok": not required_missing, "context": ctx is not None,
           "toolchain": rows, "missing": missing,
-          "missing_required": required_missing})
+          "missing_required": required_missing,
+          "state_root": state_root_report(os.getcwd())})
+
+
+def state_root_report(cwd):
+    """{"path", "error"}: the workspace root this checkout resolves to, or why
+    there is none (a bare repo, a submodule, no git)."""
+    try:
+        return {"path": lib.default_state_root(cwd), "error": None}
+    except lib.GateError as exc:
+        return {"path": None, "error": str(exc)}
 
 
 # ---------------------------------------------------------------------------
@@ -510,9 +692,9 @@ def cmd_workflow_validate(args):
 
 
 def cmd_artifacts_migrate(args):
-    """Move every live partition's ticket.json (plus design.md and the legacy
-    plan) into docs/tickets/<ID>/ once -- idempotent, archive untouched, a
-    ticket.json.moved pointer left behind. --dry-run lists the moves only."""
+    """RETIRED by ADR-0128: a ticket is no longer stored in docs/tickets/, so
+    this reports `retired: true` and writes nothing (it used to move every
+    live partition's ticket.json there as ticket.md)."""
     ctx = context_or_die("artifacts migrate")
     try:
         report = lib.migrate_artifacts(ctx["workspace"], ctx["repo_id"], ctx["checkout_root"],
@@ -523,14 +705,7 @@ def cmd_artifacts_migrate(args):
 
 
 def cmd_artifacts_show(args):
-    """Where one ticket's documents live (docs folder, partition or legacy
-    location), whether the tree is active, and the derived status. Read-only,
-    so an archived ticket is answered too."""
-    ctx = context_or_die("artifacts show")
-    try:
-        ticket_id, tdir, _archived = lib.resolve_active_partition(
-            os.getcwd(), ctx, explicit=args.ticket, allow_archived=True)
-        out = lib.artifacts.describe(ctx, ticket_id, tdir)
-    except lib.GateError as exc:
-        die("artifacts show", str(exc))
-    emit(dict(out, ok=True))
+    """`acs.py artifacts show`: one RUN's documents (ADR-0128) -- see
+    acs_requirements_commands.cmd_artifacts_show."""
+    import acs_requirements_commands
+    return acs_requirements_commands.cmd_artifacts_show(args)

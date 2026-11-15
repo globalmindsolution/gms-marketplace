@@ -6,7 +6,7 @@ wrote. The `/acs:create-pr` gate therefore checked whether a model had written
 `true`, not whether a verifier had passed — and the metrics ledger recorded
 whatever number the prose happened to carry.
 
-Each of those four has a recorded source that does not depend on anyone
+Each of those has a recorded source that does not depend on anyone
 remembering correctly:
 
   verifier_passed      the verifier's own verdict.json (MAR-527), whose
@@ -15,6 +15,9 @@ remembering correctly:
                        record the command run and its outcome
   pr                   the forge, through `gh pr list --head <branch>`
   review.iterations    the verify artifacts actually on disk
+  implemented          (/acs:docs-sync, ADR-0137) each listed design
+                       document's own front matter: only one that reads
+                       `status: implemented` was flipped
 
 Derivation WINS over whatever the coordinator supplied, and a disagreement is
 recorded rather than silently resolved — the point is not to be strict, it is
@@ -38,13 +41,19 @@ GH_TIMEOUT_SECONDS = 10
 
 from ._common import read_json
 from .repo import gh_failure_hint
+from . import gh_rest
 from .run import iteration_dir, step_dir
 from .step import load_state, state_path
 from . import verdict as verdict_mod
 
 #: The keys this module owns. A coordinator may still write them -- SKILL.md
 #: prose is a contract with humans too -- but what lands is computed here.
-DERIVED_KEYS = ("verifier_passed", "tests", "pr", "review")
+DERIVED_KEYS = ("verifier_passed", "tests", "pr", "review", "implemented")
+
+#: The skills whose `states.implemented` -- the design documents a run moved to
+#: `implemented` (ADR-0137) -- is checked against the documents' own front
+#: matter. Only /acs:docs-sync flips a document there.
+IMPLEMENTED_SKILLS = ("docs-sync",)
 
 #: Only /acs:code has the verifier whose verdict gates /acs:create-pr, so only
 #: its result document has a `verifier_passed` to derive.
@@ -242,7 +251,7 @@ def derive_tests(tdir, skill, settings=None):
     if value is None:
         return None, why
 
-    target = (settings or {}).get("test_coverage_percent")
+    target = ((settings or {}).get("tests") or {}).get("coverage")
     if target is not None:
         value["coverage_target"] = target
     return value, why
@@ -356,12 +365,13 @@ def gh_pr_for_branch(branch, runner=None):
     run = runner or (lambda argv: subprocess.run(argv, capture_output=True, text=True,
                                                  timeout=GH_TIMEOUT_SECONDS))
     try:
-        # baseRefName is requested because states.pr's documented shape is
-        # {number, url, branch, base} and this value REPLACES the coordinator's;
-        # without it, `base` was silently dropped. state is requested because
-        # rows[0] of a --state all answer can be a CLOSED PR.
-        proc = run(["gh", "pr", "list", "--head", branch, "--state", "all",
-                    "--json", "number,url,headRefName,baseRefName,state"])
+        # REST, not `gh pr list` (ADR-0149): the porcelain runs on GraphQL,
+        # which a Claude Code session refuses. pr_row keeps the keys the
+        # value below reads -- `base` included, because states.pr's documented
+        # shape is {number, url, branch, base} and this value REPLACES the
+        # coordinator's -- and `state`, because a state=all answer can lead
+        # with a CLOSED PR.
+        proc = run(gh_rest.pr_list(branch, "all"))
     except FileNotFoundError:
         return None, "gh is not on PATH, so the PR reference could not be verified"
     except (OSError, subprocess.SubprocessError) as exc:
@@ -370,18 +380,20 @@ def gh_pr_for_branch(branch, runner=None):
         # TimeoutExpired. Either used to propagate out of a derivation that
         # runs BEFORE finalize_run, stranding the run in_progress with the lock
         # still held and losing the coordinator's result document entirely.
-        return None, ("gh pr list could not run (%s), so the PR reference could not "
+        return None, ("gh api could not run (%s), so the PR reference could not "
                       "be verified" % type(exc).__name__)
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "").strip()
         first = detail.splitlines()[0] if detail else "no output"
         hint = gh_failure_hint(detail)
-        return None, ("gh pr list failed (%s), so the PR reference could not be "
-                      "verified%s" % (first, ". %s" % hint if hint else ""))
+        return None, ("listing the PRs for the branch failed (%s), so the PR reference "
+                      "could not be verified%s" % (first, ". %s" % hint if hint else ""))
     try:
         rows = json.loads(proc.stdout or "[]")
     except (ValueError, TypeError):
-        return None, "gh pr list returned no parseable JSON"
+        return None, "gh api returned no parseable JSON"
+    if isinstance(rows, list):
+        rows = [gh_rest.pr_row(r) for r in rows if isinstance(r, dict)]
     if not isinstance(rows, list) or not rows:
         return None, "no PR on the forge for %s" % branch
     # Prefer an OPEN PR. rows[0] of a --state all answer is whatever the forge
@@ -395,13 +407,52 @@ def gh_pr_for_branch(branch, runner=None):
              "branch": row.get("headRefName") or branch}
     if row.get("baseRefName"):
         value["base"] = row["baseRefName"]
-    return value, "gh pr list --head %s (%s)" % (
+    return value, "gh api pulls?head=%s (%s)" % (
         branch, "open" if open_rows else "no open PR; reporting %s" % row.get("state"))
 
 
+def derive_implemented(paths, root):
+    """(kept, why) for a run's claimed `states.implemented` (ADR-0137).
+
+    `kept` is the listed documents, in order and once each, whose version
+    front matter reads `status: implemented` -- relative paths resolved from
+    the checkout `root`, every entry kept as it was written. A document that
+    is missing, has no or unparseable front matter, or carries another status
+    was not flipped, whatever the result says, and `why` names it."""
+    from . import design_docs
+    if not isinstance(paths, list):
+        return [], "states.implemented is not a list of paths; nothing was flipped"
+    kept, dropped, seen = [], [], set()
+    for rel in paths:
+        if not isinstance(rel, str) or not rel:
+            dropped.append("%r (not a path)" % (rel,))
+            continue
+        if rel in seen:
+            continue
+        seen.add(rel)
+        path = rel if os.path.isabs(rel) else os.path.join(root, rel)
+        if not os.path.isfile(path):
+            dropped.append("%s (no such file)" % rel)
+            continue
+        try:
+            front, _body = design_docs.read(path)
+        except Exception as exc:  # noqa: BLE001 -- GateError, or an unreadable file
+            dropped.append("%s (%s)" % (rel, exc))
+            continue
+        status = (front or {}).get("status")
+        if status == "implemented":
+            kept.append(rel)
+        else:
+            dropped.append("%s (status: %s)" % (rel, status or "no front matter"))
+    why = "%d of %d listed document(s) read `status: implemented`" % (len(kept), len(seen))
+    if dropped:
+        why += "; not flipped: " + ", ".join(dropped)
+    return kept, why
+
+
 def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=None,
-                  run_id=None, since=None):
-    """(derived, notes) for the four keys this module owns.
+                  run_id=None, since=None, root=None):
+    """(derived, notes) for the keys this module owns.
 
     `derived` holds only the keys that could actually be computed; `notes` maps
     every key this module considered to a one-line provenance string, including
@@ -460,6 +511,14 @@ def derive_states(tdir, skill, result, settings=None, branch=None, pr_runner=Non
         merged = dict(supplied.get("pr") or {})
         merged.update(pr)
         derived["pr"] = merged
+
+    if skill in IMPLEMENTED_SKILLS and "implemented" in supplied:
+        if root:
+            derived["implemented"], notes["implemented"] = derive_implemented(
+                supplied["implemented"], root)
+        else:
+            notes["implemented"] = ("no checkout root to read the documents from; "
+                                    "the listed paths were not checked")
 
     return derived, notes
 

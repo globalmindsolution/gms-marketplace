@@ -208,24 +208,30 @@ Only reached when Step 2 found no in-flight/done cut.
    prefix itself is not settings-driven — it stays the fixed convention
    matching this repo's own prior real cuts; only the version-rendering
    suffix comes from the block. A consumer's `release_branch_format` should
-   be chosen to match its own `enforcement.exempt_branches` glob, or the
-   release PR will fight the conventions gate — this marketplace's profile
-   #1 already satisfies this (`release/v{version}` matches the existing
-   `release/*` glob); this skill does not itself validate the match.
+   be chosen to start with `release/` — the fixed `release/*` exemption from the
+   CI ticket-link check — or the release PR will fight that check; this
+   marketplace's profile #1 already satisfies this (`release/v{version}`);
+   this skill does not itself validate the match.
 
 4. **Open the PR:**
 
    ```bash
-   gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true
-   gh pr create --base <base_branch> --head <release_branch> --title "release: cut <release_tag>" --body-file <coverage-report + draft_section body> --label ACS
+   gh api repos/{owner}/{repo}/labels -X POST -f name=ACS -f description="Created by the acs pipeline" 2>/dev/null || true
+   gh api repos/{owner}/{repo}/pulls -X POST -f base=<base_branch> -f head=<release_branch> -f title="release: cut <release_tag>" -F body=@<coverage-report + draft_section body file> --jq '.number, .html_url'
+   gh api repos/{owner}/{repo}/issues/<number>/labels -X POST -f 'labels[]=ACS'
    ```
 
+   Every call is `gh api` REST (ADR-0149): `gh pr create` and `gh label
+   create` run on GraphQL, which a Claude Code session refuses (HTTP 403), so
+   they are never used here. A failed PR create is critical — gh's verbatim
+   stderr plus `acs_lib.gh_failure_hint()`, then stop with the branch pushed
+   and say so; the label is best-effort.
    `<base_branch>` = the block's `base_branch` field (profile #1: `main`).
-   No `--draft` — the PR is ready for review immediately. The PR title is
+   Not a draft — the PR is ready for review immediately. The PR title is
    the fixed `"release: cut <release_tag>"` convention (matching prior real
-   cuts, tag portion block-rendered) — not rendered via `pr-conventions.py`,
-   since there is no ticket to derive `settings.formats.pr_title` from and
-   `release/*` is already exempt from the conventions gate. The PR body
+   cuts, tag portion block-rendered), written directly — there is no ticket
+   to derive a title from and `release/*` is already exempt from the CI
+   ticket-link check. The PR body
    embeds: a **Pre-release gate** section — each `pre_release_gate`
    command with its exit code and output tail from step 0, or the
    statement that this repo declares none — the coverage report (N/M/K +

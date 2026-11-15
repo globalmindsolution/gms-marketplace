@@ -26,6 +26,11 @@ the dimension-era verdict had none of them:
   * `resolved_when` — the adjudicator's refutation criterion, restated as what
     a fix must make true
 
+`reviewed_sha` keeps its name but, since ADR-0127, holds the git TREE id of
+the working-tree snapshot the review judged (`acs.py changes snapshot`), not a
+commit: nothing is committed before `/acs:create-pr`. `/acs:code`'s "what
+changed since the review" is `acs.py changes diff --since <reviewed_sha>`.
+
 A refuted finding is NOT here: it stays in `iter-<n>/adjudication.json` as an
 audit trail. What reaches `/acs:code` is what survived adjudication.
 
@@ -145,11 +150,16 @@ def validate_verdict(doc, lens=None, skill=None, run_id=None, iteration=None):
             errors.append("%s is required and must be a non-empty string" % field)
     if not isinstance(doc.get("iteration"), int) or doc["iteration"] < 1:
         errors.append("iteration is required and must be a positive integer")
-    # The commit the review judged. `/acs:code` diffs from here on the next
-    # iteration, so a verdict without it cannot say what it reviewed.
+    # What the review judged. Since ADR-0127 nothing is committed before
+    # /acs:create-pr, so this is the WORKING-TREE SNAPSHOT tree id
+    # (`acs.py changes snapshot`) rather than a commit -- the name stayed so
+    # the schema did not break. `/acs:code` asks `acs.py changes diff --since
+    # <reviewed_sha>` what changed after the review, so a verdict without it
+    # cannot say what it reviewed.
     if not isinstance(doc.get("reviewed_sha"), str) or not doc["reviewed_sha"].strip():
         errors.append("reviewed_sha is required and must be a non-empty string -- "
-                      "it is the baseline /acs:code diffs from (§2.3)")
+                      "it is the working-tree snapshot (`acs.py changes snapshot`) "
+                      "/acs:code diffs from (§2.3, ADR-0127)")
 
     for field, expected in (("skill", skill), ("run_id", run_id),
                             ("iteration", iteration)):

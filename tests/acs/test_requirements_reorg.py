@@ -176,11 +176,11 @@ RETIRED_BY_TABP_REMOVAL = {
         '| `"cowork"` | Cowork self-reported usage (future hook, MAR-40) | `"actual"` | Self-reported in `run.json usage.tokens_in/out/cost_usd` |',
         '| `"estimate"` | Heuristic token estimate (e.g. Cowork estimate) | `"estimate"` | Pre-written tokens in `run.json usage.tokens_in/out` |',
         '| `"unavailable"` | No usage data available | `"unavailable"` | None — omitted from aggregate totals |',
-        '| `docs/adr/0023-tabp-hybrid-quality-mechanism-instruction-driven-plus-stdlib-helper.md` | ADR | EDIT — appended MAR-40 amendment extending scope to dual-runtime |',
-        '| `docs/adr/0024-tabp-state-in-cowork-project-folder.md` | ADR | EDIT — appended MAR-40 amendment documenting cwd-as-project-dir + no-git + `.gitignore` guidance |',
-        '| `docs/adr/0025-tabp-independent-verifier-subagent.md` | ADR | NEW — records D1 (inline-artifact input), D2 (N=3 cap), always-on rule, and residual risk |',
-        '| `docs/adr/0026-tabp-hybrid-cost-sourcing.md` | ADR | NEW — records D3a (transcript-actuals) and D3b (dated snapshot pricing + settings override) |',
-        '| `docs/adr/0027-tabp-dual-runtime-detection.md` | ADR | NEW — records the dual-runtime detection decision (explicit flag + auto-detect + cwd-as-project-dir) |',
+        '| `docs/architecture/adr/0023-tabp-hybrid-quality-mechanism-instruction-driven-plus-stdlib-helper.md` | ADR | EDIT — appended MAR-40 amendment extending scope to dual-runtime |',
+        '| `docs/architecture/adr/0024-tabp-state-in-cowork-project-folder.md` | ADR | EDIT — appended MAR-40 amendment documenting cwd-as-project-dir + no-git + `.gitignore` guidance |',
+        '| `docs/architecture/adr/0025-tabp-independent-verifier-subagent.md` | ADR | NEW — records D1 (inline-artifact input), D2 (N=3 cap), always-on rule, and residual risk |',
+        '| `docs/architecture/adr/0026-tabp-hybrid-cost-sourcing.md` | ADR | NEW — records D3a (transcript-actuals) and D3b (dated snapshot pricing + settings override) |',
+        '| `docs/architecture/adr/0027-tabp-dual-runtime-detection.md` | ADR | NEW — records the dual-runtime detection decision (explicit flag + auto-detect + cwd-as-project-dir) |',
         '| `docs/architecture/hld/c4-container.md` | HLD C4 container diagram | EDIT line 13: `tabp_skills` skill count 1→2 (added /tabp:usage) |',
         '| `docs/architecture/hld/c4-container.md` | HLD C4 container diagram | EDIT — added `Rel(tabp_skills, cc, …)` dual-runtime edge; repaired `tabp_agents` count 2→3 (added `screen-verifier-subagent`) |',
         '| `docs/architecture/hld/tech-stack.md` | HLD tech-stack table | EDIT line 5: skill count 1→2; removed "not yet shipped" clause |',
@@ -265,6 +265,35 @@ RETIRED_BY_ADR_0105 = {
     ),
 }
 
+#: ADR-0116 removed the `formats` and `enforcement` settings, so the clauses that
+#: described them are reworded or gone: a branch name is now a fixed convention
+#: (`acs_lib.conventions`), the `models` rule names a skill and a role (ADR-0115),
+#: and the shared-project-file row and the `formats` row no longer list formats.
+RETIRED_BY_ADR_0116 = {
+    'configuration.md': (
+        '- `formats.branch_name` MUST include the `{ticket_id}` placeholder — ticket',
+        '- `models` entries MUST be non-empty strings or `{ "model", "effort" }`',
+        '| Project (shared) | `<repo>/.acs/settings.json` | **committed** | Team-shared, repo-specific settings (formats, tracker, coverage, merge strategy). |',
+        '| `formats` | object | built-in defaults | No | Formats for generated artifacts. Short fields are inline template strings with placeholders such as `{ticket_id}`, `{title}`, `{type}`, `{summary}`: `formats.branch_name` (MUST embed `{ticket_id}`), `formats.commit_message`, `formats.pr_title`, and per-ticket-type titles under `formats.tickets.<type>` (`epic`, `story`, `task`). **Descriptions** (PR description, ticket descriptions) use **pre-defined templates** shipped with the plugin, referenced by name; users can select another template or point to a custom template file. |',
+    ),
+}
+
+#: ADR-0117 folded the test settings into one `tests` block (`tests.coverage` plus
+#: one object per named suite) and dropped Jira, so the clauses and table rows that
+#: described `test_coverage_percent`, `suites`, the old `tests` gate object, the
+#: `e2e` alias and the Jira tracker are reworded or gone; the successor rows live
+#: in the configuration docs under the new names.
+RETIRED_BY_ADR_0117 = {
+    'configuration.md': (
+        '- `test_coverage_percent` MUST be a number in `(0, 100]`; absent → `90`.',
+        'project keys, formats). `/setup` and the pre-hooks SHOULD check that the',
+        '| `suites` | object | `{}` | No | The single source of truth for named test commands: `{ "<name>": { "command", "setup"?, "teardown"?, "per_iteration"? } }`. The reserved name `e2e` is auto-populated at load from a configured `e2e` key (see above). `/acs:test` is the consumer — it runs all configured suites, or a `--suite`-selected subset, capturing pass/fail results to an auditable workspace artifact. |',
+        '| `test_coverage_percent` | number | `90` | No | Coverage target used by `/code` when generating unit tests and running them in the TDD cycle. Missing the target is a hard fail. |',
+        '| `tests` | object | unset | No | Unit/integration suite for the **CI tests + coverage gate** scaffolded by `/acs:setup` (Step 3, opt-in): `{ "command", "setup"? }`. `command` runs the suite and MUST fail on a coverage shortfall — delegate to the tool (e.g. `pytest --cov --cov-fail-under=$ACS_COVERAGE`); acs exports `ACS_COVERAGE` (= `test_coverage_percent`) into the environment. Installed as `.github/workflows/acs-tests.yml` + `.acs/ci/run-tests.py`, which read the **committed** project `.acs/settings.json` (the CI runner has no acs install). A merge gate once made a required status check (`Tests & coverage`) on a protected default branch. |',
+        '| `tracker` | object | `{ "provider": "local" }` | No | Ticket tracking backend. `provider` is `local` (default), `github` (GitHub Projects), or `jira` (Jira board). Tickets are always stored **local-first** in the workspace; when `github`/`jira` is configured, tickets sync **two-way** with the remote tracker, and `ticket.json` keeps the local↔remote id mapping. Access goes through the official CLIs: `gh` (GitHub) and `acli` (Jira). Provider-specific sub-keys live under `tracker.github` / `tracker.jira`. |',
+    ),
+}
+
 #: The v0.5.0 implementation-pipeline redesign REWORDED two clauses rather
 #: than retiring them: the guarantee each carried is still in the tree, under
 #: the name its carrier now has. That is a different fact from the four
@@ -342,16 +371,23 @@ REWORDED_BY_ADR_0102 = {
             "Machine-specific overrides of any key. |",
         # The settings-table rows became rows of the conventional-defaults
         # table, which carry each set's producer/consumer obligations over.
-        '| `adr_path` | string (repo-relative path) or `null` | `"docs/adr"` | No | `/code` commits the accepted decision records from the ticket\'s `design.md` to this path as part of its documentation updates — on by default so decisions outlive archived ticket partitions. Explicit `null` disables (designs then stay workspace-only). |':
-            "| ADRs | `docs/adr/` | `/code` commits the accepted decision records "
-            "from the ticket's `design.md` here, so decisions outlive archived "
-            "ticket partitions. |",
+        '| `adr_path` | string (repo-relative path) or `null` | `"docs/architecture/adr"` | No | `/code` commits the accepted decision records from the ticket\'s `design.md` to this path as part of its documentation updates — on by default so decisions outlive archived ticket partitions. Explicit `null` disables (designs then stay workspace-only). |':
+            # ADR-0127 reworded it again: /code writes them, /create-pr commits.
+            "| ADRs | `docs/architecture/adr/` | `/code` writes the accepted decision records "
+            # ADR-0135 renamed the document tech-design.md.
+            "from the ticket's `tech-design.md` here (and `/create-pr` commits them), so "
+            "decisions outlive archived ticket partitions. |",
         '| `architecture_path` | string (repo-relative path) | `"docs/architecture"` | No | Location of the product architecture doc set in the consumer repo — **HLD** (C4 levels 1–3, data model, deployment, tech stack) and **LLD** (per-flow sequence diagrams, contracts). Bootstrapped by `/create-architecture`, consumed by `/create-design`, kept current by `/code`. |':
+            # ADR-0121 reworded it again: the HLD is create-architecture's, the
+            # LLD the Design skills', per ticket.
             "| Architecture set | `docs/architecture/` (`hld/tech-stack.md` is its "
-            "sentinel file) | **HLD** (C4 levels 1–3, data model, deployment, "
-            "tech stack) and **LLD** (per-flow sequence diagrams, contracts). "
-            "Bootstrapped by `/create-architecture`, consumed by `/create-design`, "
-            "kept current by `/code`. |",
+            "sentinel file) | **HLD** (`hld/`: overview, tech stack, cross-cutting "
+            "conventions and the enabled `design.hld_types`) written by "
+            "`/create-architecture`; **LLD** (`lld/<feature>/`: API contracts, data "
+            "design, flows) written per ticket by the Design skills "
+            "([ADR-0121](../../architecture/adr/0121-create-architecture-writes-the-hld-only.md)); "
+            # ADR-0135 renamed the skill /create-tech-design.
+            "consumed by `/create-tech-design`, kept current by `/code`. |",
         '| `prd_path` | string (repo-relative path) | `"docs/product"` | No | Location of the PRD doc set (`prd.md`, `roadmap.md`) in the consumer repo — bootstrapped and amended by `/create-prd`; `/create-architecture` requires and is verified against it; `/create-ticket` traces tickets to it. |':
             "| PRD | `docs/product/prd.md` + `docs/product/roadmap.md` | Bootstrapped "
             "and amended by `/create-prd`; `/create-architecture` requires and is "
@@ -391,10 +427,6 @@ REWORDED_BY_ADR_0103 = {
 #: role's output is still persisted at the phase boundary, no subagent spawns
 #: sub-subagents -- only the name of the actor moved.
 REWORDED_BY_ADR_0109 = {
-    'skills.md': {
-        '`create-project-executor`, `create-project-verifier` — the executor pins':
-            "`create-project-scaffolder`, `create-project-build-checker` — the scaffolder pins",
-    },
     'workflow.md': {
         'MUST internally run an **execute → verify** cycle using a':
             "internally run a **write → judge** cycle with a dedicated subagent per role",
@@ -423,8 +455,131 @@ REWORDED_BY_ADR_0109 = {
     },
 }
 
+#: ADR-0118 removed `/acs:create-project`, `/acs:standardize-project`, the
+#: `/acs:project` umbrella over them and `/acs:create-requirements`, with
+#: their sections, hook-inventory rows and agents. A greenfield scaffold is
+#: ordinary ticket work, so nothing these clauses guaranteed has a successor:
+#: the skill they bound is gone. (The create-project clause was a rewording
+#: under ADR-0109 until its section went.)
+RETIRED_BY_ADR_0118 = {
+    'skills.md': (
+        '`create-project-executor`, `create-project-verifier` — the executor pins',
+    ),
+    'hooks.md': (
+        '| `/create-project` | `pre-create-project.py` | `post-create-project.py` | `create-project-state.json` |',
+    ),
+}
+
+#: ADR-0127: only `/acs:create-pr` branches, commits and pushes. The
+#: product-level skills mint no delivery ticket any more, `/code` commits
+#: nothing (its commit-message clause has no step left to bind), and
+#: `/create-pr` no longer finds a branch `/code` created -- it creates it. The
+#: successors are stated in their own words in skills.md ("Product-level
+#: delivery (no ticket)", `/code` "MUST NOT branch, stage or commit",
+#: `/create-pr` "MUST split the working tree's uncommitted changes"), not as
+#: rewordings of these clauses.
+RETIRED_BY_ADR_0127 = {
+    'skills.md': (
+        '- Commit messages MUST follow the commit message format configured in',
+        '- MUST create a PR containing the new changes for the implementation. The',
+        'skills, while not running the ticket pipeline, MUST each create their own',
+    ),
+}
+
+#: ADR-0128: skills take requirements from any container and no skill
+#: requires a ticket. The obligations are unchanged -- a skill resolves what
+#: it works on before doing anything and stops and asks when nothing
+#: resolves; /create-design analyses what it was asked, the codebase and the
+#: docs -- only the actor "the ticket" became the run's requirements.
+REWORDED_BY_ADR_0128 = {
+    'skills.md': {
+        '- MUST analyze the ticket, the codebase, and existing docs; MUST evaluate':
+            "- MUST analyze the requirements, the feature's living analysis, the",
+    },
+    'workflow.md': {
+        'If no ticket id can be resolved, the skill MUST stop and ask the user.':
+            "If neither a run nor any source resolves, the skill MUST stop and ask the user.",
+        'and therefore MUST resolve a `<ticket-id>` before doing anything. Resolution':
+            "Every workflow skill MUST resolve what it works on before doing anything:",
+    },
+}
+
+#: ADR-0135: /create-design is renamed /create-tech-design and its document
+#: tech-design.md, a hand-off the team approves with /set-doc-status. The
+#: obligations are unchanged: the hook-naming row names the renamed scripts,
+#: the workflow row the new document's sections, and the design gate the
+#: renamed document.
+REWORDED_BY_ADR_0135 = {
+    'hooks.md': {
+        '| `/create-design` | `pre-create-design.py` | `post-create-design.py` | `create-design-state.json` |':
+            '| `/create-tech-design` | `pre-create-tech-design.py` | `post-create-tech-design.py` | `create-tech-design-state.json` |',
+    },
+    'workflow.md': {
+        'Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout.':
+            'Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`',
+    },
+}
+
+#: ADR-0138: `bug` is a fourth ticket type, and /acs:breakdown-ticket takes
+#: over /create-ticket's split (and --fan-out) modes. The obligations are
+#: unchanged: create-ticket still types every ticket and sizes it to one PR;
+#: an oversized ticket is still split (now by breakdown-ticket, keeping its
+#: id); the plan's oversize answer still routes to the split, user-confirmed;
+#: ticket.json's `type` row names the fourth type.
+REWORDED_BY_ADR_0138 = {
+    'skills.md': {
+        '- MAY **split an existing oversized ticket** (`/create-ticket split <id> ...`,':
+            '- A **story or task** being split is first converted to an **epic that keeps',
+        '- MUST create a ticket with a type of **epic**, **story**, or **task**.':
+            '- MUST create a ticket with a type of **epic**, **story**, **task** or',
+        '- MUST size stories/tasks to **one reviewable PR** (rule of thumb ~<=400':
+            '- MUST size stories/tasks/bugs to **one reviewable PR** (rule of thumb ~<=400',
+        '`/create-ticket split <id>` (user-confirmed); the user MAY explicitly accept':
+            '`/breakdown-ticket <id>` (user-confirmed); the user MAY explicitly accept',
+    },
+    'workspace-and-state.md': {
+        '| `type` | `"epic"\\|"story"\\|"task"` | |':
+            '| `type` | `"epic"\\|"story"\\|"task"\\|"bug"` |',
+    },
+}
+
+#: ADR-0139: a ticket carries no design flag, and /create-tech-design runs
+#: when the user asks. create-ticket's "MUST set needs_design" becomes the
+#: obligation not to ask about, record or recommend a design, and the design
+#: gate (reworded once by ADR-0135) now says who decides: the user, by
+#: running the skill. ticket.json's `needs_design` row has no successor: the
+#: field is gone, and workspace-and-state.md says so below the table.
+REWORDED_BY_ADR_0139 = {
+    'skills.md': {
+        '- MUST set **`needs_design`**, epic-only: always `true` for epics':
+            '- MUST NOT ask about, record or recommend a design: whether a change gets a',
+    },
+    'overview.md(scoped:Packaging+Distribution+CorePrinciples)': {
+        'Architecturally significant tickets (`needs_design`) get an approved `design.md`':
+            'A change the user runs `/create-tech-design` on gets a reviewed `tech-design.md`',
+    },
+}
+
+REWORDED_BY_ADR_0144 = {
+    'skills.md': {
+        '- MUST consult the **PRD** when present: tickets SHOULD trace to PRD':
+            '- MUST be created from the **PRD**',
+        'capability goes beyond the PRD, `/create-ticket` MUST flag the divergence':
+            'capability goes beyond the PRD, `/create-ticket` MUST NOT mint it',
+        'features/goals, and epics SHOULD derive from the roadmap. MUST also read':
+            'SHOULD derive from the roadmap. MUST also read',
+    },
+}
+
+RETIRED_BY_ADR_0139 = {
+    'workspace-and-state.md': (
+        '| `needs_design` | boolean | True for epics only; always `false` for stories/tasks',
+    ),
+}
+
 REWORDING_TABLES = (REWORDED_BY_V050_REDESIGN, REWORDED_BY_ADR_0102, REWORDED_BY_ADR_0103,
-                    REWORDED_BY_ADR_0109)
+                    REWORDED_BY_ADR_0109, REWORDED_BY_ADR_0128, REWORDED_BY_ADR_0135,
+                    REWORDED_BY_ADR_0138, REWORDED_BY_ADR_0139, REWORDED_BY_ADR_0144)
 
 
 def _retired():
@@ -432,7 +587,9 @@ def _retired():
     merged = {}
     for table in (RETIRED_BY_SKILLS_INDEPENDENCE, RETIRED_BY_DOC_SET_FOLD,
                   RETIRED_BY_TABP_REMOVAL, RETIRED_BY_DELIVERY_PATH_ROUTING,
-                  RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105):
+                  RETIRED_BY_SETUP_SIMPLIFICATION, RETIRED_BY_ADR_0105,
+                  RETIRED_BY_ADR_0116, RETIRED_BY_ADR_0117, RETIRED_BY_ADR_0118,
+                  RETIRED_BY_ADR_0127, RETIRED_BY_ADR_0139):
         for source, clauses in table.items():
             merged[source] = merged.get(source, ()) + tuple(clauses)
     for rewording in REWORDING_TABLES:

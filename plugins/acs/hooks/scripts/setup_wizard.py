@@ -7,10 +7,11 @@ one `.gitignore` line, a heredoc to write a JSON dict, and three near-identical
 was being re-derived, in prose, on every setup run — the exact pattern ADR 0001
 exists to prevent.
 
-Setup configures conventions and the CI that enforces them, nothing else: the
-ticket prefix, the branch/commit/PR formats, and the convention and tests
-gates. Every other setting has a working default the user edits by hand, and no
-setting locates a document or the workspace (ADR-0102).
+Setup configures the ticket prefix and installs the CI gates: the ticket-link
+check, tests and e2e. Branch names, commit subjects and PR titles are not
+settings -- the model follows the repo's own style. Every other setting has a
+working default the user edits by hand, and no setting locates a document or the
+workspace (ADR-0102).
 
 Two commands:
 
@@ -22,8 +23,9 @@ Two commands:
 
   apply    Everything the conversation decided, performed at once: the project
            settings, the ignore entries in both layers, the workspace
-           create+probe, and the CI copies. Writes only what the answers ask
-           for, and never a value equal to its built-in default.
+           create+probe, the CI copies, and (opt-in) acs's Claude Code
+           permission rules. Writes only what the answers ask for, and never
+           a value equal to its built-in default.
 
 **Idempotence is the contract, not a nicety.** /acs:setup is re-run whenever a
 format changes, and a repo initialised by an older acs is expected to be
@@ -54,17 +56,18 @@ import acs_lib as lib  # noqa: E402
 
 #: The ignore entries every repo gets, in both layers. Narrow directory entries
 #: on purpose: a broad `.acs/` glob would swallow settings.json and .acs/ci/,
-#: which CI has to read.
-IGNORE_ENTRIES = (".acs/settings.local.json", ".acs/state-machine/")
+#: which CI has to read. `.claude/worktrees/` is where Claude Code puts its
+#: worktrees -- inside the checkout, where `git add -A` would stage a gitlink.
+IGNORE_ENTRIES = (".acs/settings.local.json", ".acs/state-machine/", ".claude/worktrees/")
 
 #: Paths a broad ignore rule must NOT swallow. Warned about, never fixed for
 #: the user: a `!.acs/` negation is their configuration to decide.
-MUST_STAY_TRACKED = (".acs/settings.json", ".acs/ci/check-conventions.py")
+MUST_STAY_TRACKED = (".acs/settings.json", ".acs/ci/check-conventions.py", ".claude/launch.json")
 
 #: install name -> (files copied into .acs/ci/, workflow copied into
 #: .github/workflows/, the required-status-check context the gate uses).
 CI_INSTALLS = {
-    "conventions": (("check-conventions.py", "commit-msg", "pre-push", "install-hooks.sh"),
+    "conventions": (("check-conventions.py",),
                     "acs-conventions.yml", "Branch / PR / commit conventions"),
     "tests": (("run-tests.py",), "acs-tests.yml", "Tests & coverage"),
     "e2e": (("run-e2e.py",), "acs-e2e.yml", "E2E suite"),
@@ -170,15 +173,10 @@ def default_branch(cwd):
     out. `detect` used to report `git symbolic-ref HEAD` under this name, so
     setup run from a feature branch rendered a protection call for the feature
     branch. The remote's HEAD decides; failing that, a `main` or `master` that
-    exists; failing that, None, and the skill asks rather than guesses."""
-    ref = _git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd)
-    if ref:
-        return ref.split("/", 1)[1] if "/" in ref else ref
-    for name in ("main", "master"):
-        for candidate in ("refs/remotes/origin/%s" % name, "refs/heads/%s" % name):
-            if _git(["rev-parse", "--verify", "--quiet", candidate], cwd):
-                return name
-    return None
+    exists; failing that, None, and the skill asks rather than guesses. One
+    helper answers it for every caller (`acs_lib.doc_links.default_branch`,
+    ADR-0140)."""
+    return lib.doc_links.default_branch(cwd)
 
 
 def detect(cwd):
@@ -222,6 +220,15 @@ def detect(cwd):
         "test_command_candidates": test_command_candidates(root),
         "ci": installed_ci(root),
         "retired_keys": retired_keys(scope_files(cwd, settings_root)),
+        # The Desktop app's preview-server config: what is there, and a guess
+        # at a dev server when nothing is.
+        "launch": lib.launch_config.detect(root),
+        # The design-document catalog the setup question offers (ADR-0120).
+        "design": lib.design_types.detect(settings),
+        # The opt-in permission rules the setup question offers, verbatim.
+        "claude_permissions": lib.claude_permissions.detect(root),
+        # The repo's copies of the document templates (ADR-0148).
+        "templates": lib.doc_templates.status(settings_root, lib.plugin_root()),
     }
 
 
@@ -341,12 +348,11 @@ def _delete_path(doc, key_path):
 def split_defaults(values, defaults=None, prefix=()):
     """(to_write, defaulted): `values` without anything equal to its built-in
     default, and the key paths that were. Nested objects are compared key by
-    key, so `{"formats": {"branch_name": <default>, "pr_title": "X"}}` writes
-    only `pr_title`. The defaults are DEFAULT_SETTINGS plus the enforcement
-    defaults, i.e. what every reader resolves an absent key to."""
+    key, so `{"workflow": {"advisories": <default>, "x": 1}}` writes only `x`.
+    The defaults are DEFAULT_SETTINGS, i.e. what every reader resolves an
+    absent key to."""
     if defaults is None:
         defaults = dict(lib.DEFAULT_SETTINGS)
-        defaults["enforcement"] = dict(lib.ENFORCEMENT_DEFAULTS)
     to_write, defaulted = {}, []
     for key, value in values.items():
         path = prefix + (key,)
@@ -394,7 +400,7 @@ def append_line_once(path, line, dry_run=False):
     return True
 
 
-def apply_ignores(root, cwd, changes, dry_run=False):
+def apply_ignores(root, cwd, changes, dry_run=False, entries=IGNORE_ENTRIES):
     """Both layers, on every run — fresh or re-run.
 
     A repo first initialised by an older acs may carry `settings.local.json`
@@ -407,7 +413,7 @@ def apply_ignores(root, cwd, changes, dry_run=False):
         common = os.path.join(root, common)
     exclude = os.path.join(common, "info", "exclude")
 
-    for entry in IGNORE_ENTRIES:
+    for entry in entries:
         if is_ignored(entry, root):
             changes.note(False, "%s already ignored" % entry)
         else:
@@ -419,7 +425,7 @@ def apply_ignores(root, cwd, changes, dry_run=False):
         changes.note(append_line_once(exclude, entry, dry_run),
                      "%s excluded in %s" % (entry, exclude))
 
-    for entry in IGNORE_ENTRIES:
+    for entry in entries:
         if not dry_run and not is_ignored(entry, root):
             changes.warn("%s is still not ignored by git — check for a conflicting "
                          "!.acs/ negation rule" % entry)
@@ -555,15 +561,16 @@ def refusals(cwd, settings_path, raw_settings, values, defaulted, installs):
         # wizard did not set.
         return errors + ["%s exists but is not valid JSON. The wizard will not "
                          "overwrite it -- fix or remove it, then re-run." % settings_path]
-    command = (project.get("tests") or {}).get("command") if isinstance(project.get("tests"), dict) else None
+    project_tests = project.get("tests") if isinstance(project.get("tests"), dict) else {}
+    unit = project_tests.get("unit") if isinstance(project_tests.get("unit"), dict) else {}
+    command = unit.get("command")
     if "tests" in installs and not (isinstance(command, str) and command.strip()):
-        errors.append("the tests gate needs tests.command in .acs/settings.json -- the "
+        errors.append("the tests gate needs tests.unit.command in .acs/settings.json -- the "
                       "command that runs the suite and fails below $ACS_COVERAGE. CI reads "
                       "only that file, so without it the gate fails on every PR.")
-    suites = project.get("suites") if isinstance(project.get("suites"), dict) else {}
-    e2e = suites.get("e2e") or project.get("e2e")
+    e2e = project_tests.get("e2e")
     if "e2e" in installs and not (isinstance(e2e, dict) and e2e.get("command")):
-        errors.append("the e2e gate needs an e2e suite (suites.e2e.command) in "
+        errors.append("the e2e gate needs an e2e suite (tests.e2e.command) in "
                       ".acs/settings.json. CI reads only that file, so without it the "
                       "gate fails on every PR.")
     return errors
@@ -576,9 +583,17 @@ def apply(cwd, answers, dry_run=False):
     # Conventions are the team's, so they go to the committed project file.
     settings_path = os.path.join(root, ".acs", "settings.json")
     raw_settings = dict(answers.get("settings") or {})
+    if "design" in raw_settings:  # canonical order, so a default choice compares equal
+        raw_settings["design"] = lib.design_types.normalise_block(raw_settings["design"])
     values, defaulted = split_defaults(raw_settings)
     refused = refusals(cwd, settings_path, raw_settings, values, defaulted,
                        list(answers.get("ci") or ()))
+    launch_doc, launch = (None, None)
+    if "launch" in answers:
+        launch_doc, launch = lib.launch_config.plan(root, answers["launch"])
+        refused = refused + launch["errors"]
+    perms = answers.get("claude_permissions", "skip")
+    refused = refused + lib.claude_permissions.errors(root, perms)
     if refused:
         out = changes.as_dict()
         out.update({"ok": False, "dry_run": dry_run, "settings_path": settings_path,
@@ -592,10 +607,32 @@ def apply(cwd, answers, dry_run=False):
                                          remove=defaulted)
         changes.note(wrote, "wrote %s" % settings_path)
 
-    apply_ignores(root, cwd, changes, dry_run=dry_run)
+    apply_ignores(root, cwd, changes, dry_run=dry_run,
+                  entries=IGNORE_ENTRIES + lib.claude_permissions.ignore_entries(perms))
     workspace = apply_workspace(cwd, changes, dry_run=dry_run)
     staged, installed_ci = apply_ci(root, answers.get("ci") or (), changes,
                                     dry_run=dry_run)
+    if launch is not None:
+        if launch_doc is not None and not dry_run:
+            lib.launch_config.write(root, launch_doc)
+        changes.note(launch_doc is not None, "wrote %s" % os.path.join(*lib.launch_config.PATH_PARTS))
+        if launch_doc is not None:
+            staged.append(os.path.join(*lib.launch_config.PATH_PARTS))
+        for warning in launch["warnings"]:
+            changes.warn(warning)
+    templates = lib.doc_templates.apply_for_setup(root, lib.plugin_root(), answers.get("templates"),
+                                                  changes, staged, dry_run)
+    permissions = None if perms == "skip" else lib.claude_permissions.apply(root, perms, dry_run)
+    if permissions is not None:
+        changes.note(bool(permissions["added"]), "added %d Claude Code permission rules to %s"
+                     % (len(permissions["added"]), permissions["path"]) if permissions["added"]
+                     else "Claude Code permission rules already in %s" % permissions["path"])
+        if permissions["added"] and perms == "team":
+            staged.append(os.path.join(".claude", "settings.json"))
+        sandbox = permissions["sandbox"]  # machine-specific: never staged (ADR-0136)
+        changes.note(bool(sandbox["added"]), "added the sandbox write rule for %s to %s"
+                     % (sandbox["rule"], sandbox["path"]) if sandbox["added"]
+                     else "sandbox write rule already in %s" % sandbox["path"])
 
     settings, _sources = lib.load_settings(cwd)
     errors = list(changes.errors)
@@ -612,11 +649,12 @@ def apply(cwd, answers, dry_run=False):
                 # Only the installs that ACTUALLY landed: a required check for
                 # a workflow that was never installed blocks every future PR.
                 "required_check_contexts": [CI_INSTALLS[n][2] for n in installed_ci
-                                            if n in CI_INSTALLS]})
+                                            if n in CI_INSTALLS],
+                "launch": launch, "claude_permissions": permissions, "templates": templates})
     return out
 
 
-from setup_wizard_commands import (PIPELINE_ORDER, SETUP_LABELS,  # noqa: E402,F401
+from setup_wizard_commands import (GREENFIELD_SCAFFOLD_STEP, PIPELINE_ORDER, SETUP_LABELS,  # noqa: E402,F401
                                    delivery_steps, render_labels,
                                    render_next_steps, render_protect)
 
@@ -627,6 +665,9 @@ from setup_wizard_commands import (PIPELINE_ORDER, SETUP_LABELS,  # noqa: E402,F
 ANSWER_TYPES = {
     "settings": (dict, "an object of setting keys"),
     "ci": (list, "a list of any of %s" % ", ".join(sorted(CI_INSTALLS))),
+    "launch": (dict, "an object with `configurations` (and optional `autoVerify`)"),
+    "claude_permissions": (str, "one of team, user or skip"),
+    "templates": (bool, "true to scaffold the document templates, false to skip"),
 }
 
 

@@ -16,8 +16,9 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Run the /acs:code skill for ticket EVAL-1. The ticket's implementation plan
 and its test cases are already written and published; implement exactly what
-they say, test-first, on the ticket branch that is checked out now, and commit
-the work there. Use the plan's own delivery path and file map as they are
-recorded. Don't push, don't run the review or open a PR, and don't ask me
-anything: every decision you need is in the ticket, the plan and the test
-cases. Finish the code step when you are done.
+they say, test-first, in the working tree as it is checked out now, and leave
+the work uncommitted -- no branch, no commit (/acs:create-pr commits later).
+Use the plan's own delivery path and file map as they are recorded. Don't
+push, don't run the review or open a PR, and don't ask me anything: every
+decision you need is in the ticket, the plan and the test cases. Finish the
+code step when you are done.

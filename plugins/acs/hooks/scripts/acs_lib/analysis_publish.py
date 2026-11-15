@@ -1,94 +1,49 @@
-"""acs_lib.analysis_publish — publication of the reviewed analysis (ADR-0114 §5).
+"""acs_lib.analysis_publish — publication of the reviewed analysis (ADR-0114 §5,
+ADR-0127, ADR-0133).
 
 Publishing used to be a prose `cp` and `git add`: nothing checked that the
-published bytes were the reviewed bytes, or that the commit carried the
-ticket's docs folder and nothing else. This is that step as code:
+published bytes were the reviewed bytes. This is that step as code:
 
-  1. refuse unless the loop's last review passed, and the draft is still the
-     exact bytes that review judged (its sha256 was recorded at review time);
-  2. run the two deterministic checks (front matter, ordered sections) on the
-     draft -- a finding fails the iteration like a judge's blocking finding;
-  3. copy the draft byte-for-byte to the resolved analysis path, and read it
-     back to prove the copy;
-  4. inside the repo, `git add` ONLY the ticket's docs folder and commit ONLY
-     that pathspec with `settings.formats.commit_message`. It never pushes:
-     /acs:create-pr does.
+  1. refuse unless the loop's last review passed, and the draft FOLDER is
+     still the exact files that review judged (its digest -- every file's
+     sha256 -- was recorded at review time). The deterministic checks
+     (`acs_lib.analysis_folder.check_folder`) ran on those files when the
+     draft was recorded, and a finding failed that iteration's review
+     (ADR-0125), so a passed review is a clean check;
+  2. copy every file of the draft folder byte-for-byte into the resolved
+     analysis folder, read each back to prove the copy, and remove the
+     context files the new analysis no longer has -- ONLY `.md` files directly
+     inside that `analysis/` folder, never anything outside it;
+  3. record each file's sha256 and the run's docs folder's files as the paths
+     this step wrote. It NEVER stages or commits (ADR-0127): only
+     /acs:create-pr commits, and it reads these paths to group the documents
+     into their own commit.
 
-`record_publication` then re-derives all of it from disk and git before the
-loop is `completed`.
+The target is resolved by RUN (ADR-0128, `acs_lib.run_docs`), with or without
+a ticket: a Development run's analysis goes to
+`<development_dir>/<feature>/<ticket-id or run-id>/analysis/`, a Discovery
+run's to the feature's living `<prd_dir>/features/<feature>/analysis/`. A run
+with no feature yet is refused, naming how to record one. A single
+`analysis.md` of before ADR-0133 beside the folder is left where it is (the
+folder's README wins for every reader) and named in the publication as
+`superseded`.
+
+Whether it goes to the repo at all is the user's saved choice (ADR-0132,
+`acs_lib.doc_share`): kept LOCAL, the reviewed files are published to the
+run's `steps/analyze-requirements/local/analysis/` and the publication is
+recorded `local: true` with no files; undecided, publish is refused naming
+`acs.py docs decide`.
+
+`record_publication` then re-derives it from the working tree -- every file
+still the reviewed bytes, no file the review never judged -- before the loop
+is `completed`.
 """
 
-import hashlib
 import os
-import subprocess
 
 from ._common import GateError, now_iso
-from .analysis_loop import (_advance, _block, _expect, draft_path,
-                            record_check_failure)
-from .artifacts import artifact_path, ticket_docs_dir
-from .settings import render_format
-
-FRONT_MATTER_SPEC = ("ticket: str; ready_for_planning: bool; api_surface: bool; "
-                     "needs_design_recommendation: bool")
-SECTIONS = ("Problem restated; Impact map; Questions; Assumptions; Risks; "
-            "Refined acceptance criteria; Verdict")
-DEFAULT_COMMIT_MESSAGE = "{ticket_id} {summary}"
-
-
-def run_checks(path, ticket_id):
-    """[{dimension, file, text}] from front_matter_check and structure_lint,
-    called in-process through the same functions their CLIs use."""
-    import front_matter_check  # noqa: E402 -- hooks/scripts is on sys.path
-    import structure_lint  # noqa: E402
-    findings = []
-    for f in front_matter_check.check_file(path, front_matter_check.parse_spec(FRONT_MATTER_SPEC),
-                                           ticket=ticket_id):
-        findings.append(_check_finding("front-matter", f))
-    for f in structure_lint.lint_file(path, structure_lint._parse_sections(SECTIONS),
-                                      ordered=True):
-        findings.append(_check_finding("structure", f))
-    return findings
-
-
-def _check_finding(dimension, finding):
-    return {"slice": "publish-checks", "severity": "blocking", "dimension": dimension,
-            "file": "analysis.md",
-            "text": "line %d: [%s] %s" % (finding.line, finding.rule, finding.message)}
-
-
-def _git(cwd, *args, check=True):
-    proc = subprocess.run(["git"] + list(args), cwd=cwd, capture_output=True)
-    if check and proc.returncode != 0:
-        raise GateError("git %s failed: %s" % (" ".join(args),
-                                               proc.stderr.decode("utf-8", "replace").strip()))
-    return proc
-
-
-def _default_branches(root):
-    """The repo's default branch names: origin/HEAD's target when the remote
-    records one, plus the conventional `main` and `master` either way."""
-    names = {"main", "master"}
-    ref = _git(root, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD", check=False)
-    if ref.returncode == 0:
-        names.add(ref.stdout.decode().strip().rsplit("/", 1)[-1])
-    return names
-
-
-def refuse_default_branch(root):
-    """acs never commits to the default branch (ADR 0090): the analysis is the
-    first commit of the ticket's branch. A detached HEAD has no branch to carry
-    the commit at all."""
-    branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD").stdout.decode().strip()
-    if branch == "HEAD":
-        raise GateError("refusing to publish: HEAD is detached -- check out the "
-                        "ticket's branch first")
-    if branch in _default_branches(root):
-        raise GateError("refusing to publish on the default branch %r -- acs never "
-                        "commits there; check out the ticket's branch first" % branch)
-
-
-def _sha(data):
-    return hashlib.sha256(data).hexdigest()
+from . import analysis_folder, doc_share, run_docs
+from .analysis_loop import _advance, _block, _expect, draft_dir, reviewed_iteration
 
 
 def _inside(path, folder):
@@ -98,106 +53,127 @@ def _inside(path, folder):
     return path == folder or path.startswith(folder + os.sep)
 
 
-def resolve_target(ctx, tdir, ticket_id):
-    """(analysis_path, docs_dir): the existing resolution -- the first existing
-    copy, else the docs folder, else the partition fallback."""
-    root = ctx.get("checkout_root")
-    return artifact_path(root, tdir, ticket_id, "analysis.md"), ticket_docs_dir(root, ticket_id)
+def _repo_rel(root, path):
+    return os.path.relpath(os.path.realpath(path), os.path.realpath(root)).replace(os.sep, "/")
 
 
-def commit_message(settings, ticket, summary):
-    template = ((settings or {}).get("formats") or {}).get("commit_message") \
-        or DEFAULT_COMMIT_MESSAGE
-    external = ticket.get("external") if isinstance(ticket.get("external"), dict) else {}
-    return render_format(template, {
-        "ticket_id": ticket.get("id") or "", "type": ticket.get("type") or "",
-        "title": ticket.get("title") or "", "summary": summary,
-        "external_key": external.get("key") or ""})
+def resolve_target(ctx, rdir):
+    """(entry README.md path, docs_dir, where) for the run's analysis; the
+    analysis folder is the entry's folder. `docs_dir` is the run's own
+    Development folder, whose files the step records; a Discovery analysis is
+    the feature's living folder and records only its own files; a LOCAL
+    analysis (ADR-0132) is kept in the run's state folder and records nothing
+    for /acs:create-pr. Refused (GateError) while the share choice or a
+    not-yet-existing folder is undecided, naming `acs.py docs decide`, and --
+    shared -- when the run has no feature to file it under."""
+    layout = run_docs.run_layout(ctx, rdir)
+    info = doc_share.require_decided(
+        doc_share.where(ctx, "analysis.md", rdir, layout=layout), verb="publish")
+    if info["share"] is False:
+        return info["abs_entry_path"], None, info
+    target = layout["paths"].get("analysis.md")
+    if not target:
+        raise GateError(
+            "refusing to publish: run %s has no PRD feature to file its analysis under. "
+            "Ask the user which feature it belongs to (propose PRD feature slugs with "
+            "`acs.py slug`, or a new slug when none fits) and record it with `acs.py "
+            "requirements refine` ({\"feature\": \"<slug>\"}), then publish again."
+            % (layout.get("run_id") or os.path.basename(rdir)))
+    docs_dir = layout["docs_dir"] if layout["phase"] == "development" else None
+    return target, docs_dir, info
 
 
-def _reviewed_sha(loop):
+def _reviewed(loop):
+    """(iteration, digest) of the draft the last (passed) review judged."""
     history = loop.get("history") or []
     if not history or not history[-1].get("passed"):
         raise GateError("refusing to publish: the last review did not pass")
-    return history[-1].get("draft_sha256")
+    return reviewed_iteration(loop), history[-1].get("draft_sha256")
 
 
 def publish(rdir, loop, ctx, tdir, ticket, summary=None):
-    """Publish the reviewed draft. Returns (loop, report). On a failed check the
-    loop moves on (next draft, stalled or capped) and nothing is written."""
+    """Publish the reviewed draft folder. Returns (loop, report)."""
     _expect(loop, "publish")
-    draft = draft_path(rdir)
-    if not os.path.isfile(draft):
-        raise GateError("refusing to publish: no draft at %s" % draft)
-    with open(draft, "rb") as handle:
-        data = handle.read()
-    reviewed = _reviewed_sha(loop)
-    if _sha(data) != reviewed:
-        raise GateError("refusing to publish: the draft is not the bytes the review passed "
-                        "(reviewed %s, now %s)" % ((reviewed or "-")[:12], _sha(data)[:12]))
-    findings = run_checks(draft, loop["ticket_id"])
-    if findings:
-        record_check_failure(loop, findings)
-        return loop, {"published": False, "findings": findings,
-                      "reason": "%d deterministic check finding(s) on the draft"
-                                % len(findings)}
-    path, docs_dir = resolve_target(ctx, tdir, loop["ticket_id"])
+    iteration, reviewed = _reviewed(loop)
+    draft = draft_dir(rdir, iteration)
+    if not os.path.isfile(os.path.join(draft, analysis_folder.README)):
+        raise GateError("refusing to publish: no draft folder with a README.md at %s" % draft)
+    combined, shas, total = analysis_folder.digest(draft)
+    if combined != reviewed:
+        raise GateError("refusing to publish: the draft folder is not the files the review "
+                        "passed (reviewed %s, now %s)" % ((reviewed or "-")[:12], combined[:12]))
+    entry, docs_dir, info = resolve_target(ctx, rdir)
+    folder = os.path.dirname(entry)
     root = ctx.get("checkout_root")
-    if root and _inside(path, docs_dir):
-        refuse_default_branch(root)  # before anything is written
-    existed = os.path.isfile(path)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".acs-tmp"
-    with open(tmp, "wb") as handle:
-        handle.write(data)
-    os.replace(tmp, path)
-    with open(path, "rb") as handle:
-        if handle.read() != data:  # pragma: no cover -- a filesystem that lies
-            raise GateError("published bytes at %s differ from the draft" % path)
-    committed, commit, message = False, None, None
-    if root and _inside(path, docs_dir):
-        summary = summary or ("Update requirements analysis" if existed
-                              else "Add requirements analysis")
-        message = commit_message(ctx.get("settings"), ticket, summary)
-        _git(root, "add", "--", docs_dir)
-        staged = _git(root, "diff", "--cached", "--quiet", "--", docs_dir, check=False)
-        if staged.returncode == 1:
-            _git(root, "commit", "-q", "-m", message, "--", docs_dir)
-            commit = _git(root, "rev-parse", "HEAD").stdout.decode().strip()
-            committed = True
-    loop["publication"] = {"path": path, "sha256": _sha(data), "bytes": len(data),
-                           "docs_dir": docs_dir, "committed": committed, "commit": commit,
-                           "message": message, "verified": False, "at": now_iso()}
+    local = info["share"] is False
+    try:
+        written, removed = analysis_folder.copy_folder(draft, folder)
+    except ValueError as exc:
+        raise GateError("refusing to publish: %s" % exc)
+    inside_repo = bool(root) and _inside(folder, root)
+    if local:
+        files = []  # kept in the run's state folder: nothing for create-pr to commit
+    elif inside_repo and docs_dir and _inside(folder, docs_dir):
+        files = _docs_files(root, docs_dir)
+    elif inside_repo:
+        files = sorted(_repo_rel(root, os.path.join(folder, name)) for name in written)
+    else:
+        files = []
+    removed_paths = [_repo_rel(root, os.path.join(folder, name)) if inside_repo and not local
+                     else os.path.join(folder, name) for name in removed]
+    legacy = analysis_folder.legacy_sibling(entry)
+    loop["publication"] = {"path": entry, "dir": folder, "sha256": combined, "bytes": total,
+                           "iteration": iteration, "file_shas": written,
+                           "removed": removed_paths,
+                           "superseded": legacy if legacy and os.path.isfile(legacy) else None,
+                           "docs_dir": docs_dir, "files": files,
+                           "local": local, "share_scope": info.get("share_scope"),
+                           "destination": doc_share.describe_choice(info),
+                           "verified": False, "at": now_iso()}
     loop["events"].append({"at": now_iso(), "event": "publish",
-                           "detail": "%s%s" % (path, " @ %s" % commit[:12] if commit else "")})
+                           "detail": "%s (%d file(s), %d removed)"
+                                     % (folder, len(written), len(removed))})
     return loop, {"published": True, "publication": loop["publication"]}
 
 
+def _docs_files(root, docs_dir):
+    """Every file in the run's docs folder, repo-relative and sorted: the
+    paths this step leaves uncommitted for /acs:create-pr (ADR-0127)."""
+    out = []
+    for base, dirs, names in os.walk(docs_dir):
+        dirs.sort()
+        for name in sorted(names):
+            if name.endswith(".acs-tmp"):
+                continue
+            out.append(_repo_rel(root, os.path.join(base, name)))
+    return sorted(out)
+
+
 def record_publication(rdir, loop, ctx):
-    """Re-derive the publication from disk and git: the published bytes are
-    the reviewed bytes, and inside the repo they are what HEAD carries."""
+    """Re-derive the publication from the working tree: every published file
+    is still the reviewed bytes, and the folder holds no `.md` file the review
+    never judged. Nothing is committed, so HEAD is not asked (ADR-0127): the
+    working tree is what /acs:create-pr will commit."""
     _expect(loop, "publish")
     pub = loop.get("publication")
     if not pub:
         _block(loop, "machinery", "nothing published yet: run `acs.py analysis publish`")
         return loop
-    reviewed = _reviewed_sha(loop)
+    _iteration, reviewed = _reviewed(loop)
+    folder = pub.get("dir") or os.path.dirname(pub["path"])
+    shas = pub.get("file_shas")
+    if not isinstance(shas, dict) or pub.get("sha256") != reviewed:
+        _block(loop, "machinery", "the publication record is not the reviewed analysis: "
+               "run `acs.py analysis publish` again")
+        return loop
     if not os.path.isfile(pub["path"]):
         _block(loop, "machinery", "the published analysis %s is missing" % pub["path"])
         return loop
-    with open(pub["path"], "rb") as handle:
-        data = handle.read()
-    if _sha(data) != reviewed:
-        _block(loop, "machinery", "the published analysis %s is not the reviewed bytes"
-               % pub["path"])
+    problems = analysis_folder.verify(folder, shas)
+    if problems:
+        _block(loop, "machinery", "the published analysis is not the reviewed files: %s"
+               % "; ".join(problems))
         return loop
-    root = ctx.get("checkout_root")
-    if root and _inside(pub["path"], pub.get("docs_dir")):
-        rel = os.path.relpath(os.path.realpath(pub["path"]), os.path.realpath(root))
-        shown = _git(root, "show", "HEAD:%s" % rel.replace(os.sep, "/"), check=False)
-        if shown.returncode != 0 or shown.stdout != data:
-            _block(loop, "machinery", "HEAD does not carry the published analysis %s" % rel)
-            return loop
     pub["verified"] = True
-    _advance(loop, "completed", "record-publication", pub["path"])
+    _advance(loop, "completed", "record-publication", folder)
     return loop

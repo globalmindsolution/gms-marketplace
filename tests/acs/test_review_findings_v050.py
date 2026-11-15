@@ -29,7 +29,6 @@ Prose the human approves in one read. Tests hold coverage at 90%.
 ## Contract
 delivery_path: standard
 owes:
-  api_contract: false
   test_cases:   true
   e2e:          false
   reason: "fixture"

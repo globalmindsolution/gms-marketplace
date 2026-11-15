@@ -15,46 +15,27 @@ A curated catalog of Claude plugins for agentic and AI-assisted workflows.
 
 This repository is a **Claude Code plugin marketplace** named **`gms-marketplace`**
 (manifest: [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)).
-Add it and install plugins from it. Pin the marketplace to a release tag for a
-controlled rollout (recommended), or omit the tag to track the latest:
+Add it once and install plugins from it. The marketplace itself is **not
+versioned or released** — only plugins are:
 
 ```text
-# Gated: pin to an immutable release tag — only an explicit re-pin upgrades you
-claude plugin marketplace add globalmindsolution/gms-marketplace@v0.5.0
+claude plugin marketplace add globalmindsolution/gms-marketplace
 
 # Install the acs plugin (full-shape: Claude Code agentic workflow)
 claude plugin install acs@gms-marketplace
 
-# Rolling: track the default branch — updates arrive on every version bump
-claude plugin marketplace add globalmindsolution/gms-marketplace
+# Later: update the plugin alone — no marketplace re-pin
+claude plugin update acs@gms-marketplace
 ```
 
 (Or run `/plugin` inside a Claude Code session and install from the UI.)
 
-**The marketplace ref is the pin.** The `acs` entry's `source` is the relative
-path `./plugins/acs`: the plugin lives in this repository, beside the catalog,
-and resolves from whichever commit of the marketplace you added. The entry
-carries no `ref` of its own, so per-plugin pinning is gone — the gated/rolling
-choice is made once, on the `marketplace add` line above, and it covers every
-plugin in the catalog.
-
-For a team, pin the marketplace centrally via managed settings so members
-cannot drift onto unreleased versions — upgrade by changing `ref` to a
-newer `v<version>` tag:
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "gms-marketplace": {
-      "source": {
-        "source": "github",
-        "repo": "globalmindsolution/gms-marketplace",
-        "ref": "v0.5.0"
-      }
-    }
-  }
-}
-```
+**The plugin follows the `acs-stable` branch.** The `acs` entry's `source` is a
+`git-subdir` object (this repository, `plugins/acs`, ref `acs-stable`). The
+Release workflow moves `acs-stable` to each `v<version>` tag, so an unreleased
+commit on `main` never reaches consumers and a release reaches them without
+anyone touching the marketplace. The trade-off: there is no per-marketplace pin
+— to hold a version, don't update the plugin.
 
 ### Devin CLI
 
@@ -82,6 +63,35 @@ which each release cut points at the new `v<version>` tag
 (`release.extra_refs` in [`.acs/settings.json`](.acs/settings.json)) — so on the
 Devin side the pin is still per-plugin.
 
+### Oh My Pi
+
+**omp** accepts the same `.claude-plugin/marketplace.json` catalog as a
+Claude Code-compatible fallback, so this repository installs without changes.
+In a session use `/marketplace add` and `/marketplace install`; the CLI
+equivalents:
+
+```text
+# Add the catalog, then install acs (default scope: user — all projects)
+omp plugin marketplace add globalmindsolution/gms-marketplace
+omp plugin install acs@gms-marketplace
+```
+
+Then `/reload-plugins` (or restart the session) and invoke skills as
+`/skill:acs/<name>` — e.g. `/skill:acs/create-ticket`, `/skill:acs/ship`.
+
+**Two degradations.** Skills, `agents/` and slash commands load as-is, but:
+
+- acs's `hooks/hooks.json` is Claude Code shell-command format; omp discovers
+  only `.ts`/`.js` hook factories under `hooks/pre|post/`. The skill brakes,
+  file-map guard, and session bookkeeping **do not fire** — the pipeline runs
+  **ungated**, same as under Devin.
+- omp substitutes `${CLAUDE_PLUGIN_ROOT}` in MCP config only, not in skill
+  bodies — every acs skill shells out to
+  `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py"`. Export
+  `CLAUDE_PLUGIN_ROOT` pointing at the cached plugin directory
+  (`~/.omp/plugins/cache/plugins/gms-marketplace___acs___<version>/`) or
+  those commands fail.
+
 ### Releasing & updating
 
 **Recommended: `/acs:release <version>`** — a one-command skill that drafts
@@ -92,19 +102,16 @@ then stops for a mandatory human merge (ADRs 0050-0052). The manual steps
 below are the underlying mechanism it automates, and remain the documented
 fallback if the skill is unavailable.
 
-The repo ships **one shared version**: a release bumps `version` in all four
+The repo ships **one shared version**: a release bumps `version` in the three
 manifests `release.version_locations` lists
-(`.claude-plugin/marketplace.json`, `plugins/acs/.claude-plugin/plugin.json`,
-`plugins/acs/.devin-plugin/plugin.json`, `.devin-plugin/plugin.json`), points
-the Devin meta-plugin's `git-subdir` `ref` at the new tag, and the Release
-workflow cuts a single immutable `v<version>` tag
-([CHANGELOG](plugins/acs/CHANGELOG.md)). Because the Claude Code entry
-resolves `acs` from the in-repo `./plugins/acs`, the marketplace commit you
-fetched *is* the plugin you get — which is exactly what makes a tag-pinned
-marketplace reproducible, and why there is no separate per-plugin update. The
-per-entry CI validator checks each entry's `name` (always) and `version` (only
-when the entry declares one — today's `acs` entry declares none) against the
-plugin's own `plugin.json`.
+(`plugins/acs/.claude-plugin/plugin.json`, `plugins/acs/.devin-plugin/plugin.json`,
+`.devin-plugin/plugin.json`), points the Devin meta-plugin's `git-subdir` `ref`
+at the new tag, and the Release workflow cuts a single immutable `v<version>`
+tag, publishes the release ([CHANGELOG](plugins/acs/CHANGELOG.md)) and moves
+the `acs-stable` branch to it. `marketplace.json` is left alone — it has no
+version. The per-entry CI validator checks each entry's `name` (always) and
+`version` (only when the entry declares one) against the plugin's own
+`plugin.json`.
 
 **Before cutting a release** (before bumping `version`), run the pre-release
 gate — the commands `release.pre_release_gate` in
@@ -126,11 +133,11 @@ at [`plugins/acs/evals/`](plugins/acs/evals/README.md), in the layout the
 check runs first on purpose: a malformed case fails it for $0 instead of being
 discovered by a paid run. The CLI only measures (`--threshold 0`); the third
 command judges the result
-([ADR-0107](docs/adr/0107-routing-gated-by-skill-not-by-prompt.md)): negatives
+([ADR-0107](docs/architecture/adr/0107-routing-gated-by-skill-not-by-prompt.md)): negatives
 and controls must pass every run, each skill must route at least 9/10 of its
 runs and the suite at least 99/100
-([ADR-0111](docs/adr/0111-routing-gate-ten-phrasings-ten-runs.md),
-[ADR-0112](docs/adr/0112-routing-suite-rate-99-percent.md)).
+([ADR-0111](docs/architecture/adr/0111-routing-gate-ten-phrasings-ten-runs.md),
+[ADR-0112](docs/architecture/adr/0112-routing-suite-rate-99-percent.md)).
 
 Run the suite against the **installed** build too —
 `claude plugin eval acs@gms-marketplace --tag routing --ablation none` grades
@@ -140,14 +147,10 @@ suite's README before quoting a number: it records which checks the graders
 have passed, which they have not yet, and which cases are known to read low. The step-by-step is the
 [release runbook](docs/operations/release-runbook.md).
 
-- **Pinned consumers** (recommended) never receive an update without an
-  explicit re-pin: upgrade by re-adding the marketplace at a newer tag
-  (`claude plugin marketplace add globalmindsolution/gms-marketplace@v<newer>`),
-  then reload.
-- **Rolling consumers** run `claude plugin marketplace update gms-marketplace` (or start a
-  new session) to fetch the latest plugin versions.
+Consumers run `claude plugin update acs@gms-marketplace` (or start a new
+session) to fetch the latest released plugin; the marketplace is not re-pinned.
 
-Either way, **`/acs:update`** inside a session compares installed vs latest,
+**`/acs:update`** inside a session compares installed vs latest,
 summarizes the changelog delta (flagging breaking changes), refreshes the
 marketplace with your consent, and runs post-update migration checks
 (settings schema, a leftover acs status line).
@@ -156,18 +159,19 @@ The marketplace currently ships one plugin:
 
 - **`acs` (Autonomous Coding Skills)** — full-shape plugin targeting Claude Code.
   Provides a complete agentic software-delivery workflow: from a raw request
-  through product definition (PRD), architecture, ticketing, design,
-  requirements analysis, an implementation plan, an API contract and test
-  cases, TDD implementation, a five-lens code review, end-to-end tests, doc
+  through product definition (PRD), architecture, ticketing, design (the
+  API contract, data and flows of each feature among it), requirements
+  analysis, an implementation plan and test cases, TDD implementation, a five-lens code review, end-to-end tests, doc
   sync, pull request, and merge. Thirty skills (`/acs:setup`,
   `/acs:ship`, `/acs:code`, …), each an independent skill that spawns only
   the subagents its own work needs — a surveyor, author and reviewer for the
-  PRD; a planner and plan reviewer for the plan; implementers for the code;
-  none for the mechanical steps that open a ticket, a PR or a merge.
+  PRD; one author per ticket type and a reviewer for a ticket; a planner and
+  plan reviewer for the plan; implementers for the code; none for the
+  mechanical steps that break a ticket into children, open a PR or merge one.
 
-  The human-facing ticket documents (`ticket.md`, `design.md`, `plan.md`,
-  `test-cases.md`, …) live in the consumer repo under
-  `docs/tickets/<ticket-id>/`, reviewable in the PR like any other doc; the
+  The human-facing documents of a change (`tech-design.md`, `plan.md`,
+  `test-cases.md`, …) live in the consumer repo's docs tree, one folder per
+  phase, reviewable in the PR like any other doc; the
   durable **run ledger** lives in a `.acs/state-machine` folder in the
   consumer repo's main checkout, which ignores itself in git, making runs
   resumable and tickets shippable in parallel across git worktrees.
@@ -215,7 +219,7 @@ history that built the dataset stays in that repository.
 
 | Where | What |
 |-------|------|
-| [docs/](docs/README.md) | Product docs: [product/](docs/product/) (PRD, roadmap), [requirements/](docs/requirements/) (behavioral contract), [architecture/](docs/architecture/) (HLD/LLD), [adr/](docs/adr/) |
+| [docs/](docs/README.md) | Product docs: [product/](docs/product/) (PRD, roadmap), [requirements/](docs/requirements/) (behavioral contract), [architecture/](docs/architecture/) (HLD/LLD), [adr/](docs/architecture/adr/) |
 | [plugins/acs/README.md](plugins/acs/README.md) | acs plugin usage: install, quick start, skill reference, configuration, troubleshooting |
 | [plugins/acs/docs/INTERNALS.md](plugins/acs/docs/INTERNALS.md) | acs implementation contract for contributors (lifecycle, helper CLIs, state shapes, XML rules) |
 | [plugins/acs/evals/README.md](plugins/acs/evals/README.md) | The eval suite: how to run it, its tags, how routing is graded, and its known limits |

@@ -176,7 +176,7 @@ class TestsAndCoverageTest(DeriveCase):
     def test_numbers_come_from_the_execute_report(self):
         self.write_execute(tests={"passed": 84, "failed": 0},
                            coverage={"percent": 93.4, "target": 90})
-        value, why = lib.derive_tests(self.rdir_path, "code", {"test_coverage_percent": 90})
+        value, why = lib.derive_tests(self.rdir_path, "code", {"tests": {"coverage": 90}})
         self.assertEqual(value, {"passed": 84, "failed": 0,
                                  "coverage_percent": 93.4, "coverage_target": 90})
         self.assertIn("implementer.json", why)
@@ -205,7 +205,7 @@ class TestsAndCoverageTest(DeriveCase):
     def test_coverage_target_comes_from_settings_not_from_the_report(self):
         """The target is a setting, so it is never anyone's claim."""
         self.write_execute(coverage={"percent": 91.0, "target": 50})
-        value, _why = lib.derive_tests(self.rdir_path, "code", {"test_coverage_percent": 90})
+        value, _why = lib.derive_tests(self.rdir_path, "code", {"tests": {"coverage": 90}})
         self.assertEqual(value["coverage_target"], 90)
 
     def test_no_report_derives_nothing_rather_than_zero(self):
@@ -253,13 +253,13 @@ class PrFromTheForgeTest(unittest.TestCase):
     """The PR reference is the forge's answer, not the coordinator's."""
 
     def test_reads_the_pr_gh_reports_for_the_branch(self):
-        rows = json.dumps([{"number": 7, "url": "https://example.invalid/pull/7",
-                            "headRefName": "task/SHOP-1-x"}])
+        rows = json.dumps([{"number": 7, "html_url": "https://example.invalid/pull/7",
+                            "state": "open", "head": {"ref": "task/SHOP-1-x"}}])
         value, why = lib.gh_pr_for_branch(
             "task/SHOP-1-x", runner=lambda argv: _Proc(stdout=rows))
         self.assertEqual(value, {"number": 7, "url": "https://example.invalid/pull/7",
                                  "branch": "task/SHOP-1-x"})
-        self.assertIn("gh pr list --head", why)
+        self.assertIn("gh api pulls?head=", why)
 
     def test_no_pr_derives_nothing_and_says_so(self):
         value, why = lib.gh_pr_for_branch("b", runner=lambda argv: _Proc(stdout="[]"))
@@ -333,6 +333,8 @@ class PostHookDerivationTest(DeriveCase):
         self.assertIn("states.verifier_passed was True", out.stderr)
         self.assertIn("without a verdict", out.stderr)
 
+        # The brake holds a run whose /acs:code produced a result (ADR-0127).
+        lib.write_json(lib.result_path(self.rdir_path, "code"), {"status": "completed"})
         gate = self.pre("create-pr", self.ticket)
         self.assertEqual(gate.returncode, 2)
         self.assertIn("verifier_passed", gate.stderr)

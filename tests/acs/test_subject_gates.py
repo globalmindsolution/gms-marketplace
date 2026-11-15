@@ -1,6 +1,6 @@
 """The two pre-hook gates for skills that are NOT steps of the resolved workflow.
 
-Originating ticket: MAR-586. `/acs:merge-pr` and `/acs:create-design` are
+Originating ticket: MAR-586. `/acs:merge-pr` and `/acs:create-tech-design` are
 deliberately absent from `ship.yaml`, so the gate's `has_step` return used to
 short-circuit before any brake ran and both hooks exited 0 on every profile.
 This module pins the restored behaviour:
@@ -9,8 +9,9 @@ This module pins the restored behaviour:
     a PR reference for the one that does -- bare, ticketed and epic alike;
   * merge-pr's exempt non-ticket forms (--pr N, #N, a PR URL) still pass through
     un-gated, which is what keeps `_merge_pr_arg_text` a live helper;
-  * create-design refuses a ticket that is not flagged needs_design, and refuses
-    when no ticket resolves, while a needs_design ticket keeps opening;
+  * create-tech-design refuses only when there are no requirements at all: any
+    ticket, epic, prompt or documents opens it -- tickets carry no design flag
+    (ADR-0139);
   * the refusal WORDING is read out of the golden dataset at test time, so
     drift fails here rather than only in the eval tier;
   * a subject gate resolves a TICKET, never a run: it creates no run directory,
@@ -153,7 +154,7 @@ class CodeSubjectGateTest(acs_case.AcsWorkspaceCase):
         """The refusal is about the missing SUBJECT, nothing else: mint the
         ticket and the identical invocation passes."""
         minted = self.run_script("new-ticket.py", "--title", "Add a /health endpoint",
-                                 "--type", "task", "--needs-design", "false")
+                                 "--type", "task")
         self.assertEqual(minted.returncode, 0, minted.stderr)
         self.assertEqual(json.loads(minted.stdout)["ticket_id"], "SHOP-1")
         out = self.pre("code", "SHOP-1")
@@ -161,30 +162,58 @@ class CodeSubjectGateTest(acs_case.AcsWorkspaceCase):
 
 
 class CreateDesignGateTest(acs_case.AcsWorkspaceCase):
-    """/acs:create-design only runs for a design-significant ticket."""
+    """/acs:create-tech-design runs whenever it is asked, on any subject
+    (ADR-0139); it needs only requirements to design from."""
 
-    def test_create_design_is_refused_for_a_ticket_not_flagged_needs_design(self):
+    def test_create_tech_design_admits_a_story_or_task_with_no_flag(self):
+        for ttype in ("story", "task", "bug"):
+            with self.subTest(type=ttype):
+                ticket = self.new_ticket("Add user login", ttype)
+                out = self.pre("create-tech-design", ticket)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                self.assertNotIn("blocked", out.stderr)
+
+    def test_an_old_ticket_flagged_false_is_admitted_too(self):
+        """A ticket written before ADR-0139 may still carry the key; it decides
+        nothing."""
         ticket = self.new_ticket("Add user login", "task")
-        out = self.pre("create-design", ticket)
-        self.assertEqual(out.returncode, 2, out.stderr)
-        self.assertIn("acs pre-create-design: blocked", out.stderr)
-        self.assertIn(
-            "ticket %s is not flagged needs_design — /create-design only runs for "
-            "design-significant tickets; go straight to /acs:code %s."
-            % (ticket, ticket), out.stderr)
+        lib.save_ticket(self.tdir(ticket), dict(lib.load_ticket(self.tdir(ticket)),
+                                                needs_design=False))
+        out = self.pre("create-tech-design", ticket)
+        self.assertEqual(out.returncode, 0, out.stderr)
 
-    def test_create_design_is_refused_with_no_subject_at_all(self):
-        out = self.pre("create-design")
+    def test_create_tech_design_is_refused_with_no_requirements_at_all(self):
+        out = self.pre("create-tech-design")
         self.assertEqual(out.returncode, 2, out.stderr)
-        self.assertIn("acs pre-create-design: blocked", out.stderr)
+        self.assertIn("acs pre-create-tech-design: blocked", out.stderr)
         self.assertIn(
-            "could not resolve a ticket id for /create-design (no argument, no session "
-            "pointer, no ticket in the branch name). Pass it explicitly, e.g. "
-            "/acs:create-design SHOP-123.", out.stderr)
+            "no requirements for /create-tech-design: no ticket, document or prompt in the "
+            "invocation, and no current run. Give it a ticket id, documents or a "
+            "prompt, e.g. /acs:create-tech-design SHOP-123.", out.stderr)
 
-    def test_create_design_opens_for_a_needs_design_ticket(self):
+    def test_a_prompt_is_the_ask_with_no_ticket(self):
+        """ADR-0128: invoking /acs:create-tech-design with requirements -- here a
+        prompt -- IS the request for a design."""
+        out = self.pre("create-tech-design", "split the order service into two")
+        self.assertEqual(out.returncode, 0, out.stderr)
+
+    def test_a_ticketless_current_run_opens_with_no_argument(self):
+        out = self.run_script("acs.py", "run", "new", "--prompt", "tweak a label")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(self.pre("create-tech-design").returncode, 0)
+
+    def test_an_archived_ticket_is_still_refused(self):
+        """What `_resolve_ticket_for_gate` enforces stays: a done, archived
+        ticket has nothing left to design."""
+        ticket = self.new_ticket("Add user login", "story")
+        lib._archive_partition(lib.build_context(self.repo), self.tdir(ticket), ticket)
+        out = self.pre("create-tech-design", ticket)
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn("is done and archived", out.stderr)
+
+    def test_create_tech_design_opens_for_an_epic(self):
         ticket = self.new_ticket("Checkout revamp", "epic")
-        out = self.pre("create-design", ticket)
+        out = self.pre("create-tech-design", ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn("blocked", out.stderr)
 
@@ -298,9 +327,9 @@ class SubjectGateCreatesNoRunTest(acs_case.AcsWorkspaceCase):
     def test_a_refused_subject_gate_creates_no_run(self):
         ticket = self.new_ticket("Add user login", "task")
         runs = os.path.join(lib.repo_dir(self.ws, "acme-shop"), "runs")
-        for skill in ("merge-pr", "create-design"):
+        for skill, args_text in (("merge-pr", ticket), ("create-tech-design", "")):
             with self.subTest(skill=skill):
-                out = self.pre(skill, ticket)
+                out = self.pre(skill, args_text)
                 self.assertEqual(out.returncode, 2, out.stderr)
                 self.assertFalse(os.path.exists(runs),
                                  "%s opened a run to refuse with: %s" % (skill, runs))
@@ -313,9 +342,8 @@ class RecordedGoldenWordingTest(acs_case.AcsWorkspaceCase):
         task = self.new_ticket("Add user login", "task")
         epic = self.new_ticket("Checkout revamp", "epic")
         cases = [
-            ("GATE-011", "create-design", ""),
+            ("GATE-011", "create-tech-design", ""),
             ("GATE-015", "merge-pr", ""),
-            ("GATE-026", "create-design", task),
             ("GATE-030", "merge-pr", task),
             ("GATE-045", "merge-pr", epic),
         ]
@@ -338,12 +366,12 @@ class OrphanHelpersTest(unittest.TestCase):
             body = fh.read()
         self.assertIn("args_text = _merge_pr_arg_text(payload)", body)
 
-    def test_design_requirement_has_a_live_caller(self):
+    def test_design_source_has_a_live_caller(self):
         path = os.path.join(acs_case.SCRIPTS, "acs_state_commands.py")
         with open(path, encoding="utf-8") as fh:
             body = fh.read()
-        self.assertIn("lib.design_requirement(", body)
-        self.assertTrue(callable(lib.design_requirement))
+        self.assertIn("lib.design_source(", body)
+        self.assertTrue(callable(lib.design_source))
 
 
 if __name__ == "__main__":

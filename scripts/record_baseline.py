@@ -71,6 +71,19 @@ def has_baseline(case):
     return os.path.isfile(os.path.join(case.path, BASELINE_FILE))
 
 
+def copy_trace(trace, dest):
+    """Copy the run's trace, ending it with a newline: the CLI writes the last
+    line without one, which the end-of-file-fixer hook would otherwise add on
+    the first commit, failing it."""
+    shutil.copyfile(trace, dest)
+    with open(dest, "rb+") as fh:
+        fh.seek(0, os.SEEK_END)
+        if fh.tell():
+            fh.seek(-1, os.SEEK_END)
+            if fh.read(1) != b"\n":
+                fh.write(b"\n")
+
+
 def grader_text(criteria):
     return ("---\ntype: baseline\nbaseline_file: %s\n---\n\n%s\n"
             % (BASELINE_FILE, criteria.strip()))
@@ -125,7 +138,7 @@ def record(case, dry_run=False):
             result = json.load(fh)
         kept = kept_dirs(result)
         trace = clean_run(case, result)
-        shutil.copyfile(trace, os.path.join(case.path, BASELINE_FILE))
+        copy_trace(trace, os.path.join(case.path, BASELINE_FILE))
         gdir = os.path.join(case.path, "graders")
         os.makedirs(gdir, exist_ok=True)
         with open(os.path.join(gdir, GRADER_FILE), "w", encoding="utf-8") as fh:

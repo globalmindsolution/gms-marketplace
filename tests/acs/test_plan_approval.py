@@ -29,6 +29,7 @@ TESTS_ACS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TESTS_ACS)
 
 import acs_case  # noqa: E402
+from skill_text import skill_contract  # noqa: E402
 from acs_case import lib  # noqa: E402
 
 MODULE_FILENAME = "plan-approval.py"
@@ -80,7 +81,6 @@ Run `pytest tests/retry/ --cov=src/retry`; the coverage target is 90.
 CONFORMING_CONTRACT = """## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases:   true
   e2e:          false
   reason: "internal parse change; no HTTP surface and no browser flow"
@@ -106,20 +106,20 @@ class PlanApprovalPredicatePurityTest(unittest.TestCase):
                 mock.patch("os.path.exists", side_effect=_raise), \
                 mock.patch("subprocess.run", side_effect=_raise):
             eligible, _evaluation = lib.plan_approval_eligible(
-                CONFORMING_PLAN, {"test_coverage_percent": 90})
+                CONFORMING_PLAN, {"tests": {"coverage": 90}})
         self.assertTrue(eligible)
 
     def test_predicate_needs_no_clock(self):
         with mock.patch.object(lib, "now_iso", side_effect=AssertionError("no clock")):
             _eligible, evaluation = lib.plan_approval_eligible(
-                CONFORMING_PLAN, {"test_coverage_percent": 90})
+                CONFORMING_PLAN, {"tests": {"coverage": 90}})
         dumped = json.dumps(evaluation)
         self.assertNotIn("approved_at", dumped)
         self.assertNotIn("now_iso", dumped)
 
     def test_predicate_is_deterministic(self):
-        r1 = lib.plan_approval_eligible(CONFORMING_PLAN, {"test_coverage_percent": 90})
-        r2 = lib.plan_approval_eligible(CONFORMING_PLAN, {"test_coverage_percent": 90})
+        r1 = lib.plan_approval_eligible(CONFORMING_PLAN, {"tests": {"coverage": 90}})
+        r2 = lib.plan_approval_eligible(CONFORMING_PLAN, {"tests": {"coverage": 90}})
         self.assertEqual(r1, r2)
 
     def test_predicate_signature_takes_plain_values(self):
@@ -134,21 +134,21 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
 
     def test_conforming_plan_is_eligible(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}})
         self.assertTrue(eligible, evaluation["failures"])
         self.assertEqual(evaluation["failures"], [])
 
     def test_a_plan_with_no_contract_block_fails(self):
         mutated = CONFORMING_PLAN.replace("## Contract", "## Notes", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("missing-section: Contract", evaluation["failures"])
 
     def test_a_contract_with_no_delivery_path_fails(self):
         mutated = CONFORMING_PLAN.replace("delivery_path: small\n", "", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("contract: delivery_path is not declared",
                       evaluation["failures"])
@@ -157,7 +157,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         mutated = CONFORMING_PLAN.replace("delivery_path: small",
                                           "delivery_path: enormous", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertTrue(
             any(f.startswith("contract: delivery_path:") for f in evaluation["failures"]),
@@ -167,7 +167,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         mutated = CONFORMING_PLAN.replace("  e2e:          false",
                                           "  e2e:          false\n  telemetry: true", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertTrue(
             any(f.startswith("contract:") for f in evaluation["failures"]),
@@ -177,7 +177,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         mutated = CONFORMING_PLAN.replace("### Executor tasks & file map",
                                           "### Files", 1)
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("missing-section: Executor tasks & file map",
                       evaluation["failures"])
@@ -188,7 +188,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         mutated = CONFORMING_PLAN.replace(
             "- task 1: src/retry/policy.py, tests/retry/test_policy.py\n", "")
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("empty-section: Executor tasks & file map",
                       evaluation["failures"])
@@ -204,14 +204,14 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
                 self.assertNotIn("## %s" % retired, CONFORMING_PLAN)
                 self.assertNotIn("### %s" % retired, CONFORMING_PLAN)
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}})
         self.assertTrue(eligible, evaluation["failures"])
 
     def test_coverage_target_absent_fails(self):
         mutated = CONFORMING_PLAN.replace(
             "the coverage target is 90", "the coverage target is 80")
         eligible, evaluation = lib.plan_approval_eligible(
-            mutated, {"test_coverage_percent": 90})
+            mutated, {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertTrue(
             any(f.startswith("coverage-target-not-stated:") for f in evaluation["failures"]),
@@ -219,7 +219,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
 
     def test_blank_plan_fails(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            "   \n\n  ", {"test_coverage_percent": 90})
+            "   \n\n  ", {"tests": {"coverage": 90}})
         self.assertFalse(eligible)
         self.assertIn("empty-plan", evaluation["failures"])
 
@@ -230,7 +230,7 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         for value in (True, False, None):
             with self.subTest(fold_active=value):
                 eligible, evaluation = lib.plan_approval_eligible(
-                    CONFORMING_PLAN, {"test_coverage_percent": 90},
+                    CONFORMING_PLAN, {"tests": {"coverage": 90}},
                     fold_active=value)
                 self.assertTrue(eligible, evaluation["failures"])
         self.assertEqual(
@@ -241,32 +241,32 @@ class PlanApprovalPredicateRulesTest(unittest.TestCase):
         eligible, evaluation = lib.plan_approval_eligible(CONFORMING_PLAN, None)
         self.assertTrue(eligible, evaluation["failures"])
         self.assertEqual(evaluation["inputs"]["coverage_target"],
-                         lib.DEFAULT_SETTINGS["test_coverage_percent"])
+                         lib.DEFAULT_SETTINGS["tests"]["coverage"])
 
     def test_inputs_carry_sha256_of_the_text(self):
         _eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}})
         expected = hashlib.sha256(CONFORMING_PLAN.encode("utf-8")).hexdigest()
         self.assertEqual(evaluation["inputs"]["plan_sha256"], expected)
         _eligible2, evaluation2 = lib.plan_approval_eligible(
-            CONFORMING_PLAN + "x", {"test_coverage_percent": 90})
+            CONFORMING_PLAN + "x", {"tests": {"coverage": 90}})
         self.assertNotEqual(evaluation["inputs"]["plan_sha256"],
                             evaluation2["inputs"]["plan_sha256"])
 
     def test_coverage_target_none_in_settings_fails_without_crashing(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": None})
+            CONFORMING_PLAN, {"tests": {"coverage": None}})
         self.assertFalse(eligible)
         self.assertFalse(evaluation["checks"]["coverage_target_stated"])
 
     def test_float_coverage_target_matches_integer_display(self):
         eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90.0})
+            CONFORMING_PLAN, {"tests": {"coverage": 90.0}})
         self.assertTrue(eligible, evaluation["failures"])
 
     def test_evaluation_is_json_serializable(self):
         _eligible, evaluation = lib.plan_approval_eligible(
-            CONFORMING_PLAN, {"test_coverage_percent": 90})
+            CONFORMING_PLAN, {"tests": {"coverage": 90}})
         json.dumps(evaluation)  # must not raise
 
 
@@ -294,7 +294,7 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         """The block AND the file map: the predicate requires both, and a
         fixture that supplied only the block would be testing a plan no
         executor could be checked against."""
-        return ("\n## Contract\ndelivery_path: %s\nowes:\n  api_contract: false\n"
+        return ("\n## Contract\ndelivery_path: %s\nowes:\n"
                 "  test_cases: true\n  e2e: false\n  reason: \"%s\"\n"
                 "\n### Executor tasks & file map\n"
                 "- task 1: src/retry/policy.py, tests/retry/test_policy.py\n"
@@ -587,7 +587,9 @@ class PlanApprovalWriterTest(acs_case.AcsWorkspaceCase):
         # The prohibition sits where the record is DESCRIBED: create-impl-plan
         # publishes the plan the approval hashes, and is the skill a reader
         # arrives at asking who writes the record.
-        norm_body = _norm(_read(IMPL_PLAN_SKILL))
+        # What the skill SAYS: the approval note moved to `references/` behind
+        # a pointer (progressive disclosure), and is read where it points.
+        norm_body = _norm(skill_contract("create-impl-plan"))
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), norm_body):
             window = norm_body[max(0, m.start() - 250):m.end() + 250]
@@ -645,7 +647,7 @@ class PlanPathReadTest(acs_case.AcsWorkspaceCase):
         return path
 
     CONTRACT = ("\n## Contract\ndelivery_path: small\nowes:\n"
-                "  api_contract: false\n  test_cases: true\n  e2e: false\n"
+                "  test_cases: true\n  e2e: false\n"
                 '  reason: "CLI-only change"\n'
                 "\n### Executor tasks & file map\n"
                 "- task 1: src/retry/policy.py\n")
@@ -660,10 +662,21 @@ class PlanPathReadTest(acs_case.AcsWorkspaceCase):
         self._write_plan(tid, self.CONTRACT)
         doc = self._path_out(tid)
         self.assertEqual(doc["delivery_path"], "small")
-        self.assertEqual(doc["owes"], {"api_contract": False,
-                                       "test_cases": True, "e2e": False})
+        self.assertEqual(doc["owes"], {"test_cases": True, "e2e": False})
         self.assertEqual(doc["contract_errors"], [])
         self.assertTrue(doc["plan"].endswith("steps/create-impl-plan/plan.md"))
+
+    def test_a_plan_owing_the_legacy_api_contract_flag_still_loads(self):
+        """ADR-0134: a plan written before the API contract became a Design
+        document carries `owes.api_contract`. It is no error and no flag --
+        the key is ignored, the rest of the contract read as before."""
+        tid = self.new_ticket("Plan path", "task")
+        self._write_plan(tid, self.CONTRACT.replace(
+            "owes:\n", "owes:\n  api_contract: true\n"))
+        doc = self._path_out(tid)
+        self.assertEqual(doc["contract_errors"], [])
+        self.assertEqual(doc["owes"], {"test_cases": True, "e2e": False})
+        self.assertEqual(doc["delivery_path"], "small")
 
     def test_writes_nothing(self):
         """The read must not create the approval record, and must not mirror
@@ -684,8 +697,7 @@ class PlanPathReadTest(acs_case.AcsWorkspaceCase):
         self._write_plan(tid, "\n### Executor tasks & file map\n- task 1: a.py\n")
         doc = self._path_out(tid)
         self.assertIsNone(doc["delivery_path"])
-        self.assertEqual(doc["owes"],
-                         {"api_contract": None, "test_cases": None, "e2e": None})
+        self.assertEqual(doc["owes"], {"test_cases": None, "e2e": None})
 
     def test_a_missing_plan_is_reported_not_raised(self):
         tid = self.new_ticket("Plan path", "task")
@@ -735,6 +747,39 @@ class PlanPathReadTest(acs_case.AcsWorkspaceCase):
         self.assertNotEqual(out.returncode, 0)
 
 
+class PlanContractOwesKeysTest(unittest.TestCase):
+    """`plan_contract.OWES_KEYS` after ADR-0134: the API contract is a Design
+    document no plan owes, so the plan states two flags -- and one written
+    before that still carries the third, which is accepted and ignored."""
+
+    LEGACY = ("## Contract\ndelivery_path: small\nowes:\n  api_contract: false\n"
+              "  test_cases: true\n  e2e: false\n  reason: \"x\"\n")
+
+    def test_the_plan_owes_test_cases_and_e2e_only(self):
+        from acs_lib import plan_contract
+        self.assertEqual(plan_contract.OWES_KEYS, ("test_cases", "e2e"))
+
+    def test_the_legacy_api_contract_key_is_no_error(self):
+        from acs_lib import plan_contract
+        contract = plan_contract.parse(self.LEGACY)
+        self.assertEqual(plan_contract.errors(contract), [])
+
+    def test_the_legacy_key_must_still_be_a_boolean_to_be_ignored_quietly(self):
+        """Ignored means ignored: even a malformed legacy value is not a
+        reason to refuse a plan nothing reads it from."""
+        from acs_lib import plan_contract
+        contract = plan_contract.parse(self.LEGACY.replace("api_contract: false",
+                                                           "api_contract: maybe"))
+        self.assertEqual(plan_contract.errors(contract), [])
+
+    def test_any_other_unknown_key_is_still_an_error(self):
+        from acs_lib import plan_contract
+        contract = plan_contract.parse(self.LEGACY.replace("api_contract", "data_design"))
+        self.assertEqual(len(plan_contract.errors(contract)), 1)
+        self.assertIn("owes.data_design", plan_contract.errors(contract)[0])
+        self.assertIn("test_cases, e2e", plan_contract.errors(contract)[0])
+
+
 class CodeSkillReachesPythonThroughTheCliTest(unittest.TestCase):
     """ADR 0001: a skill reaches Python through a CLI, never a heredoc.
 
@@ -759,7 +804,9 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.skill_body = _read(IMPL_PLAN_SKILL)
+        # SKILL.md with its references read where it points at them: the
+        # approval note and the canonical states moved there behind pointers.
+        cls.skill_body = skill_contract("create-impl-plan")
         cls.internals_body = _read(INTERNALS)
         cls.leg_bodies = {leg: _read(os.path.join(SKILLS, leg, "SKILL.md"))
                           for leg in ("code-standard", "code-complex")}

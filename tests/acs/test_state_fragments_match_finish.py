@@ -18,7 +18,9 @@ import unittest
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acs_lib import schemasubset  # noqa: E402
+from skill_text import acs_writes  # noqa: E402
 
 
 def finish_example(skill):
@@ -29,7 +31,9 @@ def finish_example(skill):
     start = text.find("## Finish")
     if start < 0:
         return None
-    for block in re.findall(r"```json\n(.*?)\n\s*```", text[start:], re.S):
+    blocks = [body for _path, body in acs_writes(text[start:])]
+    blocks += re.findall(r"```json\n(.*?)\n\s*```", text[start:], re.S)
+    for block in blocks:
         try:
             doc = json.loads(re.sub(r"(?m)^ {3}", "", block))
         except ValueError:
@@ -70,9 +74,32 @@ class FinishExampleMatchesFragmentTest(unittest.TestCase):
 
     def test_the_two_drifted_fragments_now_declare_what_their_finish_writes(self):
         analyze = fragment("analyze-requirements")["properties"]["states"]["properties"]
-        self.assertEqual(sorted(analyze), ["api_surface", "questions_open", "ready_for_planning"])
+        self.assertEqual(sorted(analyze),
+                         ["api_surface", "files", "questions_open", "ready_for_planning"])
         plan = fragment("create-impl-plan")["properties"]["states"]["properties"]
         self.assertEqual(plan["file_map"]["type"], "object")
+
+    def test_api_surface_is_kept_only_so_old_state_still_validates(self):
+        """ADR-0134 dropped `api_surface`: nothing writes it, but the fragment
+        is closed (additionalProperties false), so it stays declared --
+        deprecated and ignored -- for the state files that already carry it."""
+        states = fragment("analyze-requirements")["properties"]["states"]
+        node = states["properties"]["api_surface"]
+        self.assertIn("ADR-0134", node.get("description", ""))
+        self.assertIn("ignored", node.get("description", "").lower())
+        self.assertNotIn("api_surface", states.get("required", []))
+        old = {"ready_for_planning": True, "api_surface": True, "questions_open": 0,
+               "files": []}
+        new = {"ready_for_planning": True, "questions_open": 0, "files": []}
+        for doc in (old, new):
+            self.assertEqual(list(schemasubset.schema_errors(states, doc)), [])
+
+    def test_the_api_contract_completes_written_or_type_disabled(self):
+        """ADR-0134: a Design skill, so no plan settles it as `no_surface_owed`;
+        it writes the contract, or records that its LLD type is disabled."""
+        outcome = fragment("create-api-contract")["properties"]["outcome"]
+        self.assertEqual(outcome["enum"], ["contract_written", "type_disabled"])
+        self.assertNotIn("no_surface_owed", outcome["description"])
 
 
 

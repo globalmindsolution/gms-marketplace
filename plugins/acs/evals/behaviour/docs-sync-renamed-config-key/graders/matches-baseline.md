@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run starts the docs-sync step, derives from the run's working-tree changeset (acs.py changes diff) that SHOP_PAGE_SIZE was renamed to SHOP_CUSTOMERS_PAGE_SIZE and the old name is no longer read, finds BOTH places that document it (README.md's Configuration section and docs/configuration.md's table), updates each to the new name and leaves them uncommitted, finishes the step with both in files, and reports the two docs and /acs:create-pr as the next step.
+FAIL if the run asks the user anything, fixes only one of the two docs, documents both names as working settings, creates or switches to another branch, commits anything, changes product code or tests, pushes or opens a PR, or ends without finishing the step.

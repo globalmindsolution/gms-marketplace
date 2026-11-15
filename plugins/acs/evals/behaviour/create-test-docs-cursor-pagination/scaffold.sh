@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # create-test-docs: the shop repo, story EVAL-1 minted and given its three
-# acceptance criteria through the plugin's own CLIs, and the ticket branch
-# carrying what the earlier Build steps would have PUBLISHED there:
-# docs/tickets/EVAL-1/analysis.md, plan.md (whose Contract block owes test
+# acceptance criteria through the plugin's own CLIs, and the working tree
+# (main, nothing committed -- ADR-0127) carrying what the earlier Build steps would have PUBLISHED there, uncommitted:
+# docs/development/customer-listing/EVAL-1/analysis.md, plan.md (whose Contract block owes test
 # cases, so the pre-hook does NOT settle the step as no_cases_owed) and
-# api-contract.md (one item, GET /customers, with the invalid_cursor error).
+# the API contract the Design phase approved (acs_api_contract_customers:
+# lld/customer-listing/api/customers.md, one item, GET /customers, with the
+# invalid_cursor error, and the run record EVAL-1/api-contract.md linking it).
 #
 # acs has no writer command for any of the three -- each coordinator copies
-# its verified draft into the docs folder with cp and commits it -- so they
+# its verified draft into the docs folder with cp and leaves it uncommitted -- so they
 # are written in exactly the format their SKILL.md specifies (each passes
 # front_matter_check.py / structure_lint.py; the plan's Contract block parses
-# through acs_lib.plan_contract) and committed as ordinary repo files. No
+# through acs_lib.plan_contract) and left uncommitted as ordinary repo files. No
 # workspace step state is forged: the create-test-docs gate reads them when
 # present and requires no predecessor step.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
@@ -21,7 +23,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
-acs_ticket "Cursor pagination for GET /customers" story false \
+ACS_FEATURES=customer-listing
+acs_ticket "Cursor pagination for GET /customers" story \
   "Offset paging skips or repeats customers when rows are inserted between page requests. Replace it with an opaque cursor so a client can walk every customer exactly once."
 printf '%s' '{"acceptance_criteria": [
   "GET /customers accepts an optional cursor query parameter and returns the page of customers that follows it",
@@ -29,14 +32,11 @@ printf '%s' '{"acceptance_criteria": [
   "A malformed cursor is rejected with HTTP 400 and error code invalid_cursor"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-cursor-pagination-for-get-customers
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/architecture/lld/customer-listing/EVAL-1 docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: true
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Cursor pagination for GET /customers
@@ -77,15 +77,12 @@ The three criteria on the ticket are confirmed as written.
 
 ## Verdict
 
-Ready for planning; api_surface true; no design needed.
+Ready for planning.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze cursor pagination"
-cat > docs/tickets/EVAL-1/plan.md <<'MD'
+cat > docs/development/customer-listing/EVAL-1/plan.md <<'MD'
 # Plan — EVAL-1: Cursor pagination for GET /customers
 
-Planned from docs/tickets/EVAL-1/analysis.md (api_surface true, ready for
-planning) and the ticket's three acceptance criteria.
+Planned from docs/development/customer-listing/EVAL-1/analysis.md (ready for planning) and the ticket's three acceptance criteria.
 
 ## Approach
 
@@ -124,7 +121,6 @@ GET /customers is a public API: `offset` clients must keep working.
 ## Contract
 delivery_path: small
 owes:
-  api_contract: true
   test_cases: true
   e2e: false
   reason: "GET /customers gains a query parameter, a response field and an error code; no browser flow"
@@ -132,60 +128,4 @@ owes:
 ### Executor tasks & file map
 - task 1: src/shop/__init__.py, tests/test_customers.py, README.md
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Plan cursor pagination"
-cat > docs/tickets/EVAL-1/api-contract.md <<'MD'
----
-ticket: EVAL-1
-items: 1
-contract_files: []
----
-
-# API contract — EVAL-1: Cursor pagination for GET /customers
-
-## Scope & sources
-
-The surface docs/tickets/EVAL-1/plan.md adds: GET /customers gains a `cursor`
-query parameter, a `next_cursor` response field and an `invalid_cursor` error.
-Sources: the plan, docs/tickets/EVAL-1/analysis.md, src/shop/__init__.py,
-README.md's API section.
-
-## Surface
-
-### GET /customers
-
-- Query: `cursor` (optional, opaque string), `limit` (optional, 1-100,
-  default 20), `offset` (optional, deprecated; ignored when `cursor` is given).
-- 200 body: `{"items": [...], "limit": 20, "next_cursor": "Y3VzdC0yMA"}`;
-  `next_cursor` is `null` on the last page.
-
-## Error model
-
-| Code | HTTP | When |
-|---|---|---|
-| `invalid_cursor` | 400 | `cursor` is not a cursor this API issued |
-
-## Compatibility & versioning
-
-Backward compatible, in place: `offset` clients keep working (C-2).
-
-## Examples
-
-`GET /customers?cursor=Y3VzdC0yMA&limit=20` -> 200 with the next page.
-`GET /customers?cursor=%%%` -> 400 `{"error": "invalid_cursor"}`.
-
-## Traceability
-
-| Item | AC | Plan item |
-|---|---|---|
-| GET /customers `cursor` | AC-1 | task 1 |
-| GET /customers `next_cursor` | AC-2 | task 1 |
-| `invalid_cursor` | AC-3 | task 1 |
-
-## Contract files
-
-Mode `no-machine-readable-contracts`: the repo keeps no OpenAPI, schema or
-`docs/api/` tree, and this run introduces none.
-MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Contract for cursor pagination"
+acs_api_contract_customers

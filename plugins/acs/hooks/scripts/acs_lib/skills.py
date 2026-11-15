@@ -54,8 +54,10 @@ ROLE_KIND_NAMES = ("survey", "write", "judge")
 ROLE_KINDS = {
     # survey -- read-only on the repo, writes its notes into the workspace
     "surveyor": "survey",
-    "auditor": "survey",
     "impact-analyst": "survey",
+    # design <-> code gap detection, read-only, beside a Design skill's survey (ADR-0122)
+    "gap-analyst": "survey",
+    "auditor": "survey",
     # write -- produces the deliverable
     "analyst": "write",
     "author": "write",
@@ -67,18 +69,20 @@ ROLE_KINDS = {
     "implementer": "write",
     "test-writer": "write",
     "doc-updater": "write",
-    "scaffolder": "write",
+    # create-ticket's draft authors, one per ticket type (ADR-0138): each
+    # writes only the draft, never mints a ticket or touches the tracker
+    "epic-author": "write",
+    "story-author": "write",
+    "task-author": "write",
+    "bug-author": "write",
     # judge -- read-only, re-derives and judges fresh
     "reviewer": "judge",
     "impact-reviewer": "judge",
-    "design-reviewer": "judge",
     "plan-reviewer": "judge",
     "contract-reviewer": "judge",
     "trace-reviewer": "judge",
     "suite-runner": "judge",
     "drift-reviewer": "judge",
-    "build-checker": "judge",
-    "additive-checker": "judge",
     "lens": "judge",
     "adjudicator": "judge",
 }
@@ -86,18 +90,12 @@ ROLE_KINDS = {
 #: Every role acs spawns, in a stable order.
 AGENT_ROLES = tuple(sorted(ROLE_KINDS))
 
-#: kind -> the `settings.models` tier the role runs on.
-KIND_MODEL_TIERS = {"survey": "planner", "write": "executor", "judge": "verifier"}
 
-#: {leg: entry point}. A leg keeps its SKILL.md (and, for the project legs,
-#: its agents, hooks and gate) and stays Skill-invocable, but a workflow never
-#: names it -- its entry point dispatches to it. The code legs run under
-#: `code`'s gate and state (`LEG_ENTRY_POINTS`); the project legs are hooked
-#: skills of their own that `/acs:project` picks between.
-SKILL_LEGS = dict(LEG_ENTRY_POINTS, **{
-    "create-project": "project",
-    "standardize-project": "project",
-})
+#: {leg: entry point}. A leg keeps its SKILL.md and stays Skill-invocable, but
+#: a workflow never names it -- its entry point dispatches to it. The legs are
+#: `code`'s four delivery paths, which run under `code`'s gate and state
+#: (`LEG_ENTRY_POINTS`).
+SKILL_LEGS = dict(LEG_ENTRY_POINTS)
 
 #: A skill's own failures ARE workflow failures: a step list and the skills it
 #: names are two halves of one contract, and a caller that catches one should
@@ -187,20 +185,6 @@ def skill_legs():
 def role_kind(role):
     """`survey`, `write` or `judge` for a role acs spawns, else None."""
     return ROLE_KINDS.get(role)
-
-
-def model_tier(role):
-    """The `settings.models` key a role's model and effort come from, else None.
-    By kind, with two exceptions: the `planner` role (create-impl-plan's) runs
-    on the `planner` tier its name promises, though it writes a draft; and the
-    `impact-analyst` (analyze-requirements', ADR-0114) runs on the `executor`
-    tier the analyst's impact survey ran on before it was split out, though it
-    is read-only on the repo."""
-    if role == "planner":
-        return "planner"
-    if role == "impact-analyst":
-        return "executor"
-    return KIND_MODEL_TIERS.get(role_kind(role))
 
 
 def split_agent_name(name, skills=None):

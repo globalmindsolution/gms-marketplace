@@ -46,7 +46,7 @@ WRITER, RUNNER = "test-writer", "suite-runner"
 ROLES = (WRITER, RUNNER)
 
 #: The result-document keys the post-hook documents and the next step reads.
-STATES_KEYS = ("suites_written", "cases_covered")
+STATES_KEYS = ("suites_written", "cases_covered", "files")
 
 
 def read(path):
@@ -78,7 +78,7 @@ class TestSkillFrontmatter(unittest.TestCase):
         self.assertRegex(self.fm, r"(?m)^name: create-e2e-tests$")
 
     def test_it_is_a_ticket_scoped_coordinator(self):
-        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\]"$')
+        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         self.assertRegex(self.fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
 
     def test_description_routes_on_what_it_produces(self):
@@ -176,7 +176,7 @@ class TestGateAgreement(unittest.TestCase):
         self.assertRegex(self.body, r'outcome: "no_e2e_owed"')
 
     def test_the_skill_still_describes_the_e2e_configuration_it_needs(self):
-        self.assertIn("settings.e2e", self.body)
+        self.assertIn("settings.tests.e2e", self.body)
         self.assertIn("/acs:setup", self.body)
 
     def test_nothing_owed_completes_the_step_without_spawning_it(self):
@@ -217,9 +217,15 @@ class TestNeverWritesProductCode(unittest.TestCase):
         self.assertRegex(agent(WRITER),
                          r"(?s)status=\"needs_input\".*?product change")
 
-    def test_the_commit_is_limited_to_the_declared_paths(self):
-        self.assertRegex(self.body, r"Commit ONLY the paths in the file map")
-        self.assertRegex(self.body, r"Do NOT\s+push")
+    def test_the_scope_check_is_limited_to_the_declared_paths_and_commits_nothing(self):
+        """ADR-0127: the suites stay uncommitted; the scope check compares
+        against a step-start snapshot, since /acs:code's change is also
+        uncommitted in the same working tree."""
+        self.assertIn("acs.py\" changes snapshot", self.body)
+        self.assertRegex(self.body, r"changes diff --since <start_tree> --name-only")
+        self.assertRegex(self.body, r"Every path it lists must be in the file map")
+        self.assertNotRegex(self.body, r"git (add|commit|checkout -b)\b")
+        self.assertIn("Never stage or commit", self.body)
 
     def test_every_role_carries_the_rule(self):
         for role in ROLES:
@@ -227,7 +233,9 @@ class TestNeverWritesProductCode(unittest.TestCase):
                 self.assertRegex(agent(role), r"(?i)never (write |plan a )?product[- ]code")
 
     def test_the_suite_runner_checks_the_changeset_for_source_edits(self):
-        self.assertIn("git status --porcelain", agent(RUNNER))
+        runner = agent(RUNNER)
+        self.assertIn("changes diff --since <start_tree> --name-only", runner)
+        self.assertNotIn("git status --porcelain", runner)
 
 
 class TestNeverWeakensATest(unittest.TestCase):
@@ -243,8 +251,13 @@ class TestNeverWeakensATest(unittest.TestCase):
         self.assertRegex(self.body, r"currently red is a\s+correct deliverable")
 
     def test_the_relay_is_named_as_the_owner_of_a_product_failure(self):
+        """`/acs:run-e2e-tests` owns a product failure: a red suite fails that
+        step and is filed as a regression ticket. `ship.yaml` declares no relay
+        from it back to `/acs:code` (its one loop is review-code -> code)."""
         self.assertIn("/acs:run-e2e-tests", self.body)
-        self.assertRegex(self.body, r"relays its\s+failure back to `/acs:code")
+        self.assertRegex(self.body, r"red suite finishes that step `failed`")
+        self.assertRegex(self.body, r"filed as a regression\s+ticket")
+        self.assertNotRegex(self.body, r"relays its\s+failure back to `/acs:code")
 
     def test_the_test_writer_is_forbidden_the_shortcuts_by_name(self):
         body = agent(WRITER)
@@ -288,9 +301,10 @@ class TestE2eLocation(unittest.TestCase):
         self.assertRegex(self.body, r"named after the ticket")
         self.assertRegex(self.body, r"carries its `TC-<n>` id")
 
-    def test_the_normalized_suites_entry_is_what_is_read(self):
-        """settings.e2e is normalized into suites['e2e'] at load time."""
-        self.assertRegex(self.body, r'read `suites\["e2e"\]` and never the raw alias')
+    def test_the_e2e_suite_is_read_from_tests_e2e(self):
+        """The e2e suite lives at tests.e2e; the retired suites/e2e shapes are gone."""
+        self.assertIn("`tests.e2e`", self.body)
+        self.assertNotIn('suites["e2e"]', self.body)
 
 
 class TestResultDocument(unittest.TestCase):
@@ -328,7 +342,7 @@ class TestSubagentShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
         fm, _ = frontmatter(agent(RUNNER), RUNNER)
-        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash$")
         fm, _ = frontmatter(agent(WRITER), WRITER)
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
@@ -352,9 +366,14 @@ class TestSubagentShape(unittest.TestCase):
                               agent(role))
                 self.assertIn('phase="test-writer|suite-runner"', read(SKILL_PATH))
 
-    def test_each_role_names_its_model_tier(self):
-        self.assertIn("`executor` model", agent(WRITER))
-        self.assertIn("`verifier` model", agent(RUNNER))
+    def test_no_role_names_a_model_tier(self):
+        """Model and effort come from settings.models.create-e2e-tests.<role>
+        through the agent the coordinator spawns, not from the agent's text."""
+        for role in (WRITER, RUNNER):
+            with self.subTest(role=role):
+                body = agent(role)
+                self.assertNotIn("model tier", body)
+                self.assertNotRegex(body, r"`(planner|executor|verifier)` model")
 
     def test_each_role_returns_only_a_result_element(self):
         for role in ROLES:
@@ -444,8 +463,9 @@ class TestParallelFanOut(unittest.TestCase):
 
     def test_every_fan_out_is_one_message_under_the_cap(self):
         self.assertIn("in ONE message", self.norm)
-        self.assertIn("max_parallel = 4", self.norm)
-        self.assertRegex(self.norm, r"waves of four, each wave one message")
+        self.assertIn("At most `settings.parallel.max_agents` (default 4) instances per message",
+                      self.norm)
+        self.assertRegex(self.norm, r"waves of that size, each wave one message")
 
     def test_the_slice_is_on_the_wire(self):
         self.assertIn('phase="test-writer" slice="2"', self.norm)

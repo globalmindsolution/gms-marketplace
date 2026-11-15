@@ -2,10 +2,7 @@
 
 run-e2e.py (plugins/acs/templates/ci/run-e2e.py) runs in the consumer's CI
 with ZERO acs dependencies — stdlib only. It reads the e2e command from the
-committed `.acs/settings.json`, resolving it from EITHER `suites["e2e"]` OR
-the raw `e2e` alias (the load-time normalization `acs_lib.load_settings`
-performs for a Claude Code session does not happen in CI, so the runner
-replicates the fallback itself). It runs optional `setup`, then `command`,
+committed `.acs/settings.json` at `tests.e2e`. It runs optional `setup`, then `command`,
 then optional `teardown` (always, in a `finally` block — a non-zero teardown
 never flips a green `command` result to red), and exits with `command`'s
 status (or 1 on a `setup` failure / missing settings / no resolvable command).
@@ -44,35 +41,32 @@ class RunE2eCase(unittest.TestCase):
     # --- AC-2: green/red, fail-closed ---
 
     def test_green_command_exits_0(self):
-        out, _ = self.run_in({"suites": {"e2e": {"command": "true"}}})
+        out, _ = self.run_in({"tests": {"e2e": {"command": "true"}}})
         self.assertEqual(out.returncode, 0, out.stderr)
 
     def test_red_command_exits_1(self):
-        out, _ = self.run_in({"suites": {"e2e": {"command": "exit 3"}}})
+        out, _ = self.run_in({"tests": {"e2e": {"command": "exit 3"}}})
         self.assertEqual(out.returncode, 1)
         self.assertIn("failed", out.stderr)
 
     # --- AC-2: dual-shape command resolution ---
 
-    def test_resolves_via_suites_e2e(self):
-        out, _ = self.run_in({"suites": {"e2e": {"command": 'test "$X" = "1"'}}})
-        # command doesn't set X; proves the suites-shape resolves and RUNS
+    def test_resolves_via_tests_e2e(self):
+        out, _ = self.run_in({"tests": {"e2e": {"command": 'test "$X" = "1"'}}})
+        # command doesn't set X; proves tests.e2e resolves and RUNS
         # the command (red because $X is unset, not because resolution failed).
         self.assertEqual(out.returncode, 1, out.stderr)
 
-    def test_resolves_via_raw_e2e_alias(self):
-        # No `suites` key at all — the exact dogfood-repo shape.
+    def test_legacy_e2e_alias_is_not_read(self):
+        # The raw top-level `e2e` alias is gone: only `tests.e2e` is read.
         out, _ = self.run_in({"e2e": {"command": "true"}})
-        self.assertEqual(out.returncode, 0, out.stderr)
-
-    def test_suites_null_falls_back_to_e2e_alias(self):
-        out, _ = self.run_in({"suites": None, "e2e": {"command": "true"}})
-        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("e2e command", out.stderr)
 
     # --- AC-1: runner's own no-command guard (opt-in invariant, runner half) ---
 
     def test_missing_command_exits_1(self):
-        out, _ = self.run_in({"suites": {}})
+        out, _ = self.run_in({"tests": {}})
         self.assertEqual(out.returncode, 1)
         self.assertIn("e2e command", out.stderr)
 
@@ -84,7 +78,7 @@ class RunE2eCase(unittest.TestCase):
     # --- runner contract: setup before command ---
 
     def test_setup_runs_before_command(self):
-        out, _ = self.run_in({"suites": {"e2e": {
+        out, _ = self.run_in({"tests": {"e2e": {
             "setup": "echo ok > marker",
             "command": "test -f marker",
         }}})
@@ -93,7 +87,7 @@ class RunE2eCase(unittest.TestCase):
     # --- teardown semantics (design.md:459-468) ---
 
     def test_setup_failure_still_attempts_teardown_then_exits_1(self):
-        out, tmp = self.run_in({"suites": {"e2e": {
+        out, tmp = self.run_in({"tests": {"e2e": {
             "setup": "exit 4",
             "command": "true",
             "teardown": "echo done > teardown-marker",
@@ -102,7 +96,7 @@ class RunE2eCase(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(tmp, "teardown-marker")))
 
     def test_teardown_always_runs_on_success(self):
-        out, tmp = self.run_in({"suites": {"e2e": {
+        out, tmp = self.run_in({"tests": {"e2e": {
             "command": "true",
             "teardown": "echo done > teardown-marker",
         }}})
@@ -110,7 +104,7 @@ class RunE2eCase(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(tmp, "teardown-marker")))
 
     def test_teardown_always_runs_on_failure(self):
-        out, tmp = self.run_in({"suites": {"e2e": {
+        out, tmp = self.run_in({"tests": {"e2e": {
             "command": "exit 2",
             "teardown": "echo done > teardown-marker",
         }}})
@@ -118,7 +112,7 @@ class RunE2eCase(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(tmp, "teardown-marker")))
 
     def test_nonzero_teardown_does_not_flip_green_to_red(self):
-        out, _ = self.run_in({"suites": {"e2e": {
+        out, _ = self.run_in({"tests": {"e2e": {
             "command": "exit 0",
             "teardown": "exit 5",
         }}})

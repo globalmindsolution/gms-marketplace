@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run starts /acs:code for EVAL-1, reads the recorded delivery path from the plan and dispatches to the code-trivial leg, spawns exactly one implementer that writes the failing test in tests/test_page_size.py first, sets PAGE_SIZE to 25 and updates the README's per-page figure, leaves the work uncommitted on main (no branch, no commit), and finishes the code step as completed without asking the user anything.
+FAIL if the run asks a question, re-judges or overrides the plan's delivery path, spawns parallel implementers, hard-codes 25 somewhere other than the PAGE_SIZE constant, leaves the README saying 20, skips the failing test, runs /acs:review-code or opens a PR, commits anything, creates or switches a branch, or leaves the code step unfinished.

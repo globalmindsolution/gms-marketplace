@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # create-impl-plan (no API surface): the shop repo, story EVAL-1 "Log slow
 # customer listings" minted and given its criteria through the plugin's own
-# CLIs, and the ticket branch carrying the PUBLISHED analysis
-# /acs:analyze-requirements would have left -- front matter api_surface:
-# false, because the change is an operator log line and GET /customers keeps
-# its parameters, response and errors. acs has no writer command for an
-# analysis (its coordinator copies the verified draft with cp and commits
-# it), so the file is written in exactly SKILL.md's format and committed.
+# CLIs, and the working tree (main, uncommitted -- ADR-0127) carrying the PUBLISHED analysis
+# /acs:analyze-requirements would have left -- no interface changes: the
+# change is an operator log line and GET /customers keeps its parameters,
+# response and errors. acs has no writer command for an
+# analysis (its coordinator copies the verified draft with cp and leaves it
+# uncommitted), so the file is written in exactly SKILL.md's format, uncommitted.
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -15,7 +15,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
-acs_ticket "Log slow customer listings" story false \
+ACS_FEATURES=customer-listing
+acs_ticket "Log slow customer listings" story \
   "Operators cannot tell when customer listing pages are slow. When list_customers takes longer than 200 ms, log a warning through the standard logging module so slow pages show up in the service log."
 printf '%s' '{"acceptance_criteria": [
   "list_customers logs one WARNING on the shop logger when a call takes longer than 200 ms",
@@ -23,14 +24,11 @@ printf '%s' '{"acceptance_criteria": [
   "A call that takes 200 ms or less logs nothing"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-log-slow-customer-listings
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: false
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Log slow customer listings
@@ -67,8 +65,5 @@ The three criteria on the ticket are confirmed as written.
 ## Verdict
 
 Ready for planning; no API surface changes (the return value, parameters and
-errors of GET /customers are untouched; the log line is operator output); no
-design needed.
+errors of GET /customers are untouched; the log line is operator output).
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze slow listing log"

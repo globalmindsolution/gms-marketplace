@@ -56,7 +56,7 @@ class TestRunPre(AcsWorkspaceCase):
         to stderr before the gate runs -- it never blocks (gate_create_ticket
         is an unconditional pass)."""
         self.write_settings({
-            "ticket_prefix": "SHOP", "test_coverage_percent": 90,
+            "ticket_prefix": "SHOP", "tests": {"coverage": 90},
             "tracker": {"provider": "github"},
         })
         bin_dir = os.path.join(self.tmp, "bin")

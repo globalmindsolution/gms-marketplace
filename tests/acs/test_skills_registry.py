@@ -72,8 +72,8 @@ class LegTest(unittest.TestCase):
         legs = K.skill_legs()
         for leg in ("code-trivial", "code-small", "code-standard", "code-complex"):
             self.assertEqual(legs.get(leg), "code", leg)
-        for leg in ("create-project", "standardize-project"):
-            self.assertEqual(legs.get(leg), "project", leg)
+        self.assertEqual(sorted(legs), ["code-complex", "code-small", "code-standard",
+                                        "code-trivial"])
 
     def test_all_four_code_legs_survive_the_redesign(self):
         self.assertEqual(K.legs_of("code"),
@@ -104,14 +104,6 @@ class AgentConventionTest(unittest.TestCase):
         for role, kind in K.ROLE_KINDS.items():
             self.assertIn(kind, K.ROLE_KIND_NAMES, role)
 
-    def test_every_role_has_a_model_tier(self):
-        for role in K.ROLE_KINDS:
-            self.assertIn(K.model_tier(role), ("planner", "executor", "verifier"), role)
-        self.assertEqual(K.model_tier("planner"), "planner")
-        self.assertEqual(K.model_tier("surveyor"), "planner")
-        self.assertEqual(K.model_tier("implementer"), "executor")
-        self.assertEqual(K.model_tier("reviewer"), "verifier")
-
     def test_hyphenated_skills_and_roles_split_right(self):
         """Neither half is positional: `code` is a prefix of `code-small`, and
         `plan-reviewer` is a role with a hyphen of its own."""
@@ -137,9 +129,15 @@ class AgentConventionTest(unittest.TestCase):
 
     def test_mechanical_skills_own_no_agents(self):
         """A dispatcher, and a skill whose work is a sequence of commands
-        (create-ticket, create-pr, merge-pr), runs inline."""
-        for skill in ("ship", "create-ticket", "create-pr", "merge-pr", "project"):
+        (breakdown-ticket, create-pr, merge-pr), runs inline. create-ticket
+        left this list with ADR-0138: one type author drafts, a reviewer judges."""
+        for skill in ("ship", "breakdown-ticket", "create-pr", "merge-pr"):
             self.assertEqual(K.agent_roles_of(skill), [], skill)
+
+    def test_create_ticket_owns_four_type_authors_and_a_reviewer(self):
+        self.assertEqual(sorted(K.agent_roles_of("create-ticket")),
+                         ["bug-author", "epic-author", "reviewer",
+                          "story-author", "task-author"])
 
 
 if __name__ == "__main__":

@@ -126,7 +126,7 @@ def main():
     # a group's members together, so that is the command that resumes it.
     # A run with no workflow position -- a delivery ticket's, opened by a
     # product skill -- has no cursor for /acs:ship to follow, so a SECOND
-    # handoff (nothing left in flight) named /acs:ship for a create-docs run.
+    # handoff (nothing left in flight) named /acs:ship for a product skill's run.
     # Such a run resumes through the skill it last interrupted.
     if not handed and not doc.get("steps"):
         standalone = last_interrupted_step(rdir, run_id)

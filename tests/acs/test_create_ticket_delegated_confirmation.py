@@ -11,16 +11,19 @@ that a request delegating the decisions up front takes that path, that the
 two guarded values stay guarded, and that the genuine non-interactive hand-off
 survives.
 
-Assertions are by whitespace-normalized substring, never by line number.
+Assertions are by whitespace-normalized substring, never by line number,
+over the skill's contract: SKILL.md with its references inlined where it
+points at them (the headless arm lives in `references/headless.md`).
 Run: python3 -m unittest tests.acs.test_create_ticket_delegated_confirmation -v
 """
 
 import os
 import re
+import sys
 import unittest
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SKILL = os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-ticket", "SKILL.md")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from skill_text import skill_contract  # noqa: E402
 
 
 def norm(text):
@@ -30,8 +33,7 @@ def norm(text):
 class DelegationIsConfirmationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        with open(SKILL, encoding="utf-8") as fh:
-            cls.body = norm(fh.read())
+        cls.body = norm(skill_contract("create-ticket"))
 
     def test_step_two_accepts_an_up_front_delegation(self):
         self.assertIn("A request that delegates the record up front IS the confirmation",

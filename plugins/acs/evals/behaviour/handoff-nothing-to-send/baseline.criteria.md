@@ -1,0 +1,2 @@
+PASS if, like the reference, the run resolves the ticket from this checkout's run with `acs.py run show`, finds no current run, pushes nothing, creates no ticket or run, and replies that there is nothing to hand off, pointing at `/acs:handoff <ticket-id>`.
+FAIL if the run asks the user anything, guesses a ticket id, mints a ticket or starts a run, packages or pushes anything, commits, or claims a handoff was sent.

@@ -12,14 +12,14 @@ component follows.
 |-------|-------|-------|
 | Marketplace manifest | `.claude-plugin/marketplace.json` (repo root) | 1 |
 | Plugin manifest | `plugins/acs/.claude-plugin/plugin.json` | 1 |
-| Skills | `plugins/acs/skills/<name>/SKILL.md` | 30 |
-| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 33 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `create-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
-| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 19 pre + 19 post |
-| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,record-external,release_notes,setup_wizard,stacked-base,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 19 pre + 19 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 17 |
+| Skills | `plugins/acs/skills/<name>/SKILL.md` | 31 |
+| Subagents | `plugins/acs/agents/<skill>-<role>.md` | 43 files, all reachable. Each skill owns only the roles its own work needs, named for that work (`create-prd-surveyor`, `create-impl-plan-plan-reviewer`, `code-implementer`), and each role has a kind in `acs_lib.skills.ROLE_KINDS` — `survey`, `write` or `judge` (ADR-0109). `breakdown-ticket`, `create-pr` and `merge-pr` own none: their coordinators run the steps inline. There is no declaration to keep level with the tree: `acs_lib.skills.skill_agents()` reads the roles from the file names |
+| Hooks | `plugins/acs/hooks/hooks.json` + `hooks/scripts/` | dispatcher + 21 pre + 21 post |
+| Helper CLIs | `hooks/scripts/{acs,citation_check,clarify,codeowners,front_matter_check,handoff,mermaid_lint,migrate_workspace,new-ticket,plan-approval,pr-conventions,prd_conformance_check,prd_feature_check,record-external,release_notes,roadmap_check,setup_wizard,structure_lint}.py` (the `hooks/scripts/*.py` files with a `__main__` entry point, excluding the dispatcher + 21 pre + 21 post hooks counted in the row above; the `acs_lib/` package, `claude_code_adapter.py`, `markdown_headings.py`, `consistency_findings.py`, the three `release_notes_*` siblings MAR-531 split out and the `acs_cli.py` / `acs_commands.py` / `acs_state_commands.py` siblings split out of `acs.py` are importable libraries with no CLI entry point and are excluded; `skill-start.py`, `pipeline-step.py` and `validate_xml.py` are gone with the surfaces they served — `acs step start`, the run ledger's single writer, and the XML message contract — and `statusline.py`, `subagent-statusline.py` and `cost_sampler.py` went with the status line (ADR 0103), and `metrics_aggregate.py`, `metrics_render.py`, their siblings and `usage_reader.py` with the usage dashboards (ADR 0104); the count is derived from disk by `HelperCliInventoryTest`, so it stays right on its own; this list is the prose that has to be kept level with it) | 18 |
 | Workflow files | `plugins/acs/workflows/ship.yaml` | 1 (the default delivery pipeline; a consumer may override it at `<repo>/.acs/workflows/ship.yaml`) |
 | JSON Schemas | `plugins/acs/schemas/*.schema.json` | 13 |
 | XML schema | `the SubagentStop hook` | 1 |
-| Templates | `plugins/acs/templates/*.md` | 5 (4 description templates — `pr-default`, `epic/story/task-default` — plus `design-default`) |
+| Templates | `plugins/acs/templates/*.md` | 8 (5 description templates — `pr-default`, `epic/story/task/bug-default` — plus `design-default` and the two audit-report templates, `audit-design-report` and `audit-security-report`, whose sections the audits' post-hook checks; ADR-0123) |
 
 Skills are invoked namespaced: `/acs:setup`, `/acs:ship`, `/acs:create-ticket`, …
 (The requirements docs write `/setup`, `/ship`, … — same skills, plugin-namespaced
@@ -33,7 +33,7 @@ onto the plugin hooks API like this:
 1. **Pre-hooks — deterministic, enforced.** `hooks.json` registers a
    `PreToolUse` hook matching the `Skill` tool. `dispatch.py pre` extracts the
    skill name from the tool input (handling the `acs:` namespace), no-ops
-   (exit 0) for anything that is not one of the seventeen hooked skills, and
+   (exit 0) for anything that is not one of the twenty hooked skills, and
    otherwise runs that skill's gate from `acs_lib.gates` **in-process** (the
    `pre-<skill>.py` wrappers exist for tests and `acs.py gate`, not for the
    hook path).
@@ -96,7 +96,7 @@ onto the plugin hooks API like this:
    --iteration <n> --task <k> --file …`** (additive, per task, written to
    `steps/<skill>/iter-<n>/filemap.json`); a write outside it is denied while
    an acs agent of the **`write` kind** is running (`code-implementer`,
-   `create-prd-author`, `standardize-project-scaffolder`, … —
+   `create-prd-author`, `docs-sync-doc-updater`, … —
    `acs_lib.skills.ROLE_KINDS`), with the agent told to return `needs_input`
    for the file it needs. The guard is `filemap.file_map_guard`; it reads
    every live writer through `filemap.active_writers` (most recent first).
@@ -221,7 +221,7 @@ skill that is legitimately not a step of `ship.yaml` is gated from it:
 
 | Table | Precondition it checks | Rows |
 |---|---|---|
-| `SUBJECT_GATES` | the SUBJECT TICKET the invocation names | `create-design` (flagged `needs_design`), `merge-pr` (a PR reference recorded by a completed step) |
+| `SUBJECT_GATES` | the SUBJECT TICKET the invocation names | `create-tech-design` (requirements to design from — any ticket, a prompt, documents or a current run; no ticket flag, ADR-0139), `merge-pr` (a PR reference recorded by a completed step) |
 
 It is consulted **unconditionally**, before the workflow is read,
 because a safety brake must not be switchable off by editing `ship.yaml`. A
@@ -230,9 +230,7 @@ PRD or the architecture set lives, so the skill that reads one finds it at
 Start. `create-architecture` takes the PRD as its primary input and, without
 one, works from the run's subject (a document in its arguments, else the
 focus notes plus the codebase) and confirms goals, NFRs and constraints
-through the clarification ledger; `create-project`, `standardize-project` and
-`create-docs` stop without the architecture set's `hld/tech-stack.md`
-(ADR-0102). A
+through the clarification ledger (ADR-0102). A
 `SUBJECT_GATES` row is `f(ctx, payload)` raising `GateError` to refuse; it
 resolves a ticket and reads step state through path joins and `read_json`, so
 it opens no run and takes no lock, which is what lets `acs gate` reach it too.
@@ -264,7 +262,8 @@ judged rather than re-reading a run that was never written. The one-line
 The per-skill gate functions and the `GATE_INPUTS` partition that classified
 them are gone. `acs_lib/gate_inputs.py` keeps the ticket helpers the brakes
 share — the epic refusal and the e2e case count — and the lookup that finds a
-ticket artifact in the docs folder, then the partition, then a legacy path
+run's artifact in its phase folder, then a legacy `docs/tickets/<ID>/`, then
+the partition, then a legacy path
 (`LEGACY_ARTIFACT_PATHS`, currently `phases/code/plan.md`).
 
 **What replaced the order gate: one advisory line.** `acs_lib/advisory.py`
@@ -318,7 +317,7 @@ validator derives an order from artifacts.
 
 **Legs are one table**, `acs_lib.skills.SKILL_LEGS`: the four delivery-path
 legs (`code-trivial`, `code-small`, `code-standard`, `code-complex`) map to
-`code`, and `create-project` and `standardize-project` map to `project`. A leg
+`code`. A leg
 keeps its SKILL.md and stays Skill-invocable, but a workflow names the entry
 point, which dispatches to it.
 
@@ -338,7 +337,6 @@ version: 3
 steps:
   - analyze-requirements
   - create-impl-plan
-  - create-api-contract
   - create-test-docs
   - code
   - review-code
@@ -412,6 +410,18 @@ why the review could not be a separate skill until the loop moved here.
 | `acs result validate` | is this result document admissible? |
 | `acs workflow show \| validate` | which workflow file, and does it hold together? |
 | `acs notes merge --out <file> <slice files…>` | join what a parallel fan-out wrote into the one file every reader expects (see "Fan-out inside a skill") |
+| `acs changes snapshot` | a git tree id of the whole working tree, untracked files included (`{ok, tree}`) — what a review records as `reviewed_sha` (see "Commits: only /acs:create-pr") |
+| `acs changes diff [--since <tree-or-commit>] [--name-only\|--stat\|--patch] [--run R]` | what this run changed: `<since>` (default: the baseline's `base_sha`) against a fresh snapshot, minus the paths already dirty at the baseline that did not change again; `--name-only` prints `{files: [{path, status}]}` |
+| `acs pr plan-commits [--ticket ID] [--run R] [--out FILE]` | the commit groups `/acs:create-pr` previews: `{branch, base, groups: [{id, subject, layer, paths}], left_out, excluded}` |
+| `acs pr commit --plan FILE` | execute a (possibly edited) plan: switch to its branch when not on it, then one `git add -- <paths>` + `git commit` per group; never pushes |
+| `acs requirements show [--run R]` | the run's requirements (ADR-0128): `{path, sources, acceptance_criteria, features, feature}` — `path` is `<run>/requirements.md` (see "Requirements of a run") |
+| `acs requirements add --args "…"` | parse more sources (ticket ids, documents, a prompt) into the run: deduplicated, appended to `subject/sources.json`, `requirements.md` regenerated; a source is never replaced |
+| `acs requirements refine --from FILE\|-` | record `/acs:analyze-requirements`' refined acceptance criteria, features and feature into `<run>/requirements-refined.json` and `requirements.md`'s `## Refined`; also patches the ticket, as `ticket save` does, when the run has one. A `needs_design` key is refused with a GateError naming ADR-0139 |
+| `acs handoff send --ticket ID [--note TEXT\|--note-file F] [--attach PATH]… [--replace] [--dry-run] [--remote NAME]` | package the ticket's resume set as one commit and push it to `refs/acs/handoff/<ID>`; the sender's state is untouched; `--dry-run` reports the package and the attachments without building or pushing (see "Ticket handoff") |
+| `acs handoff receive ID\|--ticket ID [--replace] [--keep-ref] [--remote NAME]` | fetch, `git apply --3way` the work onto a clean tree, restore the run with local paths, raise the counters, delete the remote ref; prints `continue_with` |
+| `acs handoff list [--details] [--remote NAME]` | the handoffs waiting under `refs/acs/handoff/` (`git ls-remote`); `--details` adds each one's sender, time and note |
+| `acs ticket references (--ticket ID \| --features a,b [--parent ID]) [--fetch] [--write] [--render]` | the documents the standard layout holds for a ticket (its own and its parent epic's records included), or for features not minted yet (`--parent` adds that epic's records) (ADR-0140): `{ok, ticket_id \| features+parent, references, default_branch, web_base, web_base_reason, remote_checked, written}` plus `block` with `--render`, the `## References` markdown; `--fetch` first runs a best-effort `git fetch origin <default>` (`remote_checked: false` when it fails); `--write` (with `--ticket` only) stores `references` on the ticket. Exactly one of `--ticket` and `--features` (see "Tickets") |
+| `acs artifacts show [--run R \| --ticket ID]` | where one run's documents resolve — its phase folders, a legacy `docs/tickets/<ID>/`, or the partition — and, for a ticket, its derived status |
 
 `acs run next` is **the cursor**: the first step in workflow order that is not
 `completed`. With no graph there is no ready-set to compute and nothing to
@@ -429,8 +439,8 @@ cursor:
   else may. `run.start_step` enforces it at the transition — it refuses a step
   while a step of ANOTHER stage is `in_progress` — and `check` reports a
   violation as an error. `run.in_progress_steps` lists the open steps;
-  `run.in_progress_step` is the first of them, the one a handoff or a Stop
-  reminder names.
+  `run.in_progress_step` is the first of them, the one a session pause or a
+  Stop reminder names.
 - **I2 — the cursor is derived.** The stored `cursor` must equal the first
   step not `completed` (an error otherwise), and a step `in_progress` that is
   not in `due` is a WARNING, not an error: a skill run on its own is out of
@@ -451,12 +461,13 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 (PreToolUse fired pre-<skill>.py — already passed or we wouldn't be running)
 1. acs step start  --step <skill> [--ticket|--args|--allocate ...]   # FIRST action
      -> context JSON: settings, partition, ticket, reconcile/handoff info,
-        per-tier models, design source, post_hook path
+        per-tier models, design source, references, post_hook path; the run's first
+        start also writes <run>/baseline.json (ADR-0127)
 2. if context.reconcile: reconcile recorded state against reality before continuing
    if context.handoff_summary: read it, light-verify, continue from where it points
 3. Reflection loop (max 3 iterations), over the skill's OWN roles, in the order
    its SKILL.md gives (see "Subagents" for every skill's roles):
-     survey -> spawn <skill>-<survey role> (surveyor, auditor), iteration 1 only:
+     survey -> spawn <skill>-<survey role> (surveyor, impact-analyst), iteration 1 only:
                read-only on the repo; records mode, inputs, evidence and open
                questions in iter-1/authoring.md; an open decision comes back as
                needs_input BEFORE any file is written. Later iterations reuse
@@ -472,14 +483,14 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
                coordinator-only. The file-map guard applies while one runs.
                A skill with no survey role has its writer survey first and
                record the survey in the same authoring notes.
-     judge  -> spawn <skill>-<judge role> (reviewer, plan-reviewer, build-checker, ...):
+     judge  -> spawn <skill>-<judge role> (reviewer, plan-reviewer, suite-runner, ...):
                re-derives and judges fresh; returns a result with findings.
                Sliced BY DEFAULT at five or more check dimensions: 2-3 slices
                over disjoint dimensions, joined by `acs notes merge`; the
                iteration passes only when every slice passed.
      - a fan-out is N instances of the SAME agent spawned in ONE message,
-       each carrying slice="<id>", at most max_parallel = 4 per phase (see
-       "Fan-out inside a skill")
+       each carrying slice="<id>", at most settings.parallel.max_agents
+       (default 4) per message (see "Fan-out inside a skill")
      - every task and result carries phase="<role>"
      - every subagent WRITES ITS OWN ITERATION ARTIFACT (see below) and names it
        in its outputs; the message itself stays compact
@@ -492,9 +503,9 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
      - iteration 3 still failing -> stop; final status "failed", findings recorded
    /acs:code runs no loop of its own: its implementers run once per step, and
    the review -> fix cycle is ship.yaml's review-code -> code loop. The three
-   inline skills (create-ticket, create-pr, merge-pr) run no loop and spawn no
-   subagent.
-4. Write the result document steps/<skill>/result.json
+   inline skills (breakdown-ticket, create-pr, merge-pr) run no loop and spawn
+   no subagent; create-ticket runs at most two iterations (ADR-0138).
+4. Write the result document steps/<skill>/result.json      # acs.py write, never the Write tool
 5. python3 <post_hook> --result-file <result.json>                    # MANDATORY final step
 ```
 
@@ -502,9 +513,9 @@ Every workflow and product-level SKILL.md follows this exact lifecycle:
 copy of the writing, so no skill runs a planning pass before its writer
 (ADR-0092). Where a skill's work genuinely has two jobs — a read-only survey
 that ends in questions, then a write after the answers — the jobs are two
-roles (ADR-0109): `create-prd` and `create-requirements` run a surveyor,
-`standardize-project` an auditor, on iteration 1 only, and their author or
-scaffolder writes from the frozen notes. Every other skill's writer surveys
+roles (ADR-0109): `create-prd` runs a surveyor on iteration 1 only, and its
+authors — a `hub` author, then one per feature (ADR-0142) — write from the frozen notes;
+`manage-roadmap` does the same with one author (ADR-0145). Every other skill's writer surveys
 first and records the survey in its authoring notes. On iteration 2+ the
 judge's findings feed straight into the next write role's `<context>`, and
 the writer authors the remediation. `/acs:create-impl-plan`'s `planner` is the
@@ -516,14 +527,22 @@ spawns the planner.
 
 A subagent cannot spawn a subagent, so every fan-out is the coordinator's: it
 runs N instances of the SAME agent in ONE message, in the foreground, each over
-a disjoint **slice**, and waits for all of them before the next phase. The
-cap is **`max_parallel = 4` instances per phase**; a skill with its own cap
-keeps it (`/acs:create-docs` runs its doc sets at 2), and work beyond the cap
-runs in waves. Three kinds of work fan out:
+a disjoint **slice**, and waits for all of them before the next phase.
+
+**The cap is a setting: `settings.parallel.max_agents`** (default 4, an
+integer from 1 to 16; `acs_lib/settings.py`, `schemas/settings.schema.json`;
+ADR-0125). It is the most subagents a skill spawns in one message; work
+beyond it runs in **waves of that size**, each wave one message, the next only
+after the last returned. Every skill reads it from the `settings` its context
+JSON carries — no SKILL.md hard-codes a number. A skill with its own SMALLER
+structural cap keeps it (`/acs:code-small` 2, `/acs:code-trivial` 1),
+and one fan-out is a fixed shape
+rather than a wave: `/acs:review-code`'s five lenses are one message whatever
+the setting. Three kinds of work fan out:
 
 | Kind | When | Slice | Joined by |
 |---|---|---|---|
-| **Writers** | by default, from iteration 1, whenever the deliverable splits into disjoint files — authors per feature area, architects per HLD/LLD, scaffolders per allowlist slice, test-writers per suite file, doc-updaters per doc area, implementers per file-map partition. A deliverable that is one document keeps one writer, and its SKILL.md says so | one disjoint set of files, named by the skill's partition rule | the integration pass (below) |
+| **Writers** | by default, from iteration 1, whenever the deliverable splits into disjoint files — authors per feature area, architects per HLD/LLD, test-writers per suite file, doc-updaters per doc area, implementers per file-map partition. A deliverable that is one document keeps one writer, and its SKILL.md says so | one disjoint set of files, named by the skill's partition rule | the integration pass (below) |
 | **Judges** | by default when the judge has five or more check dimensions | two or three named slices over disjoint dimensions, as a table in the SKILL.md (slice id → dimension numbers), passed as `<constraint name="dimensions">`. Each deterministic checker runs in exactly one slice; a judge that runs something once (a build, a suite) keeps that run in one slice | `acs notes merge` into `iter-<n>/<role>.md`, then de-duplication |
 | **Surveys** | when the scope spans two or more disjoint top-level areas of the repo | one area | `acs notes merge` into `iter-1/authoring.md`, then the consumer's synthesis |
 
@@ -584,25 +603,74 @@ failed or returned nothing usable fails the iteration — never "pass with a
 missing slice". A resumed iteration re-runs only the slices whose report is
 missing.
 
-**Commits from parallel writers** on one ticket branch meet git's
-`index.lock`. The rule is wait briefly and retry; never delete the lock and
-never force anything.
+**Parallel writers commit nothing** (ADR-0127): each writes its own disjoint
+files into the working tree and lists them in its report, so there is no
+`index.lock` to meet. The join is the reports plus the file-map guard;
+`/acs:create-pr` commits the result.
 
 **Cost.** Wall time falls wherever work splits; token cost rises with sliced
-judges, which re-read shared inputs once per slice, and the per-phase cap
+judges, which re-read shared inputs once per slice, and the per-message cap
 bounds it.
+
+#### Jobs: commands beside the agents (ADR-0125)
+
+Subagents stay in the foreground — the coordinator waits on their results,
+never on a clock. A long DETERMINISTIC command (a build, a lint, a test
+suite) is different: it needs no model, so it runs as a **job**, started in
+the same turn as the spawn it runs beside, and collected when its result is
+needed:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name <n> [--cwd <dir>] -- <command>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job wait --name <n> [--name <m> …] [--timeout <s>]
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job status --name <n> [--name <m> …]
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job stop --name <n>
+```
+
+- `start` runs the command detached (default cwd: the checkout root) and
+  returns at once. A job of the same name still running is refused; a
+  finished one is replaced.
+- `wait` is ONE blocking call that returns the moment every named job has
+  ended, with each job's state, exit code and the tail of its log. It exits
+  **0** when all passed, **1** when one failed or was stopped, **3** when the
+  timeout (default 540 s, under the Bash tool's ceiling) passed with a job
+  still running — call it again. This is not polling: never wrap it, or
+  anything else, in a `sleep` loop.
+- `status` answers without waiting (`running|passed|failed|stopped|missing`);
+  `stop` kills a running job's process group.
+- Jobs belong to the run: `<run>/jobs/<name>.json` (the record),
+  `<name>.log` (combined output) and `<name>.exit` (the exit code, written
+  only after the command ends). Names are lowercase letters, digits, `-`
+  and `_`.
+
+A job is safe only over a tree nothing else is writing — read-only agents, or
+a command that does not read what the agents write. Where it runs:
+`/acs:review-code` starts the gate (`gate-build`, `gate-lint`, `gate-suite`)
+beside its lenses and reads it only when nothing blocks;
+`/acs:create-impl-plan` starts the repo's existing suite (`suite`) beside
+iteration 1's planner, once per run, and its `tests` plan-review slice reads
+it.
+
+**Deterministic checks go beside the judge, not after it.** A $0 check a
+coordinator runs on a draft (`front_matter_check.py`, `structure_lint.py`,
+`prd_conformance_check.py`, a coverage grep) needs no review result, so it
+runs as soon as the draft is written, in the same turn as the judge spawn, and
+its failures are blocking findings of THAT iteration — never a second failure
+after a passing review.
 
 ### Phase artifacts (written by the subagents themselves)
 
 Subagents persist their full work products into the partition — the XML result
 carries references, never the bodies (docs/requirements/functional/reflection.md: subagents write their states,
-findings, error details, and stop reasons into workspace files):
+findings, error details, and stop reasons into workspace files). Every one of
+these files is written through `acs.py write`, never the `Write` tool (see
+"State files: `acs.py write`" under Workspace layout):
 
 | Phase | Artifact (under `steps/<skill>/`) | Written by | Contents |
 |-------|------------------------------------------------|------------|----------|
-| authoring | `iter-<n>/authoring.md` (every skill that authors a deliverable, ADR-0092/ADR-0094; no skill writes `iter-<n>/plan.md`. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its planner's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the planner) | the survey role on iteration 1 where the skill has one (`surveyor`, `auditor`), else the write role | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the judge corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the judge's `authoring-conformance` dimension judges the draft against these notes. Sliced survey instances write `authoring-<id>.md`, joined into this file by `acs notes merge`; a single writer consuming the merged notes adds a `## Synthesis` section reconciling the slices (`/acs:analyze-requirements` runs that reconciliation as its own `slice="synthesis"` analyst pass, `authoring-synthesis.md` joined last, BEFORE the user is asked, so its draft pass consumes reconciled notes) |
+| authoring | `iter-<n>/authoring.md` (every skill that authors a deliverable, ADR-0092/ADR-0094; no skill writes `iter-<n>/plan.md`. `/acs:create-impl-plan` is the one skill whose DELIVERABLE is a plan — its planner's survey goes into the same notes and its draft is the per-ticket `plan.md` (MAR-70). It runs BEFORE any delivery path exists — the path is judged from the plan it produces (§3.2) — so it has no per-path shape and no coordinator-authored fast path: every run spawns the planner) | the survey role on iteration 1 where the skill has one (`surveyor`), else the write role | the survey the draft was authored from, iteration 1 (mode with its evidence; inputs read and what each settled; the Upstream inventory — every upstream fact the document was tailored on, cited with a verbatim excerpt, which the judge corroborates through `citation_check.py` where the skill uses it; ADR-0012 consistency findings; decisions, assumptions and open questions) and, on iteration 2+, the findings addressed; the judge's `authoring-conformance` dimension judges the draft against these notes. Sliced survey instances write `authoring-<id>.md`, joined into this file by `acs notes merge`; a single writer consuming the merged notes adds a `## Synthesis` section reconciling the slices (`/acs:analyze-requirements` runs that reconciliation as its own `slice="synthesis"` analyst pass, `authoring-synthesis.md` joined last, BEFORE the user is asked, so its draft pass consumes reconciled notes) |
 | survey / write | `iter-<n>/<role>.json` — `surveyor.json`, `author.json`, `planner.json`, `implementer.json`; a sliced instance writes `<role>-<id>.json` (parallel implementers: `implementer-<k>.json`), and the integration pass `<role>-integration.json` listing every seam it changed, … | survey and write roles | artifacts produced, repo files changed, commands/tests run with outcomes, problems hit, clarifications used |
-| judge | `iter-<n>/<role>.md` — `reviewer.md`, `plan-reviewer.md`, `build-checker.md`, …; a sliced judge writes `<role>-<id>.md`, joined into `<role>.md` by `acs notes merge` | judge roles | the full report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
+| judge | `iter-<n>/<role>.md` — `reviewer.md`, `plan-reviewer.md`, `suite-runner.md`, …; a sliced judge writes `<role>-<id>.md`, joined into `<role>.md` by `acs notes merge` | judge roles | the full report: every check performed with its evidence, every finding in detail (the XML `<finding>` entries summarize this file) |
 
 **A judge also writes a verdict** (MAR-527):
 `steps/<skill>/iter-<n>/verdict.json`, or one `lens-<A..E>.md` per lens for
@@ -637,8 +705,8 @@ files nothing; and since the schema reads an *absent* `iteration` as `1`, a
 subagent must echo its task's `iteration` — one that omits it on iteration 3 is
 claiming to be iteration 1, and the hook says so on stderr rather than guessing
 at a counter it cannot see. The coordinator still writes the snapshot itself for
-work it performs **inline** (`/acs:create-ticket`, `/acs:create-pr`,
-`/acs:merge-pr`), where no subagent runs and therefore no SubagentStop fires.
+work it performs **inline** (`/acs:breakdown-ticket`, `/acs:create-pr`,
+`/acs:merge-pr`, and `/acs:create-ticket`'s materialisation), where no subagent runs and therefore no SubagentStop fires.
 
 **Every statement in a phase artifact must be grounded**: decisions and
 analysis cite the file (path + line/section) they are based on; claims about
@@ -662,8 +730,8 @@ as a spawned subagent (no user to approve; under `/ship` the whole step is
 headless — that is what the `needs_input` handoff is for), plugin agents cannot
 set `permissionMode`, and resumability comes from the phase artifacts + gates,
 not from plan-mode state. A survey or judge role's read-only discipline is
-enforced by its tool allowlist and charter instead (Write is permitted solely
-for its own `steps/<skill>/` artifacts); a write role is bounded by the
+enforced by its tool allowlist and charter instead (no `Write` tool; its own
+`steps/<skill>/` artifacts go through `acs.py write`); a write role is bounded by the
 file-map guard and its own charter. A user
 may still wrap a *direct* skill invocation in plan mode for pre-approval —
 that is orthogonal to the pipeline and changes nothing in this contract.
@@ -691,21 +759,27 @@ pipeline end.
 
 **The `iterations` element.** A skill that runs no reflection loop omits it
 entirely rather than reporting a fraction of a loop it never ran. That is a
-property, not a list: it covers the inline apply-work skills (`create-ticket`,
-`create-pr`, `merge-pr`), the unhooked utilities (`setup`, `update`, `test`,
-`release`, `install-hooks`), and the orchestrators that drive other skills'
-loops without running one of their own (`ship`, `handoff`). The
+property, not a list: it covers the inline apply-work skills (`breakdown-ticket`,
+`create-pr`, `merge-pr`), the read-only audits — `audit-design`, whose gap
+analysts survey and nothing is written for a judge to judge, and
+`audit-security`, whose adjudicators rule once on each auditor's candidate
+findings with no writer between them — the unhooked utilities
+(`setup`, `update`, `test`, `release`, `set-doc-status`, `handoff`), and the orchestrator that drives other skills'
+loops without running one of its own (`ship`). The
 thirteen skills that run a write → judge loop over their own subagents
-report it, with a constant `<cap>` of **3**. `/acs:code` reports the
+report it, with a constant `<cap>` of **3** (`create-ticket`'s is **2**,
+ADR-0138). `/acs:code` reports the
 iteration of ship.yaml's review-code → code loop it is on, whose ceiling is
 that loop's `max_iterations`, the same on every delivery path.
 
 **Sanctioned substitutions.** A skill that runs without a ticket drops
 `<ticket-id>` from the heading and replaces the **Ticket** line with a
 one-line label naming what the run covered — **Scope** for the
-configuration utilities (`setup`, `update`, `install-hooks`), **Run** for the
+configuration utilities (`setup`, `update`) and for `set-doc-status`, **Run** for the
 two run-oriented ones (`test`, `release`), whose subject is an execution
-rather than a scope. `/acs:handoff` additionally puts the `continue_with` command in **Next**. No other label
+rather than a scope. The ticketless document skills — the audits,
+`create-prd`, `manage-roadmap` and `create-architecture` (ADR-0127) — put their scope or mode in
+the heading's place and keep the **Ticket** label, reading `none — …`. `/acs:handoff receive` additionally puts the `continue_with` command in **Next**. No other label
 substitution is sanctioned; per-skill Results/Next content is fixed in each
 SKILL.md's "Completion report" section.
 
@@ -728,18 +802,19 @@ defaulting would finalize the run and open the next gate on nothing. The same
 rule holds one layer down: `finalize_run` raises on a result with no status,
 so an in-process caller cannot bypass it either.
 
-**Five `states` keys are DERIVED, not read (MAR-523, MAR-578).** `run_post`
-computes `verifier_passed`, `tests`, `pr`, `review.iterations` and
-`review.guard_denials` from the artifacts before persisting the document, and
-the computed value wins:
+**Six `states` keys are DERIVED, not read (MAR-523, MAR-578, ADR-0137).**
+`run_post` computes `verifier_passed`, `tests`, `pr`, `review.iterations`,
+`review.guard_denials` and `/acs:docs-sync`'s `implemented` from the artifacts
+before persisting the document, and the computed value wins:
 
 | Key | Source | When it cannot be computed |
 |---|---|---|
 | `verifier_passed` | `/acs:review-code`'s `iter-<n>/verdict.json` for the highest iteration (MAR-527), whose own `passed` is derived from its findings | **`false`** — this key answers "may the next step run", and with no evidence the answer is no |
-| `tests` | the review's own suite run, else the last iteration's `iter-<n>/implementer*.json` reports (`coverage_target` from `settings.test_coverage_percent`; a run started before ADR-0109 has `execute*.json`, read the same way) | the coordinator's value is kept |
-| `pr` | `gh pr list --head <branch>` | the coordinator's value is kept, flagged unverified |
+| `tests` | the review's own suite run, else the last iteration's `iter-<n>/implementer*.json` reports (`coverage_target` from `tests.coverage`; a run started before ADR-0109 has `execute*.json`, read the same way) | the coordinator's value is kept |
+| `pr` | `gh api repos/{owner}/{repo}/pulls?head={owner}:<branch>&state=all` | the coordinator's value is kept, flagged unverified |
 | `review.iterations` | `/acs:review-code`'s verdict, lens and adjudication artifacts on disk | the coordinator's value is kept |
 | `review.guard_denials` | the length of `invocations[-1].guard_events` on `steps/<skill>/state.json` | **absent, not `0`** — a run that never tripped the file-map guard carries no key |
+| `implemented` (`docs-sync` only, `IMPLEMENTED_SKILLS`) | each listed design document's own version front matter, read from the checkout: only a document that reads `status: implemented` is kept; one missing, unversioned or at another status is dropped (ADR-0137) | the listed paths are kept unchecked when there is no checkout root, and the provenance says so |
 
 A disagreement is recorded, never silently resolved: `runs[-1].derived_states`
 carries `values`, a one-line `provenance` for every key considered (including
@@ -763,25 +838,37 @@ archived to `archive/<ticket-id>/`).
 
 The next skill, a ship.yaml predicate, or a gate brake reads these — keep the
 names exact. `acs_lib/derive.py` owns only `DERIVED_KEYS`
-(`verifier_passed`, `tests`, `pr`, `review`) and `VERDICT_SKILLS` (`review-code`);
+(`verifier_passed`, `tests`, `pr`, `review`, `implemented`) and `VERDICT_SKILLS` (`review-code`);
 every other key below is persisted verbatim from the result document:
 
 | Skill | Required `states` keys on success |
 |-------|-----------------------------------|
-| create-prd | `prd` `{path, files:[...]}`, `pr` `{number, url, branch}` |
-| create-architecture | `architecture` `{path, hld:[...], lld:[...]}`, `pr` `{...}` |
-| create-project | `scaffold` `{build, lint, tests, coverage_tooling: true/false}`, `pr` `{...}` |
-| create-ticket | `ticket_id`, `type`, `needs_design`, `children: [ids]`, `prd_trace` `{feature, divergence}` |
-| create-design | `design_path` (the published `design.md` — the docs folder, or the partition when there is no checkout), `decision` (one line) |
-| analyze-requirements | `ready_for_planning: true/false`, `api_surface: true/false` (the `api_surface_changed` predicate), `questions_open` (int) |
+| create-prd | `prd` `{path}`, `files: [...]` (the hub and the feature PRDs, left uncommitted for `/acs:create-pr`) |
+| manage-roadmap | `roadmap` `{path, mode}`, `files: [...]` (`roadmap.md` when written, left uncommitted; a `status` run lists it only when the derived status changed it — ADR-0145) |
+| create-architecture | `architecture` `{path, hld:[...]}`, `files: [...]` (every HLD path written, left uncommitted) |
+| create-ticket | `ticket_id`, `type`, `children: [ids]`, `prd_trace` `{feature, divergence}` (`divergence` always null since ADR-0144: the post-hook refuses a completed run whose ticket does not link the PRD) |
+| breakdown-ticket | `ticket_id`, `type` (always `epic` after the run), `converted_from` (`story`/`task` when a split converted the ticket, else `null`), `children: [ids]` (the parent's full list), `minted: [ids]` (this run's), `design_status` (the tech design's status, or `null`) — ADR-0138 |
+| create-tech-design | `design_path` (the published `tech-design.md` — the run's Design folder `lld/<feature>/<id>/`, or the partition when there is no checkout), `decision` (one line) |
+| create-data-design | `feature: [...]`, `files: [...]` (every path written, repo-relative — left as uncommitted changes for `/acs:create-pr`), `types: [...]` (the owned LLD types written), `gaps` `{undocumented, unimplemented, drifted}`, `entities` (int) |
+| create-flows | `feature: [...]`, `files: [...]` (as create-data-design's), `types: [...]`, `gaps` `{undocumented, unimplemented, drifted}`, `flows` (int), `state_machines` (int) |
+| create-api-contract | `contract_path` (where the per-run record `api-contract.md` went — `lld/<feature>/<id>/` when shared, the partition when kept local), `feature: [...]`, `files: [...]` (every path written, repo-relative: the living api documents, any `lld` README rows and the shared record), `types: [...]` (`["api-contract"]`, or `[]` when the type is disabled — `outcome: type_disabled`), `interfaces: [...]` (the living `lld/<feature>/api/<interface>.md` files written or bumped), `items` (int), `traced_acs: [...]`, `gaps` `{undocumented, unimplemented, drifted}` — documents only, no machine-readable contract files (ADR-0134) |
+| analyze-requirements | `ready_for_planning: true/false`, `questions_open` (int) — no `api_surface` since ADR-0134 (an older state file that carries it still validates; nothing reads it) |
 | create-impl-plan | `plan_path`, `plan_approved: true/false` (written by `plan-approval.py`), `file_map` (object) |
-| create-api-contract | `contract_path`, `items` (int), `traced_acs: [...]` |
 | create-test-docs | `cases` (int), `e2e_cases` (int), `untraced_acs: [...]` (empty on a completed run) |
-| code | `branch`, `delivery_path`, `plan_path`, `plan_approved`, `file_map`, `specs_implemented: [...]`, `commits: [...]` (plus `review.guard_denials`, derived, only when the file-map guard denied a write) |
-| review-code | `verifier_passed: true/false` (the /create-pr BRAKE, derived from `verdict.json`), `reviewed_sha`, `review` `{iterations, findings_open}`, `tests` `{passed, failed, coverage_percent, coverage_target}` |
+| docs-sync | `files: [...]` (every doc it edited or bumped, left uncommitted), `implemented: [...]` (the living LLD documents it moved `approved → implemented`, derived from their front matter — ADR-0137) |
+| code | `branch`, `delivery_path`, `plan_path`, `plan_approved`, `file_map`, `specs_implemented: [...]`, `files: [...]` (the uncommitted paths; `commits` is legacy and optional) (plus `review.guard_denials`, derived, only when the file-map guard denied a write) |
+| review-code | `verifier_passed: true/false` (the /create-pr BRAKE, derived from `verdict.json`), `reviewed_sha` (the working-tree snapshot tree the review judged), `review` `{iterations, findings_open}`, `tests` `{passed, failed, coverage_percent, coverage_target}` |
 | create-e2e-tests | `suites_written: [...]`, `cases_covered: [...]` |
-| create-pr | `pr` `{number, url, branch, base}` (the /merge-pr brake) |
+| create-pr | `pr` `{number, url, branch, base}` (the /merge-pr brake), `branch`, `commits: [...]` (the shas `acs pr commit` made) |
 | merge-pr | `merged: true/false`, `merge_strategy`, `readiness` `{ci, approvals, conflicts, protections}` |
+| audit-design | `audit` `{scope, report, unimplemented, planned, undocumented, drifted, unversioned, tickets:[...]}` — the counts per gap kind and the tickets minted from them; the post-hook re-counts the gap kinds from `report.md` |
+| audit-security | `audit` `{scope, report, critical, high, medium, low, advisory, refuted, scanners:[...], skipped:[...]}` — the confirmed findings per adjudicated severity, the `needs-context` ones (`advisory`) and the refuted ones, the scanners the dependency auditors ran and the slices not run; the post-hook re-counts every count from `report.md` (ADR-0123) |
+
+**`files`, wherever a skill writes repo files** (ADR-0127): every repo-relative
+path the step wrote and left uncommitted — `analyze-requirements`,
+`create-impl-plan`, `docs-sync` and the rest record it beside the keys above.
+It is what `acs pr plan-commits` groups; a changed path no step recorded is
+left out of every group and listed.
 
 On failure, keep whatever is true (e.g. a `/acs:review-code` coverage
 hard-fail records `verifier_passed: false`, achieved coverage, and the reason
@@ -792,25 +879,25 @@ document and writes **none** of the merge-pr ticket states above — there is no
 partition. It has no post step either: it touches no ticket index, pipeline,
 or archive, and there is nothing repo-level to record (ADR 0104).
 
-### The Build and Test skills at a glance
+### The Development skills at a glance
 
-Six skills were carved out of what `/acs:code` and `/acs:test` used to do
-alone, so each produces ONE artifact another step can read, and each is
+Five skills were carved out of what `/acs:code` and `/acs:test` used to do
+alone (a sixth, `create-api-contract`, was one of them until ADR-0134 made it a
+Design skill), so each produces ONE artifact another step can read, and each is
 runnable on its own:
 
 | Skill | Reads | Writes | Downstream use |
 |---|---|---|---|
-| `analyze-requirements` | the ticket, PRD/requirements/architecture, the codebase, the ledger, and its own previously published `analysis.md` (the survey starts from it) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria and `needs_design` written into the ticket via `acs.py ticket save`), store — ending in `analysis.md` (front matter `ticket`, `ready_for_planning`, `api_surface`, `needs_design_recommendation`) published to `docs/tickets/<id>/` | the `api_surface_changed` predicate; `/acs:create-impl-plan`'s planner plans from the impact map, and `create-api-contract` / `create-test-docs` read it; the next analysis of the ticket starts from it; a not-ready analysis returns `needs_input` |
-| `create-impl-plan` | `analysis.md` and `design.md` when present, else the ticket | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
-| `create-api-contract` | `plan.md`, `analysis.md`, the architecture set, existing contracts where the repo keeps them (else `docs/api/`) | `api-contract.md` + machine-readable contract files | code implements it; create-test-docs derives contract cases; `/acs:review-code` checks conformance |
-| `create-test-docs` | the ticket's ACs, `plan.md` and `api-contract.md` when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
-| `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.e2e`/`suites.e2e` | e2e suites at the repo's configured location, on the ticket branch | `run-e2e-tests` executes them |
+| `analyze-requirements` | the run's requirements (a ticket, documents, a prompt), PRD/requirements/architecture, the codebase, the ledger, the feature's living analysis and its own previously published analysis — the folder, or a single `analysis.md` from before ADR-0133 (the survey starts from them) | three stages — survey the impact, clarify with the user (one grouped ask; confirmed criteria, features and the feature recorded via `acs.py requirements refine`, which also patches a ticket), store — ending in an `analysis/` folder (ADR-0133: `README.md` with front matter `ticket` or `feature` and `ready_for_planning`, plus one file per bounded context; an interface change is named in its Next as work for `/acs:create-api-contract`, ADR-0134) published to the feature's living analysis `<prd_dir>/features/<f>/analysis/` when run on its own (Discovery), or to `<development_dir>/<f>/<id>/analysis/` as a Development step | `/acs:create-impl-plan`'s planner plans from the impact map, and `create-test-docs` reads it; the Design skills — `create-api-contract` among them — read the feature's living analysis; the next analysis starts from it; a not-ready analysis returns `needs_input` |
+| `create-impl-plan` | the analysis (`analysis/README.md` first, then the context files it needs — ADR-0133), `tech-design.md` (a legacy `design.md` when that is all there is; its status stated in the report, a warning when not approved — ADR-0135) and the approved API contract (`api-contract.md` and the feature's `lld/<feature>/api/` files, ADR-0134) when present, else the run's requirements | `plan.md` + the executor file map, plan approval on STANDARD/COMPLEX; when the repo keeps machine-readable contract files (OpenAPI, JSON Schema, proto, AsyncAPI), the plan items that create or update them from the contract | `/acs:code` implements it; `on_replan` re-runs it when execution finds the plan wrong |
+| `create-test-docs` | the requirements' ACs (`AC-n`, refined when analysed), `plan.md`, and the API contract (`api-contract.md` through `artifacts show`, plus the living `lld/<feature>/api/`) when present | `test-cases.md` (`TC-n`, traced AC, type unit/integration/e2e, steps, expected, target suite) | the implementer writes tests from it; `create-e2e-tests` reads its e2e-typed rows |
+| `create-e2e-tests` | the e2e-typed rows of `test-cases.md`, `settings.tests.e2e` | e2e suites at the repo's configured location, left uncommitted | `run-e2e-tests` executes them |
 | `run-e2e-tests` | the ticket's suites (from `test-cases.md`, falling back to the plan's Test-plan section) | the run artifact + triage | `on_fail: {relay_to: code}` with the fix-loop cap |
 
 `/acs:code` keeps the implementers, the escalation triggers and the boundary;
 its plan phase is `/acs:create-impl-plan` and its review is
 `/acs:review-code`. It reads `plan.md` when there is one and otherwise works
-from the ticket's acceptance criteria. When execution finds the plan wrong it ends `failed` with
+from the run's requirements. When execution finds the plan wrong it ends `failed` with
 `stop_reason: plan_superseded`, which is what `on_replan` in ship.yaml exists
 to handle.
 
@@ -848,7 +935,7 @@ in the language the kernel is written in.
 
 ## Subagents
 
-33 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 33 reachable —
+43 agent files named `<skill>-<role>` in `plugins/acs/agents/`, 43 reachable —
 every one of them: the files on disk are exactly the roles the naming
 convention makes reachable (`acs_lib.skills.unreachable_agents` is empty).
 There is no generic planner / executor / verifier set. Each skill owns only
@@ -861,59 +948,64 @@ has a **kind** in `acs_lib.skills.ROLE_KINDS` that the hooks act on:
 | `write` | produces the deliverable — the repo, or the workspace draft | the file-map guard applies while it runs | `executor` |
 | `judge` | re-derives and judges fresh; read-only by charter | recorded, not guarded | `verifier` |
 
-`create-impl-plan`'s `planner` is a `write` role that runs on the `planner`
-tier its name promises, and `analyze-requirements`' `impact-analyst` is a
-`survey` role that runs on the `executor` tier the analyst's impact survey ran
-on before ADR-0114 split it out (`acs_lib.skills.model_tier`). So `settings.models`
-keeps its three keys, and a new role needs one line in `ROLE_KINDS` and no new
+A role's kind does not pick its model: `settings.models.<skill>.<role>` does
+(ADR-0115). A new role needs one line in `ROLE_KINDS`, one in the scaffold table
+(`acs_lib.models`), and no new
 setting.
 
 | Skill | Subagents (kind) |
 |---|---|
 | `analyze-requirements` | `analyst` (write — a `requirements` survey lane, a `synthesis` pass, then a `draft` pass after the user's answers) · `impact-analyst` (survey — one per code area, on the `executor` tier) · `impact-reviewer` (judge); the loop is run by a controller, `acs.py analysis` (ADR-0114) |
-| `create-prd`, `create-requirements` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
-| `create-architecture` | `architect` (write) · `reviewer` (judge) |
-| `create-design` | `designer` (write) · `design-reviewer` (judge) |
-| `create-docs` | `author` (write) · `reviewer` (judge), one pair per doc set |
+| `create-prd` | `surveyor` (survey) · `author` (write) · `reviewer` (judge) |
+| `manage-roadmap` | `surveyor` (survey) · `author` (write) · `reviewer` (judge); its `status` mode spawns none (ADR-0145) |
+| `create-architecture` | `architect` (write) · `gap-analyst` (survey — one per survey area, spawned beside the survey only when `hld/` already holds documents; ADR-0122) · `reviewer` (judge) |
+| `create-tech-design` | `designer` (write) · `reviewer` (judge — adds flows ↔ api ↔ data consistency and snapshot freshness; ADR-0135) |
+| `create-data-design` | `designer` (write — a survey pass, then ONE write pass over both documents, which must agree) · `gap-analyst` (survey — one per survey area, spawned beside the survey only when the feature's `data/` already holds documents; ADR-0126) · `reviewer` (judge — three slices) |
+| `create-flows` | `designer` (write — a survey pass, then parallel write slices, one per flow group plus `write-states` and `write-components`, and an `integration` pass only when a slice reports a seam) · `gap-analyst` (survey — as create-data-design's, over `flows/` and `components/`) · `reviewer` (judge — three slices; ADR-0126) |
+| `create-api-contract` | `contract-author` (write — sliced per interface, with an `integration` pass only when a slice reports a seam) · `gap-analyst` (survey — one per existing interface document, spawned in the same message as the survey only when the feature's `api/` already holds documents; ADR-0134) · `contract-reviewer` (judge) |
 | `create-impl-plan` | `planner` (write) · `plan-reviewer` (judge) |
-| `create-api-contract` | `contract-author` (write) · `contract-reviewer` (judge) |
 | `create-test-docs` | `test-designer` (write) · `trace-reviewer` (judge) |
 | `code` (and its four legs) | `implementer` (write), one per file-map partition |
 | `review-code` | `lens` · `adjudicator` (judge) |
 | `create-e2e-tests` | `test-writer` (write) · `suite-runner` (judge) |
-| `docs-sync` | `doc-updater` (write) · `drift-reviewer` (judge) |
-| `create-project` | `scaffolder` (write) · `build-checker` (judge) |
-| `standardize-project` | `auditor` (survey) · `scaffolder` (write) · `additive-checker` (judge) |
-| `create-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from `skills/<skill>/references/` (`materialize.md`, `publish.md`, `merge.md`) |
+| `docs-sync` | `doc-updater` (write — one per doc area: `requirements`, `architecture`, `lld`, `adr`, `general`) · `gap-analyst` (survey — one per run feature, in the same message as the doc-updaters in iteration 1; ADR-0137) · `drift-reviewer` (judge — three slices over seven dimensions) |
+| `audit-design` | `gap-analyst` (survey — one per top-level code area); read-only, no writer and no judge (ADR-0122) |
+| `audit-security` | `auditor` (survey — one per category: `code` per code area, `secrets-config`, `dependencies`, `threat-model`) · `adjudicator` (judge — one per candidate finding, prompted to refute it); read-only, no writer (ADR-0123) |
+| `create-ticket` | `epic-author` · `story-author` · `task-author` · `bug-author` (write — ONE per run, for the type the coordinator chose; each writes only the draft `steps/create-ticket/iter-<n>/draft.json` and `draft.md` through `acs.py write`, reading the shared `references/authoring-rules.md`, and never mints a ticket or touches the tracker) · `reviewer` (judge — concrete, testable acceptance criteria, PRD trace and `features`, the type's completeness, sizing honesty, no invented facts); at most two iterations, then the coordinator confirms and materialises inline from `references/materialize.md` (ADR-0138) |
+| `breakdown-ticket`, `create-pr`, `merge-pr` | none — the coordinator runs the steps inline from its SKILL.md and `skills/<skill>/references/` (merge-pr's `merge.md`) |
 
-The surveyor and the auditor run on iteration 1 only and freeze their notes;
-the author or scaffolder writes from them. `create-project` and
-`standardize-project` are `/acs:project`'s internal legs and keep their own
-agents. The lifecycle hooks do not track `review-code`'s lenses and
+The surveyor runs on iteration 1 only and freezes its notes; the author
+writes from them. The lifecycle hooks do not track `review-code`'s lenses and
 adjudicators (`acs_lib.lifecycle.UNTRACKED_ROLES`): they fan out one per lens
 and one per finding, and the coordinator persists what they return itself.
+`UNTRACKED_ROLES` is keyed by role name, so `audit-security`'s adjudicators —
+one per candidate finding — are untracked the same way, and each writes its own
+`iter-<n>/adjudication-<id>.json`; its auditors are tracked.
 
 Conventions:
 
 - Frontmatter: `name` (`<skill>-<role>`) and `description` (what the role does
   for `/acs:<skill>`, ending "Spawned by the /acs:<skill> coordinator with a
   JSON task; not for direct invocation."). Survey and judge roles carry
-  `tools: Read, Glob, Grep, Bash, Write`; write roles carry
-  `disallowedTools: Agent, Skill`. No `model:` key — the *actual*
-  model/effort comes from `settings.json` (`models.<tier>`,
-  `models.overrides.<skill>.<tier>`), resolved by `acs step start` into
-  `context.models` and applied by the coordinator at spawn time for the
-  role's tier. An unknown model id or unsupported effort fails at spawn —
-  surface the error, never silently fall back.
+  `tools: Read, Glob, Grep, Bash` (no `Write`: they write only state, through
+  `acs.py write`, ADR-0136); write roles carry
+  `disallowedTools: Agent, Skill`. No `model:` or `effort:` key — the
+  *actual* model/effort comes from `settings.json` `models.<skill>.<role>`
+  (inheriting where unset). `acs step start` writes
+  `.claude/agents/acs-<skill>-<role>.md`, a copy of the agent carrying that
+  `model:`/`effort:`, for every entry that sets one, and reports the name to
+  spawn per role in `context.agents`. An unknown model id or unsupported effort
+  fails at spawn — surface the error, never silently fall back.
 - Spawn with `subagent_type: "acs:<skill>-<role>"`; the task and the result
   carry `phase="<role>"`.
 - Survey and judge roles are read-only with ONE exception: each writes its
   own phase artifacts under `steps/<skill>/` (notes, report — see Phase
-  artifacts above). Only write roles mutate real targets (the repo for /code
+  artifacts above), through `acs.py write` to the absolute path under the
+  task's `partition`. Only write roles mutate real targets (the repo for /code
   and the product-level skills, the workspace artifacts — specs, and the
-  ticket-document DRAFTS under `steps/<skill>/` — for the rest; a document in
-  the ticket docs tree is published by the coordinator from the reviewed
-  draft, never written by a subagent, which the file-map guard enforces), and
+  document DRAFTS under `steps/<skill>/` — for the rest; a run's document in
+  its phase folder is published by the coordinator from the reviewed draft,
+  never written by a subagent), and
   they record what they changed in their `iter-<n>/<role>.json` report. A
   judge must judge fresh — it never sees the writer's reasoning, only
   artifacts.
@@ -927,7 +1019,8 @@ rather than on SKILL.md prose. `acs.py analysis <verb>` (`acs_analysis_commands.
 over `acs_lib/analysis_loop.py` and `acs_lib/analysis_publish.py`) owns the
 loop's position in `steps/analyze-requirements/loop.json` — written only by
 the controller, validated against `schemas/analysis-loop.schema.json` on every
-write. The coordinator performs ONE action at a time and reports it:
+write, and keyed by `run_id` with an optional `ticket_id`: the loop runs on any
+subject (ADR-0128). The coordinator performs ONE action at a time and reports it:
 
 | Verb | Reads / does | Moves the loop to |
 |---|---|---|
@@ -936,18 +1029,19 @@ write. The coordinator performs ONE action at a time and reports it:
 | `record-survey` | every lane's `<result>` snapshot, notes and JSON report; joins the notes into `iter-1/authoring.md` | `synthesize` (always: ≥ 2 lanes) |
 | `record-synthesis` | the synthesis snapshot and notes; re-joins with the synthesis last | `clarify` |
 | `record-clarify [--blocking-open]` | the joined notes and the ledger's open count | `draft` (with `--blocking-open`, the not-ready arm: published, then `blocked` needs_input) |
-| `record-draft` | the draft snapshot, `analysis.md`, `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft's sha256 | `review` |
-| `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>` | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
-| `publish` | refuses unless the last review passed and the draft is the reviewed bytes; runs `front_matter_check` and `structure_lint` (a finding fails the iteration); copies the draft byte-for-byte to `artifact_path(…, "analysis.md")`; `git add` and `git commit` on the ticket docs folder pathspec only, with `formats.commit_message`; never pushes | (unchanged) |
-| `record-publication` | re-reads the published bytes and `git show HEAD:<path>` | `completed` |
+| `record-draft` | the draft snapshot, the draft folder `iter-<n>/analysis/` (ADR-0133), `iter-<n>/analyst.json` (and `iter-<n>/authoring.md` on n ≥ 2); records the draft folder's digest (`draft_sha256`, over every file's sha256) and runs the folder checks (`acs_lib.analysis_folder`: `front_matter_check` and the structure checks on README and on every context file, see "The analysis folder" below) — beside the review, not after it (ADR-0125) — listing their findings as the `review` action's `draft_checks` | `review` |
+| `record-review` | the three judge slices' snapshots and reports; joins them into `iter-<n>/impact-reviewer.md`; parses every `<finding severity dimension file>`, and folds in the draft's check findings (slice `draft-checks`) | `publish` on a pass; else `failed`/`stalled`, `failed`/`cap` (iteration 3), or `draft` n+1 |
+| `publish` | refuses unless the last review passed and the draft folder is the reviewed files — its digest unchanged (whose checks ran clean at `record-draft`); copies every draft file byte-for-byte into `analysis_publish.resolve_target`'s folder — the feature's living analysis `<prd_dir>/features/<feature>/analysis/` for a standalone (Discovery) run, `<development_dir>/<feature>/<id>/analysis/` for a Development run (ADR-0128, ADR-0133) — and removes a context file the new analysis no longer has, only inside that `analysis/` folder — refusing, with a message naming `acs.py requirements refine` and the feature ask, a run with no recorded feature; exits 2 naming `acs.py docs decide` while `docs where` reports an answer owed (the share choice for a Development run, the folder for either phase), and with run documents kept local publishes to `steps/analyze-requirements/local/analysis/` instead — `publication` records the path, `local`, `share_scope` and the report phrase `destination`, and lists no `files` for `/acs:create-pr` (ADR-0132); records `path` (the README), `dir`, the folder digest `sha256`, `file_shas` (each file's sha256), `removed` (the context files it deleted) and `superseded` (a single pre-ADR-0133 `analysis.md` left beside the folder, which every reader now passes over); never stages, commits or pushes (ADR-0127) | (unchanged) |
+| `record-publication` | re-derives the publication from the working tree: every file in `file_shas` still the reviewed bytes, and no `.md` file in the folder the review never judged | `completed` |
 
 Rules the code holds, each with a transition test in
 `tests/acs/test_analysis_loop.py`:
 
 - **Derived, never asserted.** No verb takes a verdict. An iteration passes
   iff every judge slice returned `status="completed"` with zero
-  `severity="blocking"` findings; a slice with `status="failed"` contributes a
-  `review-failed` blocking finding.
+  `severity="blocking"` findings and the draft's deterministic checks found
+  nothing; a slice with `status="failed"` contributes a `review-failed`
+  blocking finding.
 - **Stall.** The blocking set — (dimension, file, whitespace-normalised text),
   de-duplicated, order-insensitive — identical to the previous iteration's
   ends the run `failed` with `stop_reason: stalled`.
@@ -963,37 +1057,198 @@ Rules the code holds, each with a transition test in
   history: the next invocation's `next` answers `plan`. A loop that ended under
   an invocation interrupted for any other reason resumes straight to Finish.
 
+### The analysis folder (`acs_lib/analysis_folder.py`, ADR-0133)
+
+An analysis is always a folder, never one long file — even a single-context
+one. The draft is `steps/analyze-requirements/iter-<n>/analysis/`; when
+iteration n fails, the controller seeds `iter-<n+1>/analysis/` with a copy of
+iteration n's files, so the next draft pass revises in place (and may delete a
+context file). It publishes to:
+
+| Run | Folder |
+|---|---|
+| Discovery | `<prd_dir>/features/<f>/analysis/` (the feature's living analysis) |
+| Development | `<development_dir>/<f>/<key>/analysis/` |
+| kept local (ADR-0132) | `<run>/steps/analyze-requirements/local/analysis/` |
+
+The folder holds `README.md` and at least one context file. Every other name
+matches `^[a-z0-9]+(-[a-z0-9]+)*\.md$`; `index.md`, any other name, a
+subfolder or a non-`.md` file is refused. `record-draft` runs the checks below;
+a finding fails the iteration like a judge's blocking finding (ADR-0125).
+
+**`README.md`** — the entry, rendered when the folder is opened on the forge.
+Front matter is the old `analysis.md` spec: `ticket` (must match the run's) or
+`feature`, and `ready_for_planning` (a boolean; an `api_surface` key left by
+an analysis published before ADR-0134, or a `needs_design_recommendation` left
+by one published before ADR-0139, is ignored, never refused), plus `status`, `version`, `tickets` (ADR-0122) on a Discovery
+analysis. Title `# Analysis — <ticket-id or feature>: <subject>` (not
+checked). Required `##` headings, in this order, each non-empty:
+
+1. `## Scope and summary`
+2. `## Contexts`
+3. `## Refined acceptance criteria`
+4. `## Cross-cutting risks and decisions`
+5. `## Questions and assumptions`
+6. `## Verdict`
+
+`## Contexts` holds a Markdown table — suggested columns
+`| Context | File | Purpose |`, only the links are checked — and each row
+links one context file by a bare relative link, `[order-checkout.md](order-checkout.md)` — no `/`, no `..`,
+no anchor. Findings: `broken-link` (a link that resolves to no file in the
+folder), `unlisted-context` (a context file the table does not link),
+`no-contexts` (a table that lists none).
+
+Each finding names `file: analysis/<name>` with the text `line N: [rule] msg`;
+besides `front_matter_check` / `structure_lint`'s own rules, the folder rules are
+`missing-folder`, `missing-readme`, `index-file`, `bad-name`, `unexpected-entry`,
+`unreadable`, `no-contexts-table`, `unlinked-row`, `bad-link`, `broken-link`,
+`no-contexts`, `unlisted-context`, `no-context-files`, `context-mismatch` and
+`feature-mismatch`. The controller's `draft` action names the folder (`draft`),
+its `readme`, the `previous_draft` already copied in on n ≥ 2, and the `shape`
+it must have; the `review` action lists `draft_files`, README first.
+
+**A context file `<slug>.md`** — one bounded context, named in plain words.
+Front matter `context: <slug>`, equal to the file stem; on a Discovery run with
+no ticket — exactly when README carries the version keys — also `feature`,
+`status`, `version`, `tickets`. A `feature`, wherever present beside README's,
+must equal it. Title `# <Context name in plain
+words>` (not checked). Required `##` headings, in this order, each non-empty
+(`_None._` counts as content):
+
+1. `## Impact map` — a table whose first column is a repo-relative path (`file:line` allowed)
+2. `## Rules and edge cases`
+3. `## Risks`
+4. `## Open questions`
+5. `## API notes`
+
+**Publish** copies every reviewed file byte-for-byte into the target folder,
+deletes a context file the new analysis no longer has — only inside that
+`analysis/` folder, never beside it — and records each file with its sha256;
+`record-publication` verifies every one. **Readers** open `README.md` first and
+then only the context files they need. A single `analysis.md` — published
+before ADR-0133, or a legacy `docs/tickets/<ID>/analysis.md` — is still read
+wherever no `analysis/` folder exists; nothing converts it in place.
+
 ## Workspace layout (normative example)
 
 Durable state is split by AUDIENCE. The documents a human reads or reviews live
-in the consumer repo and are committed with the change; the run ledger — every
-fact a hook or a walk reads — stays in the gitignored workspace.
+in the consumer repo and are committed with the change — a run's own documents
+only when the repo shares them (ADR-0132, see "Shared or kept local" below);
+the run ledger — every
+fact a hook or a walk reads — and the ticket itself stay in the gitignored
+workspace (and the tracker). A run's documents live **one folder per phase**,
+keyed by the run's feature (ADR-0128):
 
-Who commits the documents (ADR 0090): the skill that publishes a Build-phase
-document commits it on the ticket branch. `ticket.md` and `design.md` are
-published in the Design phase, BEFORE a ticket branch exists — acs never
-commits to the default branch — so their writers leave them in the working
-tree and `/acs:analyze-requirements`, the first Build step, commits the ticket's
-whole docs folder when it creates the branch.
+| Phase | Folder | Documents |
+|---|---|---|
+| Discovery | `<prd_dir>/features/<feature>/` | the feature's own PRD `prd.md` (ADR-0142; `/acs:create-prd` writes it, ADR-0122 front matter) and its living analysis, the `analysis/` folder (ADR-0133; ADR-0122 front matter + `feature` on every file) |
+| Design | `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/` | `tech-design.md` (ADR-0135; a legacy `design.md` is still read), `api-contract.md` (the per-run record linking the interface files it wrote, ADR-0134); the living `lld/<feature>/{api,data,flows,components}/` stays edited in place (ADR-0126, ADR-0134) |
+| Development | `<development_dir>/<feature>/<ticket-id or run-id>/` | a Development run's `analysis/` folder (ADR-0133), `plan.md`, `test-cases.md` |
+
+`acs_lib.requirements` resolves the three roots deterministically:
+`prd_dir(root)` (the PRD the way `/acs:create-prd` finds it — a `CLAUDE.md` or
+docs-index mention of a `prd.md`, else a Glob for `prd.md` — default
+`docs/product`), `architecture_dir(root)` (the set holding
+`hld/tech-stack.md`, default `docs/architecture`) and `development_dir(root)`
+(an existing `docs/development/`, default the same); `feature_dir(ctx,
+feature)` is `<prd_dir>/features/<slug>/`. The feature is the ticket's first
+feature, or the one `requirements refine` recorded; a ticketless run without
+one is asked for it in `/acs:analyze-requirements`' grouped ask. **Nothing
+writes `docs/tickets/<ID>/`**: no `ticket.md` is rendered, and a folder written
+before ADR-0128 is only read, as a fallback.
+
+Who commits the documents (ADR 0127, amending ADR 0090): **only
+`/acs:create-pr`**. Every skill that publishes a document — `tech-design.md`,
+the `analysis/` folder, `plan.md`, `test-cases.md`, the LLD under
+`<architecture_dir>/lld/<feature>/`, the PRD, the HLD — writes it into the working
+tree on whatever branch is checked out and lists it in its result's
+`states.files`; `/acs:create-pr` commits the run's documents first, and each
+other doc set as its own.
+
+### Commits: only `/acs:create-pr` (ADR-0127)
+
+No skill creates or switches a branch, stages, commits or pushes — except
+`/acs:create-pr`, plus `/acs:release`'s own `release/*` PR (ADR-0052) and
+`/acs:merge-pr`'s merge and post-merge cleanup — and `/acs:handoff`'s snapshot
+commit, pushed to the hidden ref `refs/acs/handoff/<ID>`, never to a branch
+(ADR-0131, see "Ticket handoff"). The changeset is the working
+tree, so reading it takes three pieces in `acs_lib/changes.py`:
+
+- **Baseline** — `runs/<run-id>/baseline.json`, written once by the run's first
+  `acs step start` and never overwritten (ticketless runs too): `{base_sha,
+  branch, dirty: [paths dirty or untracked at that moment, with their blob ids],
+  first_step, adopts_dirty, recorded_at}`. A file the user was already editing is
+  not the run's — unless the run's FIRST step reads existing work (`review-code`,
+  `docs-sync`, `create-pr`, `run-e2e-tests`: `adopts_dirty`), where the hand-written
+  changes already in the tree are exactly its subject and stay in the changeset.
+- **Snapshot** — `acs changes snapshot`: a tree id of the full working tree,
+  untracked non-ignored files included, built through a throwaway
+  `GIT_INDEX_FILE` so the real index and the tree are untouched. The verdict's
+  `reviewed_sha` holds one; `/acs:code` asks `acs changes diff --since
+  <reviewed_sha>` what changed after the review.
+  An embedded repository the user never committed — a Claude Code worktree at
+  `.claude/worktrees/<name>/`, a stray `git init` — is never part of it: untracked
+  embedded repos are excluded from the `add`, and any gitlink the base tree does not
+  hold is dropped from the temporary index (`changes.drop_new_gitlinks`, also run by
+  `handoff receive` after `git apply --cached`). A submodule already in `HEAD` stays.
+- **Changeset** — `acs changes diff`: `<since>` → a fresh snapshot, the
+  baseline's dirty paths excluded unless they changed again. It replaces every
+  `git diff <default>...HEAD` / `git log <branch>` read; a scope check snapshots
+  at step start and diffs `--since` that tree.
+
+`/acs:create-pr` then runs `acs pr plan-commits` (`acs_lib/commit_plan.py`):
+deterministic groups from the run's recorded results (`states.files`, the
+analysis publication, the implementer reports' `files_changed` per slice or
+partition, the plan's file map, docs-sync's files, the e2e suites) intersected
+with the changeset — the run's documents, the design docs, per slice its tests then
+its code, docs-sync's updates, the e2e suites. Tests and code split on the
+repo's test-path conventions (a `test`/`tests`/`__tests__`/`spec` segment, or
+`test_*`/`*_test.*`/`*.spec.*`/`*.test.*`); subjects follow
+`conventions.COMMIT_SUBJECT`. Changed but unrecorded paths are `left_out`,
+baseline-dirty ones `excluded`; both are listed in the preview the user
+confirms (and may edit) before `acs pr commit --plan <file>` commits each group
+by pathspec — never `git add -A`. An analysis folder (ADR-0133) is one
+documents group, every file of it together: the publication's `files`, plus
+its `removed` context files, whose deletions go in the same commit. A run document kept local (ADR-0132) lives in
+the workspace, never in the working tree, so it is in no group and never
+`left_out` — no special case, and a test holds it. `/acs:create-pr` takes a ticket id or a
+prompt; with no argument it continues this checkout's current run. A run whose
+steps recorded nothing — a prompt given with no current run — is planned in
+`uncommitted` mode: every uncommitted change against HEAD, grouped by layer
+(documents by doc set — the PRD, `hld/`, each `lld/<feature>/`, the ADRs, the
+run's documents — then tests, then code), placing each file by the paths other runs
+recorded in `states.files`. The `verifier_passed` brake applies only when the
+run has a code step, and a commit subject names a ticket only when there is one.
+
+**Limitation.** Two tickets in flight in one checkout share one working tree and
+so one changeset; use a separate worktree per concurrent ticket.
 
 ```
-<checkout>/docs/tickets/<ticket-id>/    # fixed: artifacts.TICKETS_PATH
-  ticket.md        # YAML front matter = the ticket fields; body = Description,
-                   #   Acceptance criteria, Clarifications (a read-only mirror)
-  design.md  analysis.md  api-contract.md  plan.md  test-cases.md
+<checkout>/<prd_dir>/features/<feature>/analysis/             # Discovery: the living analysis (README.md + <context>.md, ADR-0133)
+<checkout>/<architecture_dir>/lld/<feature>/<id>/              # Design: tech-design.md  api-contract.md (per-run records)
+<checkout>/<architecture_dir>/lld/<feature>/{api,data,flows,components}/  # Design: the living LLD (api/<interface>.md, ADR-0134)
+<checkout>/<development_dir>/<feature>/<id>/                   # Development: analysis/  plan.md  test-cases.md
+<checkout>/docs/tickets/<ticket-id>/                           # LEGACY, read-only fallback (doc_layout.LEGACY_TICKETS_PATH)
 
 <workspace>/<repo-id>/                  # repo-id from git remote: owner-name
   tickets-index.json  counters.json
-  runs-index.json                       # every run: id, workflow, subject, status
+  runs-index.json                       # every run: id, workflow, subject (+ sources), status
   sessions/<checkout-id>/               # ONE directory per checkout, not five files
     pointer.json                        #   the current RUN and STEP
+  <ticket-id>/                          # THE TICKET (workspace + tracker are its only homes)
+    ticket.json
+    clarifications.json                 #   a ticket run's clarification ledger
   archive/<ticket-id>/                  # moved here by post-merge-pr
   runs/<run-id>/                        # THE PARTITION -- a run, not a ticket
-    run.json                            #   the run machine (§4.3)
-    subject/                            #   ticket.json | prompt.md | the document
-    requirements.md                     #   step 1's artifact, promoted
-    clarifications.json
+    run.json                            #   the run machine (§4.3); subject + subject.sources
+    subject/
+      sources.json                      #   [{kind, ref, sha256, copy}] (ADR-0128)
+      <n>-<basename>                    #   a document copied in from outside the repo
+    requirements.md                     #   regenerated from the sources; never hand-edited
+    requirements-refined.json           #   `acs requirements refine`: the ## Refined section
+    clarifications.json                 #   a TICKETLESS run's ledger only
     lock.json  lock-events.jsonl  agents/<agent_id>.json  handoff-context.md
+    baseline.json                       #   the run's starting point: base_sha, branch, dirty paths (ADR-0127)
     steps/<skill>/
       state.json                        #   the step machine (§4.4)
       result.json                       #   the post-hook's input
@@ -1004,69 +1259,397 @@ whole docs folder when it creates the branch.
         verdict.json  lens-<A..E>.md ...
 ```
 
-### Ticket artifacts (`acs_lib/artifacts.py`)
+### How state is written: `acs.py write` (ADR-0136)
 
-`artifacts.py` owns the layout and every read/write of it.
+**The root does not move.** `repo.default_state_root(cwd)` derives
+`<main-checkout>/.acs/state-machine` from `git rev-parse --is-bare-repository`
+and `--git-common-dir`, and refuses a bare repository and a submodule with a
+`GateError` (ADR-0086, ADR-0102). Every linked worktree, `.claude/worktrees/<name>/`
+included, resolves the same folder at the main checkout's root — never one of
+its own. Two Claude Code rules decide whether a worktree session can write it.
+Worktree isolation refuses the `Write`/`Edit`/`NotebookEdit` tools on any
+main-checkout path, and any Bash call whose working directory is the main
+checkout or that points git at it; a Bash call run from the worktree that
+writes with Python is neither, so `acs.py write` is not stopped. The Bash
+sandbox, when on, lets Bash write only the working directory, `$TMPDIR`, added
+directories and `sandbox.filesystem.allowWrite` paths, and settings path rules
+anchor at the session's working directory; so `/acs:setup` offers an
+`allowWrite` entry naming the folder's **absolute** path (see "Bootstrap"
+below).
 
-- **Resolution is first-existing, then a write target.**
-  `artifact_path(checkout_root, tdir, ticket_id, name)` returns the
-  first of `<docs>/<name>`, `<tdir>/<name>`, `<tdir>/<legacy rel>` that exists;
-  when none does it returns where a WRITE should go — `<docs>/<name>` when
-  there is a checkout, else `<tdir>/<name>`. Callers tell the two apart with
-  `os.path.isfile`. This is why a partition built before the move keeps working
-  unchanged, and why the gates' "looked in the ticket's docs folder and in
-  `<partition>`" wording is literally true.
-- **`status` is DERIVED, never stored.** `ticket.md` carries every ticket field
-  EXCEPT `status`; `derive_status(tdir, ticket=None)` computes it from the
-  ledger — `done` when the partition is archived, `merge-pr` completed, or (for
-  an epic) every child is done; `in_review` when `create-pr` completed, or a
-  delivery-ticket skill completed with a `pr` in its state file; `in_progress`
-  when any step other than `create-ticket` has a non-`skipped` status (or any
-  child is not open); `open` otherwise. `load_ticket()` puts it back in the
-  returned dict, so callers are unchanged. A committed document and the run
-  state can no longer disagree, because only one of them holds the fact.
+**State files: `acs.py write`** (`acs_write_commands.py`). No skill or agent
+writes a state file with the `Write` or `Edit` tool. The one form is
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <path> [--append] [--run R] <<'ACS_EOF'
+…content…
+ACS_EOF
+```
+
+with the delimiter quoted so the content is taken verbatim. stdin is the
+content, byte for byte (a terminal on stdin is refused). An absolute `<path>`
+must resolve, symlinks followed, inside the workspace root; a relative one is
+resolved against the run directory — `--run R`, else this checkout's current
+run (`acs.py context` reports it as `run_id`/`run_dir`; neither → exit 2). A
+coordinator hands its agents the absolute `partition`, and agents write
+absolute paths (`<partition>/<path>`): a subagent in its own worktree has no
+current run. `/acs:review-code`'s lenses and adjudicators, whose tasks carry no
+`partition` and which run in the coordinator's checkout, use the run-relative
+form. Escaping the
+root (`..`, a symlink) and the machine-owned ledgers with verbs of their own —
+`run.json`, `steps/<skill>/state.json`, `lock.json`, `runs-index.json`,
+`tickets-index.json`, `sessions/`, `active-agents/`, any `filemap.json` — are
+refused with exit 2 and nothing written. Parent directories are created; the
+write is a temporary file in the same directory and `os.replace`, `--append`
+included. stdout: `{"ok": true, "path", "bytes", "appended", "total_bytes"}`.
+Repo files are still written with `Write`/`Edit`, by write roles only, inside
+the session's worktree; the file-map guard still judges those.
+
+### Ticket handoff: the resume set over a hidden ref (ADR-0131)
+
+`/acs:handoff` moves one ticket in mid-flight from one member to another, on
+another machine. The workspace never crosses; a **package** does.
+`acs_lib/team_handoff.py` (send, list) and `acs_lib/team_handoff_receive.py`
+behind `acs.py handoff send|receive|list` (`acs_handoff_commands.py`) do the
+work, reusing `acs_lib.changes`' `snapshot`, `_run_git`, `head_sha` and
+`current_branch`; the skill asks one grouped question and reports.
+
+**The ref.** One commit at `refs/acs/handoff/<ID>` on `origin`. A ref outside
+`refs/heads/` and `refs/tags/` is not fetched by a default refspec, shows no
+branch and cannot back a pull request — but anyone with read access can fetch
+it by name. The commit's parent is the run's `baseline.base_sha` (HEAD when
+there is none); it is built
+through a temporary `GIT_INDEX_FILE` (`hash-object -w`, `update-index
+--cacheinfo`, `write-tree`, `commit-tree`), so the sender's HEAD, index,
+branches and working tree are never touched. It is the one commit an acs skill
+makes outside `/acs:create-pr` (and `/acs:release`, `/acs:merge-pr`): never on
+a branch, never merged (amending ADR-0127). Transport is `git push` /
+`git fetch`, as `/acs:create-pr` pushes; `gh` is not involved.
+
+**The package tree** is the **resume set** — what a resume reads, nothing a
+resume does not:
+
+```
+work/                     # changes.snapshot: tracked edits, deletions, untracked non-ignored files
+acs/ticket/               # ticket.json  clarifications.json
+acs/run/                  # run.json  requirements.md  requirements-refined.json  baseline.json
+                          # handoff-context.md  subject/sources.json
+  steps/<skill>/          #   the files at the step's root: state.json  result.json  <current artifacts>
+    iter-<n>/verdict.json #   the verdicts only, never the rest of the audit trail
+attachments/              # outside-repo subject copies, ONLY those passed with --attach
+note.md                   # done / in flight / next / decisions
+manifest.json             # format, ticket, sender, time, base, branch, withheld attachments, counters_next
+trees/<id>                # every tree id the state cites (baseline.tree, a verdict's reviewed_sha)
+```
+
+Absolute paths in the resume set travel as the tokens `${ACS_RUN_DIR}`,
+`${ACS_REPO_DIR}` and `${ACS_CHECKOUT}` (`team_handoff.TOKENS`) and are
+rewritten to the receiver's paths on the way in. The manifest is checked
+against `schemas/handoff-manifest.schema.json` and its `format` before
+anything is written.
+
+**Left out** (`team_handoff.EXCLUDED_RULES`), because a resume never reads it
+or it is machine-local: `steps/*/iter-*/` except `verdict.json`, a step's
+sub-directories, `jobs/`, `agents/`, `lock.json`, `lock-events.jsonl`, logs,
+`sessions/`, and every outside-repo attachment not passed with `--attach`.
+
+**Send** refuses an archived ticket, a run that is not about a ticket, an
+`--attach` that is not one of the run's attachments, and an existing ref unless
+`--replace`; every push carries a lease (`--force-with-lease`), so a ref that
+changed since it was read is not overwritten. `--dry-run` reports the package
+and the attachments and builds nothing. After a successful push the sender's
+state is untouched — work, run and lock stay where they were, and no workspace
+file, index or local ref is written; a handoff is a copy.
+
+**Receive**, refusing before anything is written: fetches the ref and
+validates the manifest; refuses a local run or ticket partition with the same
+id unless `--replace`, which moves them under
+`<workspace>/<repo-id>/handoff-backups/<ID>-<stamp>/`; refuses a dirty working
+tree; dry-runs `git diff --binary <base> <work> | git apply --3way` in a
+temporary index, so a receiver whose HEAD moved on still applies and a conflict
+is reported with its paths while the checkout is untouched. Then it applies for
+real (the changes land unstaged), restores `acs/` with this machine's paths,
+upserts `tickets-index.json` and `runs-index.json`, raises `counters.next` to
+at least the sender's, and points this checkout's
+`sessions/<checkout-id>/pointer.json` at the run. It keeps the commit under
+the local ref `refs/acs/received/<ID>` (the cited trees stay reachable) and
+deletes the remote ref unless `--keep-ref`. It prints `continue_with` — the
+interrupted or in-progress step's skill, else the run's cursor, else
+`/acs:ship <ID>`. **List** reads `git ls-remote <remote> 'refs/acs/handoff/*'`;
+`--details` fetches each for its sender, time and note. Every verb takes
+`--remote NAME` (default `origin`).
+
+**Pause is not handoff.** The internal **session pause** is unchanged and keeps
+its names: a coordinator under context pressure flushes and runs `handoff.py`
+(finalize the in-flight step `interrupted`, `stop_reason: context_pressure`,
+release the lock, print `continue_with`), and the `PreCompact` hook writes
+`handoff-context.md`. It stays on one checkout and touches no remote. The
+`/acs:handoff` skill never calls `handoff.py`, and `handoff.py` never pushes.
+
+### Requirements of a run (`acs_lib/requirements.py`, ADR-0128)
+
+Skills receive **requirements**; a ticket id, documents and a prompt are only
+the containers they arrive in, and one invocation may mix them
+(`/acs:analyze-requirements SHOP-12 ~/Downloads/spec.pdf "also bulk export"`).
+No skill requires a ticket.
+
+- **Parsing.** `parse_sources(text, ctx)` splits the argument text with
+  `shlex` (whitespace on an unbalanced quote): a `<PREFIX>-<n>` token is a
+  ticket, a token naming an existing FILE — repo-relative, absolute or
+  `~`-expanded — is a document (`{path, abs, sha256, inside_repo}`), and the
+  rest is joined, in order, into ONE prompt (a text with neither stays the
+  prompt verbatim). `primary_subject` keeps today's single subject
+  (ticket > document > prompt) for run ids, resume-by-ticket and every reader
+  of `run.json.subject`, and stores the whole list as `subject.sources` when
+  there is more than one. `gates.subject_from_payload` and `acs step start
+  --args` both delegate here. A ticket id with no partition is refused, naming
+  `/acs:create-ticket`.
+- **Materialising.** `materialise(rdir, ctx, sources)` — idempotent, called
+  by the Skill pre-hook that creates or adopts the run AND by `acs step
+  start`, so a hookless host gets it — writes `<run>/subject/sources.json`
+  (`[{kind, ref, sha256, copy, added_at}]`), copies every document from
+  outside the repo to `<run>/subject/<n>-<basename>` (nothing is added to the
+  repo for it), and regenerates `<run>/requirements.md`: a front block (run
+  id, `generated_at`, sources), then `## Ticket <ID>` (title, description,
+  acceptance criteria numbered `AC-1…` in ticket order, features),
+  `## Prompt` (verbatim), `## Documents` (markdown and text
+  inlined under `### <ref>`; any other type cited by its run copy for the
+  model to Read) and `## Refined`. The file is GENERATED — nothing edits it by
+  hand.
+- **Adding.** `add_sources` (`acs requirements add --args "…"`) appends a
+  later invocation's new sources, deduplicated by ticket id, digest or prompt
+  text, and regenerates; a repo document edited since keeps one entry with its
+  new digest. A source is never replaced silently.
+- **Refining.** `refine(rdir, ctx, data)` (`acs requirements refine`) stores
+  `/acs:analyze-requirements`' refined `acceptance_criteria`,
+  `features`, `feature` and, when it must be explicit, `phase` in
+  `<run>/requirements-refined.json`, re-renders `## Refined`, and — only when
+  the run has a ticket — patches the ticket as `ticket save` does. A
+  `needs_design` key is refused with a `GateError` naming ADR-0139: a run's
+  requirements carry no design flag, and a refined file written before it that
+  still holds the key is read as if it did not.
+- **Reading.** `summary(rdir, ctx)` is the `requirements` block of the
+  step-start context and of `acs requirements show`: `{path, sources,
+  acceptance_criteria, features, feature, phase, feature_analysis,
+  refined}`, for every run, ticket or not. Skills read acceptance criteria
+  from it, never from `ticket.json`.
+- **The tech design is found, not required** (ADR-0139). Beside
+  `requirements`, the step-start context carries `design: {exists, dir,
+  source}` for every run, ticket or not, from `gates.design_source(ctx, tdir,
+  ticket, rdir)`: the ticket's (or a ticketless run's) own `tech-design.md` —
+  a legacy `design.md` still read, the lookup `acs.py artifacts show design`
+  uses — with `source: own`, else its parent epic's with `source: parent`, else
+  `exists: false` and `source: null`. `dir` is the folder holding the design
+  file that was found (normally `<architecture_dir>/lld/<feature>/<id>/`), never
+  the ticket partition, and `null` when none exists. The planning, code, test-docs and review
+  skills read the design when `exists`, and proceed without one otherwise —
+  no advisory. Nothing records whether a design is *required*.
+- **The run's references are found, not searched for** (ADR-0140). Beside
+  `design`, the step-start context carries `references`, from
+  `requirements.run_references(ctx, rdir)`: for each ticket source
+  `doc_links.references_for_ticket(ctx, ticket)`, for a ticketless run with
+  refined features `doc_links.references_for_features(ctx, features)`, else
+  `[]` — local only, never a fetch. `materialise` renders the same list as
+  `requirements.md`'s `## References` section (title, kind, path, url), from
+  the same function, so the context and the file cannot drift. Every hooked
+  skill that runs on a ticket reads the documents relevant to its step from
+  `context.references` before working and never searches the repo for them
+  (one shared Start line, read through `skill_contract`).
+  `run_feature` is the refined `feature`, else the refined `features`' first,
+  else the first feature the run's ticket traces to; `run_phase` is
+  `development` for a run with a ticket or one `/acs:ship` drives, else
+  `discovery`, unless `refine` set it.
+
+### Run documents (`acs_lib/doc_layout.py`, `acs_lib/run_docs.py`)
+
+A run's documents are resolved by RUN, not by ticket — its feature, its phase
+and its key (the ticket id, else the run id):
+
+| Document | Written to |
+|---|---|
+| `analysis.md` (the `analysis/` folder, ADR-0133) | Discovery: `<prd_dir>/features/<f>/analysis/` (the feature's living analysis); Development: `<development_dir>/<f>/<key>/analysis/` |
+| `plan.md`, `test-cases.md` | `<development_dir>/<f>/<key>/` |
+| `tech-design.md` (legacy `design.md`), `api-contract.md` | `<architecture_dir>/lld/<f>/<key>/` |
+
+`doc_layout` computes the roots and folders — `prd_dir`, `architecture_dir`,
+`development_dir`, `feature_dir`, `feature_analysis_path`, `design_run_dir`,
+`development_run_dir`, `document_target` — as pure path computations that
+create nothing. `run_docs.run_layout` places every document of one run: the
+file a reader opens is the first that exists of the phase-folder target, the
+LEGACY `docs/tickets/<ID>/<name>` (`doc_layout.LEGACY_TICKETS_PATH`, read,
+never written) and the ticket's partition; the write target is the phase
+folder, `None` while the run has no feature (until `requirements refine` or
+analyze-requirements' grouped ask names one). `acs artifacts show [--run R |
+--ticket ID]` prints that view — the feature, phase, key, the three roots,
+each document's existing file and write target, the legacy folder when there
+is one, and a ticket's derived status.
+
+`tech-design.md` (ADR-0135) is read with a fallback: wherever it is absent, a
+`design.md` at the same place — a design published before the rename — is the
+file a reader opens, and the run artifact keeps its key `design` (`acs.py
+artifacts show design`, with `tech-design` an alias), resolving the run's draft
+in `steps/create-tech-design/`, else an older run's `steps/create-design/`.
+Only `tech-design.md` is ever written.
+
+The analysis is a folder (ADR-0133), so its keys keep their name and change
+what they hold: `artifacts["analysis.md"]` is the folder's `README.md` (else a
+single `analysis.md` published before the folder — beside it, in
+`docs/tickets/<ID>/` or in the partition); `analysis_files` lists every file
+of the folder as absolute paths, README first (`[that file]` for a single
+legacy file, `[]` when there is none); `analysis_dir` is the folder the
+analysis was read from (`null` for a single legacy file); `paths["analysis.md"]`
+is the write target `…/analysis/README.md` and `analysis_target_dir` its
+folder. The feature's living analysis gets the same pair, `feature_analysis`
+(its README) and `feature_analysis_files`. `acs docs where --doc analysis.md`
+resolves the same folder: its `path`, `abs_path`, `shared_path` and
+`local_path` name the folder, and `entry_path` / `abs_entry_path` its
+`README.md`. The file-map guard denies an executor the living analysis folder
+(and the single file it replaced) as it did `analysis.md`.
+
+### Shared or kept local; asked before a folder is created (`acs_lib/doc_share.py`, ADR-0132)
+
+Two answers decide where a run's documents land, each asked once and saved,
+never inferred:
+
+- **Share** — `docs.share_run_documents` (`true` | `false`; absent = not
+  decided) covers the five per-run documents: a Development analysis (the `analysis/` folder),
+  `plan.md`, `test-cases.md`, `tech-design.md`, `api-contract.md`. Shared, each is
+  published to its phase folder (the table above). Local, it is kept at
+  `<run>/steps/<skill>/local/<name>` — the analysis at
+  `steps/analyze-requirements/local/analysis/` — (`doc_share.LOCAL_STEPS` names the step;
+  `local/` keeps it apart from the step's working draft) and nothing of it
+  reaches the repo. The living documents — PRD and roadmap, HLD, LLD, a
+  feature's Discovery analysis — are always shared (`living:prd`,
+  `living:architecture`).
+- **Location** — `doc_layout.resolve_dir(root, kind)` returns `{path,
+  source}` for each kind (`prd`, `architecture`, `development`): `setting`
+  (a `docs.<kind>_dir`), `discovered` (a PRD or `hld/tech-stack.md` found, or
+  the default folder already present) or `default` (acs's built-in fallback,
+  a folder that does not exist yet). No writer creates a `default` folder
+  without the user's answer.
+
+Two CLI verbs carry the questions and the answers; the skills ask and record,
+the code decides nothing on its own:
+
+| Verb | Prints / does |
+|---|---|
+| `acs.py docs where --doc <name> [--run R]` | `<name>` is a per-run document or `living:prd` / `living:architecture`. Read-only: `{ok, doc, kind, path, share, share_scope, location_source, needs, proposed_path, …}` — `path` repo-relative when shared, run-relative when local, `null` while `needs` is non-empty; `share` is `true`, `false` or `null` (a living document is always `true`); `needs` holds `share` while undecided and `location` while the folder's source is `default` and the document would be shared |
+| `acs.py docs decide [--share yes\|no --scope user\|team] [--location KIND=PATH]… [--doc NAME] [--run R]` (`acs_docs_commands.py`) | merges the answer into the scope's file — `user`: the main checkout's `.acs/settings.local.json`, added to `.git/info/exclude` when nothing ignores it yet (`ignored_via`); `team`: the checkout's `.acs/settings.json`, where every repeatable `--location` (KIND `prd`, `architecture`, `development`) lands as `docs.<kind>_dir` — creating the file when absent and touching no other key (`setup_wizard.merge_json_file`; an unreadable file is refused, nothing written); prints `{ok, written: [{file, scope, keys, changed}], warnings}` plus the new `where` of `--doc`, else `documents` — every document's `where`; `warnings` names a more specific settings file that still overrides a share answer |
+
+**An undecided write is refused, not guessed.** Every code path that writes
+a run document into the repo (`analysis publish` first among them) calls
+`doc_share.require_decided` and exits 2 naming `acs.py docs decide` and each
+question owed. A local decision redirects the write into the run folder and
+the step's `publication` records that target. `run_docs` / `acs artifacts
+show` report `paths[name]` by the decision — the local path, the phase
+folder, or `null` plus `needs` — while `artifacts[name]` reads the existing
+file wherever it is: phase folder, run folder, legacy `docs/tickets/<ID>/`.
+`doc_share.describe_choice` gives the phrase a completion report names a
+destination with ("kept local (team default)", "shared to …"). A headless
+skill run with no saved answer writes locally for that run and saves
+nothing. The file-map guard is unchanged: shared paths are guarded as before,
+and run-folder writes were already allowed.
+
+### Tickets (`acs_lib/artifacts.py`)
+
+A ticket is not a document (ADR-0128): it lives in its workspace partition
+(`<workspace>/<repo-id>/<ticket-id>/ticket.json`, beside its clarification
+ledger) and in the tracker. Nothing renders a `ticket.md`.
+
+- **`status` is DERIVED, never stored.** `derive_status(tdir, ticket=None)`
+  computes it from the ledger — `done` when the partition is archived,
+  `merge-pr` completed, or (for an epic) every child is done; `in_review` when
+  `create-pr` completed (the delivery-ticket skills that once opened their own
+  PR are gone, ADR-0127); `in_progress` when any step other than
+  `create-ticket` has a non-`skipped` status (or any child is not open);
+  `open` otherwise. `load_ticket()` puts it back in the returned dict, so
+  callers are unchanged.
 - **`load_ticket` / `save_ticket` are the seam.** `load_ticket(tdir)` reads
-  `ticket.md` from the docs folder, else `ticket.json`, else follows
-  `ticket.json.moved`; a corrupt file warns on stderr and reads as absent.
-  `save_ticket(tdir, ticket)` writes `ticket.md` when `md_target()` says the
-  tree is active and this ticket belongs to it, else `ticket.json` exactly as
-  before. `acs_lib.state.load_ticket`/`save_ticket` delegate here with
-  unchanged signatures. On the `ticket.md` path a save whose rendered bytes
-  equal what is on disk writes NOTHING and does not bump `updated_at`: several
-  callers save after flipping only `status`, which `ticket.md` does not store,
-  and a tracked document must not be re-dirtied for a field that never
-  reached it.
-- **The body round-trips verbatim.** `render_ticket_md` copies `description`
-  in under `## Description` unchanged, and a description is arbitrary markdown
-  — every shipped description template is `## `-headed, and `task-default`
-  opens with its own `## Description`. `parse_ticket_md` therefore does NOT
-  scan forward for the next `## `: it finds the two sections that follow the
-  description from the END of the body (the last `## Clarifications`, the last
-  `## Acceptance criteria` before it, the first `## Description` before that).
-  Neither trailing section can emit a `## ` line of its own — a criterion's
-  first line is numbered and its continuations indented, and the
-  clarifications mirror folds each entry onto one line — so the description
-  survives whatever it contains. A forward scan silently truncated it, which
-  is a deletion inside a committed document.
-- **Migration is one idempotent command.** `acs.py artifacts migrate
-  [--dry-run]` renders each live partition's `ticket.json` into
-  `<docs>/<ID>/ticket.md`, copies `design.md` and `phases/code/plan.md` across
-  when absent, writes `<tdir>/ticket.json.moved` (`{ticket_id, moved_to,
-  relative, migrated_at}`) and unlinks `ticket.json`. It never touches
-  `archive/`, refuses while a partition to move holds a `.lock`, and re-running
-  it is a no-op. `acs.py artifacts show [--ticket ID]` prints where a ticket's
-  documents actually resolved, which source answered, and the derived status.
-- **The location is fixed, not a setting.** `TICKETS_PATH` (`docs/tickets`)
-  is a constant the hooks own; `ticket_docs_root(checkout_root)` and
-  `ticket_docs_dir(checkout_root, ticket_id)` anchor it to the checkout, and
-  there is no opt-out (ADR-0102). The tree is ACTIVE when its root directory
-  exists; `migrate` creates it, and so does a skill writing into `<docs>/<ID>/`.
-- **The docs tree is a control input.** `acs_lib/filemap.py` denies a writing
-  agent's write under `<checkout_root>/docs/tickets/` with exit 2 and
-  "`<target>` is the ticket docs tree (`docs/tickets/`), a control input only
-  the coordinator and the ticket skills write." — the same polarity as the
-  guard's own `active-agents/` and `iter-*-filemap.json` records: a writer
-  that can rewrite the ticket can rewrite its own scope.
+  `ticket.json`, else a legacy `docs/tickets/<ID>/ticket.md` (ADR-0090), else
+  follows `ticket.json.moved`; a corrupt file warns on stderr and reads as
+  absent. `save_ticket(tdir, ticket)` writes `ticket.json`.
+  `acs_lib.state.load_ticket`/`save_ticket` delegate here with unchanged
+  signatures. A legacy `ticket.md` is parsed from the END of its body (the
+  last `## Clarifications`, the last `## Acceptance criteria` before it, the
+  first `## Description` before that), so a description holding its own `## `
+  headings survives.
+- **Four types, and the fields a bug adds** (ADR-0138). `TICKET_TYPES` is
+  `epic`, `story`, `task` and `bug` — the same enum in `ticket.schema.json`,
+  `tickets-index.schema.json` and `new-ticket.py --type`, with one
+  description template each (`templates/<type>-default.md`,
+  `conventions.TICKET_TEMPLATES`) and one GitHub Project `Type` option each
+  (`TYPE_OPTIONS`: `Epic`, `Story`, `Task`, `Bug`; a Project with no `Bug`
+  option gets the usual "option missing" finding). A bug may carry five
+  optional strings, `acs_lib.BUG_FIELDS` — `severity` (`BUG_SEVERITIES`:
+  `critical`, `high`, `medium`, `low`; separate from `priority`),
+  `reproduction`, `expected`, `actual` and `environment` — which
+  `/acs:create-ticket`'s bug author proposes and `new-ticket.py --severity …
+  --reproduction …` or `acs.py ticket save` writes. Both validate them, and
+  both refuse a bug field on a ticket that is not a bug (exit 2); an older
+  `ticket.json` without them still validates. `ticket.md`'s front matter
+  orders them `… type, priority, severity, parent, … due_date, reproduction,
+  expected, actual, environment, created_at, updated_at`. A bug runs like a
+  story: only an `epic` is refused by `/acs:code`'s and
+  `/acs:analyze-requirements`' gates, and its branch is `bug/<ID>-<slug>`.
+- **No design flag** (ADR-0139). A ticket carries no `needs_design`: it left
+  both ticket schemas (`required` and `properties`), `new_ticket_doc`, the
+  index entry and `_FRONT_MATTER_ORDER`, and `new-ticket.py --needs-design`
+  exits 2. `additionalProperties` stays `true`, so an older `ticket.json` or
+  index entry that still carries the key validates and the key is ignored.
+  Whether a change gets a tech design is the user's call; whether one exists
+  is `context.design` (see "Requirements of a run").
+- **References** (ADR-0140). A ticket may carry `references`, an optional
+  array placed after `features` in `_FRONT_MATTER_ORDER` (`ticket.schema.json`:
+  objects with `kind` and `path` required, `additionalProperties: true`), which
+  `tickets.new_ticket_doc` and `acs.py ticket save` accept. Each entry is
+  `{kind, path, title, status, version, published, url}`, derived by
+  `acs_lib/doc_links.py` from the STANDARD LAYOUT — never chosen — and ordered
+  by kind, then path: `prd` (`<prd_dir>/prd.md`, `path` carrying the `#anchor`
+  of the heading that names each feature, GitHub's anchor algorithm with
+  `-1`, `-2` … for duplicates), `analysis` (the feature's living analysis,
+  `README.md` first), `hld` (`hld/overview.md` and the views whose text names
+  the feature), `lld` (the living `lld/<f>/{api,data,flows,components}/**`, no
+  sidecars), `design` (`lld/<f>/<id>/tech-design.md` and `api-contract.md`, for
+  the ticket and its parent epic) and `development` (`<development_dir>/<f>/<id>/`'s
+  `analysis/**`, `plan.md`, `test-cases.md`). A ticket with no `features`
+  falls back to an id glob (`lld/*/<id>/`, `<development_dir>/*/<id>/`, the
+  parent's records) and `prd.md`. `status` and `version` come from ADR-0122's
+  front matter when present; `title` is the first H1, else the file name.
+  `url` is `<web_base>/blob/<default>/<path>` (`/-/blob/` on gitlab hosts,
+  `/src/` on bitbucket hosts; `web_base` knows `github.com`, `*.ghe.com` and
+  any host with a `github`, `gitlab` or `bitbucket` label) only when the
+  document is **published** — on `origin/<default>`, checked with
+  `changes.blobs` — and `null` otherwise or with no web remote
+  (`web_base_reason: "no-web-remote"`). Stored references are a snapshot for
+  the tracker; readers derive the list again (`context.references`), so a
+  ticket that never stored any still gets one. The description templates
+  carry a `## References` heading over an empty `<!-- acs:references -->` …
+  `<!-- /acs:references -->` pair before `## Notes`; `doc_links.render_block`
+  fills it (a published entry `- [<title>](<url>): <kind>, vN status`, a
+  published one with no web remote ``- `<path>`: <kind>, vN status``, a
+  pending one ``- `<path>`: <kind>, pending: not on `<default>` yet``, none
+  `_No documents for this ticket's features yet._`) and `apply_block`
+  replaces only the text between the markers — inserting them under an
+  existing `## References`, else appending the section before the trailing
+  `acs-ticket:` line — idempotently.
+- **A child inherits its parent's `features`.** `new-ticket.py --parent <epic>`
+  copies the parent's `features` onto the child unless `--features` is given
+  (`--features ""` traces it to none), and reports `features_inherited`. It
+  still refuses a parent that is not an epic: `/acs:breakdown-ticket`
+  converts a story or task it splits into an epic first — `acs.py ticket
+  save` with `{"type": "epic"}`, same id — then mints
+  its children (ADR-0138).
+- **`acs.py artifacts migrate` is retired** (ADR-0128): tickets are no longer
+  stored in the docs tree, so it reports and writes nothing.
+- **The run's documents are a control input.** `acs_lib/filemap.py` denies a
+  writing agent's write under the legacy `<checkout_root>/docs/tickets/` ("the
+  ticket docs tree (`docs/tickets/`), a control input only the coordinator and
+  the ticket skills write") and under the run's own Development and Design
+  folders ("this run's documents (`<folder>/`), a control input only the
+  coordinator and the document skills write") with exit 2 — the same polarity
+  as the guard's own `active-agents/` and `iter-*-filemap.json` records: a
+  writer that can rewrite the plan it is checked against can rewrite its own
+  scope.
 
 ### Concurrency: two mechanisms, both fail closed
 
@@ -1084,8 +1667,8 @@ index self-heals on the next post hook — except after **merge-pr**, the
 terminal post hook, where nothing runs afterwards and the message says so
 instead. Every other entry point
 reports the refusal as `acs <command>: <reason>` and **exit 2**, and any that
-holds the ticket lock releases it first: a skill that did not start, a handoff
-that did not hand off, or a SessionEnd net that did not release would otherwise
+holds the ticket lock releases it first: a skill that did not start, a session pause
+(`handoff.py`) that did not pause, or a SessionEnd net that did not release would otherwise
 strand the lock under a pid that is about to exit — and a cross-host lock
 stranded that way does not read as stale for 24 hours.
 
@@ -1132,8 +1715,8 @@ A step that owes nothing is settled by its own **pre-hook**, from the plan's
 Milliseconds, zero tokens.
 
 ```
-steps.create-api-contract = {status: "completed", outcome: "no_surface_owed",
-                             summary: "CLI-only change; no HTTP surface, no browser flow"}
+steps.create-e2e-tests = {status: "completed", outcome: "no_e2e_owed",
+                          summary: "CLI-only change; no browser flow to drive"}
 ```
 
 This is strictly more than the `skipped` status it replaces. `skipped`
@@ -1145,56 +1728,65 @@ does, which is nothing.
 artifact leaves the step to do its work. The alternative — treating absence as
 `false` — would let an old plan silently disable a step.
 
-The four steps that can owe nothing, and what each consults:
+The three steps that can owe nothing, and what each consults:
 
 | Step | Reads | Outcomes |
 |---|---|---|
-| `create-api-contract` | `owes.api_contract` | `contract_written` · `no_surface_owed` |
 | `create-test-docs` | `owes.test_cases` | `cases_written` · `no_cases_owed` |
 | `create-e2e-tests` | `owes.e2e` | `tests_written` · `no_e2e_owed` |
 | `run-e2e-tests` | the repo's harness | `passed` · `no_harness` · `nothing_to_run` |
+
+A plan written before ADR-0134 may still carry `owes.api_contract`: it is
+accepted and ignored (`plan_contract.OWES_KEYS` is `test_cases` and `e2e`).
+`/acs:create-api-contract` is a Design skill now — run before the plan, not a
+step of the run — so nothing settles it from the plan.
 
 A failure is **not** an outcome. A step that could not do its work records
 `status: failed` with an error — the distinction is what keeps "nothing was
 owed" from being confused with "something went wrong".
 
-Ticket flags still steer the skills that read them (`needs_design` gates
-`/acs:create-design`; `docs_only` drops tests-first and the coverage hard fail
-in `/acs:code`), but they are inputs to a skill, never predicates in a
-workflow.
+Ticket flags still steer the skills that read them (`docs_only` drops
+tests-first and the coverage hard fail in `/acs:code`), but they are inputs to
+a skill, never predicates in a workflow. A ticket carries no design flag
+(ADR-0139): `/acs:create-tech-design` runs when the user asks.
 
 ## Testing layers — unit always, e2e by configuration, CI at the gate
 
 Tests belong to the same changeset as the change (like docs), and *executing*
 unit suites is verification, which `/acs:review-code`'s final gate owns — so there is
 deliberately no skill that "writes the unit tests" as a separate step. What the
-Test phase adds is the layer the code loop cannot cover from inside itself:
-`/acs:create-test-docs` writes the traced `TC-n` case set (Build phase, so the
-cases exist before the code does), `/acs:create-e2e-tests` turns the e2e-typed
+test steps add is the layer the code loop cannot cover from inside itself:
+`/acs:create-test-docs` writes the traced `TC-n` case set (before `/acs:code`, so
+the cases exist before the code does), `/acs:create-e2e-tests` turns the e2e-typed
 rows of that set into suites, and `/acs:run-e2e-tests` executes the configured
 suites against the finished changeset and drives the triage loop. Three layers:
 
 | Layer | Authored | Executed & gated |
 |-------|----------|------------------|
 | Unit + coverage | /code implementers, tests-first (TDD) per the spec's Test plan | Implementers iterate against the AFFECTED tests only. The full suite runs **once per review iteration**, in `/acs:review-code`'s final gate, which runs it and reads coverage off that same run vs `test_coverage_percent` — hard fail below target (`docs_only` relaxes only this layer's authoring, never the suite-must-stay-green rule). It records both in `iter-<n>/verdict.json`, and `states.tests` derives from there, so the recorded numbers are the review's independent finding rather than the implementer's self-report; `acs_lib.derive_tests` falls back to the implementer reports when a verdict carries none |
-| E2E (`settings.e2e`: command + optional setup/teardown) | /create-e2e-tests writes the ticket's e2e suites after /code; /code implementers run the AFFECTED e2e tests for a spec that declares e2e impact; /create-project scaffolds the harness for greenfield repos with a user-facing surface; /setup detects and offers the config | **`/acs:run-e2e-tests` owns the full suite** (setup → command → teardown always) — `workflows/ship.yaml` runs it after `create-e2e-tests`, which is the first point at which the suite is complete. `/acs:review-code` judges the DIFF instead: a spec declaring e2e impact with no matching e2e test change is blocking. `per_iteration` is accepted and inert — it existed to skip a review-time e2e run that no longer happens |
-| CI (scaffolded by /create-project; runs unit + e2e on the PR) | — | /merge-pr readiness reads CI status — report-only, never auto-fixed |
+| E2E (`tests.e2e`: command + optional setup/teardown) | /create-e2e-tests writes the ticket's e2e suites after /code; /code implementers run the AFFECTED e2e tests for a spec that declares e2e impact; /setup detects and offers the config and installs the e2e workflow/runner templates | **`/acs:run-e2e-tests` owns the full suite** (setup → command → teardown always) — `workflows/ship.yaml` runs it after `create-e2e-tests`, which is the first point at which the suite is complete. `/acs:review-code` judges the DIFF instead: a spec declaring e2e impact with no matching e2e test change is blocking. |
+| CI (the gates /setup installs; runs unit + e2e on the PR) | — | /merge-pr readiness reads CI status — report-only, never auto-fixed |
 
 The chain of declarations keeps e2e honest: `test-cases.md` types each `TC-n`
 case (unit / integration / e2e) and traces it to an acceptance criterion → the
 implementation plan maps the unit and integration cases into implementer tasks →
 `/acs:create-e2e-tests` writes suites for the e2e-typed cases → `/acs:review-code`
-demands matching test diffs. A repo without `settings.e2e` /
-`settings.suites.e2e` skips the layer entirely — `e2e_configured` is false, so
+demands matching test diffs. A repo without `tests.e2e`
+skips the layer entirely — `e2e_configured` is false, so
 ship.yaml records `create-e2e-tests` and `run-e2e-tests` as `skipped` and
 `create-pr` proceeds, and a hand run of `/acs:create-e2e-tests` refuses with
 the same reason. Adding the config later is one `/acs:setup` re-run.
 
 ## Requirement clarification — controlled, recorded, never repeated
 
-Clarification is governed by one ledger and four rules. The ledger:
-`<partition>/clarifications.json` (schema shipped; append-only via
-`hooks/scripts/clarify.py` — add / answer / list). Every Q&A of the ticket
+Clarification is governed by one ledger and four rules. The ledger is
+`clarifications.json` (schema shipped; append-only via
+`hooks/scripts/clarify.py` — add / answer / list), and where it lives depends
+on the run, not on the step (ADR-0128): a **ticket run** keeps the ticket
+partition's `<workspace>/<repo-id>/<ticket-id>/clarifications.json`, shared by
+every run of that ticket; a **ticketless run** keeps its own
+`runs/<run-id>/clarifications.json`, resolved from `--run` or this checkout's
+pointer (`--ticket` is optional). Every Q&A of the ticket or run
 lives there with id (`C-n`), asking skill, status
 (`open | answered | assumed | withdrawn`), source (`user | assumption`), and
 rationale for assumptions.
@@ -1207,17 +1799,18 @@ rationale for assumptions.
    coordinator runs `clarify.py list` and reuses recorded answers — re-asking
    an answered question is a defect. Each skill asks only what ITS phase
    needs settled — ticket scope and the due date at
-   /create-ticket, design trade-offs at /create-design, requirement
+   /create-ticket, design trade-offs at /create-tech-design, requirement
    clarification (impact, assumptions, refined acceptance criteria) at
    /analyze-requirements, execution-level behavior at /code — batched, not dribbled.
    `/acs:analyze-requirements` is where requirement questions now belong: its
    survey pass ends with `## Questions for the user` (open questions,
-   conventional defaults to confirm, refined criteria, a needs_design
-   recommendation), and between that survey and its draft pass the
+   conventional defaults to confirm, refined criteria — nothing about
+   design, ADR-0139), and between that survey and its draft pass the
    coordinator asks every one the ledger does not answer in ONE grouped
    `AskUserQuestion` (at most one follow-up round), records each through
-   `clarify.py`, and writes confirmed criteria into the ticket with
-   `acs.py ticket save`. Only when no user is reachable does a default fall
+   `clarify.py`, and records confirmed criteria and the
+   feature with `acs.py requirements refine` (which patches the ticket when
+   there is one). Only when no user is reachable does a default fall
    back to `--source assumption`; `/acs:create-ticket` parks anything needing
    the codebase read for it rather than asking up front.
 3. **Record everything.** Every answer received — interactively or via a
@@ -1246,10 +1839,12 @@ current through an induction invariant, not a periodic chore:
 - **Base case** — /create-architecture bootstraps the doc set verified
   against both the PRD and the actual codebase.
 - **Inductive step** — every ticket carries its own architecture delta on
-  the SAME branch/PR: /create-design conforms or lists required doc changes;
+  the SAME branch/PR: /create-tech-design conforms or lists required doc changes;
   `/acs:docs-sync`'s doc-updater names the HLD files and `lld/flows/` diagrams
   to update, from the diff, in its authoring notes after `/acs:code`
-  completes; `docs-sync`'s
+  completes, and its `lld` area brings the run's features'
+  `lld/<feature>/` documents in line with the code from its gap analysts'
+  notes (ADR-0137); `docs-sync`'s
   drift-reviewer derives the architectural impact from the diff itself (a
   positive, evidenced conclusion — never a default) and blocks before
   `/acs:create-pr` runs when impact exists without matching doc changes.
@@ -1261,8 +1856,8 @@ current through an induction invariant, not a periodic chore:
   the survey is **best-effort** on TRIVIAL/SMALL work, and its omission there
   is never a finding); widespread drift triggers a
   recommended
-  /create-architecture re-run (the full reconcile, shipped as its own
-  delivery ticket + docs PR).
+  /create-architecture re-run (the full reconcile, left as uncommitted
+  documents for `/acs:create-pr`).
 
 Net effect: after every merge the doc set matches the code — "update the
 architecture" is not a separate activity but a blocking dimension of every
@@ -1279,6 +1874,106 @@ contradictions; `/acs:review-code` blocks a user-observable behavior change
 whose requirements file was not updated. Phrasing rule: the file states what
 the product DOES now — current behavior, not change history.
 
+### Design versions (ADR-0122, ADR-0130)
+
+Every HLD and LLD document — and, since ADR-0130, the PRD's `prd.md` and
+`roadmap.md` and each feature's living analysis — opens with a version
+front-matter block that says where the document stands
+([ADR-0122](../../../docs/architecture/adr/0122-design-versions-and-gap-detection.md),
+[ADR-0130](../../../docs/architecture/adr/0130-prd-versions-and-set-doc-status.md)):
+
+```yaml
+---
+status: approved        # proposed | approved | implemented | deprecated
+version: 3              # an integer >= 1, bumped on every change to the document
+tickets: ["SHOP-12"]    # the tickets that changed it, oldest first
+feature: wishlist       # LLD documents (under lld/) only: the PRD feature slug
+status_by: Ada Lovelace <ada@example.com>   # who made the last status move
+status_at: 2026-10-05T09:14:00Z             # when
+status_reason: approved in design review    # why, when one was given
+---
+```
+
+The three `status_*` keys are written only by `design status --set` and sit
+after the ADR-0122 keys. A status move never changes `version`; a move given
+no `--reason` drops an older `status_reason`, and a `design bump` that re-opens
+an approved or implemented document drops all three, since they described the
+status it left.
+
+The block is **derived, never asserted**: it is written only through
+`acs.py design` (`acs_design_commands.py` over `acs_lib.design_docs`), never by
+hand-editing it, and every verb prints one JSON object:
+
+| Verb | Does |
+|---|---|
+| `design check <doc>...` | status, version and the problems per document; exits 0 whatever it finds (`ok` says whether every document is clean) — a missing or invalid block is a problem, not an error; a path that is not a file exits 2 |
+| `design init --status S [--ticket ID] [--feature F] <doc>...` | the first block, `version: 1`; a document that already has one is left alone (`already_versioned`) |
+| `design bump [--ticket ID] <doc>...` | a change: `version + 1`, the ticket appended, and the document re-opened as `proposed`; a `deprecated` document is refused |
+| `design status --set S [--ticket ID] [--by NAME] [--reason TEXT] <doc>...` | a legal transition (`acs_lib.design_docs.TRANSITIONS`): `proposed → approved \| deprecated`; `approved → proposed \| implemented \| deprecated`; `implemented → proposed \| deprecated`; `deprecated` is final. Records `status_by` (`--by`, default `git config user.name <user.email>`, else `unknown`), `status_at` (ISO-8601 UTC, one instant for the whole call) and `status_reason` (`--reason`). **All or nothing** (`design_docs.set_status_many`): every document is validated — it exists, its block is valid, the transition is legal — before any is written, and the refusal names each refused document and why; a document already at the target is left untouched and reported `unchanged`, so a no-op never rewrites who moved it, when or why (ADR-0130) |
+| `design list [--phase discovery\|design] [--feature F] [--root DIR]` | the versioned documents (`design_docs.list_documents`), read-only, exits 0 whatever it finds: `{ok, groups: [{phase, key, label, feature?, docs: [{path, status, version, problems, allowed}]}]}`, Discovery then Design. Discovery — `<prd_dir>/{prd,roadmap}.md` (group `PRD`) and each feature's living analysis (`feature <f> analysis`) — one group holding every file of `<prd_dir>/features/<f>/analysis/`, `README.md` first, each with its own status (a single `analysis.md` from before ADR-0133 still lists as itself); Design — `<architecture_dir>/hld/*.md` (`HLD`) and `lld/<f>/{api,data,flows,components}/**` (`LLD <f>`), and from a run's design-record folder `lld/<f>/<id>/` its `tech-design.md` only, in the feature's group and labelled with its key `<id>` (ADR-0135) — never that folder's other files, nor a legacy `design.md`, which has no block; a README only when it carries a status. Paths are repo-relative; `allowed` is the legal moves other than the current status, empty when the document has `problems`. The folders come from `acs_lib.doc_layout.prd_dir` / `architecture_dir`, the grouping from `acs_lib.doc_sets` — the same `doc_set` / `doc_order` `/acs:create-pr`'s commit plan uses. `/acs:set-doc-status` is its reader |
+
+A refused write verb exits 2 and writes nothing for the document it refused;
+`design status` over several documents writes none of them when any is refused.
+`/acs:create-architecture`'s architect inits a new HLD file `implemented`
+when it documents the code as built and `proposed` when it designs ahead of it,
+and bumps a file it changes; its reviewer runs `design check` on every in-scope
+file. `/acs:create-prd`'s coordinator inits a new `prd.md` or feature PRD
+`proposed`, bumps a changed one and runs `design check` on every one in its $0
+floor, and `/acs:manage-roadmap`'s does the same for `roadmap.md` — a status
+refresh alone bumps nothing (ADR-0145); its author's byte-for-byte rule and its reviewer exempt the leading
+block, and `/acs:code`'s implementer bumps either when it reconciles a factual
+claim in it. `/acs:create-tech-design` inits a new
+`tech-design.md` `proposed` and bumps a revised one (ADR-0135). Approval is recorded with `/acs:set-doc-status` — an unhooked,
+inline Utility skill that reads `design list`, asks one grouped question for
+the documents and one for the target, and runs a single `design status --set`;
+it commits nothing, and the docs PR `/acs:create-pr` opens carries the
+approval for review (ADR-0130).
+`acs_lib.design_docs` assigns the move to `implemented` to `/acs:docs-sync`,
+and docs-sync runs it (ADR-0137). Its `lld` doc area owns
+`<architecture_dir>/lld/<feature>/{api,data,flows,components}/**` for the run's
+features (`context.requirements.features`, else the ticket's `features`; none
+→ the area has no work); `architecture` keeps the HLD and the flat
+`lld/flows/`, and a run's record folder `lld/<feature>/<key>/` is never edited.
+One `docs-sync-gap-analyst` per feature, beside the doc-updaters in iteration
+1, classifies every element of every living document `matches`,
+`unimplemented`, `undocumented` or `drifted` with evidence, records the
+document's `status`/`version` from `design check`, and marks it
+`implemented-candidate` when every element matches; its notes,
+`iter-1/gaps-<feature>.md`, are joined into `iter-1/gaps.md`. The `lld`
+doc-updater updates and bumps a `proposed` (or unversioned) document; drift
+in an `approved` or `implemented` one is a question in the one grouped ask —
+update the document (bumped, so back to `proposed` for re-approval) or keep it
+and send the code back as a blocking finding — recorded headless as a
+blocking finding and `needs_input`, never decided; a `deprecated` one is left
+alone. After the review passes the coordinator moves every candidate in one
+`design status --set implemented --by acs --reason "<run-id>: the code
+matches" <doc>...` call, and the result lists them in `states.implemented`
+(every document it bumped or edited stays in `states.files`). A document with
+an element still unimplemented stays `approved`, so a design delivered across
+tickets reaches `implemented` with the last of them. The drift reviewer's
+seventh dimension, `lld-currency`, in its `placement` slice, checks those
+updates, bumps, answers and moves. A `design status --set implemented` by
+hand is still legal. The gap
+analysts (`create-architecture-gap-analyst` beside that skill's survey,
+`docs-sync-gap-analyst` per run feature, and `/acs:audit-design`'s over the
+whole set) read the status: an element designed
+but not built is *planned* in a `proposed` or `approved` document and a
+regression in an `implemented` one.
+
+**Audit reports follow a template** (ADR-0123). Both Audit-phase skills —
+`/acs:audit-design` and `/acs:audit-security` — run without a ticket (`acs step
+start` opens or resumes a run over the invocation for a skill in
+`acs_lib.AUDIT_SKILLS`, and the post-hook concludes it) and write
+`steps/<skill>/iter-1/report.md` from `templates/<skill>-report.md`, or the
+repo's `.acs/templates/<skill>-report.md` when it has one. The template is the
+contract: its `## ` sections must appear in the report in the template's order,
+and a section marked `<!-- acs:count <key> -->` is counted — one `### ` entry per
+gap or finding. `run_post` checks a completed audit's report with
+`acs_lib.audit_report` before writing anything, refuses one that breaks the
+template (exit 1, the breaches on stderr), and writes the counts into
+`states.audit` over whatever the result document claimed, recording any
+disagreement — derived, never asserted.
+
 ## Size control: tickets, specs, PRs
 
 The PR is the unit of review, and **the ticket is the PR boundary** — every
@@ -1289,7 +1984,8 @@ at two levers, with an escalation between them:
    PR-size rubric to the type decision: a story/task should yield one
    reviewable PR — rule of thumb ~≤400 changed lines, one concern, ≤~7
    acceptance criteria, grounded in the codebase survey. Above the bar →
-   epic with children cut at PR-sized, independently shippable seams.
+   epic with children cut at PR-sized, independently shippable seams, which
+   `/acs:breakdown-ticket <id>` proposes and mints (ADR-0138).
 2. **Spec sizing (controls execution units).** Each spec is one coherent
    slice sized for a single /code implementer pass; the spec count is a size
    *signal*, never a release valve.
@@ -1309,7 +2005,7 @@ at two levers, with an escalation between them:
    `/create-ticket`'s upfront PR-size rubric, before any decomposition
    exists; lever 2, this plan-time signal, once the actual decomposition is
    known. On a "split" answer, the planning run terminates with a recorded
-   `failed` status and a `/acs:create-ticket split <id>` next step instead
+   `failed` status and a `/acs:breakdown-ticket <id>` next step instead
    of continuing silently.
 
 The numbers are deliberate rules of thumb for the authors' judgment, not
@@ -1317,17 +2013,18 @@ hard limits enforced by hooks — splitting at a bad seam (e.g. a child that
 cannot build alone) is worse than a slightly large PR; feature flags are the
 sanctioned way to keep children shippable when a slice alone would break.
 
-## Forge metadata: two commands, two failure policies
+## Forge metadata: three commands, two failure policies
 
 `gh` is acs's only transport to GitHub, and everything acs writes through it
 beyond the PR or issue itself — labels, assignee, milestone, reviewers, Project
-membership and fields — goes through `acs_lib.forge` (MAR-525), reached as two
-commands:
+membership and fields, and an issue's `## References` block — goes through
+`acs_lib.forge` (MAR-525), reached as three commands:
 
 | Command | Performs | Policy |
 |---|---|---|
 | `acs.py pr metadata fill --pr N` | create-pr step 6a: assignee, the ticket-type label alongside `ACS`, CODEOWNERS reviewers minus the author, the Project item, Status, and Priority / Story Points / Parent | **non-critical throughout** — the PR already exists, so every failure is one `info` finding carrying the command, and the next sub-step still runs |
-| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch: issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed `gh issue create` is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
+| `acs.py tracker sync --ticket … ` | create-ticket step 5's batch (and `/acs:breakdown-ticket`'s, through the same `references/tracker-sync.md`): issue creation, labels, assignee, milestone, Project membership, `Type`/`Status`, and the same Group-B fields | **critical per ticket, soft per batch** — a failed issue create (`POST …/issues`) is an `error` finding naming the ticket and carrying `gh_failure_hint`, `replayable: false`; the batch continues and that ticket keeps `external` unset for a retry |
+| `acs.py tracker refresh (--ticket ID \| --pending) [--dry-run]` | ADR-0140: one fetch of the default branch, then per ticket recompute its references, store them when they changed, and — on the `github` tracker, for a ticket with `external.key` — `gh api …/issues/<key>` for the body, `doc_links.apply_block`, and `gh api -X PATCH …/issues/<key> -F body=@<tmp>` only when the body changed; a `local` ticket or one with no issue is `skipped`. `--pending` covers every open ticket with `external.key` whose stored references hold an unpublished entry (`/acs:merge-pr` runs it after a merge); `--dry-run` reads the issue and stores or edits nothing. stdout `{ok, dry_run, tickets: [{ticket_id, references, pending, stored, changed, edited, key \| skipped}], findings, calls, remote_checked, default_branch}` | **non-critical** (ADR-0088) — a failed issue read or body edit is one `info` finding carrying the command and `gh_failure_hint`; the next ticket still runs and the command never stops a skill |
 
 Both resolve Project fields the same way: **the board's own spelling wins.** A
 field is matched case-insensitively against a fixed table of accepted names
@@ -1341,17 +2038,35 @@ is expected data, not a gap.
 The runner is injectable and the resolvers are pure, so every arm — including
 the ones that only fire when a board lacks a field, or when one call in five
 fails — is exercised from a recorded `gh` transcript with no forge. `--gh-replay
-FILE` gives the CLI the same seam. The **jira** path stays in prose: it goes
-through `acli`, not `gh`.
+FILE` gives the CLI the same seam. Jira is not supported: `gh` is the only tracker transport.
 
 Four rules keep the two flows honest about what they did:
 
 - **The issue body is a precondition, not an argument.** `tracker sync` posts
   each partition's `tracker-body.md`, and `/acs:create-ticket`'s
-  `references/materialize.md` is what tells its coordinator to write it. A partition without one is reported under `failed`
+  `references/materialize.md` is what tells its coordinator to write it
+  (`/acs:breakdown-ticket` writes each child's, ADR-0140). Before the issue
+  create, the sync applies the ticket's `## References` block to the body
+  (`doc_links.apply_block`, fresh references after one fetch, stored on the
+  ticket too), so every synced issue carries real links; a block that cannot
+  be written is an `info` finding and the issue is still created. The issue's
+  `html_url` the create answers with is kept as `external.url`
+  (`record-external.py --url`).
+- **Every call is `gh api` REST (ADR-0149).** `acs_lib.gh_rest` builds each
+  argv against `repos/{owner}/{repo}/…` and reshapes the answers into the
+  `gh pr view --json` keys callers read; `gh pr`, `gh issue`, `gh label`,
+  `gh repo view` and `gh release list` run on GraphQL, which a Claude Code
+  session refuses with HTTP 403, and `tests/acs/test_gh_rest_only.py` fails on
+  any of them in shipped code or skill text. Projects v2 (`gh project …`) has
+  no REST surface, so those calls stay GraphQL and non-critical.
+- **The failure class is declared once.** `forge.GH_FLOW_CRITICALITY` maps
+  each gh-driven command to its ADR-0088 class — `pr metadata fill`
+  non-critical, `tracker sync` critical per ticket and soft per batch,
+  `tracker refresh` non-critical — and the skills' failure-policy prose and
+  this table quote it. A partition without one is reported under `failed`
   with an `error` finding naming the missing path — never a bodiless issue,
   and never N opaque per-ticket gh errors for one missed step.
-- **A create that cannot be parsed is a failure.** `gh issue create` exiting 0
+- **A create that cannot be parsed is a failure.** An issue create exiting 0
   without printing an issue URL leaves the issue number unknown, so the ticket
   fails and keeps `external` unset. Recording an empty key would have been
   worse than failing: `sync_candidates` excludes any ticket that carries an
@@ -1374,7 +2089,7 @@ sides, because CODEOWNERS writes owners `@`-prefixed while `--author` is passed
 bare. `--author` is optional and `@me` is accepted; when it is absent the login
 is resolved with `gh api user`, and when even that fails the flow says so in one
 info finding rather than silently requesting the author as their own reviewer —
-the owners are comma-joined into ONE `gh pr edit --add-reviewer` call, so a set
+the owners go into ONE `POST …/pulls/<n>/requested_reviewers` call, so a set
 that names the author is rejected whole and nobody is requested.
 
 The milestone the sync writes comes from `ticket.milestone`, falling back to
@@ -1386,11 +2101,26 @@ what makes the arm reachable for a real ticket rather than only for a fixture.
 `setup/SKILL.md` was 1,003 lines, most of them mechanics. Since MAR-526 the
 skill asks and explains; `setup_wizard.py` writes, reached as two commands:
 
-Setup is optional (ADR-0105): no skill needs it first. It configures
-conventions and the CI that enforces them — the `formats.*` strings and the
-convention and tests gates — and nothing else; every other setting, the ticket
-prefix included, keeps its default until someone edits `.acs/settings.json` by
-hand.
+Setup is optional (ADR-0105): no skill needs it first. It also ignores `.claude/worktrees/`
+(where Claude Code puts the worktrees it creates) beside acs's own ignore entries, and
+offers acs's Claude Code permission rules (`acs_lib.claude_permissions.RULES`: acs's own
+`hooks/scripts/*.py` and read-only git) for `.claude/settings.json` (team) or the main
+checkout's `.claude/settings.local.json` (me), or skips them — a shell pattern is a
+convenience, not a sandbox; anything that writes (`git add/commit/push`, `gh`) still
+prompts. With them it offers the Bash sandbox write rule for the workspace,
+`{"sandbox": {"filesystem": {"allowWrite": ["<abs main checkout>/.acs/state-machine"]}}}`
+(ADR-0136): the absolute path of the main checkout's folder, also from a linked
+worktree, always merged into the main checkout's `.claude/settings.local.json` —
+never the team file, even when the permission rules went there — keeping other keys
+and entries, adding the entry once. `setup detect` reports it as `sandbox_rule` and
+`setup apply` returns what it added. It sets the ticket
+prefix and installs the CI gates — the ticket-link check, tests and e2e —
+scaffolds the `models` block, and writes `.claude/launch.json`, the Claude Code
+Desktop app's preview-server config, from a dev server it guesses and the user
+confirms (`acs_lib.launch_config`: validated against the documented schema,
+merged by configuration name so an existing entry is never replaced, and never
+written over a file with comments); every other setting keeps its default until
+someone edits `.acs/settings.json` by hand.
 
 - **`acs.py setup detect`** — read-only. Which settings exist and **in which
   scope**, the resolved workspace, whether both ignore layers are in place and
@@ -1402,8 +2132,12 @@ hand.
   its built-in default is never written, and is removed when an earlier run
   wrote it (`defaulted` in the result), so the file carries only choices.
 
-**Idempotence is the contract.** `/acs:setup` is re-run whenever a format
-changes, and a repo initialised by an older acs is expected to be *repaired* by
+Where documents go is not a wizard answer: `/acs:setup` shows `acs.py docs
+where` for the run documents and the living folders (the share choice and the
+scope that holds it, each folder with its resolution `source`) and records a
+change through `acs.py docs decide` (ADR-0132).
+
+**Idempotence is the contract.** `/acs:setup` is re-run whenever a gate is added, and a repo initialised by an older acs is expected to be *repaired* by
 a re-run. So every settings write is a read-update-write merge (unknown keys
 preserved for forward compatibility, nested objects merged rather than
 replaced), every ignore entry is added only when `git check-ignore` says it is
@@ -1414,79 +2148,78 @@ no-op rather than silently one; `warnings` is what setup must relay but must
 not fix (a `!.acs/` negation is the user's configuration to decide); and
 `--dry-run` reports without writing.
 
-## Settings, formats, templates
+## Settings and templates
 
 - Resolution: `settings.local.json` -> project `settings.json` -> user
   `~/.acs/settings.json`, deep-merged per key (defaults in `acs_lib/settings.py`).
   No settings file is required: every key has a default, `ticket_prefix`
   included (`ACS`, ADR-0105), and only a malformed value (a lowercase prefix,
-  an unknown placeholder) is refused.
+  an unknown skill or role under `models`) is refused.
   A linked worktree without its own gitignored `settings.local.json` inherits
   the main checkout's.
-- Inline formats are validated by every pre-hook (unknown placeholder = exit 2;
-  `branch_name` must embed `{ticket_id}`).
+- There are no format settings: the model follows the repo's own branch, commit and
+  PR-title style, and the branch name a script parses is fixed as
+  `<type>/<ticket_id>-<slug>` in `acs_lib.conventions`.
 - Long descriptions come from templates: built-in name -> `templates/`;
   otherwise `<repo>/.acs/templates/<name>.md`; otherwise absolute path.
 - One key configures the pipeline itself, with a working default so an
   existing repo needs no settings change: `workflow.advisories` (default
-  `true`, the one-line out-of-order notice the pre-hook prints). No key
-  locates a document or the workspace (ADR-0102): ticket documents live at the
-  fixed `docs/tickets/<ID>/` (`artifacts.TICKETS_PATH`), the workspace at
+  `true`, the one-line out-of-order notice the pre-hook prints). The
+  `docs` block holds **answers**, not up-front configuration (ADR-0132):
+  `docs.share_run_documents` and the `docs.*_dir` folders are written by
+  `acs.py docs decide` when a user answers, and absent means "not asked yet".
+  No key locates the workspace (ADR-0102): a run's documents live one folder per phase
+  (ADR-0128 — see "Workspace layout"; a legacy `docs/tickets/<ID>/` is only
+  read), the workspace at
   `<main-checkout>/.acs/state-machine`, and a skill finds every other repo
   document through `CLAUDE.md` and the repo itself, creating a missing one at
-  its `docs/` convention — `/acs:create-api-contract`'s machine-readable
-  contract files go where the repo keeps them, else `docs/api/`. The
+  its `docs/` convention — the machine-readable API contract files `/acs:code`
+  makes from an approved contract (ADR-0134) go where the repo keeps them. The
   delivery pipeline itself is NOT a settings key: it is the resolved
   `workflows/ship.yaml`, overridden wholesale at `<repo>/.acs/workflows/ship.yaml`
   when a repo ships one.
-- `enforcement` (opt-in, /setup Step 2): repo-side CI that fails *every* PR
-  whose description names no ticket — its id (`PREFIX-\d+`), a `#<n>`
-  reference or an issue link (ADR-0106). /setup copies
+- The CI ticket-link check (opt-in, /setup Step 2) has no settings block: repo-side
+  CI that fails *every* PR whose description names no ticket — its id
+  (`PREFIX-\d+`), a `#<n>` reference or an issue link (ADR-0106). /setup copies
   `templates/ci/check-conventions.py` -> `<repo>/.acs/ci/` and
   `templates/ci/acs-conventions.yml` -> `<repo>/.github/workflows/`. The checker
   is intentionally **standalone (stdlib only, no `acs_lib` import)** because it
-  runs on a CI runner with no acs install — it reads `ticket_prefix` +
-  `formats` from the committed project `settings.json` over its own copy of the
-  plugin's defaults (ADR-0105), so a repo with no settings file is checked
-  against the defaults, and for the local hooks it re-derives the conventions by
-  compiling the `formats.*` strings to regexes ({ticket_id} ->
-  `PREFIX-\d+`, {type} -> `epic|story|task`, {slug} -> lower-kebab, free text ->
-  `.+`). A present but malformed value fails closed; tested by
-  `tests/test_conventions_check.py`.
+  runs on a CI runner with no acs install — it reads only `ticket_prefix` from
+  the committed project `settings.json` over its own copy of the plugin's
+  default (ADR-0105), so a repo with no settings file is checked against the
+  default. A present but malformed prefix fails closed; tested by
+  `tests/acs/test_conventions_check.py`, which also keeps the checker's copy of
+  the exemption constants level with `acs_lib.conventions`.
   The CI check is necessary-but-not-sufficient (workspace proof lives off-repo),
-  so the real gate is a required status check on a protected default branch;
-  `exempt_branches`/`exempt_label` are the escape hatch for non-ticket PRs.
-  The sanctioned way to LAND such a PR is `/acs:merge-pr --pr <n>` (also `#n` or
-  a PR URL): a non-ticket mode that runs the same four readiness dimensions and
-  branch/worktree cleanup as the ticket path but resolves no ticket, writes no
-  partition/state, and skips tracker sync and archiving — `acs step start --pr`
-  validates the PR carries the `exempt_label` (or an `exempt_branches` head) and
-  refuses + redirects to `/acs:merge-pr <ticket-id>` when the PR looks
-  ticket-backed. acs writes nothing into a consumer's `CLAUDE.md`: that file is
-  the repo's own project instructions, and the enforcement above is what holds
-  a hand-made PR to naming its ticket.
-  The same checker runs three modes off one config: `--mode pr` (CI: the
-  ticket link, and nothing else), `--mode pre-push` (local hook: branch +
-  commit subjects of the push range), `--mode commit-msg` (local hook: the
-  commit subject as written). Each mode's checks are `MODE_CHECKS[mode]`; the
-  local ones are further intersected with the `enforcement.checks.*` toggles
-  (`branch_name`, `commit_message`), so the local hooks enforce the same
-  user-configured `formats.*` the pipeline renders. The CI check is not a
-  toggle. `enforcement.checks.pr_title` / `pr_description` / `acs_label` and
-  `enforcement.pr_description_sections` are retired: accepted and ignored.
-  `require_label` (default `ACS`) stays live as the label `/acs:create-pr`
-  applies and `/acs:merge-pr --pr` reads; CI does not require it.
-  Local hooks install via the pre-commit framework (tracked/shared) or raw
-  `.git/hooks/*` (per-clone), both `--no-verify`-bypassable. The per-clone
-  install is the unhooked, user-invoked skill `/acs:install-hooks` (wrapping the
-  committed `.acs/ci/install-hooks.sh`, which a teammate can run without the
-  plugin) — the `pre-commit install` equivalent for acs.
+  so the real gate is a required status check on a protected default branch.
+  The exemptions are fixed: the `acs-exempt` label, or a head branch matching
+  `release/*`, `dependabot/*` or `renovate/*`. The sanctioned way to LAND such a
+  PR is `/acs:merge-pr --pr <n>` (also `#n` or a PR URL): a non-ticket mode that
+  runs the same four readiness dimensions and branch/worktree cleanup as the
+  ticket path but resolves no ticket, writes no partition/state, and skips
+  tracker sync and archiving — `acs step start --pr` validates the PR carries
+  the `acs-exempt` label (or an exempt head branch) and refuses + redirects to
+  `/acs:merge-pr <ticket-id>` when the PR looks ticket-backed: its head branch
+  embeds a ticket id, or it carries the `ACS` label with neither exemption. The
+  `ACS` label alone is not ticket-backed, because `/acs:create-pr` labels a
+  ticketless PR `ACS` and `acs-exempt`, and `/acs:release` labels its
+  `release/*` PR `ACS`; both land through `--pr`. acs writes
+  nothing into a consumer's `CLAUDE.md`: that file is the repo's own project
+  instructions, and the check above is what holds a hand-made PR to naming its
+  ticket.
+  Branch names, commit subjects and PR titles are not checked and not
+  configured: the model follows the repo's own style, and the one convention a
+  script parses — the branch name `<type>/<ticket_id>-<slug>` — is fixed in
+  `acs_lib.conventions`, which also holds the exemptions, the `ACS` pipeline
+  label (applied by `/acs:create-pr`, read by `/acs:merge-pr --pr`) and the
+  built-in template names. There are no local git hooks: a repo that wants them
+  uses its own pre-commit configuration.
 
 ## Consumer-repo prerequisites
 
 `git`, `python3` (3.9+, stdlib only), `gh` (PRs; also tracker sync when
 `tracker.provider=github`), `pre-commit` (recommended — shared local convention
-hooks) and `acli` (only when `tracker.provider=jira`). `xmllint` is no longer
+hooks). `xmllint` is no longer
 one of them: the XSD and `validate_xml.py` are gone, and what a subagent
 returns is checked in-process (see Subagent messaging above), so nothing acs
 runs needs an external XML tool. `acs_lib.check_toolchain()` is

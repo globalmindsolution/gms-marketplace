@@ -2,8 +2,8 @@
 # create-impl-plan (oversize -> split): the shop repo with its PRD and
 # architecture docs, story EVAL-1 "Storefront order management" minted with TEN
 # acceptance criteria spanning checkout, history, refunds, a merchant
-# dashboard, an export, emails and a migration, and the ticket branch carrying
-# its published analysis (written in SKILL.md's format and committed, as the
+# dashboard, an export, emails and a migration, and the working tree (main, uncommitted -- ADR-0127) carrying
+# its published analysis (written in SKILL.md's format and left uncommitted, as the
 # analyze-requirements coordinator does with cp). Far beyond the sizing
 # rubric's ~400 lines / ~7 criteria / ~4 tasks: the planner's oversize signal
 # must fire.
@@ -15,7 +15,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 acs_repo
 acs_prd
 acs_architecture
-acs_ticket "Storefront order management" story false \
+ACS_FEATURES=order-management
+acs_ticket "Storefront order management" story \
   "Everything a merchant and a shopper need around orders, in one go: card checkout, order history, refunds, a merchant order dashboard, a CSV export for accounting, and email notifications."
 printf '%s' '{"acceptance_criteria": [
   "POST /checkout charges the card through the payments gateway and creates the order",
@@ -30,14 +31,11 @@ printf '%s' '{"acceptance_criteria": [
   "Orders, line items and refunds are stored in three new tables created by a migration"
 ]}' | python3 "$ACS_SCRIPTS/acs.py" ticket save --ticket EVAL-1 --from - > /dev/null
 
-acs_branch story/EVAL-1-storefront-order-management
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/analysis.md <<'MD'
+mkdir -p docs/development/order-management/EVAL-1
+cat > docs/development/order-management/EVAL-1/analysis.md <<'MD'
 ---
 ticket: EVAL-1
 ready_for_planning: true
-api_surface: true
-needs_design_recommendation: false
 ---
 
 # Analysis — EVAL-1: Storefront order management
@@ -79,8 +77,6 @@ The ten criteria on the ticket are confirmed as written.
 
 ## Verdict
 
-Ready for planning; api_surface true; no design needed. The surface spans
+Ready for planning. The surface spans
 five components and ten criteria.
 MD
-git add docs/tickets/EVAL-1
-git commit -qm "EVAL-1 Analyze storefront order management"

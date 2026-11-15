@@ -13,8 +13,15 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan"
-PUBLISHED = "docs/tickets/EVAL-1/plan.md"
-PLAN = '# Plan — EVAL-1: Storefront order management\n\n## Oversize\n\nThis decomposition exceeds one reviewable PR: 5 executor tasks, ten\nacceptance criteria and roughly 1,500 changed lines. Split seams:\n\n1. storage migration + checkout (AC-1, AC-2, AC-10)\n2. order history and detail (AC-3, AC-4)\n3. refunds (AC-5, AC-6)\n4. merchant dashboard and CSV export (AC-7, AC-8)\n5. email notifications (AC-9)\n\nThe user chose to split (C-1); no plan is published.\n\n## Contract\ndelivery_path: complex\nowes:\n  api_contract: true\n  test_cases: true\n  e2e: false\n  reason: "Six new endpoints; no browser flow in this repo"\n\n### Executor tasks & file map\n- task 1: migrations/0001_orders.sql, src/shop/checkout.py, tests/test_checkout.py\n- task 2: src/shop/orders.py, tests/test_orders.py\n- task 3: src/shop/refunds.py, tests/test_refunds.py\n- task 4: src/shop/merchant.py, tests/test_merchant.py\n- task 5: src/shop/notify.py, tests/test_notify.py\n'
+PUBLISHED = "docs/development/order-management/EVAL-1/plan.md"
+PLAN = '# Plan — EVAL-1: Storefront order management\n\n## Oversize\n\nThis decomposition exceeds one reviewable PR: 5 executor tasks, ten\nacceptance criteria and roughly 1,500 changed lines. Split seams:\n\n1. storage migration + checkout (AC-1, AC-2, AC-10)\n2. order history and detail (AC-3, AC-4)\n3. refunds (AC-5, AC-6)\n4. merchant dashboard and CSV export (AC-7, AC-8)\n5. email notifications (AC-9)\n\nThe user chose to split (C-1); no plan is published.\n\n## Contract\ndelivery_path: complex\nowes:\n  test_cases: true\n  e2e: false\n  reason: "Six new endpoints; no browser flow in this repo"\n\n### Executor tasks & file map\n- task 1: migrations/0001_orders.sql, src/shop/checkout.py, tests/test_checkout.py\n- task 2: src/shop/orders.py, tests/test_orders.py\n- task 3: src/shop/refunds.py, tests/test_refunds.py\n- task 4: src/shop/merchant.py, tests/test_merchant.py\n- task 5: src/shop/notify.py, tests/test_notify.py\n'
+
+
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
 
 def _start(ws):
     ws.skill("create-impl-plan")
@@ -25,8 +32,7 @@ def _start(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/plan.md", text)
-    ws.sh('mkdir -p docs/tickets/EVAL-1 && cp "%s/plan.md" "%s" && git add "%s" && git commit -qm "EVAL-1 Plan"'
-          % (STEP, PUBLISHED, PUBLISHED))
+    ws.sh('mkdir -p docs/development/order-management/EVAL-1 && cp "%s/plan.md" "%s"' % (STEP, PUBLISHED))
 
 
 def _declare(ws, files):
@@ -42,6 +48,7 @@ def _finish(ws, status="completed", file_map=None, published=True, summary="cali
         states["plan_path"] = PUBLISHED
     result = {"status": status, "summary": summary, "states": states,
               "findings": [], "errors": []}
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-impl-plan.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 
@@ -60,7 +67,7 @@ def IDEAL(ws):
     _answer(ws)
     _finish(ws, status="failed", published=False, summary=SPLIT)
     ws.reply = ("The plan exceeds one reviewable PR and you chose to split. Next: "
-                "/acs:create-ticket split EVAL-1 per steps/create-impl-plan/plan.md")
+                "/acs:breakdown-ticket EVAL-1 steps/create-impl-plan/plan.md")
 
 
 def _one_mega_plan(ws):
@@ -75,7 +82,7 @@ def _stopped_unrecorded(ws):
     """Stopped on the size without recording the answer or finishing."""
     _start(ws)
     ws.write(STEP + "/plan.md", PLAN)
-    ws.reply = "This is too big; consider /acs:create-ticket split EVAL-1."
+    ws.reply = "This is too big; consider /acs:breakdown-ticket EVAL-1."
 
 
 def _built_it(ws):

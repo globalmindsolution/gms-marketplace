@@ -340,7 +340,7 @@ class TestBuildContext(unittest.TestCase):
             ctx = lib.build_context(repo)
         self.assertEqual(ctx["settings_sources"], [])
         self.assertEqual(ctx["settings"]["ticket_prefix"], lib.DEFAULT_TICKET_PREFIX)
-        self.assertEqual(ctx["settings"]["formats"]["pr_title"], "{title}")
+        self.assertNotIn("formats", ctx["settings"])
 
     def test_raises_on_a_malformed_hand_set_prefix(self):
         tmp = tempfile.mkdtemp(prefix="acs-test-")

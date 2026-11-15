@@ -18,11 +18,52 @@ git config user.name eval
 
 printf 'def health():\n    return "ok"\n' > app.py
 
+# The feature's documents in the standard layout (ADR-0140, ADR-0142): a PRD
+# hub indexing the Health check feature, the feature's own PRD (a ticket links
+# a feature only when it has one: `ticket link-check`, ADR-0144), and that
+# feature's living analysis. The ticket must come out referencing them --
+# found from the layout, never searched for. Nothing is pushed, so every entry
+# is pending (no link).
+mkdir -p docs/product/features/health-check/analysis
+cat > docs/product/prd.md <<'MD'
+# PRD -- shop
+
+## Goals & success metrics
+
+- G1: operators can tell whether the service is up
+
+## Features (prioritized)
+
+### Must have
+
+- [Health check](features/health-check/prd.md) (supports G1)
+MD
+cat > docs/product/features/health-check/prd.md <<'MD'
+# Health check
+
+## Summary
+
+Operators and load balancers can ask the service whether it is up.
+
+## Goals served
+
+- G1 -- operators can tell whether the service is up
+
+## Requirements
+
+- **R1** -- a GET endpoint answers "ok" while the service is up
+MD
+cat > docs/product/features/health-check/analysis/README.md <<'MD'
+# Health check -- analysis
+
+A GET endpoint load balancers poll; it must answer without touching the database.
+MD
+
 mkdir -p .acs
 cat > .acs/settings.json <<'JSON'
 {
   "ticket_prefix": "EVAL",
-  "test_coverage_percent": 90,
+  "tests": { "coverage": 90 },
   "merge_strategy": "squash",
   "tracker": { "provider": "none" }
 }

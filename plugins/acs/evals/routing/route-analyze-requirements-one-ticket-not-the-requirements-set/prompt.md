@@ -1,7 +1,7 @@
 ---
 description: >-
-  Borrows the vocabulary of /acs:create-requirements on purpose -- it
-  mentions the product-wide requirements docs -- while the request still
+  Borrows the vocabulary of /acs:create-prd on purpose -- it mentions the
+  product-wide requirements docs -- while the request still
   belongs to this skill. It tests that the description, not a keyword,
   decides the route. Never names the skill.
 expected_outcome: Routes to acs:analyze-requirements.

@@ -40,6 +40,44 @@ def context(name, state="SUCCESS", required=True):
             "isRequired": required}
 
 
+def run(name, conclusion="success"):
+    """A REST check run, as `.check_runs[]` answers it."""
+    return {"name": name, "status": "completed", "conclusion": conclusion}
+
+
+def rest_gh(pull=None, reviews=None, required=("build", "lint"), runs=None,
+            statuses=(), fail=None):
+    """A `gh` shim answering the REST reads `gh_rest.view_pr` makes for PR 42.
+
+    Porcelain (`gh pr …`) is refused the way a Claude Code session refuses
+    GraphQL, so a test passing on this shim proves the reads are REST.
+    `fail` is (endpoint substring, stderr) for one read that does not answer."""
+    raw = {"number": 42, "state": "open", "draft": False, "mergeable": True,
+           "mergeable_state": "clean", "html_url": "https://github.com/acme/shop/pull/42",
+           "head": {"ref": "task/MAR-1-thing", "sha": "abc123"}, "base": {"ref": "main"},
+           "labels": []}
+    raw.update(pull or {})
+    lines = lambda rows: "\n".join(json.dumps(r) for r in rows)  # noqa: E731
+    answers = [
+        ("*/pulls/42/reviews*", lines(reviews if reviews is not None else
+                                      [{"state": "APPROVED", "user": {"login": "rev"}}])),
+        ("*/pulls/42", json.dumps(raw)),
+        ("*/branches/*", json.dumps({"protection": {"required_status_checks": {
+            "contexts": list(required)}}})),
+        ("*/check-runs*", lines(runs if runs is not None else [run("build"), run("lint")])),
+        ("*/status", json.dumps({"statuses": list(statuses)})),
+    ]
+    script = ['if [ "$1" != "api" ]; then echo "HTTP 403: GitHub GraphQL is not '
+              'available from Claude Code sessions" >&2; exit 1; fi',
+              'case "$2" in']
+    if fail:
+        script.append("  *%s*) echo '%s' >&2; exit 1;;" % fail)
+    for pattern, body in answers:
+        script.append("  %s) cat <<'JSON'\n%s\nJSON\n  ;;" % (pattern, body))
+    script += ['  *) echo "unexpected endpoint $2" >&2; exit 1;;', "esac"]
+    return "\n".join(script)
+
+
 def pr_view(**over):
     """A PR that is ready to merge; each test spoils exactly one thing."""
     doc = {
@@ -109,7 +147,7 @@ class CiDimensionTest(unittest.TestCase):
                          ["dimensions"]["ci"], "pass")
         self.assertEqual(lib.merge_readiness(pr_view(statusCheckRollup=rollup), False)
                          ["dimensions"]["ci"],
-                         "fail: `gh pr checks --required` exited non-zero: no output")
+                         "fail: required checks are not green: no output")
 
     def test_neutral_and_skipped_conclusions_pass(self):
         for conclusion in ("NEUTRAL", "SKIPPED"):
@@ -143,7 +181,7 @@ class CiDimensionTest(unittest.TestCase):
                          ["dimensions"]["ci"], "pass")
         self.assertEqual(lib.merge_readiness(pr_view(statusCheckRollup=None), False)
                          ["dimensions"]["ci"],
-                         "fail: `gh pr checks --required` exited non-zero: no output")
+                         "fail: required checks are not green: no output")
 
     def test_every_pending_status_is_treated_as_pending(self):
         """PENDING_STATUSES was defined, re-exported, and read by nothing.
@@ -318,20 +356,32 @@ class ReadinessCliTest(AcsWorkspaceCase):
         self.assertIn("no `pr_view` object", res.stderr)
 
     def test_reads_github_through_gh_when_given_a_pr_number(self):
-        env = fake_gh(self.bin, 'if [ "$2" = "checks" ]; then exit 0; fi\n'
-                               'cat <<JSON\n%s\nJSON' % json.dumps(pr_view()))
+        env = fake_gh(self.bin, rest_gh())
         out = self._acs("readiness", "--pr", "42", env=env)
         self.assertEqual(out.returncode, 0, out.stderr)
         body = json.loads(out.stdout)
         self.assertEqual(body["verdict"], "ready")
         self.assertTrue(body["required_checks_ok"])
 
-    def test_a_red_required_checks_exit_reaches_the_ci_dimension(self):
-        """A non-zero exit that names a failing check is a red gate."""
-        env = fake_gh(self.bin,
-                      'if [ "$2" = "checks" ]; then echo "build fail" >&2; exit 1; fi\n'
-                      'cat <<JSON\n%s\nJSON'
-                      % json.dumps(pr_view(statusCheckRollup=[])))
+    def test_the_reads_are_rest_never_graphql_porcelain(self):
+        """ADR-0149: `gh pr view`/`gh pr checks` run on GraphQL, which a
+        Claude Code session refuses -- the shim refuses porcelain the same way."""
+        env = fake_gh(self.bin, rest_gh())
+        out = self._acs("readiness", "--pr", "#42", env=env)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(json.loads(out.stdout)["verdict"], "ready")
+
+    def test_a_red_required_check_reaches_the_ci_dimension(self):
+        env = fake_gh(self.bin, rest_gh(runs=[run("build", "failure"), run("lint")]))
+        body = json.loads(self._acs("readiness", "--pr", "42", env=env).stdout)
+        self.assertEqual(body["required_checks_ok"], False)
+        self.assertEqual(body["verdict"], "blocked")
+        self.assertIn("build", body["dimensions"]["ci"])
+
+    def test_a_required_check_that_never_reported_blocks(self):
+        """The rollup cannot show a check that never ran; the base's protection
+        list can, and that is the second signal."""
+        env = fake_gh(self.bin, rest_gh(runs=[run("lint")]))
         body = json.loads(self._acs("readiness", "--pr", "42", env=env).stdout)
         self.assertEqual(body["required_checks_ok"], False)
         self.assertEqual(body["verdict"], "blocked")
@@ -342,25 +392,17 @@ class ReadinessCliTest(AcsWorkspaceCase):
         never treated as passed -- and it is not reported as a red check
         either. Discarding gh's stderr made expired auth, a 403 and a rate
         limit indistinguishable from a failing build."""
-        env = fake_gh(self.bin,
-                      'if [ "$2" = "checks" ]; then '
-                      'echo "gh: HTTP 403: Resource not accessible" >&2; exit 1; fi\n'
-                      'cat <<JSON\n%s\nJSON'
-                      % json.dumps(pr_view(statusCheckRollup=[])))
+        env = fake_gh(self.bin, rest_gh(fail=("check-runs", "gh: HTTP 403: Resource not accessible")))
         res = self._acs("readiness", "--pr", "42", env=env)
         self.assertEqual(res.returncode, 2)
-        self.assertIn("could not be evaluated", res.stderr)
+        self.assertIn("could not look up PR 42", res.stderr)
         self.assertIn("403", res.stderr)
 
     def test_a_repo_with_no_required_checks_is_not_a_ci_failure(self):
-        """gh exits non-zero when the --required filter selects nothing, and a
-        repo with no branch protection is explicitly supported. Treating that
-        exit as a CI failure made every PR on such a repo unmergeable."""
-        marker = "no required checks reported on the branch"
-        env = fake_gh(self.bin,
-                      'if [ "$2" = "checks" ]; then echo "%s" >&2; exit 1; fi\n'
-                      'cat <<JSON\n%s\nJSON'
-                      % (marker, json.dumps(pr_view(statusCheckRollup=[]))))
+        """A repo with no branch protection is explicitly supported. Treating
+        "nothing required" as a CI failure made every PR on such a repo
+        unmergeable."""
+        env = fake_gh(self.bin, rest_gh(required=[], runs=[]))
         body = json.loads(self._acs("readiness", "--pr", "42", env=env).stdout)
         self.assertEqual(body["dimensions"]["ci"], "pass")
         self.assertEqual(body["verdict"], "ready")

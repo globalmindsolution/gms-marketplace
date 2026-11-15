@@ -13,9 +13,6 @@
         "type": {
           "type": "string"
         },
-        "needs_design": {
-          "type": "boolean"
-        },
         "children": {
           "type": "array"
         },

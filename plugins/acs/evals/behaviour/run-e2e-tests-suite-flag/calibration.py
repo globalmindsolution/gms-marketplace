@@ -19,7 +19,7 @@ RUN_ID = "run-20260928T120000Z"
 
 def _run_suites(ws, names):
     with open(os.path.join(ws.path, ".acs", "settings.json"), encoding="utf-8") as fh:
-        suites = json.load(fh)["suites"]
+        suites = json.load(fh)["tests"]
     out = []
     for name in names:
         command = suites[name]["command"]

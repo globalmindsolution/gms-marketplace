@@ -3,13 +3,16 @@
 updates run.json and tickets-index.json.
 
 Result-document `states` this run records for the steps that follow it:
-  * plan_path      str  — where plan.md was written (the ticket docs folder, or
-    the partition when docs/tickets/ is not in use). The /acs:code gate
+  * plan_path      str  — where plan.md was written (the run's Development
+    folder `<development_dir>/<feature>/<id>/`, ADR-0128, or the partition when
+    the run has no feature). The /acs:code gate
     resolves the file itself; this records which path the run chose.
   * plan_approved  bool — whether plan approval ran and passed (STANDARD/COMPLEX
     lanes only; TRIVIAL/SMALL plans are coordinator-authored and unapproved).
   * file_map       obj  — the declared executor file map (`acs.py filemap set`),
     recorded so a later run can see what scope the plan claimed.
+  * files          list — repo-relative paths this run wrote and left
+    uncommitted in the working tree (ADR-0127); /acs:create-pr commits them.
 
 /acs:code REQUIRES the plan artifact, not these keys: a plan written by hand
 still opens its gate.

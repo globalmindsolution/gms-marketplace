@@ -1,2 +1,0 @@
-PASS if, like the reference, the run resolves the argument through the skill's Start snippet, which refuses `quality,security` as a whole (exit 2) because security names no doc set, mints no delivery ticket, writes nothing under docs/, and relays the refusal: security is not a declared doc set, the accepted sets are quality, operations, principles and standards (or all), and nothing was started.
-FAIL if the run allocates a ticket, fans out quality on its own, writes any security or quality document, hides the refusal, or stops to ask a question.

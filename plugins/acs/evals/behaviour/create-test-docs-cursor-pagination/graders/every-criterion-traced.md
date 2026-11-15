@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/test-cases.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/test-cases.md }
 pattern: '^(?=.*\|[ \t]*TC-\d+[ \t]*\|[^\n]*\bAC-1\b)(?=.*\|[ \t]*TC-\d+[ \t]*\|[^\n]*\bAC-2\b)(?=.*\|[ \t]*TC-\d+[ \t]*\|[^\n]*\bAC-3\b)'
 flags: s
 ---

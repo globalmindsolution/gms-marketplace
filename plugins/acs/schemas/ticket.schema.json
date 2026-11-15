@@ -4,11 +4,11 @@
   "title": "acs ticket.json",
   "description": "Local source of truth for a ticket; lives at <workspace>/<repo>/<ticket-id>/ticket.json.",
   "type": "object",
-  "required": ["id", "title", "type", "description", "acceptance_criteria", "priority", "parent", "children", "status", "external", "assignee", "story_points", "needs_design"],
+  "required": ["id", "title", "type", "description", "acceptance_criteria", "priority", "parent", "children", "status", "external", "assignee", "story_points"],
   "properties": {
     "id": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]+$"},
     "title": {"type": "string", "minLength": 1},
-    "type": {"enum": ["epic", "story", "task"]},
+    "type": {"enum": ["epic", "story", "task", "bug"]},
     "description": {"type": "string"},
     "acceptance_criteria": {"type": "array", "items": {"type": "string"}},
     "priority": {"enum": ["critical", "high", "medium", "low"]},
@@ -26,8 +26,9 @@
           "type": "object",
           "required": ["provider", "key"],
           "properties": {
-            "provider": {"enum": ["github", "jira"]},
-            "key": {"type": "string", "minLength": 1}
+            "provider": {"enum": ["github"]},
+            "key": {"type": "string", "minLength": 1},
+            "url": {"description": "The issue's web URL, kept by `record-external.py --url` (ADR-0140).", "type": "string"}
           },
           "additionalProperties": true
         }
@@ -35,15 +36,11 @@
     },
     "assignee": {"oneOf": [{"type": "string"}, {"type": "null"}]},
     "milestone": {
-      "description": "Optional tracker milestone title this ticket belongs to; the tracker sync writes it verbatim (`gh issue edit --milestone`). Falls back to settings.tracker.milestone when null, and is skipped entirely when both are null. Declared because the sync reads it: an undeclared field is one no document can be validated against and no operator can be told to set.",
+      "description": "Optional tracker milestone title this ticket belongs to; the tracker sync writes it verbatim (`gh issue edit --milestone`). Skipped entirely when null. Declared because the sync reads it: an undeclared field is one no document can be validated against and no operator can be told to set.",
       "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}],
       "default": null
     },
     "story_points": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "null"}]},
-    "needs_design": {
-      "description": "Always true for epics (stated, not asked); always false for stories and tasks — never offered or confirmed (MAR-76).",
-      "type": "boolean"
-    },
     "docs_only": {
       "description": "True only when the change touches no executable code or tests (docs, comments, changelog, architecture doc set). Set during /create-ticket analysis, user-confirmed. Relaxes /code's TDD and coverage gates; the test suite still runs once to prove nothing broke. Default false.",
       "type": "boolean",
@@ -56,6 +53,52 @@
         {"type": "null"}
       ],
       "default": null
+    },
+    "features": {
+      "description": "Optional. The PRD features this ticket traces to, as slugs of their PRD names (`acs.py slug --text \"<feature name>\"`). Proposed by /acs:create-ticket, confirmed by /acs:analyze-requirements; the Design skills write a ticket's low-level design under docs/architecture/lld/<feature>/ (ADR-0120). Absent or [] when the ticket traces to no feature.",
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+      "uniqueItems": true,
+      "default": []
+    },
+    "requirements": {
+      "description": "Optional. The PRD requirements this ticket delivers, each `<feature-slug>/R<n>`: a requirement id of one of the ticket's `features`' own PRD (`<prd_dir>/features/<slug>/prd.md`, ADR-0142). A story names at least one; /acs:create-ticket and /acs:breakdown-ticket mint only a link that resolves (ADR-0144). Absent when it names none.",
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/R[0-9]+$"},
+      "uniqueItems": true
+    },
+    "references": {
+      "description": "Optional. The repo documents that exist for this ticket's features, found in the standard doc layout by `acs.py ticket references` (ADR-0140): the PRD feature section, the feature's living analysis, the HLD views, the living LLD, the tech designs and API contracts of the ticket and its parent epic, and the ticket's development docs. Each entry links to the remote's default branch once the document is published there (`url`), else is pending. Written by `ticket references --write` and `tracker refresh`; never hand-edited.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "path"],
+        "properties": {
+          "kind": {"enum": ["prd", "analysis", "hld", "lld", "design", "development"]},
+          "path": {"type": "string", "minLength": 1},
+          "title": {"type": "string"},
+          "status": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+          "version": {"oneOf": [{"type": "integer"}, {"type": "null"}]},
+          "published": {"type": "boolean"},
+          "url": {"oneOf": [{"type": "string"}, {"type": "null"}]}
+        },
+        "additionalProperties": true
+      },
+      "default": []
+    },
+    "severity": {
+      "description": "A bug's severity -- how bad the defect is, separate from priority (how soon it is fixed). Bug tickets only (ADR-0138); optional.",
+      "enum": ["critical", "high", "medium", "low"]
+    },
+    "reproduction": {
+      "description": "A bug's steps to reproduce, as markdown (numbered, from a clean state). Bug tickets only (ADR-0138); optional.",
+      "type": "string"
+    },
+    "expected": {"description": "What should happen. Bug tickets only (ADR-0138); optional.", "type": "string"},
+    "actual": {"description": "What happens instead. Bug tickets only (ADR-0138); optional.", "type": "string"},
+    "environment": {
+      "description": "Where the bug was seen: version or commit, OS, runtime, configuration. Bug tickets only (ADR-0138); optional.",
+      "type": "string"
     },
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"}

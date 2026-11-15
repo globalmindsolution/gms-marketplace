@@ -1,20 +1,18 @@
 # /acs:create-ticket — materializing the confirmed ticket (Steps 3-5)
 
-Open this once Step 2's user-confirmation gate has closed — or, in the
-`--fan-out` and split/restructure modes, once their own confirmation has — and
-follow it yourself, inline. /acs:create-ticket spawns no subagent for this:
-materializing a ticket is a fixed sequence of commands (rewrite `ticket.json`,
-mint an epic's children, sync the tracker) with nothing for a separate agent to
-judge, so the coordinator that ran the analysis and the confirmation runs it
-too. The confirmed decisions are binding here: you do not re-analyze or
-re-decide while materializing. If the confirmed proposal turns out impossible
-to write as confirmed, stop and say so (the Finish failure path in SKILL.md);
-never improvise.
+Open this once Step 2's user-confirmation gate has closed, and follow it
+yourself, inline. Materializing a ticket is a fixed sequence of commands
+(rewrite `ticket.json`, sync the tracker) with nothing for a separate agent to
+judge: the draft was already judged by the reviewer and confirmed by the user, so
+the coordinator that ran the confirmation runs this too. The confirmed decisions
+are binding here: you do not re-analyze or re-decide while materializing. If the
+confirmed draft turns out impossible to write as confirmed, stop and say so (the
+Finish failure path in SKILL.md); never improvise.
 
 **Where the cross-references below point.** Step numbers (Steps 1-5),
 `Resume & reconcile`, `User interaction` and `Finish` are SKILL.md's. Step 5's
-full text is `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/tracker-sync.md`;
-the modes are `references/epic-fan-out.md` and `references/split-ticket.md`.
+full text is `${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/tracker-sync.md`.
+Minting an epic's children is `/acs:breakdown-ticket`'s, never this sequence's.
 
 ## What you work from
 
@@ -22,21 +20,21 @@ Everything below reads workspace state and the confirmed decisions, never a
 paraphrase of them. Before writing anything, re-read:
 
 - `<partition>/ticket.json` — its parent directory IS the partition;
-- `steps/create-ticket/iter-<n>/authoring.md` when the analysis was persisted
-  there, plus the clarification ledger (`clarify.py list --ticket <id>`);
-- the settings and template files you need: `formats` (the rendered-format
-  rules), `tracker_provider` (`local`|`github`|`jira`) and whether tracker sync
-  is on;
-- the confirmed decisions: the final type, `needs_design` (`true` for epics —
-  stated, never user-confirmed; otherwise `false`, never offered), the child
-  list, a confirmed PRD divergence, and any conflict resolutions.
+- the last reviewed draft, `steps/create-ticket/iter-<n>/draft.json` (and
+  `draft.md`), with the user's Step 2 revisions applied, plus the clarification
+  ledger (`clarify.py list`);
+- the settings you need: `tracker_provider` (`local`|`github`) and whether
+  tracker sync is on;
+- the confirmed decisions: the final type, `docs_only`,
+  the due date, the confirmed PRD link (features and requirements), and any
+  conflict resolutions.
 
 ## GitHub call failure policy, as it applies here
 
 Canon lives in `create-ticket/SKILL.md`'s own "GitHub call failure policy"
-section — this reference classifies no `gh`/`acli` call itself, it only
+section — this reference classifies no `gh` call itself, it only
 follows that classification (critical for the remote-import read; critical per
-ticket, soft per batch for Step 5's `gh issue create` tracker-sync call;
+ticket, soft per batch for Step 5's issue create (`acs.py tracker sync`);
 non-critical for the labels/assignee/milestone/Projects v2 field-fill
 checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 `acs_lib.gh_failure_hint(stderr)`):
@@ -48,78 +46,84 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
 ## Materialization steps, in this order
 
-1. **Render the title** from `settings.formats.tickets.<type>.title` with
-   placeholders `{ticket_id}`, `{type}`, `{title}`, `{external_key}` (empty
-   string when unsynced).
-2. **Build the description** from the type's `description_template`.
-   Resolution: a built-in name maps to
-   `${CLAUDE_PLUGIN_ROOT}/templates/<name>.md` (`epic-default`,
-   `story-default`, `task-default`); otherwise `<repo>/.acs/templates/<name>.md`;
-   otherwise an absolute path. Fill EVERY section with real content from the
-   confirmed proposal; delete the HTML comments.
-3. **Rewrite `<partition>/ticket.json`**, PRESERVING `id`, `status`, and
+1. **Check the title**: an epic's title is prefixed `[EPIC] `; a story's, a
+   task's and a bug's is the title as given. The author set it; correct it only
+   when the user's confirmation changed it.
+2. **Check the description**: the author built it from the type's template
+   (`${CLAUDE_PLUGIN_ROOT}/templates/<name>.md` — `epic-default`,
+   `story-default`, `task-default`, `bug-default`; a repo's own
+   `<repo>/.acs/templates/<name>.md` of the same name replaces it) with every
+   section filled and the HTML comments deleted — except the `## References`
+   marker pair. Apply the user's confirmed revisions to it so the description
+   and `acceptance_criteria` agree.
+
+   **The `## References` section is required** (ADR-0140): the heading with its
+   `<!-- acs:references -->` and `<!-- /acs:references -->` markers and nothing
+   you wrote between them, before `## Notes`. Missing — a repo template older
+   than this, or a draft that dropped it — add it back there, empty; filled by
+   hand — empty it. Code fills it (step 3b, and the tracker in step 5).
+
+   Every description template carries an `acs-ticket: {ticket_id}` line in
+   its `## Notes` section — the rendered text is byte-identical across the
+   built-in templates, so the acs ticket id is visibly recorded in the
+   ticket's own body regardless of type (AC-1). It renders unconditionally —
+   it is NOT itself conditional on tracker sync; what IS conditional is
+   whether that description ever reaches GitHub (Step 5, skipped on the
+   `local` provider, AC-4).
+3. **Rewrite `<partition>/ticket.json`** through `acs.py ticket save --ticket <id> --from -`
+   (the whole document on stdin as a `<<'ACS_EOF'` heredoc, never the Write tool),
+   PRESERVING `id`, `status`, and
    `created_at`, and setting every field required by
    `${CLAUDE_PLUGIN_ROOT}/schemas/ticket.schema.json`: `title`, `type`,
    `description`, `acceptance_criteria` (array of testable strings),
    `priority` (`critical|high|medium|low`), `parent` (null — this skill
    creates roots), `children` (`[]` on every creation run, including an
-   epic's own — Step 4 fills it later, in a `--fan-out` or split/restructure
-   run), `external` (the
+   epic's own — `/acs:breakdown-ticket` fills it later; the retired Step 4
+   `--fan-out` never runs here), `external` (the
    import mapping, the step-5 sync result, or null), `assignee` (or null),
-   `story_points` (or null), `needs_design` (`true` for epics, `false`
-   otherwise — never user-confirmed), `docs_only` (the confirmed value,
-   default false), `due_date` (ISO-8601 date string or null); refresh
-   `updated_at` (ISO-8601 UTC).
-4. **Epic fan-out** — runs in `--fan-out` mode or in the split/restructure
-   mode — the two modes that mint children. The step-3 skip applies
-   ONLY in `--fan-out` mode: step 3's root `ticket.json` rewrite above is
-   skipped entirely in that mode, because the epic's own fields are never
-   touched — only its `children` array changes. In the split/restructure
-   mode, step 3 DOES run: the ticket becomes an epic (`references/split-ticket.md`)
-   before its children are minted in this same step 4. For
-   each user-confirmed child, run exactly:
+   `story_points` (or null), `docs_only` (the confirmed value,
+   default false), `due_date` (ISO-8601 date string or null), `features`
+   (the confirmed PRD feature slugs — at least one for an epic, a story or a bug; omit
+   for an unlinked technical task), `requirements` (the confirmed
+   `<slug>/R<n>` ids; omit when none — `ticket save` refuses one the feature's PRD
+   does not declare, and the post-hook refuses a story with none, ADR-0144), and on a bug its
+   `severity`, `reproduction`, `expected`, `actual` and `environment`
+   (strings); refresh `updated_at` (ISO-8601 UTC). Send ONLY ticket fields:
+   the draft's `prd_trace`, `flags`, `open_questions`, `assumptions` and an
+   epic's `breakdown_outline` are not ticket fields — `prd_trace` goes to the
+   result document, the rest to the materialize report.
+3b. **Record the ticket's references** — every document the standard layout
+   holds for its features (the PRD section, the feature analysis, the HLD and
+   LLD views, design records, development docs), stored on the ticket:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/new-ticket.py" --title "Wishlist API" --type story --parent SHOP-123 --description "..." --priority medium --needs-design false --story-points 3
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket references --ticket <id> --write
    ```
 
-   The script mints the child id, writes BOTH link directions (child `parent`,
-   epic `children`), and records the child's completed create-ticket run —
-   children never rerun /acs:create-ticket; their pipeline starts at
-   /acs:code. Capture each printed `ticket_id`. After minting, write each
-   confirmed child's `acceptance_criteria` (from the confirmed breakdown)
-   into that child's ticket with `acs.py ticket save`:
-
-   ```bash
-   printf '%s' '{"acceptance_criteria": ["...", "..."]}' \
-     | python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" ticket save --ticket <child-id> --from -
-   ```
-
-   `--ticket` names the child; `--from` takes a JSON file, or `-` (or nothing)
-   for stdin. The document is a PATCH merged over the stored ticket, so send
-   only `acceptance_criteria`. It writes wherever the ticket lives —
-   `docs/tickets/<child-id>/ticket.md` once the docs tree exists (which is
-   where `new-ticket.py` put it), else the workspace partition's
-   `ticket.json` — and re-indexes it. Never hand-edit either file: a
-   hand-written `ticket.json` beside a `ticket.md` is a second copy no reader
-   opens. `new-ticket.py` exposes no `--acceptance-criteria` flag.
-
-   Create ONLY the
-   confirmed children; on a resumed run never re-mint ones already in
-   the epic's `children`. Re-read `ticket.json` after fan-out.
-5. **Tracker sync** — only when `settings.tracker.provider` is `github` or
-   `jira`; skip entirely for `local`.
-   - **The "tickets to sync" set:** `[root ticket, unless it is an import] +
-     [every child minted in step 4]`, EXCLUDING any ticket whose title is a
-     product-flow delivery title (`PRODUCT_TICKET_TITLES`: "Product definition
-     (PRD)", "Product architecture doc set") — those are never synced by this
-     skill's fan-out (AC-4) — **and EXCLUDING any ticket whose `external` is
-     already non-null**: a `--fan-out` run's "root ticket" is an
-     already-synced epic, so applying this set literally would re-create its
-     issue as a duplicate; only the newly minted children (whose `external`
-     is still null) enter the sync set.
+   Read the printed `references` back for the completion report (published
+   entries with their link, the rest `pending: not on <default> yet`). An empty
+   list is fine (no PRD, no feature docs yet): it is recorded, not an error.
+4. **No children.** A creation run mints none, an epic's included. Its
+   breakdown outline stays in the description's `## Notes`, for
+   `/acs:breakdown-ticket <id>` to read.
+   An epic ends with `children: []`; `/acs:breakdown-ticket <id>` (after
+   `/acs:create-tech-design <id>` when the user wants a design first)
+   proposes its children in one confirmation,
+   mints them with `new-ticket.py --parent`, and syncs them. The same skill
+   splits an oversized story or task into an epic that keeps its id.
+5. **Tracker sync** — only when `settings.tracker.provider` is `github`;
+   skip entirely for `local`.
+   - **The "tickets to sync" set:** `[the ticket, unless it is an import]`,
+     EXCLUDING a product-flow delivery title (`PRODUCT_TICKET_TITLES`:
+     "Product definition (PRD)", "Product architecture doc set") — those are
+     never synced by this skill (AC-4) — **and EXCLUDING any ticket whose
+     `external` is already non-null** (an import, or a resumed run that already
+     synced it): re-creating its issue would be a duplicate.
    - Imported tickets: keep `external` as pulled; NEVER create a remote
-     duplicate. If your local title/description changed AND the remote also
+     duplicate. The issue already exists, so give it its `## References`
+     section with `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" tracker
+     refresh --ticket <id>` instead of a sync — **non-critical**: a failure is
+     one `info` finding with the replayable command, never a failed run. If your local title/description changed AND the remote also
      changed since the pull, do not pick a side: ask the user which version
      wins, stating both (SKILL.md's User interaction; a non-interactive run
      returns the `needs_input` handoff with that question), then continue.
@@ -136,7 +140,9 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
        It applies the exclusion rules itself and posts each partition's
        `tracker-body.md` as the issue body — **write that file first**, from
-       the ticket's rendered description, for every ticket in the batch. The
+       the ticket's rendered description, for every ticket in the batch; the
+       command fills its `## References` block with fresh links (it fetches
+       `origin/<default>` first) before the issue is created. The
        body is what the issue is made of, so a partition without one is not
        synced at all: the command reports that ticket under `failed` with an
        `error` finding naming the missing path, and never creates a bodiless
@@ -147,17 +153,10 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
        `parent` value is `null` is skipped silently, no finding — a null value
        is expected data, not a gap. Record the printed `findings` verbatim as
        the `project_fields` object per synced ticket.
-
-     - `jira`: `acli jira workitem create --project <project_key> --type
-       "Epic" --summary "<rendered title>" --description "<description>"`
-       (epic→Epic, story→Story, task→Task; children pass the epic's remote key
-       as the parent link). Store `external = {"provider": "jira", "key":
-       "<KEY-n>"}`.
-   - Write `external` into each synced ticket's own `ticket.json` — root and
-     every child — via `python3
+   - Write `external` into the synced ticket's own `ticket.json` via `python3
      "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-external.py" --ticket
-     <ticket-id> --provider <provider> --key <key>` once per successfully
-     synced ticket. A failed `gh`/`acli` call for any one ticket in the set
+     <ticket-id> --provider <provider> --key <key> --url <url>` (the `key` and
+     `url` of its `synced` entry) once per successfully synced ticket. A failed `gh` call for any one ticket in the set
      is **critical (per ticket), soft (per batch)**: it produces an
      **error**-severity finding naming that ticket's id, the verbatim
      error, and the canonical hint from `acs_lib.gh_failure_hint`,
@@ -169,7 +168,7 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
      blocking finding); list which tickets synced (with their key) and which
      failed (with the error) so the failed ones can be retried individually.
 6. **Write the materialize report** to
-   `steps/create-ticket/iter-<n>/materialize.json`: artifacts
+   `steps/create-ticket/iter-<n>/materialize.json` through `acs.py write` (SKILL.md's Finish): artifacts
    produced, files changed, commands run with outcomes, problems hit, and the
    confirmed decisions you applied.
 
@@ -177,49 +176,42 @@ checklist). Canon hint text (`acs_lib.GH_ACCESS_HINT`, selected by
 
 `iter-<n>/materialize.json` is the audit record of what steps 1-5 did; the
 result document (SKILL.md's Finish) summarizes it and never inlines its
-detail. The example below shows a `--fan-out` (or split) run that minted
-children; a plain creation run carries no `children` finding — `children`
-stays `[]`:
+detail. A creation run mints no children, so it carries no `children`
+finding — `children` stays `[]`:
 
 ```json
 {
   "status": "completed",
   "files_changed": [
-    "/abs/path/to/partition/ticket.json",
-    "/abs/path/to/child/partition/ticket.json"
+    "/abs/path/to/partition/ticket.json"
   ],
   "commands": [
-    {"cmd": "python3 .../new-ticket.py --title \"Wishlist API\" --type story --parent SHOP-123 ...", "outcome": "minted SHOP-124"}
+    {"cmd": "python3 .../acs.py ticket save --ticket SHOP-123 --from -", "outcome": "saved bug SHOP-123"}
   ],
   "findings": [
-    {"severity": "info", "dimension": "children", "detail": "minted SHOP-124, SHOP-125"},
-    {"severity": "info", "dimension": "external", "detail": "synced as jira PROJ-789"}
+    {"severity": "info", "dimension": "external", "detail": "synced as github 789"}
   ],
-  "decisions_applied": ["type epic (C-1)", "children SHOP-124, SHOP-125 confirmed at the fan-out gate"],
+  "decisions_applied": ["type bug (C-1)", "severity high, priority medium (C-2)", "draft iter-2 confirmed"],
   "problems": []
 }
 ```
 
-- `files_changed` lists every file you wrote or changed, including each
-  child's ticket file (`docs/tickets/<child-id>/ticket.md`, or its
-  partition's `ticket.json` before the docs tree exists).
+- `files_changed` lists every file you wrote or changed (workspace state — no
+  ticket file enters the repo).
 - `status: "failed"` with `problems` when a step cannot complete (keep what
-  you finished — never roll back minted children), then take SKILL.md's Finish
-  failure path; the only question this sequence ever raises is the
-  sync-conflict case above.
+  you finished), then take SKILL.md's Finish failure path; the only question
+  this sequence ever raises is the sync-conflict case above.
 
 ## Hard rules
 
 - Spawn no subagent for any of this: the steps above are ordered commands the
-  coordinator runs itself.
-- Mutate ONLY what the confirmed proposal covers: the ticket partition (child
-  partitions via `new-ticket.py`, plus the confirmed `acceptance_criteria`
-  written into each minted child's ticket via `acs.py ticket save` after
-  minting) and the
-  remote tracker. Never touch consumer-repo source,
-  never create branches/commits, never hand-edit `counters.json` /
-  `tickets-index.json` / `run.json` — the helper scripts own those.
-- Never allocate ticket ids yourself — only `new-ticket.py` mints ids.
+  coordinator runs itself (the authors and the reviewer ran before Step 2).
+- Mutate ONLY what the confirmed draft covers: the ticket partition (through
+  `acs.py ticket save`) and the remote tracker. Never touch consumer-repo
+  source, never create branches/commits, never mint a child, never hand-edit
+  `counters.json` / `tickets-index.json` / `run.json` — the helper scripts own
+  those.
+- Never allocate ticket ids yourself — `step start --allocate` minted this one.
 - On a resumed run (SKILL.md's Resume & reconcile): redo exactly what the
   reconcile found unfinished; do not rework parts that verifiably hold.
 
@@ -232,7 +224,7 @@ you actually read or ran in THIS run:
   report: file path with line numbers or section heading for anything based
   on repo code, docs, the ticket, specs, design, or workspace state.
 - **Quote the exact command and the relevant output** for anything based on a
-  command run (new-ticket.py, tracker sync, gh/acli state).
+  command run (ticket save, tracker sync, gh state).
 - **Never assert what you did not observe**: the content of a file you did not
   open, a remote issue you did not check, a key a command did not print. If an
   input you need is missing or unreadable, record it in `problems` instead of

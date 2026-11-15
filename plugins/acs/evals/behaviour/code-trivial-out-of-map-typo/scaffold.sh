@@ -12,7 +12,7 @@
 #   the draft at runs/EVAL-1/steps/create-impl-plan/plan.md (the planner's
 #     Write; no CLI writer exists for its bytes)
 #   acs.py filemap set --skill code --iteration 1 (the map the guard enforces)
-#   the published copy in docs/tickets/EVAL-1/, committed on the ticket branch
+#   the published copy in docs/development/<feature>/EVAL-1/, left uncommitted on main
 #   post-create-impl-plan.py (finishes the step, releases the lock)
 # `trivial` needs no approval.
 set -euo pipefail
@@ -37,14 +37,14 @@ PY
 git add -A
 git commit -qm "Reproduce the greeting typo (red)"
 
-acs_ticket "Fix the typo in the storefront greeting" task false \
+ACS_FEATURES=storefront
+acs_ticket "Fix the typo in the storefront greeting" task \
   "The storefront greets shoppers with \"Helo\". tests/test_greeting.py reproduces it and is red."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["greeting(\"Ann\") returns \"Hello, Ann!\"", "tests/test_greeting.py passes"]}' \
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "task/EVAL-1-fix-the-typo-in-the-storefront-greeting"
 draft="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Fix the typo in the storefront greeting
@@ -72,7 +72,6 @@ None: no documented behaviour changes.
 ## Contract
 delivery_path: trivial
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "a message reworded in one function; nothing load-bearing"
@@ -82,14 +81,12 @@ owes:
 MD
 acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_greeting.py > /dev/null
-mkdir -p docs/tickets/EVAL-1
-cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
+mkdir -p docs/development/storefront/EVAL-1
+cp "$draft" docs/development/storefront/EVAL-1/plan.md
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",
- "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
+ "states": {"plan_path": "docs/development/storefront/EVAL-1/plan.md", "plan_approved": false,
             "file_map": {"1": ["src/shop/__init__.py", "tests/test_greeting.py"]}},
  "findings": [], "errors": []}
 JSON

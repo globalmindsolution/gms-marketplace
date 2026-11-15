@@ -11,11 +11,20 @@
           "type": "boolean"
         },
         "api_surface": {
-          "type": "boolean"
+          "type": "boolean",
+          "deprecated": true,
+          "description": "Deprecated and ignored (ADR-0134): nothing writes or reads it. Kept only so a state file recorded before the API contract became a Design skill still validates against this closed fragment."
         },
         "questions_open": {
           "type": "integer",
           "minimum": 0
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Repo-relative paths this run wrote and left uncommitted in the working tree (ADR-0127); /acs:create-pr commits them."
         }
       },
       "additionalProperties": false

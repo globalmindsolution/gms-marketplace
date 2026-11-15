@@ -4,6 +4,14 @@ updates run.json and tickets-index.json.
 
 Invoked by the skill's coordinator as its mandatory final step:
   python3 post-docs-sync.py --result-file <result.json>     # or JSON on stdin
+
+`states.implemented` (ADR-0137) lists the living LLD documents the run moved
+from `approved` to `implemented` with `acs.py design status --set implemented`.
+It is derived, never asserted: each listed document's own front matter is read
+and only one that says `status: implemented` is kept; a path listed but not
+flipped is dropped, and the disagreement is recorded on the invocation's
+`derived_states` and printed. `states.files` (every doc docs-sync edited or
+bumped) is recorded as written.
 """
 import os
 import sys

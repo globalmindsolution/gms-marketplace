@@ -5,18 +5,26 @@ enum) is tests/acs/test_build_test_skill_registry.py's; the gate bodies are
 tests/acs/test_acs_lib_gates.py's. THIS module pins the part that lives in
 markdown and would otherwise drift away from the deterministic layer:
 
-  * the analysis's front matter — the four keys, checked here with the SAME
-    checker and the SAME `--require` spec the SKILL.md tells the coordinator to
-    run, so the documented example actually passes it;
-  * the seven required sections, declared byte-identically in the skill and in
-    the impact reviewer's re-run, and linted here against a doc built from the skill's
-    own skeleton;
+  * the analysis is a FOLDER (ADR-0133): a README plus one file per bounded
+    context. The README's front matter -- the four keys -- and a context
+    file's `context` key are checked here with the SAME checker and the SAME
+    `--require` specs the SKILL.md shows, so the documented examples pass;
+  * the README's six and a context file's five required sections, declared
+    byte-identically in the skill, in the impact reviewer's re-run and in
+    `acs_lib.analysis_folder`, and a folder built from the skill's own
+    skeletons passes the controller's folder check;
   * the `states` keys the result document records, cross-checked against
     post-analyze-requirements.py's docstring;
   * independence: the skill points at workflows/ship.yaml for order and claims
     no predecessor-completed check, because there no longer is one;
-  * the one recommendation (refined ACs / needs_design) going through its CLI
-    — `acs.py ticket save` — and never through a hand-written ticket field;
+  * the one recommendation (refined ACs / features / the feature) going
+    through its CLI — `acs.py requirements refine`, which also
+    patches the ticket when there is one — and never through a hand-written
+    ticket field (ADR-0128);
+  * requirements from any container: the run's `requirements.md` /
+    `context.requirements`, never ticket.json; no ticket required; the two
+    modes (Discovery -> the feature's living analysis, Development -> the
+    development folder) and the feature named or inferred in the one ask;
   * that the skill classifies NOTHING: ADR-0095 retired the `stakes` axis, and
     the delivery path is judged once from the plan by /acs:ship. What this step
     owes that judgement is evidence — load-bearing surfaces named in `## Risks`
@@ -45,41 +53,74 @@ SKILL_REFERENCES = os.path.join(PLUGIN, "skills", "analyze-requirements", "refer
 
 
 def skill_contract():
-    """SKILL.md plus the references it points at.
+    """SKILL.md with the references it points at inlined at their pointers.
 
-    The reconcile procedure and the `ready_for_planning: false` arm moved into
-    `references/` under progressive disclosure -- a fresh run that finds the
-    ticket plannable reads neither. The rule for deciding whether a question
-    blocks stayed inline, because it fires on every run. These pins say what
-    the skill SAYS, never which of its files says it.
+    Under progressive disclosure the reconcile procedure, the
+    `ready_for_planning: false` arm, the survey's inputs, the fan-out and
+    messaging rules, the clarify arms, the draft's templates and the review and
+    publish details live in `references/` -- a run reads each only at the phase
+    or in the arm that needs it. These pins say what the skill SAYS, never
+    which of its files says it; each reference sits where its pointer does
+    (tests/acs/skill_text.py), so an order or a slice measures what it always
+    did. Pins about SKILL.md itself -- its front matter, its stage headings
+    and their order -- keep reading SKILL.md alone.
     """
-    import glob as _glob
-    parts = [read(SKILL_PATH)]
-    parts += [read(q) for q in
-              sorted(_glob.glob(os.path.join(SKILL_REFERENCES, "*.md")))]
-    return "\n".join(parts)
+    return skill_text.skill_contract("analyze-requirements")
+
+
+#: An agent's pointer into a skill's `references/`, read before it writes.
+_AGENT_POINTER = re.compile(
+    r"\$\{CLAUDE_PLUGIN_ROOT\}/skills/([a-z0-9-]+)/references/([a-z0-9-]+\.md)")
+
+
+def agent_contract(role):
+    """The agent file with each skill reference it points at inlined there.
+
+    The draft's templates (the README and context-file skeletons and what each
+    section carries) are one file the coordinator and the analyst both read --
+    `references/analysis-templates.md` -- so what the analyst is told to emit
+    is that file, read where its pointer sits."""
+    out, seen = [], set()
+    for line in agent(role).splitlines(keepends=True):
+        out.append(line)
+        for skill, name in _AGENT_POINTER.findall(line):
+            if (skill, name) in seen:
+                continue
+            seen.add((skill, name))
+            out.append("\n" + read(os.path.join(PLUGIN, "skills", skill,
+                                                 "references", name)) + "\n")
+    return "".join(out)
+
+
 AGENTS = os.path.join(PLUGIN, "agents")
 
 sys.path.insert(0, HOOKS)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
+import skill_text  # noqa: E402
 
 ROLES = ("analyst", "impact-analyst", "impact-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
-STATES_KEYS = ("ready_for_planning", "api_surface", "questions_open")
+STATES_KEYS = ("ready_for_planning", "questions_open", "files")
 
-#: The seven headings, in order. Declared here so a reordering in the prose is
-#: a failure rather than a silent contract change.
-SECTIONS = ["Problem restated", "Impact map", "Questions", "Assumptions",
-            "Risks", "Refined acceptance criteria", "Verdict"]
+#: The README's six headings and a context file's five, in order. Declared
+#: here so a reordering in the prose is a failure rather than a silent
+#: contract change.
+SECTIONS = ["Scope and summary", "Contexts", "Refined acceptance criteria",
+            "Cross-cutting risks and decisions", "Questions and assumptions",
+            "Verdict"]
+CONTEXT_SECTIONS = ["Impact map", "Rules and edge cases", "Risks", "Open questions",
+                    "API notes"]
 
-#: The four front-matter keys the analysis publishes. `stakes_recommendation`
-#: left with the axis it set (ADR-0095).
-FRONT_MATTER_KEYS = ["ticket", "ready_for_planning", "api_surface",
-                     "needs_design_recommendation"]
+#: The two front-matter keys the analysis publishes. `stakes_recommendation`
+#: left with the axis it set (ADR-0095); `api_surface` with the ship step it
+#: decided (ADR-0134); `needs_design_recommendation` with the ticket's design
+#: flag (ADR-0139).
+FRONT_MATTER_KEYS = ["ticket", "ready_for_planning"]
 
 
 def read(path):
@@ -120,13 +161,24 @@ class TestSkillFrontmatter(unittest.TestCase):
     def test_name_matches_the_directory(self):
         self.assertRegex(self.fm, r"(?m)^name: analyze-requirements$")
 
-    def test_it_is_a_ticket_scoped_coordinator(self):
-        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\]"$')
+    def test_it_takes_requirements_from_any_container(self):
+        """ADR-0128: a ticket id, documents and a prompt, in any mix -- no
+        skill requires a ticket."""
+        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         self.assertRegex(self.fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
 
     def test_description_routes_on_what_it_produces(self):
         self.assertRegex(self.fm, r"(?m)^description: \S")
-        self.assertIn("analysis.md", self.fm)
+        self.assertIn("a README.md readable on its own plus one file per bounded "
+                      "context", self.fm)
+
+    def test_description_routes_a_prompt_a_prd_feature_and_an_attached_spec(self):
+        description = re.search(r"(?m)^description: (.*)$", self.fm).group(1)
+        for phrase in ("a prompt", "a PRD feature", "an attached spec",
+                       "with or without a ticket", "before /acs:create-impl-plan",
+                       "Call it as your first action"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, description)
 
 
 class TestLifecycleWiring(unittest.TestCase):
@@ -134,12 +186,13 @@ class TestLifecycleWiring(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.skill_md = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_start_hook_is_the_mandatory_first_action(self):
-        self.assertIn('acs.py" step start', self.body)
-        self.assertRegex(self.body, r"--step analyze-requirements\b")
-        self.assertIn("MANDATORY first action", self.body)
+        self.assertIn('acs.py" step start', self.skill_md)
+        self.assertRegex(self.skill_md, r"--step analyze-requirements\b")
+        self.assertIn("MANDATORY first action", self.skill_md)
 
     def test_the_finish_verb_closes_the_step_from_its_result_document(self):
         """The POST-HOOK closes the step, and it reads the status and
@@ -177,7 +230,7 @@ class TestIndependence(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_order_is_declared_in_the_workflow_not_the_gate(self):
         self.assertIn("workflows/ship.yaml", self.body)
@@ -200,9 +253,9 @@ class TestIndependence(unittest.TestCase):
         self.assertFalse(hasattr(lib.stepgate, "check_inputs"))
         self.assertIn("Nothing\nupstream is required", self.body)
 
-    def test_the_epic_refusal_points_at_design_then_fan_out_then_a_child(self):
-        self.assertIn("/acs:create-design <id>", self.body)
-        self.assertIn("/acs:create-ticket <id>", self.body)
+    def test_the_epic_refusal_points_at_design_then_breakdown_then_a_child(self):
+        self.assertIn("/acs:create-tech-design <id>", self.body)
+        self.assertIn("/acs:breakdown-ticket <id>", self.body)
         self.assertRegex(self.body, r"/acs:analyze-requirements` on a child")
 
 
@@ -234,49 +287,83 @@ class TestGateAgreement(unittest.TestCase):
 
 
 class TestAnalysisFrontMatterContract(unittest.TestCase):
-    """The machine-read half: four keys, and the documented example passes the
-    checker the skill tells the coordinator (and the impact reviewer) to run."""
+    """The machine-read half: the README's four keys and a context file's
+    `context`, and the documented examples pass the checker the skill shows
+    (and the impact reviewer re-runs) -- the same specs the controller's
+    folder check holds (`acs_lib.analysis_folder`)."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
         cls.specs = flag_values(cls.body, "--require")
         cls.example = doc_front_matter_example(cls.body)
 
-    def test_the_skill_declares_exactly_one_require_spec(self):
-        self.assertEqual(len(self.specs), 1, self.specs)
+    def test_the_skill_declares_a_readme_spec_and_a_context_spec(self):
+        self.assertEqual(len(self.specs), 2, self.specs)
+        self.assertEqual(self.specs[0], lib.analysis_folder.FRONT_MATTER_SPEC)
+        self.assertEqual(self.specs[1], lib.analysis_folder.CONTEXT_FRONT_MATTER_SPEC)
 
-    def test_the_spec_declares_the_four_keys_with_their_types(self):
+    def test_the_spec_declares_the_two_keys_with_their_types(self):
         spec = fmc.parse_spec(self.specs[0])
         self.assertEqual([key for key, _ in spec], FRONT_MATTER_KEYS)
-        self.assertEqual(dict(spec)["api_surface"], "bool")
         self.assertEqual(dict(spec)["ready_for_planning"], "bool")
-        self.assertEqual(dict(spec)["needs_design_recommendation"], "bool")
+
+    def test_the_analysis_says_nothing_about_design(self):
+        """ADR-0139: no `needs_design_recommendation` key, no design-significance
+        judgment, no design question -- in the skill, its references or its
+        agents."""
+        bodies = {"skill": self.body, "analyst": agent_contract("analyst"),
+                  "impact-reviewer": agent_contract("impact-reviewer")}
+        for name, body in bodies.items():
+            with self.subTest(body=name):
+                self.assertNotRegex(body, r"(?i)design[- ]significan")
+                self.assertNotIn("needs_design recommendation", body)
+        self.assertNotRegex(self.body, r"needs_design_recommendation:\s*(?:true|false)")
+        self.assertNotIn('{"needs_design"', self.body)
 
     def test_the_documented_example_satisfies_the_documented_spec(self):
         findings = fmc.check_front_matter(self.example, fmc.parse_spec(self.specs[0]),
                                           ticket="SHOP-123")
         self.assertEqual(findings, [])
 
-    def test_the_analyst_emits_the_same_four_keys(self):
-        example = doc_front_matter_example(agent("analyst"))
+    def test_the_context_example_satisfies_the_context_spec(self):
+        for body in (self.body, agent_contract("analyst")):
+            example = context_skeleton(body).split("\n---\n", 1)[0] + "\n---\n"
+            self.assertEqual(fmc.check_front_matter(example, fmc.parse_spec(self.specs[1])),
+                             [])
+
+    def test_the_analyst_emits_the_same_three_keys(self):
+        example = doc_front_matter_example(agent_contract("analyst"))
         self.assertEqual(findings_of(example, self.specs[0]), [])
 
-    def test_the_impact_reviewer_re_runs_the_same_spec(self):
-        self.assertIn(self.specs[0], agent("impact-reviewer"))
+    def test_the_impact_reviewer_re_runs_the_same_specs(self):
+        for spec in self.specs:
+            self.assertIn(spec, agent("impact-reviewer"))
 
-    def test_a_missing_api_surface_key_is_caught_by_that_spec(self):
-        broken = re.sub(r"(?m)^api_surface: .*\n", "", self.example)
+    def test_a_missing_ready_for_planning_key_is_caught_by_that_spec(self):
+        broken = re.sub(r"(?m)^ready_for_planning: .*\n", "", self.example)
         self.assertEqual([f.rule for f in findings_of(broken, self.specs[0])],
                          ["missing-key"])
 
-    def test_api_surface_is_read_by_the_step_that_acts_on_it(self):
-        """The front-matter key is not a local convention. `ship.yaml` has no
-        predicates any more -- every step decides for itself and records why
-        (§2.1) -- so what reads this is `/acs:create-api-contract`, which
-        completes with `no_surface_owed` when nothing is owed."""
-        self.assertIn("api_surface", self.body)
-        self.assertIn("no_surface_owed", lib.outcome_vocabulary("create-api-contract"))
+    def test_api_surface_is_gone_and_a_legacy_key_still_validates(self):
+        """ADR-0134: /acs:create-api-contract left the ship pipeline for
+        Design, so nothing reads an `api_surface` flag any more. The drafts
+        write none, and an analysis published before still passes the spec --
+        unknown front-matter keys are ignored."""
+        self.assertNotIn("api_surface:", self.example)
+        self.assertNotIn("api_surface", self.specs[0])
+        self.assertNotIn("api_surface", agent("impact-reviewer").split("## Re-run")[-1])
+        legacy = self.example.replace("ready_for_planning: true\n",
+                                      "ready_for_planning: true\napi_surface: true\n")
+        self.assertIn("api_surface: true", legacy)
+        self.assertEqual(findings_of(legacy, self.specs[0]), [])
+        self.assertNotIn("no_surface_owed", lib.outcome_vocabulary("create-api-contract"))
+
+    def test_an_interface_change_is_pointed_to_the_design_skill(self):
+        body = norm(self.body)
+        self.assertIn("when an interface changes — design it with "
+                      "`/acs:create-api-contract <ticket-id or feature>`", body)
+        self.assertIn("an interface changes — design it with /acs:create-api-contract", body)
 
 
 def findings_of(front_matter_text, spec):
@@ -285,57 +372,99 @@ def findings_of(front_matter_text, spec):
 
 
 class TestAnalysisSectionContract(unittest.TestCase):
-    """The human-read half: seven sections, one declaration, linted for real."""
+    """The human-read half: six README sections and five per context file,
+    one declaration each, and a folder built from the skeletons passes the
+    controller's own folder check."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
         cls.sections = flag_values(cls.body, "--sections")
 
-    def test_the_skill_declares_the_seven_sections_in_order(self):
-        self.assertEqual(len(self.sections), 1, self.sections)
+    def test_the_skill_declares_both_section_lists_in_order(self):
+        self.assertEqual(len(self.sections), 2, self.sections)
         self.assertEqual([s.strip() for s in self.sections[0].split(";")], SECTIONS)
+        self.assertEqual([s.strip() for s in self.sections[1].split(";")],
+                         CONTEXT_SECTIONS)
 
-    def test_the_skeleton_in_the_skill_carries_those_headings_in_order(self):
-        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(self.body))
-        self.assertEqual(found, SECTIONS)
+    def test_the_declarations_are_the_controller_s(self):
+        self.assertEqual(tuple(SECTIONS), lib.analysis_folder.README_SECTIONS)
+        self.assertEqual(tuple(CONTEXT_SECTIONS), lib.analysis_folder.CONTEXT_SECTIONS)
 
-    def test_the_analyst_skeleton_matches_the_skill_skeleton(self):
-        found = re.findall(r"(?m)^## (.+)$", doc_skeleton(agent("analyst")))
-        self.assertEqual(found, SECTIONS)
+    def test_the_skeletons_in_the_skill_carry_those_headings_in_order(self):
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", doc_skeleton(self.body)), SECTIONS)
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", context_skeleton(self.body)),
+                         CONTEXT_SECTIONS)
 
-    def test_the_impact_reviewer_re_runs_the_same_section_list(self):
-        self.assertIn(self.sections[0], agent("impact-reviewer"))
+    def test_the_analyst_skeletons_match_the_skill_skeletons(self):
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", doc_skeleton(agent_contract("analyst"))),
+                         SECTIONS)
+        self.assertEqual(re.findall(r"(?m)^## (.+)$", context_skeleton(agent_contract("analyst"))),
+                         CONTEXT_SECTIONS)
 
-    def test_a_doc_built_from_the_skeleton_lints_clean(self):
-        doc = synthesized_analysis(SECTIONS)
-        self.assertEqual(structure_lint.lint_structure(doc, SECTIONS, ordered=True), [])
+    def test_the_impact_reviewer_re_runs_the_same_section_lists(self):
+        for sections in self.sections:
+            self.assertIn(sections, agent("impact-reviewer"))
 
-    def test_dropping_a_section_is_caught_by_that_declaration(self):
-        doc = synthesized_analysis([s for s in SECTIONS if s != "Risks"])
-        rules = [f.rule for f in structure_lint.lint_structure(doc, SECTIONS, ordered=True)]
-        self.assertEqual(rules, ["missing-section"])
+    def test_a_folder_built_from_the_skeletons_passes_the_folder_check(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            synthesized_folder(folder, self.body)
+            self.assertEqual(lib.analysis_folder.check_folder(folder, "SHOP-123"), [])
+
+    def test_dropping_a_section_or_a_link_is_caught(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            synthesized_folder(folder, self.body, drop="Risks")
+            texts = " ".join(f["text"] for f in
+                             lib.analysis_folder.check_folder(folder, "SHOP-123"))
+            self.assertIn("[missing-section]", texts)
+        with tempfile.TemporaryDirectory() as folder:
+            synthesized_folder(folder, self.body, unlinked=True)
+            self.assertTrue(lib.analysis_folder.check_folder(folder, "SHOP-123"))
 
 
 def doc_skeleton(body):
-    """The fenced markdown example that carries the doc's headings."""
+    """The fenced markdown example that carries the README's headings."""
     match = re.search(r"(?ms)^```markdown\n(---\nticket:.*?)```", body)
-    assert match, "no fenced doc skeleton found"
+    assert match, "no fenced README skeleton found"
     return match.group(1)
 
 
-def synthesized_analysis(sections):
-    lines = ["# Analysis — SHOP-123: Accept large imports", ""]
-    for name in sections:
-        lines += ["## %s" % name, "content for %s" % name, ""]
-    return "\n".join(lines)
+def context_skeleton(body):
+    """The fenced markdown example that carries a context file's headings."""
+    match = re.search(r"(?ms)^```markdown\n(---\ncontext:.*?)```", body)
+    assert match, "no fenced context-file skeleton found"
+    return match.group(1)
+
+
+def synthesized_folder(folder, body, drop=None, unlinked=False):
+    """README.md and one context file, built from the skill's own skeletons."""
+    context = re.search(r"(?m)^context: (\S+)$", context_skeleton(body)).group(1)
+    readme = doc_front_matter_example(body) + "\n# Analysis — SHOP-123: Accept large imports\n\n"
+    for name in SECTIONS:
+        readme += "## %s\n" % name
+        if name == "Contexts":
+            readme += ("\n| Context | File | Purpose |\n| --- | --- | --- |\n"
+                       "| It | [%s.md](%s.md) | the one context |\n\n"
+                       % ((context, context) if not unlinked else ("x", "x")))
+        else:
+            readme += "content for %s\n\n" % name
+    ctx = "---\ncontext: %s\n---\n\n# The context\n\n" % context
+    for name in CONTEXT_SECTIONS:
+        if name != drop:
+            ctx += "## %s\ncontent for %s\n\n" % (name, name)
+    with open(os.path.join(folder, "README.md"), "w", encoding="utf-8") as fh:
+        fh.write(readme)
+    with open(os.path.join(folder, context + ".md"), "w", encoding="utf-8") as fh:
+        fh.write(ctx)
 
 
 class TestResultDocument(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
         cls.post_hook = read(os.path.join(HOOKS, "post-analyze-requirements.py"))
 
     def test_the_skill_records_exactly_the_documented_states(self):
@@ -347,16 +476,18 @@ class TestResultDocument(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertIn(key, self.post_hook)
 
-    def test_the_result_api_surface_must_equal_the_published_front_matter(self):
-        self.assertRegex(self.body, r"MUST equal the published front matter")
+    def test_the_result_verdict_must_equal_the_published_front_matter(self):
+        self.assertRegex(self.body, r"MUST equal the\s+published front matter's `ready_for_planning`")
 
     def test_questions_open_is_counted_from_the_ledger(self):
-        self.assertIn("clarify.py list --open --ticket <id>", self.body)
+        self.assertIn("clarify.py list --open` (`--ticket <id>` on a ticket run)",
+                      self.body)
 
     def test_the_recommendations_are_not_states(self):
-        """needs_design is applied through its own CLI, so a `states` key for it
-        would be a second, divergent source of truth — and `stakes` is not a
-        field anywhere any more."""
+        """Confirmed criteria and features are applied through their own CLI,
+        so a `states` key for them would be a second, divergent source of
+        truth — and neither `stakes` nor `needs_design` is a field anywhere
+        any more."""
         block = re.search(r'(?s)"states": \{(.*?)\}', self.body).group(1)
         self.assertNotIn("stakes", block)
         self.assertNotIn("needs_design", block)
@@ -375,7 +506,7 @@ class TestItClassifiesNothingTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_no_retired_axis_command_survives(self):
         for dead in ("stakes recommend", "lane apply", "--proposed-stakes",
@@ -397,22 +528,32 @@ class TestItClassifiesNothingTest(unittest.TestCase):
 
 
 class TestTicketAmendments(unittest.TestCase):
-    """Refined ACs and needs_design are proposals; the ticket changes only on a
-    user answer, and only through the CLI that re-indexes it."""
+    """Refined ACs and features are proposals; the requirements (and the
+    ticket, when there is one) change only on a user answer, and only through
+    the CLI that records them -- `acs.py requirements refine`, which patches
+    and re-indexes the ticket too (ADR-0128)."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
+        cls.norm = norm(cls.body)
 
-    def test_amendments_go_through_the_ticket_save_cli(self):
-        self.assertIn("acs.py\" ticket save --ticket <id> --from -", self.body)
+    def test_amendments_go_through_the_requirements_refine_cli(self):
+        self.assertIn('acs.py" requirements refine --from -', self.body)
+        self.assertNotIn("ticket save", self.body)
+
+    def test_refine_patches_the_ticket_when_there_is_one(self):
+        self.assertIn("when the run has a ticket, patches and re-indexes the ticket "
+                      "too", self.norm)
+        self.assertIn("`refine` writes the run's `## Refined` section of "
+                      "`requirements.md` (never edit it by hand)", self.norm)
 
     def test_they_are_recorded_in_the_ledger_before_acting(self):
         self.assertIn("clarify.py add --skill analyze-requirements", self.body)
         self.assertRegex(self.body, r"ONLY on an explicit user answer")
 
-    def test_without_an_answer_the_ticket_is_left_alone(self):
-        self.assertRegex(self.body, r"leave the ticket untouched")
+    def test_without_an_answer_the_requirements_are_left_alone(self):
+        self.assertIn("leave the requirements and the ticket as they are", self.norm)
 
 
 class TestNotReadyArm(unittest.TestCase):
@@ -449,8 +590,7 @@ class TestNotReadyArm(unittest.TestCase):
             "not a blocker.**", skill)
         self.assertIn("keep `ready_for_planning: true`", skill)
         self.assertIn("where every default could build the wrong thing", skill)
-        analyst = " ".join(
-            read(os.path.join(AGENTS, "analyze-requirements-analyst.md")).split())
+        analyst = " ".join(agent_contract("analyst").split())
         self.assertIn("A detail with a conventional default", analyst)
         self.assertIn("never a reason for `false`", analyst)
         self.assertIn("every default could build the wrong thing", analyst)
@@ -463,21 +603,29 @@ class TestPublishing(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL_PATH)
+        cls.body = skill_contract()
 
     def test_the_artifact_path_is_resolved_by_the_cli_not_guessed(self):
-        self.assertIn("artifacts show --ticket <id>", self.body)
+        self.assertIn('acs.py" artifacts show\n```', self.body)
         self.assertIn("acs_lib.artifacts.artifact_path", self.body)
+        self.assertNotIn("docs/tickets/<id>/analysis.md` is", self.body)
+        # The legacy folder is READ, never written (ADR-0128).
+        self.assertIn("A legacy `docs/tickets/<id>/analysis.md` from before ADR-0128 "
+                      "is still READ", norm(self.body))
 
     def test_publishing_is_the_controller_s_script(self):
         """ADR-0114 §5: no prose `cp`/`git add` -- the controller copies the
-        reviewed bytes and commits the docs folder (tests/acs/test_analysis_loop.py
-        proves the bytes, the pathspec and the absent push)."""
+        reviewed bytes; ADR-0127: it records the docs folder for /acs:create-pr
+        and never stages, commits or pushes (tests/acs/test_analysis_loop.py
+        proves the bytes and that nothing was committed)."""
         self.assertIn('acs.py" analysis publish', self.body)
         self.assertIn('acs.py" analysis record-publication', self.body)
         self.assertNotRegex(self.body, r"(?m)^cp ")
         self.assertNotIn('git add "<docs_dir>"', self.body)
-        self.assertIn("It never pushes.", self.body)
+        self.assertNotRegex(self.body, r"git (add|commit|checkout -b|switch -c)\b")
+        norm = " ".join(self.body.split())
+        self.assertIn("It never stages, commits or pushes", norm)
+        self.assertIn("`publication.files` into your result's `states.files`", norm)
 
     def test_the_coordinator_never_publishes_and_the_guard_is_named(self):
         self.assertIn("You never copy or commit the analysis yourself, and no "
@@ -485,8 +633,8 @@ class TestPublishing(unittest.TestCase):
         self.assertIn("acs_lib/filemap.py", self.body)
 
     def test_the_analyst_is_barred_from_the_published_file(self):
-        self.assertRegex(agent("analyst"),
-                         r"NEVER the published\n  `analysis.md`")
+        self.assertIn("NEVER the published analysis folder (the controller "
+                      "publishes it)", norm(agent("analyst")))
 
 
 class TestSubagentShape(unittest.TestCase):
@@ -495,7 +643,7 @@ class TestSubagentShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
         fm, _ = frontmatter(agent("impact-reviewer"), "impact-reviewer")
-        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash$")
         fm, _ = frontmatter(agent("analyst"), "analyst")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
@@ -530,7 +678,7 @@ class TestSubagentShape(unittest.TestCase):
     def test_no_planner_and_a_capped_loop(self):
         """ADR-0092 class D: the deliverable is the analysis, so a plan for it
         would be a second copy of the work — analyst -> impact review only."""
-        body = read(SKILL_PATH)
+        body = skill_contract()
         self.assertRegex(body, r"analyst → impact review")
         self.assertRegex(body, r"No third role\s+plans the analysis")
         self.assertNotIn("acs:analyze-requirements-planner", body)
@@ -573,20 +721,23 @@ class TestParallelism(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.skill = norm(read(SKILL_PATH))
+        cls.skill = norm(skill_contract())
         cls.contract = norm(skill_contract())
-        cls.analyst = norm(agent("analyst"))
+        cls.analyst = norm(agent_contract("analyst"))
         cls.reviewer = norm(agent("impact-reviewer"))
 
     def test_the_writer_stays_single_and_says_why(self):
         self.assertIn("Writer — one analyst, never sliced.", self.skill)
-        self.assertIn("`analysis.md` is a single document", self.skill)
+        self.assertIn("The analysis folder is one document in several files",
+                      self.skill)
+        self.assertIn("One analyst writes the whole folder on every iteration",
+                      self.skill)
 
     def test_every_fan_out_is_one_message_and_capped(self):
         self.assertIn("in ONE message (all foreground, in the same message)",
                       self.skill)
-        self.assertIn("`max_parallel = 4`", self.skill)
-        self.assertIn("waves of four", self.skill)
+        self.assertIn("`settings.parallel.max_agents` (default 4)", self.skill)
+        self.assertIn("waves of that size", self.skill)
 
     def test_survey_partition_rule(self):
         self.assertIn("**two or more disjoint top-level areas**", self.skill)
@@ -609,7 +760,7 @@ class TestParallelism(unittest.TestCase):
     def test_judge_slice_table_covers_all_seven_dimensions_once(self):
         owned = []
         for sid, dims in JUDGE_SLICES.items():
-            row = re.search(r"\| `%s` \| ([^|]+) \|" % sid, read(SKILL_PATH))
+            row = re.search(r"\| `%s` \| ([^|]+) \|" % sid, skill_contract())
             self.assertIsNotNone(row, sid)
             numbers = tuple(int(n) for n in re.findall(r"\b(\d) `", row.group(1)))
             self.assertEqual(numbers, dims)
@@ -704,8 +855,9 @@ class TestParallelism(unittest.TestCase):
         self.assertIn("with one writer there is no integration pass to run", self.skill)
 
     def test_each_checker_runs_in_exactly_one_judge_slice(self):
-        self.assertIn("`front_matter_check.py` and `structure_lint.py` belong "
-                      "to `form`", self.reviewer)
+        self.assertIn("`front_matter_check.py` and `structure_lint.py` (on every "
+                      "file) and the folder's names and links belong to `form`",
+                      self.reviewer)
 
 
 def _pos(body, needle):
@@ -726,8 +878,9 @@ class TestThreeStages(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.raw = read(SKILL_PATH)
-        cls.skill = norm(cls.raw)
-        cls.analyst = norm(agent("analyst"))
+        cls.contract_raw = skill_contract()
+        cls.skill = norm(cls.contract_raw)
+        cls.analyst = norm(agent_contract("analyst"))
 
     def test_an_overview_near_the_top_names_the_three_stages_in_order(self):
         overview = _pos(self.raw, "## Three stages")
@@ -799,8 +952,7 @@ class TestThreeStages(unittest.TestCase):
             self.assertIn("## Questions for the user", body)
             for group in ("(a) Open questions", "(b) Conventional defaults",
                           "(c) Proposed refined acceptance criteria",
-                          "(d) A needs_design recommendation"
-                          if body is self.skill else "(d) needs_design recommendation"):
+                          "(d) The feature"):
                 self.assertIn(group, body)
             self.assertIn("Assumed: <default> — confirm or correct", body)
         self.assertIn("Researchable facts are never questions", self.skill)
@@ -821,9 +973,9 @@ class TestThreeStages(unittest.TestCase):
                       "as confirmations, in the one grouped ask — never silently "
                       "assumed", self.skill)
         # The assumption arm is scoped to an unreachable user.
-        unreachable = _pos(self.raw, "### When the user is not reachable")
+        unreachable = _pos(self.contract_raw, "### When the user is not reachable")
         self.assertGreater(
-            _pos(self.raw, "**A question with a conventional default is an "
+            _pos(self.contract_raw, "**A question with a conventional default is an "
                            "assumption, not a blocker.**"), unreachable)
         self.assertNotIn("record the default as an assumption (`--source "
                          "assumption --rationale \"...\"`), state it in "
@@ -832,17 +984,21 @@ class TestThreeStages(unittest.TestCase):
                          "`ready_for_planning: true`. The 2026-09-15",
                          self.skill[:self.skill.find("### When the user is not reachable")])
 
-    def test_confirmed_requirements_are_written_into_the_ticket(self):
-        self.assertIn("### Confirmed requirements go into the ticket", self.raw)
-        self.assertIn("so the ticket itself carries the clarified requirements "
-                      "every later skill plans from", self.skill)
+    def test_confirmed_requirements_are_refined_and_reach_the_ticket(self):
+        heading = ("### Confirmed requirements are refined — and go into the ticket "
+                   "when there is one")
+        self.assertIn(heading, self.contract_raw)
+        self.assertIn("so the requirements every later skill plans from carry the "
+                      "clarified version", self.skill)
         self.assertIn("send the WHOLE confirmed criteria list", self.skill)
         self.assertIn("A rejected proposal is recorded (its answer says so) and "
                       "NOT applied.", self.skill)
-        section = self.raw[_pos(self.raw, "### Confirmed requirements go into the ticket"):
-                           _pos(self.raw, "### When the user is not reachable")]
-        self.assertIn('acs.py" ticket save --ticket <id> --from -', section)
-        self.assertIn('{"needs_design": true}', section)
+        section = self.contract_raw[_pos(self.contract_raw, heading):
+                                    _pos(self.contract_raw, "### When the user is not reachable")]
+        self.assertIn('acs.py" requirements refine --from -', section)
+        self.assertNotIn("needs_design", section, "ADR-0139: refine takes no design key")
+        self.assertIn('{"features": ["wishlist"]}', section)
+        self.assertIn('{"feature": "wishlist"}', section)
 
     def test_at_most_one_follow_up_round(self):
         self.assertIn("**One follow-up round, at most.**", self.skill)
@@ -859,13 +1015,12 @@ class TestThreeStages(unittest.TestCase):
         self.assertIn("Stage 2 skipped", self.skill)
 
     def test_the_draft_is_written_from_the_answers(self):
-        self.assertIn("`## Questions` lists every `C-n` with its answer or status",
-                      self.skill)
+        self.assertIn("the README's `## Questions and assumptions` lists every "
+                      "`C-n` with its answer or status and holds as assumptions "
+                      "only what the user did not answer", self.skill)
         self.assertIn("`## Refined acceptance criteria` states which criteria "
-                      "were confirmed into the ticket", self.skill)
-        self.assertIn("`## Assumptions` holds only what the user did not answer",
-                      self.skill)
-        self.assertIn("`confirmed into the ticket (C-n)`", self.analyst)
+                      "were confirmed into the requirements", self.skill)
+        self.assertIn("`confirmed (C-n)`", self.analyst)
         self.assertIn("Never present an unconfirmed rewrite as applied.",
                       self.analyst)
 
@@ -903,20 +1058,23 @@ class TestReviewerQuestionCoverage(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.reviewer = norm(agent("impact-reviewer"))
-        cls.skill = norm(read(SKILL_PATH))
+        cls.skill = norm(skill_contract())
 
     def test_every_question_for_the_user_is_accounted_for(self):
         self.assertIn("**Questions and ticket coverage:** every item of the "
                       "notes' `## Questions for the user`", self.reviewer)
         self.assertIn("was either answered in the ledger or is carried in "
-                      "`## Questions` as an open or assumed `C-n` entry",
-                      self.reviewer)
+                      "`## Questions and assumptions` as an open or assumed "
+                      "`C-n` entry", self.reviewer)
 
-    def test_confirmed_criteria_match_the_ticket(self):
-        self.assertIn("matches the ticket's `acceptance_criteria` as the ticket "
-                      "file now reads", self.reviewer)
-        self.assertIn("a confirmed criterion the ticket does not carry, or "
-                      "carries differently, is a finding", self.reviewer)
+    def test_confirmed_criteria_match_the_refined_requirements_and_the_ticket(self):
+        self.assertIn("matches the refined requirements as `requirements.md`'s "
+                      "`## Refined` now reads", self.reviewer)
+        self.assertIn("on a ticket run, the ticket's `acceptance_criteria` as the "
+                      "ticket file now reads", self.reviewer)
+        self.assertIn("a confirmed criterion the refined requirements (or the "
+                      "ticket) do not carry, or carry differently, is a finding",
+                      self.reviewer)
 
     def test_the_check_sits_in_the_completeness_dimension_of_the_surface_slice(self):
         dim2 = agent("impact-reviewer").split("2. `completeness`", 1)[1].split(
@@ -924,6 +1082,272 @@ class TestReviewerQuestionCoverage(unittest.TestCase):
         self.assertIn("Questions and ticket coverage", dim2)
         self.assertIn("the questions/ticket coverage check", self.skill)
         self.assertIn("the clarification ledger", self.reviewer)
+
+
+class TestRequirementsFromAnyContainer(unittest.TestCase):
+    """ADR-0128: the requirements come from the user; a ticket id, documents
+    (attached ones too) and a prompt are only containers, may be mixed, and
+    none is required. Every reader goes through the run's requirements."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = skill_contract()
+        cls.skill = norm(cls.raw)
+        cls.contract = norm(skill_contract())
+        cls.analyst = norm(agent("analyst"))
+        cls.impact = norm(agent("impact-analyst"))
+        cls.reviewer = norm(agent("impact-reviewer"))
+
+    def test_no_ticket_is_required_and_containers_mix(self):
+        self.assertIn("**No ticket is required** (ADR-0128)", self.skill)
+        self.assertIn('`/acs:analyze-requirements SHOP-12 ~/Downloads/spec.pdf '
+                      '"also bulk export"`', self.skill)
+
+    def test_requirements_are_read_from_the_run_never_ticket_json(self):
+        self.assertIn("**Requirements: `context.requirements` / `acs.py requirements "
+                      "show` — a ticket id, documents and a prompt are only where "
+                      "they came from; never read ticket.json for acceptance "
+                      "criteria.**", self.skill)
+        self.assertIn("`{path, sources, acceptance_criteria, features, feature, "
+                      "phase, feature_analysis}`", self.skill)
+        self.assertIn("The mode is derived, never chosen by you "
+                      "(`context.requirements.phase`)", self.skill)
+        self.assertIn('acs.py requirements add --args "…"', self.skill)
+
+    def test_documents_are_read_from_their_run_copy(self):
+        self.assertIn("cited by its run copy under `<run>/subject/` (a PDF or an "
+                      "image: Read that copy)", self.skill)
+        self.assertIn("Read a PDF or an image yourself", self.analyst)
+        self.assertIn("the run's `requirements.md` and the document copies it cites",
+                      self.impact)
+
+    def test_the_ticket_is_optional_everywhere_it_used_to_be_assumed(self):
+        # The gate brakes on a ticket only when one is named.
+        self.assertIn("a ticket, when the invocation names one, resolves to a live, "
+                      "unlocked partition and is not an epic", self.skill)
+        self.assertIn("Every `--ticket <id>` below is passed only when the run has "
+                      "a ticket", self.skill)
+        self.assertIn("`ticket-id` only when the run has a ticket", self.skill)
+        for body in (self.analyst, self.impact, self.reviewer):
+            self.assertIn("`ticket-id` only when the run has a ticket", body)
+        # The ticketless ledger is the run's own (clarify.py without --ticket).
+        self.assertIn("without a ticket the ledger is the run's own, "
+                      "`runs/<run-id>/clarifications.json`", self.skill)
+        # handoff.py has no --ticket flag; it resolves the run from the pointer.
+        self.assertNotIn("handoff.py\" --ticket", self.raw)
+        self.assertIn('handoff.py" --summary', self.raw)
+
+    def test_the_handoff_command_matches_the_cli(self):
+        import subprocess
+        out = subprocess.run([sys.executable, os.path.join(HOOKS, "handoff.py"), "-h"],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("--summary", out.stdout)
+        self.assertNotIn("--ticket", out.stdout)
+
+
+class TestTwoModes(unittest.TestCase):
+    """ADR-0129: Discovery publishes the feature's living analysis under the
+    PRD; Development publishes the run's analysis in the development folder
+    and starts from the living one. One folder per phase."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = read(SKILL_PATH)
+        cls.contract_raw = skill_contract()
+        cls.skill = norm(cls.contract_raw)
+        cls.analyst = norm(agent_contract("analyst"))
+
+    def test_the_modes_table_names_both_paths(self):
+        self.assertIn("## Two modes — Discovery and Development", self.raw)
+        self.assertLess(_pos(self.raw, "## Two modes"), _pos(self.raw, "## Start"))
+        self.assertIn("`<prd_dir>/features/<feature>/analysis/` — the feature's "
+                      "**living analysis**", self.skill)
+        self.assertIn("`<development_dir>/<feature>/<ticket-id or run-id>/analysis/`",
+                      self.skill)
+        self.assertIn("`acs_lib.requirements.prd_dir` / `development_dir`", self.skill)
+
+    def test_a_development_run_starts_from_the_feature_analysis(self):
+        self.assertIn("A Development run **starts from the feature's living "
+                      "analysis** when one exists", self.skill)
+        self.assertIn("it is never copied and never edited by this run", self.skill)
+        self.assertIn("`<feature_analysis>`", self.skill)
+        self.assertIn("The feature's living analysis (a Development run's second "
+                      "reuse input) is the whole feature", self.analyst)
+
+    def test_the_living_analysis_is_versioned(self):
+        self.assertIn("versioned (ADR-0122 front matter: `status`, `version`, "
+                      "`tickets`, plus `feature`)", self.skill)
+        self.assertIn("`version` (the living analysis's `version` + 1, or `1` when "
+                      "there is none)", self.analyst)
+
+    def test_nothing_is_published_to_the_legacy_ticket_folder(self):
+        self.assertNotRegex(self.contract_raw, r"published to `docs/tickets")
+        self.assertNotIn("copies it to `docs/tickets", self.contract_raw)
+        self.assertIn("nothing writes either any more — the revision is published "
+                      "as a folder", self.skill)
+
+    def test_the_readers_of_each_analysis_are_named(self):
+        tail = self.skill[_pos(self.skill, "**The published file is the reusable record.**"):]
+        for reader in ("/acs:create-architecture", "/acs:create-data-design",
+                       "/acs:create-flows", "/acs:create-tech-design"):
+            self.assertIn(reader, tail)
+
+    def test_the_result_records_the_new_paths(self):
+        block = re.search(r'(?s)"states": \{(.*?)\}', self.contract_raw).group(1)
+        self.assertIn("docs/development/wishlist/SHOP-123/analysis/README.md", block)
+        self.assertIn("docs/development/wishlist/SHOP-123/analysis/wishlist-sharing.md",
+                      block)
+        self.assertNotIn("docs/tickets", block)
+
+
+class TestTheFeature(unittest.TestCase):
+    """A ticketless run must name or infer its feature, in the ONE grouped
+    ask, from PRD feature slugs (`acs.py slug`), and records it through
+    `requirements refine` -- publish refuses without one."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = skill_contract()
+        cls.skill = norm(cls.raw)
+        cls.analyst = norm(agent("analyst"))
+
+    def test_the_feature_is_asked_in_the_same_grouped_ask(self):
+        self.assertIn("### The feature — named or inferred, in the same ask", self.raw)
+        self.assertIn("the feature is a group-(d) question in the SAME grouped ask, "
+                      "never a separate round-trip", self.skill)
+        self.assertIn('`acs.py slug --text "<PRD feature name>"`', self.skill)
+        self.assertIn("a new slug derived the same way when none fits", self.skill)
+
+    def test_the_survey_proposes_the_slugs(self):
+        self.assertIn("propose the PRD feature slugs it most likely belongs to, "
+                      "best first", self.analyst)
+        self.assertIn("the PRD feature slugs it most likely belongs to, best first, "
+                      "or a new slug when none fits", self.skill)
+
+    def test_it_is_recorded_through_refine_and_gates_publish(self):
+        self.assertIn('`{"feature": "<slug>"}`', self.skill)
+        self.assertIn("`acs.py analysis publish` refuses a run that has no feature "
+                      "recorded", self.skill)
+
+    def test_a_feature_the_invocation_names_is_recorded_before_the_survey(self):
+        """Without a feature nothing resolves a previous analysis, so a feature
+        the user already named is recorded first -- the survey then starts
+        from its living analysis."""
+        self.assertIn("resolve again, BEFORE the survey, so it starts from the "
+                      "feature's living analysis", self.skill)
+        self.assertIn("the requirements lane reads the living analysis of each "
+                      "candidate feature it proposes", self.skill)
+
+    def test_an_unreachable_user_gets_an_inferred_feature(self):
+        section = norm(self.raw[_pos(self.raw, "### When the user is not reachable"):
+                                _pos(self.raw, "## Stage 3")])
+        self.assertIn("except a run's missing feature, which is inferred, because "
+                      "nothing can be published without one", section)
+
+
+class TestTicketlessFrontMatter(unittest.TestCase):
+    """A run with no ticket writes `feature:` in place of `ticket:`; a
+    Discovery draft opens with the ADR-0122 version keys. Both are checkable
+    by the same checker the documented spec uses, with `feature` swapped in."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = skill_contract()
+        cls.spec = flag_values(cls.raw, "--require")[0]
+
+    def test_the_discovery_example_passes_the_feature_spec(self):
+        example = re.search(r"(?ms)^```yaml\n(---\nstatus:.*?\n---\n)", self.raw).group(1)
+        spec = ("status: proposed|approved|implemented|deprecated; version: int; "
+                "tickets: list; feature: str; "
+                + self.spec.replace("ticket: str; ", ""))
+        self.assertEqual(fmc.check_front_matter(example, fmc.parse_spec(spec)), [])
+        keys = [line.split(":", 1)[0] for line in example.strip("-\n").splitlines()]
+        self.assertEqual(keys[:4], ["status", "version", "tickets", "feature"])
+        self.assertEqual(keys[4:], FRONT_MATTER_KEYS[1:])
+
+    def test_the_skill_and_the_reviewer_say_feature_replaces_ticket(self):
+        self.assertIn("On a run with no ticket the README's first key is `feature: "
+                      "<slug>` in place of `ticket:`", norm(self.raw))
+        self.assertIn("On a run with no ticket, the README spec names `feature: "
+                      "str` in place of `ticket: str`", norm(agent("impact-reviewer")))
+
+
+class TestAnalysisIsAFolder(unittest.TestCase):
+    """ADR-0133: the analysis is a folder split by bounded context -- a README
+    readable on its own plus one plain-word kebab-case file per context -- and
+    every other skill reads the README first, then only the context files it
+    needs, with the legacy single file still read."""
+
+    READERS = ("create-impl-plan", "create-test-docs", "create-tech-design",
+               "create-api-contract", "create-data-design", "create-flows",
+               "create-architecture", "create-ticket")
+
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = skill_contract()
+        cls.skill = norm(cls.raw)
+        cls.analyst = norm(agent_contract("analyst"))
+        cls.impact = norm(agent("impact-analyst"))
+        cls.reviewer = norm(agent("impact-reviewer"))
+
+    def test_contexts_are_bounded_contexts_in_plain_words(self):
+        self.assertIn("### Contexts — how the analysis is split", self.raw)
+        self.assertIn("A **context** is a bounded context the requirements touch",
+                      self.skill)
+        self.assertIn("not a directory and not a layer", self.skill)
+        self.assertIn("Even a one-context analysis is a folder: a README plus that "
+                      "one file.", self.skill)
+        self.assertIn("Contexts come from the impact lanes' code areas and the PRD "
+                      "features together", self.skill)
+
+    def test_each_fact_lives_in_one_file_and_the_others_link(self):
+        self.assertIn("Each row, rule and risk lives in exactly ONE context file; "
+                      "another file that needs it links to it instead of repeating "
+                      "it.", self.skill)
+        self.assertIn("A context file never restates another's rows, rules or "
+                      "risks: it links to the file that owns them", self.analyst)
+        self.assertIn("The README summarizes and links — it never copies a context "
+                      "file's rows.", self.skill)
+
+    def test_the_survey_names_contexts_and_the_synthesis_settles_them(self):
+        self.assertIn("**Contexts.** Name the bounded context each impact entry "
+                      "belongs to, in plain words", self.impact)
+        self.assertIn("path → component → context → change → evidence", self.impact)
+        self.assertIn("Write a `## Contexts` section to the same file", self.analyst)
+        self.assertIn("Every impact row belongs to exactly ONE context", self.analyst)
+
+    def test_the_reviewer_judges_every_file_and_the_table(self):
+        self.assertIn("You judge EVERY file and the README's contexts table.",
+                      self.reviewer)
+        self.assertIn("every `## Contexts` link resolves and every context file is "
+                      "linked", self.reviewer)
+        self.assertIn("judges EVERY file plus the README's contexts table",
+                      self.skill)
+
+    def test_the_draft_folder_and_the_publication(self):
+        self.assertIn("`steps/analyze-requirements/iter-<n>/analysis/`", self.skill)
+        self.assertIn("copies every file of the draft folder byte-for-byte",
+                      self.skill)
+        self.assertIn("removes a context file the new analysis no longer has (only "
+                      "inside that folder)", self.skill)
+        self.assertNotIn("index.md`)", self.skill.replace("never an `index.md`)", ""))
+
+    def test_every_reader_opens_the_readme_first(self):
+        for skill in self.READERS:
+            with self.subTest(skill=skill):
+                body = norm(skill_text.skill_contract(skill))
+                self.assertIn("README.md", body)
+                self.assertNotIn("features/<feature>/analysis.md", body)
+        protocol = norm(read(os.path.join(PLUGIN, "skills", "code", "references",
+                                          "protocol.md")))
+        self.assertIn("its `README.md` (`artifacts[\"analysis.md\"]`) first, then "
+                      "only the context files", protocol)
+        for skill in ("create-impl-plan", "create-test-docs", "create-tech-design",
+                      "create-api-contract"):
+            with self.subTest(legacy=skill):
+                body = norm(skill_text.skill_contract(skill))
+                self.assertIn("a legacy single `analysis.md` is read whole", body)
 
 
 if __name__ == "__main__":

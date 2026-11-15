@@ -5,11 +5,12 @@ MAR-300 first dropped the per-iteration re-plan (plan once, then execute ->
 verify). ADR-0092 followed that to its conclusion: the doc-delta list is a
 derivation only its own writer uses, so iteration 1's doc-updater re-derives
 the doc impact from the six-input contract into its authoring notes and
-commits the doc updates from them; the drift-reviewer re-derives the impact
+writes the doc updates from them (uncommitted -- ADR-0127); the drift-reviewer re-derives the impact
 itself and judges the result fresh. The per-skill subagents replaced the
 generic executor/verifier pair with those two roles. This module pins that
 topology so a planner cannot creep back in through prose, the agents tree, or
-an agent file. Mirrors tests/acs/test_create_docs_loop_topology.py.
+an agent file. Mirrored tests/acs/test_create_docs_loop_topology.py, which
+ADR-0124 removed with its skill.
 
 Run:  python3 -m unittest tests.acs.test_docs_sync_loop_topology -v
 """
@@ -25,9 +26,12 @@ SKILL = os.path.join(PLUGIN, "skills", "docs-sync", "SKILL.md")
 AGENTS = os.path.join(PLUGIN, "agents")
 DOC_UPDATER = os.path.join(AGENTS, "docs-sync-doc-updater.md")
 DRIFT_REVIEWER = os.path.join(AGENTS, "docs-sync-drift-reviewer.md")
+GAP_ANALYST = os.path.join(AGENTS, "docs-sync-gap-analyst.md")
 sys.path.insert(0, os.path.join(PLUGIN, "hooks", "scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import acs_lib  # noqa: E402
+import skill_text  # noqa: E402
 
 
 def read(path):
@@ -39,10 +43,20 @@ def norm(body):
     return re.sub(r"\s+", " ", body)
 
 
+def contract():
+    """docs-sync's SKILL.md with its references/ inlined at their pointers:
+    the resume, integration-pass and lld procedure moved there (progressive
+    disclosure), and a pin holds wherever the sentence lives."""
+    return skill_text.skill_contract("docs-sync")
+
+
 class NoPlannerTest(unittest.TestCase):
 
-    def test_the_tree_declares_doc_updater_and_drift_reviewer_only(self):
-        self.assertEqual(acs_lib.skill_agents()["docs-sync"], ["doc-updater", "drift-reviewer"])
+    def test_the_tree_declares_doc_updater_drift_reviewer_and_gap_analyst_only(self):
+        """ADR-0137 added the gap analyst (a survey beside the doc-updaters,
+        over the feature's living LLD); still no planner."""
+        self.assertEqual(sorted(acs_lib.skill_agents()["docs-sync"]),
+                         ["doc-updater", "drift-reviewer", "gap-analyst"])
 
     def test_the_two_agent_files_exist_and_no_planner_does(self):
         self.assertTrue(os.path.isfile(DOC_UPDATER))
@@ -51,21 +65,20 @@ class NoPlannerTest(unittest.TestCase):
             self.assertFalse(os.path.exists(os.path.join(AGENTS, "docs-sync-%s.md" % role)))
 
     def test_the_prose_never_spawns_a_planner(self):
-        for path in (SKILL, DOC_UPDATER, DRIFT_REVIEWER):
-            body = read(path)
+        for body in (contract(), read(DOC_UPDATER), read(DRIFT_REVIEWER), read(GAP_ANALYST)):
             self.assertNotIn("acs:docs-sync-planner", body)
             self.assertNotIn("iter-1-plan.md", body)
             self.assertNotIn("iter-<n>-plan.md", body)
-        self.assertNotRegex(read(SKILL), r"(?i)spawn (exactly )?one .{0,40}planner")
-        self.assertNotIn('phase="plan"', read(SKILL))
+        self.assertNotRegex(contract(), r"(?i)spawn (exactly )?one .{0,40}planner")
+        self.assertNotIn('phase="plan"', contract())
 
     def test_the_prose_says_there_is_no_plan_phase(self):
-        body = norm(read(SKILL))
+        body = norm(contract())
         self.assertRegex(body, r"(?i)doc-updater → drift-reviewer")
         self.assertRegex(body, r"(?i)no planner, no plan phase")
 
     def test_no_unnegated_replan_instruction(self):
-        body = read(SKILL)
+        body = contract()
         negating = re.compile(r"(?i)never|no |not|without|instead of")
         for m in re.finditer(r"(?i)re-?plan\w*", body):
             window = body[max(0, m.start() - 60):m.end() + 60]
@@ -77,7 +90,7 @@ class DocUpdaterDriftReviewerLoopTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(SKILL)
+        cls.body = contract()
         cls.norm = norm(cls.body)
 
     def test_cap_is_three_rounds(self):
@@ -85,7 +98,7 @@ class DocUpdaterDriftReviewerLoopTest(unittest.TestCase):
         self.assertIn("After iteration 3", self.norm)
         self.assertRegex(self.norm, r"(?i)an iteration counts:\*\* one doc-updater → drift-reviewer round")
 
-    def test_iteration_one_derives_then_commits(self):
+    def test_iteration_one_derives_then_writes(self):
         self.assertRegex(self.norm, r"(?i)iteration 1'?s doc-updater re-derives the doc impact from the six inputs")
         self.assertRegex(self.norm, r"(?i)findings go verbatim into the next doc-updater `<task>` `<context>`")
 
@@ -97,9 +110,10 @@ class DocUpdaterDriftReviewerLoopTest(unittest.TestCase):
         self.assertIn('<result skill="docs-sync" phase="doc-updater"', read(DOC_UPDATER))
         self.assertIn('<result skill="docs-sync" phase="drift-reviewer"', read(DRIFT_REVIEWER))
 
-    def test_each_role_names_its_model_tier(self):
-        self.assertIn("`context.models.executor.model` / `.effort` for the doc-updater", self.norm)
-        self.assertIn("`context.models.verifier.model` / `.effort` for the drift-reviewer", self.norm)
+    def test_each_role_is_spawned_under_its_configured_agent_name(self):
+        self.assertIn("`context.agents.<role>`", self.norm)
+        self.assertIn("generated `acs-docs-sync-<role>` copy", self.norm)
+        self.assertNotIn("context.models", self.norm)
 
     def test_the_doc_updater_writes_authoring_notes_and_the_drift_reviewer_reads_them(self):
         self.assertIn("iter-<n>/authoring.md", self.body)
@@ -153,16 +167,16 @@ class DocUpdaterDriftReviewerLoopTest(unittest.TestCase):
 
 class ParallelFanOutTest(unittest.TestCase):
     """The doc-updater runs one instance per doc area from iteration 1
-    (disjoint by longest-prefix ownership, committing on the shared branch
-    with pathspec commits and an index.lock retry); the drift-reviewer's six
+    (disjoint by longest-prefix ownership, writing into one working tree and
+    never touching the index -- ADR-0127); the drift-reviewer's six
     dimensions run as three slices; both joins are `acs.py notes merge`."""
 
-    AREAS = ("requirements", "architecture", "adr", "general")
-    SLICES = {"coverage": (1, 6), "content": (2, 3), "placement": (4, 5)}
+    AREAS = ("requirements", "architecture", "lld", "adr", "general")
+    SLICES = {"coverage": (1, 6), "content": (2, 3), "placement": (4, 5, 7)}
 
     @classmethod
     def setUpClass(cls):
-        cls.skill = read(SKILL)
+        cls.skill = contract()
         cls.norm = norm(cls.skill)
         cls.doc_updater = read(DOC_UPDATER)
         cls.drift_reviewer = read(DRIFT_REVIEWER)
@@ -177,16 +191,22 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertRegex(self.norm, r"(?i)\*\*longest matching prefix\*\*, and to `general` when none matches")
         self.assertRegex(self.norm, r"(?i)two doc-updaters can never write the same file")
 
-    def test_shared_branch_commits_are_pathspec_scoped_with_lock_retry(self):
+    def test_one_working_tree_and_no_git_writes(self):
+        """ADR-0127: the doc-updaters write, list their paths in `files`,
+        and never stage or commit -- /acs:create-pr is the only committer,
+        so there is no index.lock race left to retry."""
         for body in (self.norm, norm(self.doc_updater)):
-            self.assertIn('git commit -m "<msg>" -- <paths>', body)
-            self.assertRegex(body, r"(?i)never `git add -A`, `git add \.` or `git commit -a`")
-            self.assertRegex(body, r"(?i)`index\.lock` contention .{0,120}wait briefly and retry the same command")
-            self.assertRegex(body, r"(?i)never delete the lock, never force anything")
+            self.assertNotIn("git commit -m", body)
+            self.assertNotIn("index.lock", body)
+            self.assertRegex(body, r"report's `files`")
+        self.assertIn("**One working tree, no git writes.**", self.norm)
+        self.assertRegex(self.norm, r"(?i)none stages, commits, stashes or touches a branch")
+        self.assertRegex(norm(self.doc_updater),
+                         r"NEVER `git add`, `git commit`, `git stash` or push")
 
     def test_every_instance_of_a_phase_spawns_in_one_message_under_the_cap(self):
         self.assertRegex(self.norm, r"(?i)spawn every instance of a phase in ONE message")
-        self.assertIn("`max_parallel = 4`", self.norm)
+        self.assertIn("`settings.parallel.max_agents` (default 4) instances per message", self.norm)
 
     def test_both_joins_use_notes_merge(self):
         self.assertIn('acs.py" notes merge', self.skill)
@@ -194,7 +214,7 @@ class ParallelFanOutTest(unittest.TestCase):
         self.assertIn("<partition>/steps/docs-sync/iter-<n>/drift-reviewer.md", self.norm)
         self.assertRegex(self.norm, r"(?i)never by merging prose yourself")
 
-    def test_drift_review_slices_cover_the_six_dimensions_once(self):
+    def test_drift_review_slices_cover_the_seven_dimensions_once(self):
         seen = []
         for slice_id, dims in self.SLICES.items():
             row = re.search(r"(?m)^\| `%s` \| ([^|]+)\|" % slice_id, self.skill)
@@ -202,7 +222,7 @@ class ParallelFanOutTest(unittest.TestCase):
             got = tuple(int(n) for n in re.findall(r"\b(\d)\b", row.group(1)))
             self.assertEqual(got, dims)
             seen.extend(got)
-        self.assertEqual(sorted(seen), list(range(1, 7)))
+        self.assertEqual(sorted(seen), list(range(1, 8)))
 
     def test_pass_rule_requires_every_slice(self):
         self.assertRegex(self.norm, r"(?i)passes only if EVERY slice returned `status=\"completed\"` with zero blocking findings")
@@ -235,7 +255,7 @@ class ParallelFanOutTest(unittest.TestCase):
                      "**each area's \"Out-of-area impact\" notes**"):
             self.assertIn(seam, self.skill)
         self.assertRegex(self.norm, r"(?i)every out-of-area item must be applied by the owning area or explicitly resolved")
-        self.assertRegex(self.norm, r"(?i)It commits only the seam files, with the same pathspec rule")
+        self.assertRegex(self.norm, r"(?i)It writes only the seam files, lists them in its report like the areas, commits nothing")
         self.assertRegex(self.norm, r"(?i)It never rewrites an area'?s substance")
 
     def test_integration_pass_synthesizes_contradictions(self):
@@ -274,19 +294,24 @@ class ParallelFanOutTest(unittest.TestCase):
 
 
 class StateFragmentTest(unittest.TestCase):
-    """`states.docs_committed` is the list of paths SKILL.md and the
-    post-hook's result carry, not a boolean; `commits` and `review` are
-    declared beside it."""
+    """`states.files` is the list of doc paths docs-sync wrote and left
+    uncommitted for /acs:create-pr (ADR-0127), not a boolean; `review` is
+    declared beside it. `docs_committed` and `commits` are gone: nothing is
+    committed here any more."""
 
-    def test_docs_committed_is_an_array_of_paths(self):
+    def test_files_is_an_array_of_paths(self):
         import json
         with open(os.path.join(PLUGIN, "skills", "docs-sync", "state.schema.json"), encoding="utf-8") as fh:
             states = json.load(fh)["properties"]["states"]["properties"]
-        self.assertEqual(states["docs_committed"]["type"], "array")
-        self.assertEqual(states["docs_committed"]["items"], {"type": "string"})
-        self.assertEqual(states["commits"]["type"], "array")
+        self.assertEqual(states["files"]["type"], "array")
+        self.assertEqual(states["files"]["items"], {"type": "string"})
+        self.assertEqual(states["implemented"], dict(states["implemented"], type="array",
+                                                     items={"type": "string"}))
+        self.assertNotIn("docs_committed", states)
+        self.assertNotIn("commits", states)
         self.assertEqual(set(states["review"]["properties"]), {"iterations", "findings_open", "guard_denials"})
-        self.assertIn('"docs_committed": ["docs/api/import.md", "README.md"]', read(SKILL))
+        self.assertIn('"files": ["docs/api/import.md", "README.md"]', contract())
+        self.assertNotIn("docs_committed", contract())
 
 
 class DriftReviewerIndependenceUnchangedTest(unittest.TestCase):
@@ -295,7 +320,7 @@ class DriftReviewerIndependenceUnchangedTest(unittest.TestCase):
     list as the definition of completeness."""
 
     def test_skill_review_phase_keeps_independent_rederivation_clause(self):
-        body_norm = norm(read(SKILL))
+        body_norm = norm(contract())
         self.assertIn("re-derives doc impact from the same six-input contract itself", body_norm)
         self.assertIn("not exempt from the independent-re-derivation rule", body_norm)
 
@@ -305,7 +330,7 @@ class DriftReviewerIndependenceUnchangedTest(unittest.TestCase):
         self.assertIn("do not just read the notes' own claims", body)
 
     def test_six_input_contract_still_read_by_every_phase(self):
-        body_norm = norm(read(SKILL))
+        body_norm = norm(contract())
         self.assertIn("every phase (doc-updater and drift-reviewer alike) reads all six, independently", body_norm)
         doc_updater = norm(read(DOC_UPDATER))
         self.assertIn("the six-input contract below", doc_updater)

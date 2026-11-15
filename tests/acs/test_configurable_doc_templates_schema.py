@@ -11,7 +11,9 @@ Mirrors the already-shipped `pr_description_template` /
 The load-bearing invariant (AC-4): with NO `*_template` key set, the default
 section lists are byte-identical to today's hardcoded `required_sections`
 literal, so create-design/create-spec output and the structure gate are
-unchanged. `test_design_sections_default_byte_identical_to_skill_literal` proves
+unchanged. ADR-0135 renamed create-design to create-tech-design and changed
+the template's six headings to the hand-off sections; the invariant -- the
+skill's literal IS the template's headings -- is unchanged. `test_design_sections_default_byte_identical_to_skill_literal` proves
 default == today's literal.
 
 Stdlib-only (json, os, re, html, unittest) — no `jsonschema` import, mirroring
@@ -25,28 +27,32 @@ import html
 import json
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
 SCHEMA_PATH = os.path.join(PLUGIN, "schemas", "settings.schema.json")
 DESIGN_TEMPLATE_PATH = os.path.join(PLUGIN, "templates", "design-default.md")
-CREATE_DESIGN_SKILL = os.path.join(PLUGIN, "skills", "create-design", "SKILL.md")
+CREATE_DESIGN_SKILL = "create-tech-design"  # read through skill_text: the literal lives in references/
 CHANGELOG_PATH = os.path.join(PLUGIN, "CHANGELOG.md")
 C4_CONTAINER_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
-CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+CONTRACTS_PATH = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api", "settings.md")
 ADR_PATH = os.path.join(
-    REPO_ROOT, "docs", "adr",
+    REPO_ROOT, "docs", "architecture", "adr",
     "0065-configurable-design-spec-templates-byte-identical-defaults.md",
 )
 
 DESIGN_HEADINGS = [
-    "Context & constraints",
-    "Options considered",
-    "Decision & rationale",
-    "Architecture",
-    "Impact & risks",
-    "Rollout/migration",
+    "Decision & options",
+    "HLD views affected",
+    "LLD",
+    "NFRs",
+    "Risks",
+    "Open questions",
 ]
 
 
@@ -70,72 +76,29 @@ def heading_lines(text):
     return out
 
 
-class TestFormatsTemplateKeys(unittest.TestCase):
-    """AC-1: the two formats.*_template keys are declared with the right defaults."""
+class TestDesignSectionsAreDerivedFromTheTemplate(unittest.TestCase):
+    """The design structure gate's required sections are the built-in template's
+    own headings (there is no section-list setting any more), so the skill's
+    required_sections literal must equal them."""
 
-    @classmethod
-    def setUpClass(cls):
-        cls.formats = load_json(SCHEMA_PATH)["properties"]["formats"]
-
-    def test_design_template_declared_default_design_default(self):
-        props = self.formats["properties"]
-        self.assertIn("design_template", props)
-        self.assertEqual(props["design_template"].get("default"), "design-default")
-
-    def test_formats_block_stays_closed(self):
-        # additionalProperties:false is exactly why the two keys MUST be declared.
-        self.assertIs(self.formats.get("additionalProperties"), False)
-
-    def test_formats_description_lists_new_builtin_names(self):
-        desc = self.formats.get("description", "")
-        self.assertIn("design-default", desc)
-
-
-class TestEnforcementSectionKeys(unittest.TestCase):
-    """AC-3/AC-4: the two enforcement.*_sections companions + exact-order defaults."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.enforcement = load_json(SCHEMA_PATH)["properties"]["enforcement"]
-
-    def test_design_sections_default_exact_and_ordered(self):
-        prop = self.enforcement["properties"]["design_sections"]
-        self.assertEqual(prop.get("default"), DESIGN_HEADINGS)
-
-    def test_section_keys_typed_as_string_arrays(self):
-        for key in ("design_sections",):
-            prop = self.enforcement["properties"][key]
-            self.assertEqual(prop.get("type"), "array")
-            self.assertEqual(prop.get("items"), {"type": "string"})
-
-    def test_section_descriptions_mention_defaulted_from(self):
-        for key in ("design_sections",):
-            desc = self.enforcement["properties"][key].get("description", "")
-            self.assertIn("defaulted from", desc)
-
-    def test_enforcement_block_stays_open(self):
-        self.assertIs(self.enforcement.get("additionalProperties"), True)
-
-
-class TestByteIdenticalDefaults(unittest.TestCase):
-    """AC-4: default section lists == today's hardcoded required_sections literal."""
-
-    def test_design_sections_default_byte_identical_to_skill_literal(self):
-        default = load_json(SCHEMA_PATH)["properties"]["enforcement"]["properties"][
-            "design_sections"
-        ]["default"]
-        skill = read_text(CREATE_DESIGN_SKILL)
+    def test_the_skill_literal_equals_the_template_headings(self):
+        skill = skill_text.skill_contract(CREATE_DESIGN_SKILL)
         m = re.search(
             r'<constraint name="required_sections">(.*?)</constraint>',
             skill,
             re.DOTALL,
         )
-        self.assertIsNotNone(m, "create-design SKILL must keep the required_sections literal")
+        self.assertIsNotNone(m, "create-tech-design SKILL must keep the required_sections literal")
         # The literal is HTML-encoded (&amp;) and may wrap across lines inside the
         # XML example — unescape and collapse whitespace before comparing.
-        literal = html.unescape(m.group(1))
-        literal = re.sub(r"\s+", " ", literal).strip()
-        self.assertEqual(literal, "; ".join(default))
+        literal = re.sub(r"\s+", " ", html.unescape(m.group(1))).strip()
+        self.assertEqual(literal, "; ".join(DESIGN_HEADINGS))
+
+    def test_the_schema_declares_no_template_or_section_settings(self):
+        schema = load_json(SCHEMA_PATH)
+        self.assertNotIn("formats", schema["properties"])
+        self.assertNotIn("enforcement", schema["properties"])
+
 
 class TestBuiltinTemplateFiles(unittest.TestCase):
     """AC-2: the two built-in template files encode today's EXACT headings/order."""
@@ -159,17 +122,12 @@ class TestArchitectureDocs(unittest.TestCase):
         count = len([n for n in os.listdir(templates) if n.endswith(".md")])
         self.assertIn("%d description templates" % count, text)
 
-    def test_contracts_lists_all_four_new_keys(self):
-        """Narrowed to the two surviving keys (MAR-161/ADR-0066): MAR-156
-        retired `formats.spec_template`/`enforcement.spec_sections` from the
-        schema along with the deleted create-spec skill, and MAR-161 swept
-        contracts.md's Settings paragraph to stop documenting them."""
+    def test_contracts_documents_no_removed_keys_as_live(self):
+        """contracts.md's Settings paragraph says there is no formats or
+        enforcement block, and names the template-by-name convention."""
         text = read_text(CONTRACTS_PATH)
-        for key in (
-            "formats.design_template",
-            "enforcement.design_sections",
-        ):
-            self.assertIn(key, text)
+        self.assertIn("There is no `formats` or `enforcement` block", text)
+        self.assertIn(".acs/templates/design-default.md", text)
 
 
 class TestAdrAndChangelog(unittest.TestCase):

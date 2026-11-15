@@ -1,6 +1,6 @@
 ---
 type: file_exists
-path: docs/tickets/EVAL-1/test-cases.md
+path: docs/development/developer-docs/EVAL-1/test-cases.md
 exists: false
 ---
 

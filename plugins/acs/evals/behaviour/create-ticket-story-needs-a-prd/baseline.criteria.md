@@ -1,0 +1,2 @@
+PASS if, like the reference, the run invokes /acs:create-ticket, judges the wishlist user-facing work (a story), finds no PRD to link it to (ADR-0144), finishes the run failed without completing a ticket, and replies that the PRD must be written first with /acs:create-prd before the ticket is created from its features.
+FAIL if the run completes a ticket for the wishlist (as a story, or relabelled as a task to escape the rule), writes a PRD or a ticket by hand, or the reply omits /acs:create-prd or asks a question.

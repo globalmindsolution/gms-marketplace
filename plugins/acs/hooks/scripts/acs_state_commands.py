@@ -63,9 +63,16 @@ def cmd_run_next(args):
     `due` -- every unfinished step of the stage it is in, which is more than
     one only for a parallel group. With no `needs:` graph there is nothing to
     traverse and nothing to record as skipped."""
-    if args.run is None and (args.ticket or args.prompt or args.document):
+    subject_given = bool(args.ticket or args.prompt or args.document
+                         or getattr(args, "args", None))
+    if args.run is None and subject_given:
         args.run = _run_for_subject(args)
     _rdir, doc, _ctx, wf = _resolve_run("run next", args.run)
+    if subject_given:
+        # /acs:ship's entry call names the subject: the run is now being
+        # DELIVERED (its analysis files on the Development side, ADR-0128),
+        # and the invocation's sources are recorded for its first step.
+        doc = _ship_drives(_rdir, doc, _ctx, getattr(args, "args", None))
     cursor = lib.cursor(doc, wf)
     # `due` is every step `/acs:ship` starts now: one for a plain stage, each
     # unfinished member for a parallel group. `next` stays the first of them.
@@ -73,7 +80,25 @@ def cmd_run_next(args):
     emit({"ok": True, "run_id": doc["run_id"], "next": cursor,
           "due": due, "parallel": len(due) > 1,
           "status": doc.get("status"),
-          "done": cursor is None})
+          "done": cursor is None,
+          "args": getattr(args, "args", None) or _subject_args(doc)})
+
+
+def _subject_args(doc):
+    """The argument text /acs:ship passes a step: the run's ticket id, or its
+    prompt or document (every subject kind -- the step re-reads the run's
+    requirements either way, and a repeated source is a no-op)."""
+    subject = doc.get("subject") or {}
+    return subject.get("ticket_id") or subject.get("path") or subject.get("text") or ""
+
+
+def _ship_drives(rdir, doc, ctx, text):
+    """Mark the run `driver: ship` (once) and record the invocation's sources."""
+    if doc.get("driver") != "ship":
+        doc["driver"] = "ship"
+        lib.save_run(rdir, doc)
+    lib.record_requirements(ctx, rdir, text or "", "ship")
+    return doc
 
 
 def _run_for_subject(args):
@@ -99,11 +124,6 @@ def _run_for_subject(args):
         if row:
             lib.point_checkout_at(ctx, row["run_id"])
             return row["run_id"]
-        tdir, _archived = lib.find_ticket_partition(ctx["workspace"], ctx["repo_id"],
-                                                   subject["ticket_id"])
-        if not os.path.isdir(tdir):
-            die("run next", "no ticket %s in this repo's workspace — run "
-                            "/acs:create-ticket to make one." % subject["ticket_id"])
     try:
         resolved = lib.resolve_workflow(ctx.get("checkout_root"))
         wf = lib.validate_workflow_file(resolved["path"])
@@ -157,24 +177,38 @@ def cmd_run_new(args):
     except (lib.WorkflowError, lib.GateError) as exc:
         die("run new", str(exc))
     lib.point_checkout_at(ctx, run_id)
+    lib.record_requirements(ctx, rdir, "")
     emit({"ok": True, "run_id": run_id, "path": rdir, "subject": subject,
           "cursor": doc.get("cursor")})
 
 
 def _subject_from_args(args, command="run new"):
-    if args.ticket:
-        return {"kind": "ticket", "ticket_id": args.ticket}
-    if args.document:
-        import hashlib
-        try:
-            with open(args.document, "rb") as fh:
-                digest = hashlib.sha256(fh.read()).hexdigest()
-        except OSError as exc:
-            die(command, "cannot read %s: %s" % (args.document, exc))
-        return {"kind": "document", "path": args.document, "sha256": digest}
-    if args.prompt:
-        return {"kind": "prompt", "text": args.prompt}
-    die(command, "give a subject: --ticket, --prompt or --document.")
+    """The run's subject from the subject flags, through the same
+    `requirements` parsing the pre-hook uses (ADR-0128): `--args` takes a raw
+    invocation -- ticket ids, documents and a prompt, mixed -- and the single
+    flags build the one source they name."""
+    ctx = context_or_die(command)
+    reqs = lib.requirements
+    if getattr(args, "args", None):
+        subject = reqs.subject_from_text(args.args, ctx)
+    elif args.ticket:
+        subject = reqs.primary_subject([{"kind": "ticket", "ticket_id": args.ticket}])
+    elif args.document:
+        source = reqs._document(args.document, ctx)
+        if source is None:
+            die(command, "cannot read %s: no such file" % args.document)
+        subject = reqs.primary_subject([source])
+    elif args.prompt:
+        subject = reqs.primary_subject([{"kind": "prompt", "text": args.prompt}])
+    else:
+        subject = None
+    if subject is None:
+        die(command, "give a subject: --ticket, --prompt, --document or --args.")
+    try:
+        reqs.check_tickets(ctx, reqs.sources_of(subject), command.split()[-1])
+    except lib.GateError as exc:
+        die(command, str(exc))
+    return subject
 
 
 # ---------------------------------------------------------------------------
@@ -277,14 +311,12 @@ def _allocate_delivery_ticket(args, ctx):
     the one thing `acs step start` does beyond the two state machines.
     """
     workspace, repo_id = ctx["workspace"], ctx["repo_id"]
-    if args.doc_set and args.step != "create-docs":
-        die("step start", "--doc-set is only valid with --step create-docs")
     if args.step not in lib.DELIVERY_TICKET_SKILLS and args.step != "create-ticket":
-        die("step start", "--allocate is only valid for /acs:create-ticket and the "
-                          "product-level skills")
-    if args.step == "create-docs" and not args.doc_set:
-        die("step start", "--step create-docs --allocate needs --doc-set <%s>: each "
-                          "run delivers exactly one doc set" % "|".join(sorted(lib.DOC_SETS)))
+        die("step start", "--allocate is only valid for /acs:create-ticket. Since "
+                          "ADR-0127 the product-level skills mint no delivery ticket: "
+                          "they run ticketless (`acs.py step start --step %s`) and "
+                          "/acs:create-pr commits their documents, given a prompt"
+            % args.step)
 
     existing_id = _resume_id_for_allocate(args, ctx)
     if existing_id:
@@ -316,12 +348,9 @@ def _allocate_delivery_ticket(args, ctx):
                           "re-run once the other writer finishes." % exc)
     tdir = lib.ticket_dir(workspace, repo_id, ticket_id)
     os.makedirs(tdir, exist_ok=True)
-    title = args.title or (lib.DOC_SET_TITLES[args.doc_set] if args.doc_set
-                           else lib.DELIVERY_TICKET_TITLES.get(args.step,
-                                                               "(ticket under analysis)"))
+    title = args.title or lib.DELIVERY_TICKET_TITLES.get(args.step, "(ticket under analysis)")
     ttype = "task" if args.step in lib.DELIVERY_TICKET_SKILLS else args.ttype
-    ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress",
-                                doc_set=args.doc_set)
+    ticket = lib.new_ticket_doc(ticket_id, title, ttype, status="in_progress")
     lib.save_ticket(tdir, ticket)
     try:
         lib.update_index(workspace, repo_id, ticket, archived=False)
@@ -360,13 +389,18 @@ def _brake_or_die(ctx, step, rdir, doc, wf=None):
 
 
 def _run_from_invocation(ctx, step, text):
-    """The run id the pre-hook would have opened for `/acs:<step> <text>`;
-    None for a skill that is not a step (it needs no run from its args)."""
+    """The run id the pre-hook would have opened for `/acs:<step> <text>`.
+    A skill that is not a step (create-api-contract, create-data-design,
+    create-flows, create-tech-design) gets one too, over the same subject: its requirements need
+    a run to be recorded in (ADR-0128)."""
     payload = {"tool_input": {"args": text}, "cwd": os.getcwd()}
     try:
         wf = lib.workflow_for(ctx)
+        reqs = lib.requirements
+        reqs.check_tickets(ctx, reqs.parse_sources(text, ctx), step)
         if not lib.workflow.has_step(wf, step):
-            return None
+            _rdir, doc, _wf = lib.resolve_run_for(ctx, step, payload, mutate=True)
+            return doc["run_id"]
         rdir, doc, wf = lib.resolve_run_for(ctx, step, payload, mutate=False)
         _brake_or_die(ctx, step, rdir, doc, wf)
         _rdir, doc, _wf = lib.resolve_run_for(ctx, step, payload, mutate=True)
@@ -375,32 +409,81 @@ def _run_from_invocation(ctx, step, text):
     return doc["run_id"]
 
 
+def _standalone_run(ctx, step, text):
+    """The run a ticketless skill records itself in: the Audit skills
+    (ADR-0122/0123) and, since ADR-0127, the product skills. Such a skill has
+    no ticket and is not a workflow step, so no hook opens one: resume this
+    checkout's current run when it is live and carries no workflow step (an
+    interrupted run of it, or one a caller opened with `acs run new`), else
+    open a run over the invocation and point the checkout at it. The
+    post-hook concludes it."""
+    repo = lib.repo_dir(ctx["workspace"], ctx["repo_id"])
+    current = lib.current_run_id(ctx)
+    if current:
+        doc = lib.load_run(lib.run_dir(repo, current)) or {}
+        subject = doc.get("subject") or {}
+        opened_by = str(subject.get("text") or "")
+        # Never another ticketless skill's run: a run opened over
+        # `/acs:<other> ...` belongs to that skill (one a caller opened with
+        # `acs run new` names no skill and may be adopted).
+        others = (opened_by.startswith("/acs:")
+                  and opened_by.split()[0] != "/acs:%s" % step)
+        if (doc.get("status") not in lib.TERMINAL_RUN_STATUSES and not doc.get("steps")
+                and subject.get("kind") != "ticket" and not others):
+            return current
+    default = "all" if step in lib.AUDIT_SKILLS else ""
+    subject = {"kind": "prompt",
+               "text": ("/acs:%s %s" % (step, (text or "").strip() or default)).strip()}
+    try:
+        resolved = lib.resolve_workflow(ctx.get("checkout_root"))
+        wf = lib.validate_workflow_file(resolved["path"])
+        run_id, _rdir, _doc = lib.create_run(repo, subject, wf, resolved["path"])
+    except (lib.WorkflowError, lib.GateError) as exc:
+        die("step start", str(exc))
+    lib.point_checkout_at(ctx, run_id)
+    return run_id
+
+
+#: The name it had while only the Audit skills ran this way.
+_audit_run = _standalone_run
+
+
+def _record_baseline(rdir, ctx, step=None):
+    """The run's baseline (ADR-0127), recorded once, at its first step start:
+    the HEAD it began from and the paths already dirty then. Fail-soft -- a
+    baseline that cannot be taken (no git, a broken index) is a warning, never
+    a refused start; `changes diff` then asks for --since."""
+    root = ctx.get("checkout_root")
+    if not root or lib.changes.load_baseline(rdir) is not None:
+        return
+    try:
+        lib.changes.record_baseline(rdir, root, first_step=step)
+    except (lib.GateError, OSError) as exc:
+        sys.stderr.write("acs step start: no baseline recorded for %s: %s\n"
+                         % (os.path.basename(rdir), exc))
+
+
 def cmd_step_start(args):
     """step -> in_progress, after the invariants hold. Writer for the
     PreToolUse(Skill) transition."""
-    # The gate verdict FIRST, and the refusal with it. Under
-    # `hook_gates.when_absent: refuse` a run with no evidence that the gates
-    # fired is blocked BEFORE any partition, lock, pointer or ledger write, so
-    # a refused run leaves nothing to unwind and no invocation carrying a
-    # verdict nobody acted on.
+    # The gate verdict FIRST, and the refusal with it, BEFORE any partition,
+    # lock, pointer or ledger write, so a refused run leaves nothing to unwind.
+    # A run with NO evidence that the gates fired only warns (the notice is in
+    # the context document): the evidence write is fail-open, so its absence
+    # cannot tell a hookless host from a failed write.
     ctx = context_or_die("step start")
     evidence, verdict = lib.gate_evidence(ctx, args.step)
-    if verdict.get("response") == "refuse" and not verdict.get("gated"):
-        notice = lib.gate_notice(verdict)
-        if notice:
-            sys.stderr.write(notice + "\n")
-        sys.exit(2)
     if verdict.get("reason") == "gate_refused":
-        # The hook fired AND refused. Whatever `when_absent` says, that is not
-        # an absence to warn about: it is a refusal, and starting the step
-        # anyway is exactly what the refusal exists to prevent.
+        # The hook fired AND refused. That is not an absence to warn about: it
+        # is a refusal, and starting the step anyway is exactly what the
+        # refusal exists to prevent.
         sys.stderr.write(lib.gate_notice(verdict) + "\n")
         sys.exit(2)
     if getattr(args, "pr", None):
         return _exempt_pr_start(args, ctx, verdict)
     subject_gate = lib.SUBJECT_GATES.get(args.step)
     if subject_gate:
-        # The pre-hook's subject gates (create-design's needs_design flag,
+        # The pre-hook's subject gates (create-tech-design's requirements,
         # merge-pr's recorded PR), re-applied: without the hook they were
         # never checked at all.
         text = args.args or args.ticket or args.run or ""
@@ -439,6 +522,8 @@ def cmd_step_start(args):
         _brake_or_die(ctx, args.step, rdir, lib.load_run(rdir) or {
             "run_id": ticket_id, "subject": {"kind": "ticket", "ticket_id": ticket_id}})
         _ensure_run_for_ticket(ctx, ticket_id)
+    elif args.step in lib.STANDALONE_RUN_SKILLS and not args.run:
+        args.run = _standalone_run(ctx, args.step, getattr(args, "args", None))
     elif getattr(args, "args", None) and not args.run and not lib.current_run_id(ctx):
         # The invocation's own arguments name the subject and no hook opened a
         # run over it (a host that never fires PreToolUse(Skill)). Resolve it
@@ -449,6 +534,12 @@ def cmd_step_start(args):
     in_workflow = _require_step(wf, args.step, "step start")
     if in_workflow:
         _brake_or_die(ctx, args.step, rdir, doc, wf)
+    try:
+        # A ticket the arguments name must exist before anything is written.
+        lib.requirements.check_tickets(
+            ctx, lib.requirements.parse_sources(getattr(args, "args", None), ctx), args.step)
+    except lib.GateError as exc:
+        die("step start", str(exc))
     try:
         # The lock, before the transition. This is the WRITER for `in_progress`
         # (§4.3), and a transition written without the lock is exactly the
@@ -480,6 +571,10 @@ def cmd_step_start(args):
         # that never fired the hook -- which is why the run reports itself
         # degraded rather than pretending either way.
         lib.append_invocation(rdir, args.step, doc["run_id"], gate=verdict)
+        _record_baseline(rdir, _ctx, args.step)
+        # The run's requirements, on hookless hosts too: sources.json, the
+        # copies of outside documents, requirements.md (ADR-0128).
+        lib.record_requirements(ctx, rdir, getattr(args, "args", None) or "", args.step)
         if evidence is not None:
             lib.consume_gate_evidence(ctx, evidence)
         lib.point_checkout_at(ctx, doc["run_id"], args.step)
@@ -504,14 +599,22 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
     It replaces the one `skill-start.py` printed before that script was
     removed, and it is the same document for every skill
     (§3.11): one resolution, printed once, rather than a per-skill assembly
-    each gate had its own copy of. `ticket` and `design` are present only when
-    the run's SUBJECT is a ticket -- a run started from a prompt or a document
-    has neither, and inventing empty ones would read as "no design required"
-    rather than "not that kind of run".
+    each gate had its own copy of. `ticket` is present only when the run's
+    SUBJECT is a ticket -- a run started from a prompt or a document has none.
+    `design` is always present: `{exists, dir, source}`, the tech design found
+    for the run (its own, else its ticket's parent epic's; ADR-0139), which a
+    skill reads when `exists` and otherwise proceeds without. `references` is
+    always present too: the run's documents found in the standard layout
+    (ADR-0140), [] when there are none.
     """
     entry = lib.step_entry(doc, step)
     subject = doc.get("subject") or {}
     ticket_id = subject.get("ticket_id")
+    # The agents this step's coordinator spawns, after the generated copies are
+    # made to match settings.models. Done once, at Start, so a settings edit
+    # takes effect on the next step with nothing to remember.
+    agents = lib.agent_sync.sync_for_step(
+        ctx["settings"], ctx.get("checkout_root") or os.getcwd(), step)
     out = {
         "ok": True,
         "run_id": doc["run_id"],
@@ -531,20 +634,29 @@ def _start_context(ctx, rdir, doc, step, wf, in_workflow, gate,
         "plugin_root": ctx["plugin_root"],
         "settings": ctx["settings"],
         "settings_sources": ctx["settings_sources"],
-        "models": (ctx["settings"].get("models") or {}),
+        "agents": agents["agents"],
+        "agents_sync": {"sync": agents["sync"], "error": agents["error"]},
         "reconcile": reconcile,
         "handoff_summary": handoff_summary,
         "prior_status": prior_status,
         "gate_enforcement": gate,
     }
+    out["requirements"] = lib.requirements.summary(rdir, ctx, doc)
+    tdir, ticket = None, None
     if ticket_id:
         tdir, _archived = lib.find_ticket_partition(
             ctx["workspace"], ctx["repo_id"], ticket_id)
         ticket = lib.load_ticket(tdir)
         if isinstance(ticket, dict):
             out["ticket"] = ticket
-            required, design_dir, source = lib.design_requirement(ctx, tdir, ticket)
-            out["design"] = {"required": required, "dir": design_dir, "source": source}
+    # The tech design that applies, if one exists (ADR-0139): found, never
+    # required -- the run's or ticket's own, else its parent epic's.
+    exists, design_dir, source = lib.design_source(ctx, tdir, ticket, rdir)
+    out["design"] = {"exists": exists, "dir": design_dir, "source": source}
+    # The documents the run's subject has in the standard layout (ADR-0140):
+    # read the relevant ones, never search the repo for them. The same list
+    # requirements.md renders under `## References`.
+    out["references"] = lib.requirements.run_references(ctx, rdir, doc)
     return out
 
 
@@ -608,7 +720,7 @@ def _require_step(wf, step, command):
     argparse enum that was the closed skill list in its fourth place.
 
     Returns True when the workflow names it. A skill the workflow does not name
-    is not an error: `/acs:standardize-project` and the product skills are real
+    is not an error: the product skills are real
     skills with real state, invoked on their own (§3.11). They keep their step
     state -- the two machines are separate, which is what makes this possible
     -- and record no run transition, because they have no position in a run and

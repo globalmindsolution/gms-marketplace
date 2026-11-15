@@ -17,8 +17,8 @@ def IDEAL(ws):
 BAD = {
     "installed every gate": lambda ws: (
         ws.skill("setup"),
-        ws.setup_apply({"tests": {"command": "python3 -m pytest -q --cov=src "
-                                             "--cov-fail-under=$ACS_COVERAGE"}},
+        ws.setup_apply({"tests": {"unit": {"command": "python3 -m pytest -q --cov=src "
+                                                    "--cov-fail-under=$ACS_COVERAGE"}}},
                        ["conventions", "tests", "e2e"])),
     "copied the workflow without its runner": lambda ws: (
         ws.skill("setup"),
@@ -26,7 +26,7 @@ BAD = {
               % PLUGIN)),
     "rewrote the suite while installing the gate": lambda ws: (
         IDEAL(ws), ws.write(".acs/settings.json",
-                            '{\n  "ticket_prefix": "EVAL",\n  "e2e": {"command": "pytest e2e"}\n}\n')),
+                            '{\n  "ticket_prefix": "EVAL",\n  "tests": {"e2e": {"command": "pytest e2e"}}\n}\n')),
     "described the gate and installed nothing": lambda ws: (
         ws.skill("setup"), setattr(ws, "reply", "Required check: E2E suite.")),
 }

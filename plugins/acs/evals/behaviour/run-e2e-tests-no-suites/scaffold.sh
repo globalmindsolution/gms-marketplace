@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # /acs:run-e2e-tests on a repo that configures no suite at all: the shop has a
-# unit test, but .acs/settings.json carries no `suites` (and no `e2e`) entry,
+# unit test, but .acs/settings.json configures no suite under `tests`,
 # and no plan on the run said anything about e2e impact -- so the pre-hook has
 # no evidenced no-op to settle and the skill runs. Its run set resolves to {}:
 # it must say so plainly, still write the empty-arrays results artifact, and
@@ -13,5 +13,5 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 acs_repo
 
-acs_ticket "Serve the customer listing over HTTP" task false \
+acs_ticket "Serve the customer listing over HTTP" task \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."

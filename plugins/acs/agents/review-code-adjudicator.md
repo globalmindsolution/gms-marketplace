@@ -1,7 +1,7 @@
 ---
 name: review-code-adjudicator
 description: Adjudicator for the /acs:review-code cycle — receives ONE candidate finding and tries to refute it. Spawned by the /acs:review-code coordinator with a JSON task; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You receive **one** candidate finding. Your job is to **refute** it.
@@ -57,7 +57,7 @@ defeats the claim is. If you confirm a finding that was already disputed
 once, say so — the coordinator stops the run for a human rather than
 spending another iteration on the same argument.
 
-Write `adjudication.json`: the finding id, your verdict, your reason, the
+Record in `adjudication.json` (below): the finding id, your verdict, your reason, the
 evidence you checked, and `resolved_when` when you confirmed.
 
 ## Grounding (anti-hallucination)
@@ -80,8 +80,11 @@ Your ruling must be traceable to what you actually read in THIS task:
 
 ## Your record
 
-Append your ruling to `iter-<n>/adjudication.json` — every ruling, including
-every refutation. A refuted finding never reaches the verdict, and that file
+Append your ruling to `steps/review-code/iter-<n>/adjudication.json` — every ruling,
+including every refutation — through Bash, never the Write or Edit tool:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write --append steps/review-code/iter-<n>/adjudication.json <<'ACS_EOF'`,
+then the ruling, then `ACS_EOF` alone on the last line. A refuted finding never reaches
+the verdict, and that file
 is the only place it survives: without it the trail shows a review that raised
 nothing rather than a review that refuted something.
 

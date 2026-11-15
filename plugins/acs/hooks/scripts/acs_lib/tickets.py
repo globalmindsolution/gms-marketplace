@@ -11,25 +11,38 @@ import os
 import re
 import sys
 
-from ._common import (GateError, ReconciliationRequired, TICKET_ID_RE,
-    now_iso, read_json, write_json)
+from ._common import (BUG_FIELDS, BUG_SEVERITIES, GateError, ReconciliationRequired,
+    TICKET_ID_RE, TICKET_TYPES, now_iso, read_json, write_json)
 from .repo import (_guarded_repo_write, index_path, repo_dir, repo_guard,
     scan_local_ticket_evidence, ticket_dir)
 from . import artifacts
 
 def load_ticket(tdir):
     """The ticket dict, status included. Routed through acs_lib.artifacts:
-    ticket.md from the docs tree when the ticket lives there (status derived
-    from the ledger), else ticket.json -- so every partition built with a
-    ticket.json keeps reading exactly as before."""
+    the partition's ticket.json, else (legacy, ADR-0090) a ticket.md in the
+    docs tree with its status derived from the ledger."""
     return artifacts.load_ticket(tdir)
 
 
 def save_ticket(tdir, ticket):
-    """Stamp updated_at and write the ticket where it lives: ticket.md when
-    the docs tree is active for this checkout and the ticket is (or is new to)
-    the tree, else ticket.json as before. acs_lib.artifacts decides which."""
+    """Stamp updated_at and write the partition's ticket.json -- a ticket's one
+    home since ADR-0128 (never the repo's docs tree)."""
     artifacts.save_ticket(tdir, ticket)
+
+
+#: A PRD feature's slug, as `acs.py slug --text "<feature name>"` makes it.
+FEATURE_SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+
+def parse_features(text):
+    """'wishlist, checkout' -> ['wishlist', 'checkout'] (deduplicated, in order).
+    Raises GateError naming any entry that is not a feature slug."""
+    names = list(dict.fromkeys(n.strip() for n in (text or "").split(",") if n.strip()))
+    bad = [n for n in names if not FEATURE_SLUG_RE.match(n)]
+    if bad:
+        raise GateError("features must be PRD feature slugs (lowercase words joined by "
+                        "'-', as `acs.py slug` makes them); got: %s" % ", ".join(bad))
+    return names
 
 
 def new_ticket_doc(ticket_id, title, ttype, **kw):
@@ -46,18 +59,68 @@ def new_ticket_doc(ticket_id, title, ttype, **kw):
         "external": kw.get("external"),
         "assignee": kw.get("assignee"),
         "story_points": kw.get("story_points"),
-        "needs_design": kw.get("needs_design", ttype == "epic"),
         "docs_only": kw.get("docs_only", False),
         "due_date": kw.get("due_date"),
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
-    if kw.get("doc_set"):
-        # A /acs:create-docs delivery ticket names the set it delivers, so a
-        # resume knows what it is resuming without parsing the title.
-        doc["doc_set"] = kw["doc_set"]
+    if kw.get("features"):
+        # The PRD features it traces to (ADR-0120); absent rather than [] when none.
+        doc["features"] = list(kw["features"])
+    if kw.get("requirements"):
+        # The PRD requirements it delivers, `<slug>/R<n>` (ADR-0144).
+        doc["requirements"] = list(kw["requirements"])
+    if kw.get("references"):
+        # The documents found for it in the standard layout (ADR-0140).
+        doc["references"] = [dict(r) for r in kw["references"]]
+    # A bug's report (ADR-0138): each field only when given, never a null.
+    for field in BUG_FIELDS:
+        if kw.get(field) is not None:
+            doc[field] = kw[field]
     return doc
 
+
+def check_bug_fields(ticket):
+    """Raise GateError when `ticket` is outside what ticket.schema.json and
+    ADR-0138 allow for its type: a type acs does not know, a bug field on a
+    ticket that is not a bug, a severity outside BUG_SEVERITIES, or a bug
+    field that is not a string. A bug's fields are all optional."""
+    ttype = ticket.get("type")
+    if ttype not in TICKET_TYPES:
+        raise GateError("type %r is not a ticket type (allowed: %s)"
+                        % (ttype, ", ".join(TICKET_TYPES)))
+    present = [f for f in BUG_FIELDS if f in ticket]
+    if present and ttype != "bug":
+        raise GateError("%s only apply to a bug; %s is a %s"
+                        % (", ".join(present), ticket.get("id") or "this ticket", ttype))
+    if "severity" in ticket and ticket["severity"] not in BUG_SEVERITIES:
+        raise GateError("severity %r is not one of %s (it is how bad the bug is, "
+                        "separate from priority)"
+                        % (ticket["severity"], ", ".join(BUG_SEVERITIES)))
+    for field in present:
+        if not isinstance(ticket[field], str):
+            raise GateError("%s must be a string, not %s"
+                            % (field, type(ticket[field]).__name__))
+
+
+
+#: The kinds a reference entry may have (ticket.schema.json, ADR-0140).
+REFERENCE_KINDS = ("prd", "analysis", "hld", "lld", "design", "development")
+
+
+def check_references(references):
+    """Raise GateError unless `references` is what ticket.schema.json allows:
+    a list of objects, each with a known `kind` and a non-empty `path`."""
+    if not isinstance(references, list):
+        raise GateError("references must be a list of {kind, path, ...} entries (ADR-0140)")
+    for index, entry in enumerate(references):
+        if not isinstance(entry, dict):
+            raise GateError("references[%d] must be an object" % index)
+        if entry.get("kind") not in REFERENCE_KINDS:
+            raise GateError("references[%d].kind must be one of %s; got %r"
+                            % (index, ", ".join(REFERENCE_KINDS), entry.get("kind")))
+        if not (isinstance(entry.get("path"), str) and entry["path"]):
+            raise GateError("references[%d].path must be a non-empty string" % index)
 
 
 def allocate_ticket_id(workspace, repo_id, prefix, repo_root=None, seed_next=None):
@@ -120,13 +183,17 @@ def update_index(workspace, repo_id, ticket, archived=None):
             "status": ticket.get("status"),
             "parent": ticket.get("parent"),
             "children": ticket.get("children", []),
-            "needs_design": ticket.get("needs_design"),
             "external": ticket.get("external"),
             "due_date": ticket.get("due_date"),
             "updated_at": now_iso(),
         })
-        if ticket.get("doc_set"):
-            entry["doc_set"] = ticket["doc_set"]
+        # Tickets carry no design flag (ADR-0139): a row written before it
+        # sheds the key the next time it is indexed.
+        entry.pop("needs_design", None)
+        if "features" in ticket:
+            entry["features"] = list(ticket.get("features") or [])
+        if "requirements" in ticket:
+            entry["requirements"] = list(ticket.get("requirements") or [])
         if archived is not None:
             entry["archived"] = archived
         write_json(path, data)

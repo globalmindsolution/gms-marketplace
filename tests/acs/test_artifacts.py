@@ -1,25 +1,22 @@
-"""Brief section 4: the human-facing ticket documents move from the workspace
-partition to the repo docs tree, `docs/tickets/<ID>/` (a fixed location since
-ADR-0102 -- no setting moves it or opts out of it).
+"""The ticket document and the legacy docs tree, `docs/tickets/<ID>/`.
 
-What is pinned here is the contract every caller of load_ticket/save_ticket
-now relies on:
+ADR-0090 moved the human-facing ticket documents into the repo docs tree;
+ADR-0128 takes the TICKET back out: a ticket lives only in the workspace and
+the tracker, and a run's documents are filed by phase (acs_lib.doc_layout,
+tests/acs/test_requirements.py). What is pinned here:
 
-  * ticket.md is today's ticket.json as YAML front matter (every field but
-    `status`) over a markdown body -- and it round-trips through the strict
-    YAML subset acs_lib.yamlsubset reads, field for field;
-  * `status` is DERIVED from the ledger and the archive (derive_status), not
-    stored, and it agrees with the flips the hooks used to write;
-  * load_ticket reads ticket.md when the ticket's docs folder holds one, else
-    ticket.json (so every fixture that writes ticket.json keeps working), else
-    the file the ticket.json.moved pointer names;
-  * save_ticket writes ticket.md only when the docs tree is ACTIVE for this
-    checkout and the ticket lives there (or has no ticket.json yet); a ticket
-    that still has a ticket.json keeps it until `acs.py artifacts migrate`
-    moves it -- one home per ticket, nothing goes stale;
-  * migrate is idempotent, honours --dry-run, leaves the archive alone, and
-    leaves a pointer behind;
-  * the executor file-map guard treats the docs tree as a control input.
+  * ticket.md (the legacy rendering) is ticket.json as YAML front matter
+    (every field but `status`) over a markdown body -- and it still
+    round-trips through the strict YAML subset, field for field, because an
+    existing docs/tickets/<ID>/ticket.md must stay readable;
+  * `status` is DERIVED from the ledger and the archive (derive_status);
+  * load_ticket reads the partition's ticket.json first, else the legacy
+    ticket.md, else the file the ticket.json.moved pointer names;
+  * save_ticket ALWAYS writes the partition's ticket.json -- never the docs
+    tree, not for a new ticket and not for a migrated one;
+  * `artifacts migrate` is retired: it reports so and writes nothing;
+  * the executor file-map guard still treats the legacy tree as a control
+    input.
 
 Run:  python3 -m unittest tests.acs.test_artifacts -v
 """
@@ -45,7 +42,7 @@ TICKET = "SHOP-1"
 REPO_ID = "acme-shop"
 #: The description templates /acs:create-ticket builds every ticket body from.
 TEMPLATES_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "templates")
-DESCRIPTION_TEMPLATES = ("task-default", "story-default", "epic-default")
+DESCRIPTION_TEMPLATES = ("task-default", "story-default", "epic-default", "bug-default")
 
 
 def read_text(path):
@@ -62,7 +59,7 @@ def full_ticket(ticket_id=TICKET):
         description="Add the widget.\n\nSecond paragraph with `code`, a # hash and a: colon.",
         acceptance_criteria=["Widget lists items", "Widget handles an empty list:\nshows a hint"],
         priority="high", parent="SHOP-9", children=[], external={"provider": "jira", "key": "PROJ-1"},
-        assignee="jane", story_points=3, needs_design=False, docs_only=False,
+        assignee="jane", story_points=3, docs_only=False,
         due_date="2026-12-01")
     doc["status"] = "in_progress"
     return doc
@@ -127,8 +124,10 @@ class TestArtifactPath(ArtifactsCase):
         tdir = self.partition()
         docs_plan = os.path.join(self.docs_root(), TICKET, "plan.md")
         legacy_plan = os.path.join(tdir, "phases", "code", "plan.md")
-        # Nothing exists: the answer is where a writer should put it (docs tree).
-        self.assertEqual(artifacts.artifact_path(self.repo, tdir, TICKET, "plan.md"), docs_plan)
+        # Nothing exists: the partition -- never a path in the docs tree
+        # (ADR-0128: nothing writes docs/tickets/ any more).
+        self.assertEqual(artifacts.artifact_path(self.repo, tdir, TICKET, "plan.md"),
+                         os.path.join(tdir, "plan.md"))
         os.makedirs(os.path.dirname(legacy_plan))
         with open(legacy_plan, "w") as fh:
             fh.write("# plan\n")
@@ -290,8 +289,11 @@ class TestDeriveStatus(ArtifactsCase):
         cases = [
             ("no ledger", [], "open"),
             ("create-ticket alone", [("create-ticket", "completed")], "open"),
-            ("a skip alone", [("create-ticket", "completed"), ("create-api-contract", "skipped")], "open"),
-            ("design started", [("create-design", "in_progress")], "in_progress"),
+            # ADR-0138: breaking a ticket down mints its children; it starts no work.
+            ("breakdown-ticket alone", [("create-ticket", "completed"),
+                                        ("breakdown-ticket", "completed")], "open"),
+            ("a skip alone", [("create-ticket", "completed"), ("create-test-docs", "skipped")], "open"),
+            ("design started", [("create-tech-design", "in_progress")], "in_progress"),
             ("code in progress", [("create-ticket", "completed"), ("code", "in_progress")], "in_progress"),
             ("code completed", [("code", "completed")], "in_progress"),
             ("pr opened", [("code", "completed"), ("create-pr", "completed")], "in_review"),
@@ -306,7 +308,8 @@ class TestDeriveStatus(ArtifactsCase):
                     self.step(step_id, status)
                 self.assertEqual(artifacts.derive_status(self.tdir(TICKET)), expected)
 
-    def test_a_delivery_ticket_is_in_review_once_its_run_recorded_a_pr(self):
+    def test_a_legacy_delivery_ticket_is_in_review_once_its_run_recorded_a_pr(self):
+        """Minted before ADR-0127, when create-prd opened its own PR."""
         tdir = self.partition()
         self.step("create-prd", "completed")
         self.assertEqual(artifacts.derive_status(tdir), "in_progress")
@@ -327,7 +330,7 @@ class TestDeriveStatus(ArtifactsCase):
     def test_an_epic_follows_its_children(self):
         epic = "SHOP-9"
         tdir = self.partition(epic, ttype="epic", children=["SHOP-1", "SHOP-2"])
-        self.step("create-design", "completed", ticket_id=epic)
+        self.step("create-tech-design", "completed", ticket_id=epic)
         self.index(("SHOP-1", "open"), ("SHOP-2", "open"))
         # A designed epic whose children have not started is in progress
         # (the design ran), never done.
@@ -370,7 +373,9 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertIn("ticket.json", os.listdir(tdir))
         self.assertNotIn("docs", os.listdir(self.repo))
 
-    def test_an_active_tree_takes_a_new_ticket(self):
+    def test_the_docs_tree_never_takes_a_new_ticket(self):
+        """ADR-0128: a ticket lives in the workspace; an existing docs tree is
+        read, never written."""
         self.activate()
         tdir = self.tdir(TICKET)
         os.makedirs(tdir)
@@ -378,11 +383,12 @@ class TestLoadSaveRouting(ArtifactsCase):
         with pushd(self.repo):
             lib.save_ticket(tdir, doc)
             loaded = lib.load_ticket(tdir)
-        self.assertTrue(os.path.isfile(self.md_path()))
-        self.assertNotIn("ticket.json", os.listdir(tdir))
-        self.assertEqual(loaded["status"], "open")
+        self.assertFalse(os.path.exists(self.md_path()))
+        self.assertIn("ticket.json", os.listdir(tdir))
+        self.assertEqual(os.listdir(self.docs_root()), [])
+        self.assertEqual(loaded["status"], "in_progress")
         for key in ("id", "title", "description", "acceptance_criteria",
-                    "external", "needs_design", "due_date"):
+                    "external", "due_date"):
             with self.subTest(field=key):
                 self.assertEqual(loaded[key], doc[key])
 
@@ -399,17 +405,22 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertEqual(lib.read_json(os.path.join(tdir, "ticket.json"))["priority"], "critical")
         self.assertNotIn(TICKET, os.listdir(self.docs_root()))
 
-    def test_a_migrated_ticket_is_read_and_written_as_ticket_md(self):
+    def test_a_migrated_ticket_reads_its_ticket_md_and_saves_to_the_partition(self):
+        """A ticket migrated into the tree under ADR-0090 still READS from its
+        ticket.md; the first save writes ticket.json into the partition, which
+        wins from then on, and the tracked ticket.md is left byte for byte."""
         self.activate()
         tdir = self.tdir(TICKET)
         os.makedirs(tdir)
-        self.write_md(full_ticket())
+        md = self.write_md(full_ticket())
+        before = read_text(md)
         with pushd(self.repo):
             ticket = lib.load_ticket(tdir)
             self.assertEqual(ticket["status"], "open")
-            ticket["status"] = "open"  # what a caller would flip; never stored
+            self.assertEqual(artifacts.ticket_source(tdir)[0], "ticket.md")
             ticket["title"] = "Renamed"
             lib.save_ticket(tdir, ticket)
+            self.assertEqual(artifacts.ticket_source(tdir)[0], "ticket.json")
             # The derived status comes from the RUN's ledger, never from a
             # field in the document: a status written into ticket.md would be
             # a second answer nothing keeps in step with the run.
@@ -422,9 +433,8 @@ class TestLoadSaveRouting(ArtifactsCase):
                 "steps": {"code": {"status": "in_progress"}}})
             reloaded = lib.load_ticket(tdir)
         self.assertEqual(reloaded["title"], "Renamed")
-        self.assertEqual(reloaded["status"], "in_progress")
-        self.assertNotIn("ticket.json", os.listdir(tdir))
-        self.assertNotIn("status:", read_text(self.md_path()))
+        self.assertIn("ticket.json", os.listdir(tdir))
+        self.assertEqual(read_text(md), before)
 
     def test_a_templated_description_survives_a_real_save_load_save(self):
         """The defect's reachable path: after migrate, ticket.md is the file
@@ -446,31 +456,22 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertEqual(again["acceptance_criteria"], doc["acceptance_criteria"])
         self.assertEqual(again["priority"], "critical")
 
-    def test_a_save_that_changes_nothing_leaves_the_tracked_file_alone(self):
-        """ticket.md is committed, so a status-only flip -- which is what the
-        post-hooks and skill-start do, and status is not even stored -- must
-        not rewrite it with a fresh updated_at for a reviewer to read."""
+    def test_a_save_never_rewrites_a_legacy_ticket_md(self):
+        """The legacy ticket.md is a TRACKED file: no save -- a status flip or
+        a real change -- dirties it again."""
         self.activate()
         tdir = self.tdir(TICKET)
         os.makedirs(tdir)
+        md = self.write_md(full_ticket())
+        before, mtime = read_text(md), os.path.getmtime(md)
         with pushd(self.repo):
-            lib.save_ticket(tdir, full_ticket())
-            before = read_text(self.md_path())
-            mtime = os.path.getmtime(self.md_path())
             ticket = lib.load_ticket(tdir)
-            ticket["status"] = "in_review"  # derived, never stored
+            ticket["status"] = "in_review"
             lib.save_ticket(tdir, ticket)
-            self.assertEqual(read_text(self.md_path()), before)
-            self.assertEqual(os.path.getmtime(self.md_path()), mtime)
-            # A real change still writes, and the write still re-stamps the
-            # document: the stale stamp planted here cannot survive it, which
-            # the clock's second resolution can never fake either way.
             ticket["title"] = "Renamed"
-            ticket["updated_at"] = "2020-01-01T00:00:00Z"
             lib.save_ticket(tdir, ticket)
-        text = read_text(self.md_path())
-        self.assertEqual(artifacts.parse_ticket_md(text)["title"], "Renamed")
-        self.assertNotIn("2020-01-01T00:00:00Z", text)
+        self.assertEqual((read_text(md), os.path.getmtime(md)), (before, mtime))
+        self.assertEqual(lib.read_json(os.path.join(tdir, "ticket.json"))["title"], "Renamed")
 
     def test_a_partition_outside_this_checkouts_workspace_falls_back(self):
         """The safety property: an in-process caller whose cwd is some other
@@ -486,17 +487,17 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertIn("ticket.json", os.listdir(tdir))
         self.assertEqual(os.listdir(self.docs_root()), [])
 
-    def test_a_stale_tickets_path_null_no_longer_opts_out(self):
-        """ADR-0102: the opt-out is gone with the key, so a consumer file that
-        still carries it gets the tree like everyone else."""
+    def test_a_stale_tickets_path_setting_changes_nothing(self):
+        """ADR-0102 removed the key; ADR-0128 removed the tree as a home. A
+        consumer file that still carries it gets ticket.json like everyone."""
         self.write_settings({"ticket_prefix": "SHOP", "artifacts": {"tickets_path": None}})
         self.activate()
         tdir = self.tdir(TICKET)
         os.makedirs(tdir)
         with pushd(self.repo):
             lib.save_ticket(tdir, lib.new_ticket_doc(TICKET, "Widget", "task"))
-        self.assertTrue(os.path.isfile(self.md_path()))
-        self.assertNotIn("ticket.json", os.listdir(tdir))
+        self.assertFalse(os.path.exists(self.md_path()))
+        self.assertIn("ticket.json", os.listdir(tdir))
 
     def test_a_corrupt_ticket_md_reads_as_absent_with_a_warning(self):
         self.activate()
@@ -523,14 +524,15 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertEqual(ticket["id"], TICKET)
         self.assertEqual(ticket["status"], "open")
 
-    def test_the_hook_scripts_create_and_flip_tickets_in_the_tree(self):
-        """End to end through the real CLIs: new-ticket.py writes ticket.md,
-        skill-start flips the derived status, ticket show reads it back."""
+    def test_the_hook_scripts_create_and_flip_tickets_in_the_workspace(self):
+        """End to end through the real CLIs: new-ticket.py writes ticket.json
+        even with a docs tree present, step start flips the derived status,
+        ticket show reads it back -- and the repo's tree is never touched."""
         self.activate()
         ticket = self.new_ticket("Ship the thing", "task")
         tdir = self.tdir(ticket)
-        self.assertTrue(os.path.isfile(self.md_path(ticket)))
-        self.assertNotIn("ticket.json", os.listdir(tdir))
+        self.assertFalse(os.path.exists(self.md_path(ticket)))
+        self.assertIn("ticket.json", os.listdir(tdir))
         out = self.run_script("acs.py", "ticket", "show", "--ticket", ticket)
         self.assertEqual(out.returncode, 0, out.stderr)
         shown = json.loads(out.stdout)["ticket"]
@@ -541,17 +543,19 @@ class TestLoadSaveRouting(ArtifactsCase):
         self.assertEqual(json.loads(out.stdout)["ticket"]["status"], "in_progress")
         index = lib.read_json(lib.index_path(self.ws, REPO_ID))["tickets"][ticket]
         self.assertEqual(index["status"], "in_progress")
+        self.assertEqual(os.listdir(self.docs_root()), [])
 
     def test_new_ticket_reports_the_file_it_wrote(self):
-        """new-ticket.py's write lands in the TRACKED docs tree and nothing
-        commits it there, so the path it wrote must not be silent -- the
-        caller gets it in `ticket_document`."""
+        """The caller gets the path in `ticket_document`: the partition's
+        ticket.json, even when the repo has a docs/tickets/ tree."""
         self.activate()
         out = self.run_script("new-ticket.py", "--title", "Tracked", "--type", "task")
         self.assertEqual(out.returncode, 0, out.stderr)
         body = json.loads(out.stdout)
-        self.assertEqual(body["ticket_document"], self.md_path(body["ticket_id"]))
+        self.assertEqual(body["ticket_document"],
+                         os.path.join(body["partition"], "ticket.json"))
         self.assertTrue(os.path.isfile(body["ticket_document"]))
+        self.assertEqual(os.listdir(self.docs_root()), [])
 
     def test_new_ticket_reports_ticket_json_when_the_tree_is_not_active(self):
         out = self.run_script("new-ticket.py", "--title", "Untracked", "--type", "task")
@@ -567,11 +571,11 @@ class TestLoadSaveRouting(ArtifactsCase):
 
 class TestCommitOwnership(unittest.TestCase):
     """Every document in the docs tree is a tracked file, so each one needs a
-    committer. The Build skills commit what they publish; `ticket.md` and
-    `design.md` are published in the Design phase BEFORE a ticket branch
-    exists, so the first Build step's commit has to carry the folder -- these
-    assertions are what keeps that from silently regressing into a repo that
-    is permanently dirty and a /acs:create-pr that stops to ask about it."""
+    committer -- and since ADR-0127 there is exactly one: /acs:create-pr. The
+    Build skills publish into the working tree and record what they wrote
+    (`states.files`); create-pr splits those paths into reviewable commits,
+    the ticket docs folder first. These assertions keep a skill from quietly
+    growing its own commit step back."""
 
     def skill(self, name):
         """The SKILL.md with whitespace runs folded, so a phrase check cannot
@@ -579,30 +583,42 @@ class TestCommitOwnership(unittest.TestCase):
         raw = read_text(os.path.join(REPO_ROOT, "plugins", "acs", "skills", name, "SKILL.md"))
         return " ".join(raw.split())
 
-    def test_analyze_ticket_commits_the_whole_docs_folder(self):
-        """ADR-0114 moved the publish into `acs.py analysis publish`: the
-        controller stages and commits the docs folder (pathspec-limited), and
-        tests/acs/test_analysis_loop.py proves what the commit carries."""
+    def test_analyze_ticket_records_the_whole_docs_folder_and_commits_nothing(self):
+        """ADR-0127: `acs.py analysis publish` writes the docs folder and
+        records its paths for /acs:create-pr, which makes the ticket-docs
+        commit; the controller itself never stages or commits
+        (tests/acs/test_analysis_loop.py proves it)."""
         body = self.skill("analyze-requirements")
-        self.assertIn("It commits **the ticket's whole docs folder**", body,
-                      "analyze-requirements's publish step must stage the ticket's docs folder")
-        self.assertIn("ticket.md", body)
+        self.assertIn("publication.files", body)
         source = read_text(os.path.join(REPO_ROOT, "plugins", "acs", "hooks", "scripts",
                                         "acs_lib", "analysis_publish.py"))
-        self.assertIn('_git(root, "add", "--", docs_dir)', source)
+        self.assertNotIn('"commit"', source.split('"""', 2)[2])
+        self.assertNotIn('"add"', source)
 
-    def test_create_design_publishes_and_does_not_commit_on_the_default_branch(self):
-        body = self.skill("create-design")
-        self.assertIn('cp "<partition>/steps/create-design/design.md" "<design_path>"', body)
-        self.assertIn("never commits to the repo's default branch", body)
+    def test_create_design_publishes_and_commits_nothing_on_any_branch(self):
+        """ADR-0127: not on the default branch, and not on a ticket branch
+        that happens to be checked out for a re-design either."""
+        body = self.skill("create-tech-design")
+        self.assertIn('cp "<partition>/steps/create-tech-design/tech-design.md" "<design_path>"', body)
+        self.assertIn("never stages, commits or pushes (ADR-0127) — not on the default branch, and "
+                      "not on a ticket branch", body)
+        self.assertIn("`states.files`", body)
+        self.assertNotRegex(body, r"commit `<design_path>` on it")
 
-    def test_the_build_skills_commit_what_they_publish(self):
+    def test_the_build_skills_leave_what_they_publish_uncommitted(self):
+        """ADR-0127: only /acs:create-pr branches and commits. Each Build skill
+        publishes into the working tree, records the path in `states.files`
+        for create-pr's commit plan, and never runs a branch or commit step."""
         for name, artifact in (("analyze-requirements", "analysis.md"), ("create-impl-plan", "plan.md"),
                                ("create-api-contract", "api-contract.md"),
                                ("create-test-docs", "test-cases.md")):
             with self.subTest(skill=name):
                 body = self.skill(name)
-                self.assertRegex(body, r"[Cc]ommit[^.]{0,120}ticket branch")
+                self.assertIn("never stages, commits or pushes (ADR-0127)", body)
+                self.assertIn("`states.files`", body)
+                self.assertIn("`/acs:create-pr`", body)
+                self.assertNotRegex(body, r"[Cc]ommit[^.]{0,120}on the ticket branch")
+                self.assertNotIn("git checkout -b", body)
                 self.assertIn(artifact, body)
 
 
@@ -611,105 +627,54 @@ class TestCommitOwnership(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestMigrate(ArtifactsCase):
+    """`artifacts migrate` is retired (ADR-0128); `artifacts show` reads the
+    legacy tree as a fallback."""
 
     def setUp(self):
         super().setUp()
         self.a = self.partition("SHOP-1", description="A", acceptance_criteria=["one"])
-        self.b = self.partition("SHOP-2", needs_design=True)
-        with open(os.path.join(self.b, "design.md"), "w") as fh:
-            fh.write("# Design B\n")
+        self.b = self.partition("SHOP-2", ttype="epic")
         os.makedirs(os.path.join(self.a, "phases", "code"))
         with open(os.path.join(self.a, "phases", "code", "plan.md"), "w") as fh:
             fh.write("# Plan A\n")
-        lib.write_json(os.path.join(self.a, "clarifications.json"), {"ticket_id": "SHOP-1", "clarifications": [
-            {"id": "C-1", "status": "answered", "source": "user", "question": "Q?", "answer": "A."}]})
-        archived = os.path.join(lib.archive_dir(self.ws, REPO_ID), "SHOP-0")
-        os.makedirs(archived)
-        lib.write_json(os.path.join(archived, "ticket.json"), lib.new_ticket_doc("SHOP-0", "Old", "task"))
-        self.archived = archived
+        legacy = os.path.join(self.docs_root(), "SHOP-2")
+        os.makedirs(legacy)
+        with open(os.path.join(legacy, "design.md"), "w") as fh:
+            fh.write("# Design B\n")
 
-    def migrate(self, dry_run=False):
-        return artifacts.migrate(self.ws, REPO_ID, self.repo, dry_run=dry_run)
-
-    def test_dry_run_lists_the_moves_and_writes_nothing(self):
-        report = self.migrate(dry_run=True)
-        self.assertTrue(report["dry_run"])
-        self.assertEqual(report["migrated"], ["SHOP-1", "SHOP-2"])
-        kinds = {(a["ticket"], a["action"], a["file"]) for a in report["actions"]}
-        self.assertIn(("SHOP-1", "render", "ticket.md"), kinds)
-        self.assertIn(("SHOP-1", "copy", "plan.md"), kinds)
-        self.assertIn(("SHOP-2", "copy", "design.md"), kinds)
-        self.assertNotIn("docs", os.listdir(self.repo))
+    def test_migrate_is_retired_and_writes_nothing(self):
+        for dry_run in (True, False):
+            with self.subTest(dry_run=dry_run):
+                report = artifacts.migrate(self.ws, REPO_ID, self.repo, dry_run=dry_run)
+                self.assertTrue(report["retired"])
+                self.assertEqual((report["migrated"], report["actions"]), ([], []))
+                self.assertEqual(report["already"], ["SHOP-1", "SHOP-2"])
         self.assertIn("ticket.json", os.listdir(self.a))
+        self.assertEqual(os.listdir(self.docs_root()), ["SHOP-2"])
+        self.assertNotIn(artifacts.MOVED_POINTER_FILENAME, os.listdir(self.a))
+        with self.assertRaises(lib.GateError):
+            artifacts.migrate(self.ws, REPO_ID, None)
 
-    def test_the_move_renders_copies_points_and_leaves_the_archive_alone(self):
-        report = self.migrate()
-        self.assertEqual(report["migrated"], ["SHOP-1", "SHOP-2"])
-        self.assertEqual(report["docs_root"], self.docs_root())
-        md = self.md_path("SHOP-1")
-        text = read_text(md)
-        self.assertIn("## Description\n\nA\n", text)
-        self.assertIn("1. one", text)
-        self.assertIn("C-1", text)
-        self.assertEqual(read_text(os.path.join(self.docs_root(), "SHOP-1", "plan.md")), "# Plan A\n")
-        self.assertEqual(read_text(os.path.join(self.docs_root(), "SHOP-2", "design.md")), "# Design B\n")
-        self.assertNotIn("ticket.json", os.listdir(self.a))
-        pointer = lib.read_json(os.path.join(self.a, artifacts.MOVED_POINTER_FILENAME))
-        self.assertEqual(pointer["moved_to"], md)
-        self.assertEqual(pointer["relative"], os.path.join("docs", "tickets", "SHOP-1", "ticket.md"))
-        self.assertIn("ticket.json", os.listdir(self.archived))
-        self.assertNotIn("SHOP-0", os.listdir(self.docs_root()))
-        with pushd(self.repo):
-            self.assertEqual(lib.load_ticket(self.a)["description"], "A")
-
-    def test_migrate_is_idempotent(self):
-        self.migrate()
-        before = read_text(self.md_path("SHOP-1"))
-        pointer = lib.read_json(os.path.join(self.a, artifacts.MOVED_POINTER_FILENAME))
-        report = self.migrate()
-        self.assertEqual(report["migrated"], [])
-        self.assertEqual(report["already"], ["SHOP-1", "SHOP-2"])
-        self.assertEqual(read_text(self.md_path("SHOP-1")), before)
-        self.assertEqual(lib.read_json(os.path.join(self.a, artifacts.MOVED_POINTER_FILENAME)), pointer)
-
-    def test_a_ticket_md_already_in_the_tree_is_kept_over_a_stale_ticket_json(self):
-        newer = lib.new_ticket_doc("SHOP-1", "Newer title", "task")
-        self.write_md(newer, "SHOP-1")
-        report = self.migrate()
-        self.assertIn(("SHOP-1", "keep", "ticket.md"),
-                      {(a["ticket"], a["action"], a["file"]) for a in report["actions"]})
-        self.assertIn("Newer title", read_text(self.md_path("SHOP-1")))
-        self.assertNotIn("ticket.json", os.listdir(self.a))
-
-    def test_a_locked_partition_refuses_the_whole_migration(self):
-        lib.write_json(lib.lock_path(self.b), {"checkout_id": "x", "created_at": lib.now_iso()})
-        with self.assertRaises(lib.GateError) as ctx:
-            self.migrate()
-        self.assertIn("SHOP-2", str(ctx.exception))
-        self.assertIn("ticket.json", os.listdir(self.a))
-
-    def test_the_cli_wraps_migrate_and_show(self):
+    def test_the_cli_reports_migrate_retired_and_show_reads_the_legacy_tree(self):
         out = self.run_script("acs.py", "artifacts", "migrate", "--dry-run")
         self.assertEqual(out.returncode, 0, out.stderr)
         body = json.loads(out.stdout)
-        self.assertTrue(body["ok"])
-        self.assertTrue(body["dry_run"])
-        self.assertEqual(body["migrated"], ["SHOP-1", "SHOP-2"])
-
-        out = self.run_script("acs.py", "artifacts", "migrate")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(json.loads(out.stdout)["migrated"], ["SHOP-1", "SHOP-2"])
+        self.assertTrue(body["ok"] and body["retired"])
+        self.assertEqual(body["migrated"], [])
 
         out = self.run_script("acs.py", "artifacts", "show", "--ticket", "SHOP-2")
         self.assertEqual(out.returncode, 0, out.stderr)
         shown = json.loads(out.stdout)
         self.assertTrue(shown["ok"])
-        self.assertEqual(shown["source"], "ticket.md")
-        self.assertEqual(shown["source_path"], self.md_path("SHOP-2"))
-        self.assertEqual(shown["docs_dir"], os.path.join(self.docs_root(), "SHOP-2"))
-        self.assertTrue(shown["active"])
+        self.assertEqual(shown["source"], "ticket.json")
         self.assertEqual(shown["status"], "open")
-        self.assertEqual(shown["artifacts"]["design.md"], os.path.join(self.docs_root(), "SHOP-2", "design.md"))
+        self.assertIsNone(shown["feature"])
+        self.assertIsNone(shown["paths"]["tech-design.md"], "no feature: no write target")
+        # ADR-0135: the legacy design.md is read where tech-design.md is absent.
+        self.assertEqual(shown["artifacts"]["tech-design.md"],
+                         os.path.join(self.docs_root(), "SHOP-2", "design.md"))
+        self.assertNotIn("design.md", shown["paths"], "design.md is only a read fallback")
+        self.assertEqual(shown["legacy_dir"], os.path.join(self.docs_root(), "SHOP-2"))
         self.assertIsNone(shown["artifacts"]["plan.md"])
         self.assertEqual(shown["ticket"]["id"], "SHOP-2")
 
@@ -717,13 +682,13 @@ class TestMigrate(ArtifactsCase):
         self.assertEqual(out.returncode, 2)
         self.assertIn("acs artifacts show:", out.stderr)
 
-    def test_show_on_an_unmigrated_ticket_names_ticket_json(self):
+    def test_show_on_a_ticket_names_ticket_json_and_the_partition_plan(self):
         out = self.run_script("acs.py", "artifacts", "show", "--ticket", "SHOP-1")
         self.assertEqual(out.returncode, 0, out.stderr)
         shown = json.loads(out.stdout)
         self.assertEqual(shown["source"], "ticket.json")
-        self.assertFalse(shown["active"])
-        self.assertEqual(shown["artifacts"]["plan.md"], os.path.join(self.a, "phases", "code", "plan.md"))
+        self.assertEqual(shown["artifacts"]["plan.md"],
+                         os.path.join(self.a, "phases", "code", "plan.md"))
 
 
 # ---------------------------------------------------------------------------
@@ -748,7 +713,7 @@ class TestGuardControlInput(FileMapGuardCase):
     def test_a_stale_tickets_path_null_does_not_lift_the_denial(self):
         """ADR-0102: the opt-out went with the key -- a consumer file that still
         carries it gets no unguarded ticket docs."""
-        self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90,
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90},
                              "artifacts": {"tickets_path": None}})
         self.declare("docs/")
         self.spawn_writer()

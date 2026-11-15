@@ -6,6 +6,6 @@ match: not_contains
 ---
 
 The named base scopes the changeset. `src/shop/export.py` arrived on
-release/2.4 and is not in `release/2.4...HEAD`; a hard-coded token is exactly
+release/2.4 and is not in the changeset since `git merge-base release/2.4 HEAD`; a hard-coded token is exactly
 what a review would block on, so a run that reviewed against main instead
 names it here and fails. A verdict that does not exist fails too.

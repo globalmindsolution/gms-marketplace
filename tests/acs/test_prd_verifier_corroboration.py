@@ -21,7 +21,11 @@ Stdlib-only (re, os, unittest). Run:
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from skill_text import skill_contract  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -32,6 +36,8 @@ DOCS = os.path.join(REPO_ROOT, "docs")
 PRD_SURVEYOR = os.path.join(AGENTS, "create-prd-surveyor.md")  # the survey charter: planner, then executor (ADR-0092), now the surveyor
 PRD_REVIEWER = os.path.join(AGENTS, "create-prd-reviewer.md")  # create-prd's judge
 PRD_SKILL = os.path.join(SKILLS, "create-prd", "SKILL.md")
+# The three corroboration grammars the surveyor, author and reviewer all read.
+AUTHORING_NOTES = os.path.join(SKILLS, "create-prd", "references", "authoring-notes.md")
 SKILLS_MD = os.path.join(DOCS, "requirements", "functional", "skills.md")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py"
@@ -39,7 +45,7 @@ HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prd_conformance_check.py"
 PRD_VERIFIER_DIMENSIONS = (
     "Required sections", "Feature -> goal traceability",
     "Measurable success metrics", "Prioritization discipline",
-    "Constraint consistency", "Roadmap coverage", "Plan conformance",
+    "Constraint consistency", "Feature index ↔ documents", "Plan conformance",
     "Amend-mode diff discipline", "Iteration 2+ regression check",
 )
 
@@ -141,21 +147,22 @@ class Dimension7ContractTest(unittest.TestCase):
     def test_invokes_the_new_script(self):
         self.assertIn(HELPER_PATH, self.block)
 
-    def test_all_six_flags_named(self):
-        for flag in ("--plan", "--mode", "--repo-root", "--clarifications",
-                     "--prd", "--roadmap"):
+    def test_all_five_flags_named(self):
+        for flag in ("--plan", "--mode", "--repo-root", "--clarifications", "--prd"):
             with self.subTest(flag=flag):
                 self.assertIn(flag, self.block)
 
-    def test_added_heading_flag_scoped_to_amend(self):
-        self.assertIn("--added-heading", self.block)
-        self.assertIn("amend", self.block.lower())
+    def test_no_roadmap_flags_since_adr_0145(self):
+        """The roadmap is /acs:manage-roadmap's: create-prd passes no
+        --roadmap and so no --added-heading."""
+        self.assertNotIn("--added-heading", self.block)
+        self.assertIn("with `--roadmap`, which create-prd never passes", self.block)
 
     def test_maps_findings_and_exit_two_to_blocking_plan_conformance(self):
         self.assertIn('severity="blocking" dimension="Plan conformance"', self.block)
         self.assertIn("exit 2", self.block)
 
-    def test_names_all_three_families(self):
+    def test_names_the_families(self):
         for family in ("code-evidence", "answer-fidelity", "roadmap-outline"):
             with self.subTest(family=family):
                 self.assertIn(family, self.block)
@@ -163,7 +170,7 @@ class Dimension7ContractTest(unittest.TestCase):
     def test_states_mandatory_semantic_ceiling(self):
         self.assertIn("not contradicted", self.block)
         self.assertIn("substantiates", self.block)
-        self.assertIn("maps to the intended epic", self.block)
+        self.assertNotIn("maps to the intended epic", self.block)
 
     def test_every_na_must_be_judged_never_silently_accepted(self):
         lowered = self.block.lower()
@@ -196,19 +203,29 @@ class ReviewerInputContractTest(unittest.TestCase):
 class SurveyorContractTest(unittest.TestCase):
     """D7: the required-heading list names the three new sections; each
     one-line grammar appears verbatim (including the greenfield
-    `Code evidence: N/A` form); the ADR-0012 canonical block is untouched."""
+    `Code evidence: N/A` form); the ADR-0012 canonical block is untouched.
+
+    The grammars moved to `references/authoring-notes.md`, which the
+    surveyor's charter points at, so they are read from the charter plus
+    that reference."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PRD_SURVEYOR)
+        cls.charter = read(PRD_SURVEYOR)
+        cls.body = cls.charter + "\n" + read(AUTHORING_NOTES)
 
-    def test_required_heading_list_names_three_new_sections(self):
-        m = re.search(r"(?s)Required headings:.*?\n\n", self.body)
+    def test_the_charter_points_at_the_grammars(self):
+        self.assertIn("${CLAUDE_PLUGIN_ROOT}/skills/create-prd/references/authoring-notes.md",
+                      self.charter)
+
+    def test_required_heading_list_names_the_corroboration_sections(self):
+        m = re.search(r"(?s)Required headings:.*?\n\n", self.charter)
         self.assertIsNotNone(m, "surveyor 'Required headings:' paragraph not found")
         paragraph = _norm(m.group(0))
-        for heading in ("## Code evidence", "## Answer fidelity", "## Roadmap milestones"):
+        for heading in ("## Code evidence", "## Answer fidelity"):
             with self.subTest(heading=heading):
                 self.assertIn(heading, paragraph)
+        self.assertNotIn("Roadmap", paragraph)  # ADR-0145
 
     def test_code_evidence_grammar_line_verbatim(self):
         self.assertIn(
@@ -220,25 +237,25 @@ class SurveyorContractTest(unittest.TestCase):
             "Code evidence: N/A — greenfield, no code to cite", _norm(self.body))
 
     def test_answer_fidelity_grammar_lines_verbatim(self):
-        self.assertIn('- C-<n> — <prd.md|roadmap.md> — "<verbatim anchor text>"', self.body)
+        self.assertIn('- C-<n> — prd.md — "<verbatim anchor text>"', self.body)
         self.assertIn("- C-<n> N/A: <why this answer produces no anchor>", self.body)
 
-    def test_roadmap_milestones_grammar_line_verbatim(self):
-        self.assertIn(
-            '- Milestone: "### M2.6 — v0.3.5–v0.3.7 fast-follows — '
-            'complete tracker & PR metadata sync; dynamic lane correctness"',
-            self.body)
+    def test_roadmap_milestones_grammar_moved_to_manage_roadmap(self):
+        """ADR-0145: the milestone grammar is manage-roadmap's notes now."""
+        self.assertNotIn("- Milestone:", self.body)
+        notes = read(os.path.join(SKILLS, "manage-roadmap", "references", "authoring-notes.md"))
+        self.assertIn('- Milestone: "M1 Booking MVP — v0.1.0"', notes)
 
     def test_adr_0012_canonical_block_untouched(self):
         # md5-identical across six planners (test_doc_consistency_step.py);
         # here we just re-assert the exact heading and its immediately
         # following sentence are still present byte-for-byte.
         self.assertIn(
-            "### Design-time doc-consistency step (ADR 0012)", self.body)
+            "### Design-time doc-consistency step (ADR 0012)", self.charter)
         self.assertIn(
-            "1. Read the related slice of the doc graph", self.body)
+            "1. Read the related slice of the doc graph", self.charter)
         self.assertIn(
-            '"kind": "staleness"', self.body)
+            '"kind": "staleness"', self.charter)
 
 
 class SkillMirrorTest(unittest.TestCase):
@@ -246,29 +263,32 @@ class SkillMirrorTest(unittest.TestCase):
     sections; its verify paragraph names `clarifications.json`, the repo
     root, and the `git diff -- "<prd>" "<roadmap>"` derivation of
     `--added-heading` (the located PRD and roadmap files, ADR-0102 — once
-    `<settings.prd_path>`)."""
+    `<settings.prd_path>`). Read as the skill's contract: the floor's
+    commands moved to `references/review-slices.md`, inside `### Review`."""
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(PRD_SKILL)
+        cls.body = skill_contract("create-prd")
         cls.verify_region = verify_phase_region(cls.body, "create-prd")
 
-    def test_plan_task_example_names_three_new_sections(self):
+    def test_plan_task_example_names_the_corroboration_sections(self):
         m = re.search(r"(?m)^\s*<objective>.*</objective>\s*$", self.body)
         self.assertIsNotNone(m, "plan-task <objective> line not found")
-        for heading in ("Code evidence", "Answer fidelity", "Roadmap milestones"):
+        for heading in ("Code evidence", "Answer fidelity"):
             with self.subTest(heading=heading):
                 self.assertIn(heading, m.group(0))
+        self.assertNotIn("Roadmap milestones", m.group(0))
 
     def test_verify_paragraph_names_clarifications_and_repo_root(self):
         norm = _norm(self.verify_region)
         self.assertIn("clarifications.json", norm)
         self.assertIn("repo_root", norm)
 
-    def test_verify_paragraph_names_added_heading_git_diff_derivation(self):
+    def test_verify_paragraph_passes_no_roadmap(self):
+        """ADR-0145: no --roadmap, so no --added-heading derivation."""
         norm = _norm(self.verify_region)
-        self.assertIn("--added-heading", norm)
-        self.assertIn('git diff -- "<prd>" "<roadmap>"', norm)
+        self.assertIn("No `--roadmap` and no `--added-heading`", norm)
+        self.assertNotIn('"<roadmap>"', norm)
         self.assertNotIn("prd_path", norm)
 
     def test_loop_topology_migrated_by_mar305(self):
@@ -285,11 +305,11 @@ class SkillMirrorTest(unittest.TestCase):
 
 class Drift1Test(unittest.TestCase):
     """C-4(ii): the DRIFT-1 stop-reason example is repaired from '7 of 9' to
-    '9 of 11'."""
+    eleven dimensions ('10 of 11' since the example shows one finding)."""
 
     def test_nine_of_eleven_present(self):
         body = read(PRD_REVIEWER)
-        self.assertIn("9 of 11 dimensions pass, 2 blocking findings", body)
+        self.assertIn("10 of 11 dimensions pass, 1 blocking finding", body)
 
     def test_seven_of_nine_gone(self):
         body = read(PRD_REVIEWER)
@@ -388,12 +408,12 @@ class DimensionOrderUnchangedTest(unittest.TestCase):
 
 
 class Adr0081DecisionRecordTest(unittest.TestCase):
-    """AC-1: docs/adr/0081-...md exists, is Accepted, and names all nine
-    decision records; docs/adr/README.md carries a 0081 row (Task 3)."""
+    """AC-1: docs/architecture/adr/0081-...md exists, is Accepted, and names all nine
+    decision records; docs/architecture/adr/README.md carries a 0081 row (Task 3)."""
 
     ADR_PATH = os.path.join(
-        DOCS, "adr", "0081-create-prd-plan-conformance-corroboration-three-family-mechanism.md")
-    ADR_README = os.path.join(DOCS, "adr", "README.md")
+        DOCS, "architecture", "adr", "0081-create-prd-plan-conformance-corroboration-three-family-mechanism.md")
+    ADR_README = os.path.join(DOCS, "architecture", "adr", "README.md")
 
     @classmethod
     def setUpClass(cls):

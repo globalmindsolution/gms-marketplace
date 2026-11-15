@@ -13,7 +13,7 @@ Two kinds of subcommand live behind this front door:
 
   * Implemented here — the verbs that had NO entry point at all (the gap above):
     context, gate, run, step, result, ticket, pr, tracker, readiness, lock,
-    filemap, guard, verdict, slug, fanout, doctor, workflow, artifacts.
+    filemap, guard, verdict, slug, doctor, workflow, artifacts, job, write.
   * Delegated — the verbs an existing script already implements: `plan check`
     (plan-approval.py), `setup detect|apply` (setup_wizard.py). Those scripts stay the implementation and keep working
     when called directly; acs.py forwards argv to them and returns their exit
@@ -31,9 +31,9 @@ Conventions, uniform across every subcommand:
 Usage:
   acs.py context
   acs.py gate --skill code [--run MAR-1]
-  acs.py run new --ticket MAR-1 | --prompt "..." | --document path.md
+  acs.py run new --ticket MAR-1 | --prompt "..." | --document path.md | --args "MAR-1 spec.pdf ..."
   acs.py run show [--run MAR-1]
-  acs.py run next [--run MAR-1]
+  acs.py run next [--run MAR-1 | --ticket MAR-1 | --prompt "..." | --document p | --args "..."]
   acs.py run check [--run MAR-1]
   acs.py run abandon --run MAR-1 --reason "superseded by MAR-2"
   acs.py step start --step code [--run MAR-1]
@@ -42,7 +42,13 @@ Usage:
   acs.py result validate --skill code result.json
   acs.py ticket show --ticket MAR-1
   acs.py ticket save --ticket MAR-1 --from ticket.json
+  acs.py roadmap status [--write] [--no-git]
+  acs.py prd status [--feature SLUG] [--no-git]
+  acs.py prd template [--kind prd|feature]
+  acs.py ticket link-check --type story --features wishlist --requirements wishlist/R1
   acs.py pr metadata fill --ticket MAR-1 --pr 42
+  acs.py pr plan-commits [--ticket MAR-1] [--run R] [--out plan.json]
+  acs.py pr commit --plan plan.json
   acs.py tracker sync --ticket MAR-1 --ticket MAR-2
   acs.py readiness --pr 42
   acs.py readiness --from recorded-pr.json
@@ -57,16 +63,33 @@ Usage:
   acs.py setup detect
   acs.py setup apply --answers answers.json
   acs.py slug --text "Introduce the acs CLI"
-  acs.py fanout ...
   acs.py doctor
+  acs.py agents sync [--dry-run]
+  acs.py settings scaffold [--write]
+  acs.py settings migrate [--write]
   acs.py workflow show
   acs.py workflow validate [--file PATH]
   acs.py artifacts migrate [--dry-run]
-  acs.py artifacts show --ticket MAR-1
+  acs.py artifacts show [--run R | --ticket MAR-1]
+  acs.py docs where --doc plan.md [--run R]
+  acs.py docs decide [--share yes|no --scope user|team] [--location development=docs/dev] [--doc plan.md]
+  acs.py requirements show [--run R]
+  acs.py requirements add --args "MAR-1 ~/spec.pdf also bulk export"
+  acs.py requirements refine --from refined.json
   acs.py analysis next [--run MAR-1]
   acs.py analysis plan --areas api,web
   acs.py analysis record-survey | record-synthesis | record-clarify | record-draft
   acs.py analysis record-review | publish | record-publication
+  acs.py job start --name gate-suite [--cwd DIR] -- pytest --cov
+  acs.py job wait --name gate-build --name gate-suite [--timeout 540]
+  acs.py job status --name gate-suite
+  acs.py job stop --name gate-suite
+  acs.py changes snapshot
+  acs.py changes diff [--since TREE] [--name-only | --stat | --patch]
+  acs.py handoff send --ticket MAR-1 [--note TEXT | --note-file F] [--attach PATH] [--replace] [--dry-run]
+  acs.py handoff receive --ticket MAR-1 [--replace] [--keep-ref]
+  acs.py handoff list [--details]
+  acs.py write <path> [--append] [--run R]   (content on stdin; ADR-0136)
 """
 
 import argparse
@@ -87,15 +110,26 @@ from acs_cli import (context_or_die, die, emit, load_ticket_or_die,  # noqa: E40
     partition_or_die, read_json_arg)
 from acs_commands import (CONTEXT_KEYS, cmd_artifacts_migrate, cmd_artifacts_show,  # noqa: E402,F401
     cmd_context,
-    cmd_doctor, cmd_fanout_batches, cmd_filemap_set, cmd_filemap_show,
+    cmd_doctor, cmd_filemap_set, cmd_filemap_show,
     cmd_gate, cmd_guard_events, cmd_lock_force_unlock, cmd_lock_status,
     cmd_notes_merge,
     cmd_pr_metadata_fill, cmd_readiness, cmd_result_validate, cmd_run_abandon,
     cmd_run_check, cmd_run_new, cmd_run_next, cmd_run_show, cmd_slug,
     cmd_step_finish, cmd_step_show, cmd_step_start, cmd_ticket_save,
-    cmd_ticket_show, cmd_tracker_sync, cmd_verdict_show,
+    cmd_ticket_link_check, cmd_ticket_references, cmd_ticket_show, cmd_tracker_refresh, cmd_tracker_sync,
+    cmd_verdict_show,
     cmd_workflow_show, cmd_workflow_validate)
 import acs_analysis_commands  # noqa: E402
+import acs_model_commands  # noqa: E402
+import acs_design_commands  # noqa: E402
+import acs_job_commands  # noqa: E402
+import acs_changes_commands  # noqa: E402
+import acs_roadmap_commands  # noqa: E402
+import acs_prd_commands  # noqa: E402
+import acs_requirements_commands  # noqa: E402
+import acs_handoff_commands  # noqa: E402
+import acs_docs_commands  # noqa: E402
+import acs_write_commands  # noqa: E402
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 
@@ -155,6 +189,8 @@ def build_parser():
     rnew.add_argument("--ticket", help="subject: a ticket id")
     rnew.add_argument("--prompt", help="subject: free text")
     rnew.add_argument("--document", help="subject: a path to a document")
+    rnew.add_argument("--args", help="subject: a raw invocation -- ticket ids, documents "
+                                     "and a prompt, mixed (ADR-0128)")
     rnew.set_defaults(func=cmd_run_new)
 
     rshow = run_sub.add_parser("show", help="the run ledger")
@@ -166,6 +202,8 @@ def build_parser():
     rnext.add_argument("--ticket", help="subject: a ticket id (its live run, else a new one)")
     rnext.add_argument("--prompt", help="subject: free text (a new run unless current)")
     rnext.add_argument("--document", help="subject: a path to a document")
+    rnext.add_argument("--args", help="subject: the raw invocation /acs:ship was given -- "
+                                      "ticket ids, documents and a prompt, mixed")
     rnext.set_defaults(func=cmd_run_next)
 
     rcheck = run_sub.add_parser("check", help="invariants I1-I5")
@@ -192,11 +230,8 @@ def build_parser():
                         help="mint the delivery ticket a product-level skill works "
                              "under, unless --ticket (or an --args value that IS an "
                              "id) names a live partition to resume")
-    sstart.add_argument("--doc-set", dest="doc_set", choices=sorted(lib.DOC_SETS),
-                        help="the doc set a /acs:create-docs run delivers (required "
-                             "with --step create-docs --allocate)")
     sstart.add_argument("--title", help="the minted ticket's title")
-    sstart.add_argument("--type", dest="ttype", default="task",
+    sstart.add_argument("--type", dest="ttype", default="task", choices=lib.TICKET_TYPES,
                         help="the minted ticket's type (create-ticket only)")
     sstart.add_argument("--seed-next", dest="seed_next", type=int,
                         help="repair the id counter for a newly minted ticket "
@@ -243,7 +278,29 @@ def build_parser():
                       help="the ticket document ('-' or omitted reads stdin)")
     save.set_defaults(func=cmd_ticket_save)
 
-    pr = group("pr", help="PR metadata the forge, not the model, decides")
+    link = ticket_sub.add_parser(
+        "link-check", help="whether a ticket may link these PRD features and requirements "
+                           "(ADR-0144)")
+    link.add_argument("--type", dest="ttype", required=True, choices=lib.TICKET_TYPES)
+    link.add_argument("--features", default="", help="comma-separated feature slugs")
+    link.add_argument("--requirements", default="",
+                      help="comma-separated `<slug>/R<n>` requirement ids")
+    link.set_defaults(func=cmd_ticket_link_check)
+
+    refs = ticket_sub.add_parser(
+        "references", help="the documents that exist for a ticket's features (ADR-0140)")
+    refs.add_argument("--ticket", help="the ticket (its features, own and parent's records)")
+    refs.add_argument("--features", help="comma-separated feature slugs, for a ticket not "
+                                         "minted yet")
+    refs.add_argument("--parent", help="with --features: the parent epic whose records count")
+    refs.add_argument("--fetch", action="store_true",
+                      help="fetch origin's default branch first (best effort)")
+    refs.add_argument("--write", action="store_true", help="store the list on the ticket")
+    refs.add_argument("--render", action="store_true",
+                      help="also return the ## References block text as `block`")
+    refs.set_defaults(func=cmd_ticket_references)
+
+    pr = group("pr", help="PR metadata, and the commits /acs:create-pr makes (ADR-0127)")
     pr_sub = pr.add_subparsers(dest="cmd")
     metadata = pr_sub.add_parser("metadata", help="PR metadata fill")
     metadata_sub = metadata.add_subparsers(dest="subcmd")
@@ -255,8 +312,9 @@ def build_parser():
     fill.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
                       help="replay recorded gh output instead of calling gh")
     fill.set_defaults(func=cmd_pr_metadata_fill)
+    acs_changes_commands.add_pr_parsers(pr_sub)
 
-    tracker = group("tracker", help="tracker sync")
+    tracker = group("tracker", help="tracker sync and refresh")
     tracker_sub = tracker.add_subparsers(dest="cmd")
     sync = tracker_sub.add_parser("sync", help="create-ticket step 5's batch in one call")
     sync.add_argument("--ticket", action="append", default=[], required=True,
@@ -266,6 +324,17 @@ def build_parser():
     sync.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
                       help="replay recorded gh output instead of calling gh")
     sync.set_defaults(func=cmd_tracker_sync)
+    refresh = tracker_sub.add_parser(
+        "refresh", help="recompute tickets' references and rewrite their issues' "
+                        "## References block (non-critical)")
+    refresh.add_argument("--ticket", help="one ticket")
+    refresh.add_argument("--pending", action="store_true",
+                         help="every open synced ticket with a pending reference")
+    refresh.add_argument("--dry-run", dest="dry_run", action="store_true",
+                         help="read the issues; edit and store nothing")
+    refresh.add_argument("--gh-replay", dest="gh_replay", metavar="FILE",
+                         help="replay recorded gh output instead of calling gh")
+    refresh.set_defaults(func=cmd_tracker_refresh)
     ready = group("readiness", help="merge-pr's four readiness dimensions")
     ready.add_argument("--pr", help="PR number to read through gh")
     ready.add_argument("--from", dest="source", metavar="FILE",
@@ -343,13 +412,6 @@ def build_parser():
     slug.add_argument("--max-len", dest="max_len", type=int, default=40)
     slug.set_defaults(func=cmd_slug)
 
-    fanout = group("fanout", help="epic fan-out helpers")
-    fanout_sub = fanout.add_subparsers(dest="cmd")
-    batches = fanout_sub.add_parser("batches", help="fanout_batches")
-    batches.add_argument("--present", default="",
-                         help="comma-separated doc sets the repo already has")
-    batches.set_defaults(func=cmd_fanout_batches)
-
     doctor = group("doctor", help="check_toolchain / missing_tools")
     doctor.set_defaults(func=cmd_doctor)
 
@@ -365,25 +427,54 @@ def build_parser():
     wvalidate.set_defaults(func=cmd_workflow_validate)
 
 
-    artifacts = group("artifacts", help="the ticket documents in the repo docs tree")
+    artifacts = group("artifacts", help="a run's documents in the repo's phase folders")
     artifacts_sub = artifacts.add_subparsers(dest="cmd")
 
-    ashow = artifacts_sub.add_parser("show", help="where one ticket's documents live, and its derived status")
-    ashow.add_argument("--ticket")
+    ashow = artifacts_sub.add_parser("show", help="where one run's documents live (and, "
+                                                   "for a ticket, its derived status)")
+    ashow.add_argument("--run", help="a run other than this checkout's current one")
+    ashow.add_argument("--ticket", help="the ticket's latest run (or the ticket alone)")
     ashow.set_defaults(func=cmd_artifacts_show)
 
     amigrate = artifacts_sub.add_parser(
-        "migrate", help="move live partitions' ticket documents into the repo docs tree")
+        "migrate", help="retired (ADR-0128): tickets are no longer stored in the docs "
+                    "tree; reports and writes nothing")
     amigrate.add_argument("--dry-run", dest="dry_run", action="store_true",
                           help="list the moves without making them")
     amigrate.set_defaults(func=cmd_artifacts_migrate)
 
     acs_analysis_commands.add_parser(group)
+    acs_model_commands.add_parser(group)
+    acs_design_commands.add_parser(group)
+    acs_job_commands.add_parser(group)
+    acs_changes_commands.add_parser(group)
+    acs_roadmap_commands.add_parser(group)
+    acs_prd_commands.add_parser(group)
+    acs_requirements_commands.add_parser(group)
+    acs_handoff_commands.add_parser(group)
+    acs_docs_commands.add_parser(group)
+    acs_write_commands.add_parser(group)
 
     for name in sorted(DELEGATED):
         sub.add_parser(name, add_help=False,
                        help="delegated to %s" % DELEGATED[name])
     return parser, sub.choices
+
+
+def _bind_args_values(argv):
+    """`--args VALUE` -> `--args=VALUE`. `--args` carries a skill's raw
+    argument text verbatim (`--args "$ARGUMENTS"`), and argparse refuses a
+    separate value that starts with a dash, so a prompt such as
+    `--dry-run the export` would otherwise be a usage error."""
+    out, i = [], 0
+    while i < len(argv):
+        if argv[i] == "--args" and i + 1 < len(argv):
+            out.append("--args=" + argv[i + 1])
+            i += 2
+            continue
+        out.append(argv[i])
+        i += 1
+    return out
 
 
 def main(argv=None):
@@ -398,7 +489,7 @@ def main(argv=None):
         sys.exit(delegate(argv[0], rest))
 
     parser, groups = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(_bind_args_values(argv))
     func = getattr(args, "func", None)
     if func is None:
         # A group with no subcommand ("acs.py path") — show THAT group's usage,

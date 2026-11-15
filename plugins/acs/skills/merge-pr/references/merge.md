@@ -27,7 +27,7 @@ conversation history:
   `steps/<skill>/state.json` for a product-level ticket);
 - `<partition>/ticket.json` — `ticket.external` drives the tracker step;
 - `settings.merge_strategy` (`squash`|`merge`|`rebase`) and
-  `settings.tracker.provider` (`local`|`github`|`jira`);
+  `settings.tracker.provider` (`local`|`github`);
 - the cleanup inventory Step 0 took: the local branch, the worktree holding
   it, whether a tracker transition is needed.
 
@@ -37,7 +37,8 @@ Canon lives in `merge-pr/SKILL.md`'s own "GitHub call failure policy"
 section — this reference classifies no `gh` call itself, it only follows that
 classification: critical for the merge itself and every readiness/
 update-branch read (step 0, step 1a, step 1); loud-but-non-reverting for
-Step 2's post-merge tracker sync only. Canon hint text
+Step 2's post-merge tracker sync only; non-critical for step 4b's `acs.py
+tracker refresh --pending`. Canon hint text
 (`acs_lib.GH_ACCESS_HINT`, selected by `acs_lib.gh_failure_hint(stderr)`):
 
 > This looks like a session-level access restriction — a Claude Code
@@ -51,8 +52,9 @@ Run EVERYTHING from the main checkout (resolve it with
 `git rev-parse --git-common-dir`) — never from inside the worktree you are
 about to remove.
 
-0. **Confirm state first**: `gh pr view <number> --json state,mergedAt`. If it
-   already reports `MERGED` (normal on a resumed run), SKIP the readiness
+0. **Confirm state first**: `gh api repos/{owner}/{repo}/pulls/<number> --jq '{state, merged}'`
+   (REST, ADR-0149 — `gh pr …` runs on GraphQL, which Claude Code refuses). If it
+   already reports `merged: true` (normal on a resumed run), SKIP the readiness
    review, step 1a and step 1 entirely — never re-attempt a merge — and redo
    only the cleanup steps still outstanding. Otherwise run SKILL.md's Step 0
    readiness review and act on its `verdict`: `ready` → step 1,
@@ -62,19 +64,19 @@ about to remove.
     SKIP this step entirely if `mergeStateStatus != BEHIND`)** — run:
 
     ```bash
-    gh pr update-branch <number>
+    gh api -X PUT repos/{owner}/{repo}/pulls/<number>/update-branch
     ```
 
-    (merge-update; no `--rebase`; no `--force`; no force-push). If exit
+    (merge-update; no rebase; no force; no force-push). If exit
     non-zero (conflict detected): STOP with
     `summary: "update-branch conflict — base cannot be merged into PR
     branch cleanly; resolve the conflict and re-invoke /acs:merge-pr"`. Do NOT
     push fix commits; do NOT amend the PR; do NOT force-resolve the conflict.
-    If exit 0: poll `gh pr checks <number> --required` at 15-second intervals
+    If exit 0: re-run `acs.py readiness --pr <number>` at 15-second intervals
     for up to 5 minutes:
-    - All required checks pass AND `mergeStateStatus != BEHIND` → proceed to
-      step 1 (merge).
-    - `mergeStateStatus == BEHIND` again (base advanced mid-poll) → re-run
+    - Its `ci` dimension passes AND `protections` is no longer `behind` →
+      proceed to step 1 (merge).
+    - `protections` is `behind` again (base advanced mid-poll) → re-run
       step 1a if total update-branch attempts < 2 (C-8); else STOP with
       `summary: "base advanced again after 2 update attempts
       — re-invoke /acs:merge-pr once the base stabilizes"`.
@@ -82,11 +84,11 @@ about to remove.
       `summary: "branch updated but required CI still running
       after 5 min — re-invoke /acs:merge-pr to merge once CI passes"`.
 
-1. **Merge** with the configured strategy; `--delete-branch` removes the
-   remote branch:
+1. **Merge** with the configured strategy, then remove the remote branch:
 
    ```bash
-   gh pr merge <number> --<settings.merge_strategy> --delete-branch
+   gh api -X PUT repos/{owner}/{repo}/pulls/<number>/merge -f merge_method=<settings.merge_strategy>
+   gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/<pr.branch>
    ```
 
    **Critical**: if GitHub rejects the command (the repo disallows the
@@ -94,7 +96,8 @@ about to remove.
    review), record the exact gh stderr plus the canonical hint from
    `acs_lib.gh_failure_hint` and STOP, before any cleanup, per
    merge-pr/SKILL.md's classification — no fallback to any other transport.
-   NEVER substitute another strategy, never retry with `--admin`.
+   NEVER substitute another strategy, never retry as an admin. A failed
+   remote-branch delete after a merge is a finding, never a stop.
 2. **Remove the ticket worktree** when the inventory lists one:
    `git worktree remove <path>`. Append `--force` ONLY if leftover untracked
    files block removal AND step 0/1 confirmed the PR is merged. If the
@@ -106,26 +109,43 @@ about to remove.
 4. **Sync the tracker to Done** — only when `settings.tracker.provider` !=
    `local` AND `ticket.external` is set. **Loud-but-non-reverting** (mirrors
    merge-pr/SKILL.md's Step 2 rule): the merge already landed at step 1 and
-   is never revisited because of this step — a failed `gh issue close` or
+   is never revisited because of this step — a failed issue close or
    `gh project item-edit` here never reverts the merge and is never
    re-attempted automatically; record one error-severity finding naming the
    outstanding sync plus a replayable command block, and still report
    `merged_this_iteration` truthfully (the merge itself succeeded):
-   - `github`: `gh issue close <external.key> --comment "Merged {ticket_id} via
-     PR #{pr.number} — {pr.url}"`; when `tracker.github.project_number` is
+   - `github`: `gh api repos/{owner}/{repo}/issues/<external.key>/comments -f body="Merged
+     {ticket_id} via PR #{pr.number} — {pr.url}"`, then `gh api -X PATCH
+     repos/{owner}/{repo}/issues/<external.key> -f state=closed`; when `tracker.github.project_number` is
      configured, also set the project's Status field to Done — locate the item
      with `gh project item-list <project_number> --owner <owner> --format json`,
      then `gh project item-edit --id <item-id> --project-id <project-id>
      --field-id <status-field-id> --single-select-option-id <done-option-id>`.
-   - `jira`: `acli jira workitem transition --key <external.key> --status
-     "Done"`.
+4b. **Refresh pending references** (ADR-0140) — after the merge, best-effort,
+   whatever happened in step 4. The merge may have put documents on the
+   default branch that other open tickets list as ``pending: not on
+   `<default>` yet``; turn them into links in their issues:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" tracker refresh --pending
+   ```
+
+   It fetches `origin/<default>`, recomputes the references of every open
+   ticket that has an issue and a pending entry, and rewrites only the
+   `## References` block of the issues whose block changed. **Non-critical**
+   (merge-pr/SKILL.md's classification): a non-zero exit or a failed `gh` call
+   inside it is one `info` finding carrying the command to re-run, never a
+   failed step and never a reason to revisit the merge. Report the tickets it
+   refreshed (or "none pending") in the summary. On the `local` provider there
+   are no issues and the command has nothing to do.
 5. **Touch NOTHING else.** Do not edit `ticket.json` status, do not archive
    the partition, do not mark the parent epic done — `post-merge-pr.py` owns
    all of that; duplicating it corrupts workspace state.
 
 ## The merge report
 
-Write `steps/merge-pr/iter-<n>/merge.json` recording: `pr`
+Write `steps/merge-pr/iter-<n>/merge.json` through `acs.py write` (SKILL.md's Finish shows
+the form) recording: `pr`
 (number/url/branch/base), `merged_this_iteration` (false when step 0 found it
 already merged), `commands` — every command run, in order, with exit code and
 trimmed output — `steps_skipped` (each with why: not applicable / already
@@ -144,14 +164,15 @@ How the run ends, and what the report then says:
   naming the first failed step. Partial progress is normal and valuable — the
   report lets a resumed run redo only what failed. A failed step-4 tracker
   sync is NOT this case: the merge stands and the run still finishes with
-  `merged: true`.
+  `merged: true`; nor is a failed step-4b refresh, which is only an `info`
+  finding.
 
 ## Hard rules
 
 - Spawn no subagent: the coordinator runs these steps itself, in one session,
   because they are ordered and share state.
-- Mutate ONLY what this flow covers: the PR's merge state via `gh pr merge`,
-  the remote branch (via `--delete-branch`), the local branch, the ticket
+- Mutate ONLY what this flow covers: the PR's merge state (`pulls/<number>/merge`),
+  the remote branch (`git/refs/heads/<pr.branch>`), the local branch, the ticket
   worktree, the remote tracker item, and your own merge report (plus the
   result document and post-hook at Finish). Never another branch, never
   another PR, never repo files, never other workspace state.
@@ -160,8 +181,8 @@ How the run ends, and what the report then says:
 - A readiness regression discovered mid-run (e.g. merge rejected because CI
   turned red) is REPORT-ONLY: stop and report it; never push fixes to the
   branch, never amend the PR to make it mergeable.
-- **Exception — BEHIND-only update-branch:** `gh pr update-branch <number>`
-  (merge-update; no `--rebase`; no force-push) is permitted SOLELY when step 0
+- **Exception — BEHIND-only update-branch:** `pulls/<number>/update-branch`
+  (merge-update; no rebase; no force-push) is permitted SOLELY when step 0
   confirms `mergeStateStatus == BEHIND` AND the readiness verdict is
   `update-branch` (i.e., all other readiness dimensions passed). This is the
   ONE sanctioned branch mutation. No other branch push, amend, or force-push is
@@ -179,7 +200,7 @@ you actually read or ran in THIS run:
   code, docs, the ticket, or workspace state.
 - **Quote the exact command and the relevant output** for anything based on a
   command run (git/gh state, the readiness JSON).
-- **Never assert what you did not observe**: a merge `gh pr view` did not
+- **Never assert what you did not observe**: a merge the PR read did not
   report, a check you did not see pass, a worktree you did not list. If an
   input is missing or unreadable, record it in `problems` instead of working
   from an assumed version.

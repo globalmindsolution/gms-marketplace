@@ -3,17 +3,17 @@
 ## Target and hard-fail rule
 
 The floor is **90%**. `.acs/ci/run-tests.py` reads it as
-`settings.get("test_coverage_percent", 90)` — `.acs/settings.json` carries no
-`test_coverage_percent` key, so the live floor is that documented default,
-exported as `ACS_COVERAGE` into `tests.command`'s environment. A shortfall
+`settings.get("tests", {}).get("coverage", 90)` — `.acs/settings.json` carries no
+`tests.coverage` key, so the live floor is that documented default,
+exported as `ACS_COVERAGE` into `tests.unit.command`'s environment. A shortfall
 **hard-fails** the `Tests & coverage` required check
 (`.github/workflows/acs-tests.yml`) on every PR; there is no soft-warning mode.
 
-The gate is **repo-wide**: `.acs/settings.json`'s `tests.command` ends in
+The gate is **repo-wide**: `.acs/settings.json`'s `tests.unit.command` ends in
 `python3 -m coverage report --fail-under=$ACS_COVERAGE`
-(`.acs/settings.json:122`), so the whole measured `source` tree is graded on
+(`.acs/settings.json:48`), so the whole measured `source` tree is graded on
 every PR, not just this PR's own changed lines — see
-[`../architecture/lld/flows/tests-coverage-gate.md`](../architecture/lld/flows/tests-coverage-gate.md)
+[`../architecture/lld/acs/flows/tests-coverage-gate.md`](../architecture/lld/acs/flows/tests-coverage-gate.md)
 for its sequence diagram. Repo-wide TOTAL is **94%** (10782 statements,
 598 missed, measured 2026-09-17) — above the 90 floor. It read 95% (10845 /
 581) a day earlier; ADR-0095 deleted more covered code than uncovered, so the
@@ -62,7 +62,7 @@ lifts the average.
 
 The headroom that finding pointed at is gone with it. If TOTAL ever drops under
 the floor, the remedy is still a unit path for the uncovered code, not an
-`omit`: [ADR 0071](../adr/0071-coverage-omit-true-forwarder-shims-only.md)
+`omit`: [ADR 0071](../architecture/adr/0071-coverage-omit-true-forwarder-shims-only.md)
 restricts `omit` to true argument-forwarder shims, and PRD **G3** requires the
 target be met or hard-failed, never silently waived.
 
@@ -75,7 +75,7 @@ version matrix. A separate `3.9`/`3.12` matrix runs in `.github/workflows/ci.yml
 `Tests & validation` job, but that job runs the plain suite
 (`python3 -m unittest discover -s tests -v`, `ci.yml:32-33`) with no coverage
 measurement, and it is not a required check.
-`.acs/settings.json`'s `tests.command` is (shown with its `;`/`&&` chaining
+`.acs/settings.json`'s `tests.unit.command` is (shown with its `;`/`&&` chaining
 kept verbatim, just line-wrapped for readability — a failing suite short-
 circuits the rest via `&&`, so it never reaches `coverage report`):
 

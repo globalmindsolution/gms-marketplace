@@ -163,13 +163,14 @@ class Mar125InitE2eGateCase(unittest.TestCase):
 
     def test_no_new_settings_key(self):
         """C-4: the gate introduces no settings key — the command source is
-        whatever e2e/suites.e2e already holds."""
+        whatever tests.e2e already holds."""
         lowered = self.body.lower()
-        for shaped in ("e2e.ci", "e2e.required", "suites.e2e.ci"):
+        for shaped in ("e2e.ci", "e2e.required", "tests.e2e.ci"):
             self.assertNotIn(shaped, lowered)
         with open(SCHEMA_PATH, encoding="utf-8") as fh:
             schema = json.load(fh)
-        self.assertNotIn("ci", schema["properties"]["e2e"]["properties"])
+        e2e_entry = schema["properties"]["tests"]["additionalProperties"]
+        self.assertNotIn("ci", e2e_entry["properties"])
 
     def test_the_summary_reports_the_gate_outcome(self):
         """Recording parity: the summary still covers every resolved setting

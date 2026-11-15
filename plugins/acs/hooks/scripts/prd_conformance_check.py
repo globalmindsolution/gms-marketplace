@@ -14,12 +14,15 @@ Rule families:
   answer-fidelity  : active every mode. Every `answered`/`assumed`
                      `clarifications.json` ledger entry must have exactly
                      one `## Answer fidelity` line naming a verbatim,
-                     whitespace-normalized anchor in prd.md or roadmap.md,
-                     or an `N/A: <why>` escape.
-  roadmap-outline  : active every mode. Every plan-declared milestone
-                     heading must occur, verbatim (whitespace-normalized,
-                     leading `#` marker optional), as a heading in
-                     roadmap.md; the reverse direction (every roadmap.md
+                     whitespace-normalized anchor in prd.md, roadmap.md or
+                     a feature's own features/<slug>/prd.md (ADR-0142), or
+                     an `N/A: <why>` escape.
+  roadmap-outline  : active only when --roadmap is given (/acs:manage-roadmap's
+                     floor, through roadmap_check.py, ADR-0145; /acs:create-prd
+                     no longer writes the roadmap and passes none). Every
+                     plan-declared milestone heading must occur, verbatim
+                     (whitespace-normalized, leading `#` marker optional), as
+                     a heading in roadmap.md; the reverse direction (every roadmap.md
                      heading must be plan-declared) runs against the full
                      roadmap in greenfield/brownfield and against only the
                      `--added-heading` values in amend mode.
@@ -39,8 +42,8 @@ Rules:
                                    `## Answer fidelity` line.
   answer-anchor-not-found       : the named file does not contain the
                                    whitespace-normalized anchor.
-  answer-anchor-file-unknown    : the named target is neither prd.md nor
-                                   roadmap.md.
+  answer-anchor-file-unknown    : the named target is not prd.md, roadmap.md or
+                                   a features/<slug>/prd.md beside prd.md.
   roadmap-milestone-not-found   : a plan-declared milestone heading is
                                    absent from roadmap.md.
   roadmap-milestone-unplanned   : a roadmap.md heading (full set in
@@ -53,8 +56,9 @@ Usage:
       --plan <iter-n-plan.md> --mode {greenfield|brownfield|amend} \\
       --repo-root <repo-root> \\
       --clarifications <partition>/clarifications.json \\
-      --prd <the PRD file> --roadmap <the roadmap file> \\
-      [--added-heading "<verbatim milestone heading>" ...]
+      --prd <the PRD file> [--roadmap <the roadmap file>] \\
+      [--added-heading "<verbatim milestone heading>" ...] \\
+      [--feature-notes <a feature author's notes> ...]
 Importable:
   from prd_conformance_check import (
       check_code_evidence, check_answer_fidelity, check_roadmap_milestones)
@@ -66,6 +70,7 @@ roadmap input.
 """
 
 import json
+import os
 import re
 import sys
 
@@ -87,7 +92,8 @@ _MODES = ("greenfield", "brownfield", "amend")
 _USAGE = ("usage: prd_conformance_check.py --plan <plan.md> "
           "--mode {greenfield|brownfield|amend} --repo-root <path> "
           "--clarifications <clarifications.json> --prd <prd.md> "
-          "--roadmap <roadmap.md> [--added-heading <heading> ...]")
+          "[--roadmap <roadmap.md>] [--added-heading <heading> ...] "
+          "[--feature-notes <notes.md> ...]")
 
 
 def _strip_heading_marker(s):
@@ -142,11 +148,30 @@ def _parse_answer_lines(text):
     return entries
 
 
-def check_answer_fidelity(text, clarifications, prd_text, roadmap_text, plan_path):
+def feature_texts(prd_path):
+    """{"features/<slug>/prd.md": text} for each feature PRD beside `prd_path`
+    (ADR-0142), so an answer can anchor in a feature's own document."""
+    root = os.path.join(os.path.dirname(prd_path) or ".", "features")
+    out = {}
+    for slug in sorted(os.listdir(root)) if os.path.isdir(root) else []:
+        text, err = _read_text(os.path.join(root, slug, "prd.md"))
+        if err is None:
+            out["features/%s/prd.md" % slug] = text
+    return out
+
+
+def check_answer_fidelity(text, clarifications, prd_text, roadmap_text, plan_path,
+                          feature_docs=None, feature_notes=()):
     """Corroborate every answered/assumed ledger entry against its `## Answer
-    fidelity` disposition -- population is the ledger, never the plan."""
+    fidelity` disposition -- population is the ledger, never the plan. A
+    feature author's notes (`feature_notes`, texts) disposition the answers
+    that landed in its feature PRD and win over the plan's line for that id."""
     declared = _parse_answer_lines(text)
-    file_texts = {"prd.md": prd_text, "roadmap.md": roadmap_text}
+    for notes in feature_notes:
+        declared.update(_parse_answer_lines(notes))
+    file_texts = dict(feature_docs or {}, **{"prd.md": prd_text})
+    if roadmap_text is not None:
+        file_texts["roadmap.md"] = roadmap_text
     findings = []
     manifest = []
 
@@ -172,7 +197,8 @@ def check_answer_fidelity(text, clarifications, prd_text, roadmap_text, plan_pat
         if target not in file_texts:
             findings.append(Finding(
                 plan_path, disp["line"], "answer-anchor-file-unknown",
-                "answer fidelity target %r for %s is neither prd.md nor roadmap.md"
+                "answer fidelity target %r for %s is not prd.md, roadmap.md "
+                "or a features/<slug>/prd.md"
                 % (target, cid)))
             continue
 
@@ -243,7 +269,7 @@ def main(argv):
     manifest + findings, and return the exit code."""
     args = argv[1:]
     known = ("--plan", "--mode", "--repo-root", "--clarifications",
-             "--prd", "--roadmap", "--added-heading")
+             "--prd", "--roadmap", "--added-heading", "--feature-notes")
     plan_path = None
     mode = None
     repo_root = None
@@ -251,6 +277,7 @@ def main(argv):
     prd_path = None
     roadmap_path = None
     added_headings = []
+    feature_notes_paths = []
 
     i = 0
     while i < len(args):
@@ -276,10 +303,12 @@ def main(argv):
             roadmap_path = value
         elif a == "--added-heading":
             added_headings.append(value)
+        elif a == "--feature-notes":
+            feature_notes_paths.append(value)
         i += 2
 
     if (plan_path is None or mode is None or repo_root is None
-            or clarifications_path is None or prd_path is None or roadmap_path is None):
+            or clarifications_path is None or prd_path is None):
         print(_USAGE, file=sys.stderr)
         return 2
     if mode not in _MODES:
@@ -312,10 +341,20 @@ def main(argv):
         print("error reading %s: %s" % (prd_path, err), file=sys.stderr)
         return 2
 
-    roadmap_text, err = _read_text(roadmap_path)
-    if err is not None:
-        print("error reading %s: %s" % (roadmap_path, err), file=sys.stderr)
-        return 2
+    roadmap_text = None
+    if roadmap_path is not None:
+        roadmap_text, err = _read_text(roadmap_path)
+        if err is not None:
+            print("error reading %s: %s" % (roadmap_path, err), file=sys.stderr)
+            return 2
+
+    feature_notes = []
+    for path in feature_notes_paths:
+        text, err = _read_text(path)
+        if err is not None:
+            print("error reading %s: %s" % (path, err), file=sys.stderr)
+            return 2
+        feature_notes.append(text)
 
     findings = []
     manifest = []
@@ -325,13 +364,15 @@ def main(argv):
         findings += f
         manifest += m
 
-    f, m = check_answer_fidelity(plan_text, clarifications, prd_text, roadmap_text, plan_path)
+    f, m = check_answer_fidelity(plan_text, clarifications, prd_text, roadmap_text, plan_path,
+                              feature_texts(prd_path), feature_notes)
     findings += f
     manifest += m
 
-    f, m = check_roadmap_milestones(plan_text, roadmap_text, mode, added_headings, plan_path)
-    findings += f
-    manifest += m
+    if roadmap_text is not None:
+        f, m = check_roadmap_milestones(plan_text, roadmap_text, mode, added_headings, plan_path)
+        findings += f
+        manifest += m
 
     for entry in manifest:
         print(json.dumps(entry))

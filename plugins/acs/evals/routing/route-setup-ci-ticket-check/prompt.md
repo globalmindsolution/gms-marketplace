@@ -1,7 +1,7 @@
 ---
 description: >-
-  Borrows the vocabulary of /acs:install-hooks on purpose -- it is about
-  enforcing conventions -- while the request still belongs to this skill. It
+  Borrows the vocabulary of /acs:create-pr on purpose -- it is about
+  pull requests and what they must contain -- while the request still belongs to this skill. It
   tests that the description, not a keyword, decides the route. Never names
   the skill.
 expected_outcome: Routes to acs:setup.

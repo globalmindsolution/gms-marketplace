@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""record-external.py — stamp external={provider,key} into one ticket's ticket.json.
+"""record-external.py — stamp external={provider,key[,url]} into one ticket's ticket.json.
 
 The deterministic write seam for tracker sync (MAR-84 spec 01): `gh issue
 create` / `gh project item-add` / field-set calls stay in prose
 (create-ticket/SKILL.md Step 5, references/materialize.md step 5). Once that
 prose sequence has a real remote {provider, key} in hand for one ticket, it
-calls this helper to record it. This helper does NOT call gh/acli, does not
+calls this helper to record it. This helper does NOT call gh, does not
 touch the network, and does not decide whether a ticket should be synced — it
 only performs (and validates) the single-ticket write, once per invocation.
 
@@ -18,10 +18,13 @@ Refuses, in order:
 
 On success, writes ticket["external"] = {"provider": ..., "key": ...} via
 acs_lib.save_ticket (which also refreshes updated_at) and prints
-{"ticket_id": ..., "external": {...}} to stdout.
+{"ticket_id": ..., "external": {...}} to stdout. `--url` keeps the issue's web
+URL as `external.url` -- the URL `acs.py tracker sync` prints for each synced
+ticket (ADR-0140); without it the mapping is {provider, key} as before.
 
 Usage:
-  record-external.py --ticket SHOP-123 --provider github --key 456
+  record-external.py --ticket SHOP-123 --provider github --key 456 \
+      [--url https://github.com/acme/shop/issues/456]
 """
 
 import argparse
@@ -33,7 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import acs_lib as lib  # noqa: E402
 
 
-def record_external(cwd, ticket_id, provider, key):
+def record_external(cwd, ticket_id, provider, key, url=None):
     """Testable core: resolve the ticket, validate, write. No argparse, no
     sys.exit — returns (ok, payload_or_message) so callers (main() and unit
     tests / the coverage harness) can drive every branch without a subprocess.
@@ -56,6 +59,8 @@ def record_external(cwd, ticket_id, provider, key):
         )
 
     ticket["external"] = {"provider": provider, "key": key}
+    if url:
+        ticket["external"]["url"] = url
     lib.save_ticket(tdir, ticket)
     return True, {"ticket_id": ticket_id, "external": ticket["external"]}
 
@@ -65,10 +70,12 @@ def main(argv=None):
     parser.add_argument("--ticket", required=True)
     parser.add_argument("--provider", required=True)
     parser.add_argument("--key", required=True)
+    parser.add_argument("--url", help="the issue's web URL, kept as external.url")
     args = parser.parse_args(argv)
 
     try:
-        ok, result = record_external(os.getcwd(), args.ticket, args.provider, args.key)
+        ok, result = record_external(os.getcwd(), args.ticket, args.provider, args.key,
+                                     url=args.url)
     except lib.GateError as exc:
         sys.stderr.write("acs record-external: %s\n" % exc)
         sys.exit(2)

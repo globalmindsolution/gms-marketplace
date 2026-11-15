@@ -1,7 +1,7 @@
 """MAR-119 spec 03 — conformance-chain, docs, and CHANGELOG sweep.
 
 Prose-contract tests over the five conformance-chain locations
-(`docs/architecture/lld/contracts.md`, `docs/architecture/hld/overview.md`,
+(`docs/architecture/lld/acs/api/settings.md`, `docs/architecture/hld/overview.md`,
 `docs/requirements/non-functional/quality-gates.md` (the SIX_NODE chain
 lives in the moved "PRD at the top" Core-principles row, MAR-145),
 `docs/requirements/functional/workflow.md`,
@@ -36,7 +36,10 @@ SIX_NODE = ("PRD → architecture → principles → standards → "
 EIGHT_NODE = ("PRD → architecture → principles → standards → "
               "design → code → verify → release")
 
-CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+# lld/contracts.md is one file per interface under lld/acs/api/ now; the
+# conformance chain and the Settings section are api/settings.md.
+API_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api")
+CONTRACTS_MD = os.path.join(API_DIR, "settings.md")
 HLD_OVERVIEW_MD = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "overview.md")
 REQ_OVERVIEW_MD = os.path.join(REPO_ROOT, "docs", "requirements",
                                 "non-functional", "quality-gates.md")
@@ -44,7 +47,7 @@ WORKFLOW_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "wor
 DOCS_README_MD = os.path.join(REPO_ROOT, "docs", "README.md")
 SKILLS_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 REFLECTION_MD = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "reflection.md")
-FLOWS_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "flows")
+FLOWS_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "flows")
 
 FIVE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD, DOCS_README_MD]
 SEVEN_NODE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD]
@@ -52,9 +55,12 @@ SEVEN_NODE_FILES = [CONTRACTS_MD, HLD_OVERVIEW_MD, REQ_OVERVIEW_MD, WORKFLOW_MD]
 BASELINE_FLOWS = {
     "hook-gated-skill-run.md",
     "ship-pipeline.md",
-    "standardize-project.md",
+    "state-ticket.md",
     "ticket-lifecycle.md",
 }
+# state-ticket.md is not an addition: it is ticket-lifecycle.md's status
+# stateDiagram, split into its own file when this repo's LLD moved to the
+# per-feature layout (lld/acs/flows/). The baseline's flows are the same.
 # tabp-screening-state-write.md and tabp-usage-read.md were in this baseline
 # until the tabp plugin was removed; a flow doc for a plugin the repo no
 # longer ships is not a flow. This guardrail is about accidental ADDITIONS,
@@ -77,9 +83,9 @@ BASELINE_FLOWS = {
 # design.md Flow 2 covers the bootstrap skill's gitignore retrofit + optional
 # migration, a distinct runtime flow from Flow 1 above that no existing flow
 # doc covered.
-# A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) legitimately added
-# doc-bootstrap-fanout.md — its own design.md requires a new standing flow file
-# for /acs:create-docs's cross-skill fan-out, which no existing flow doc covered.
+# A separately-numbered MAR-1 (doc-bootstrap parallel fan-out) added
+# doc-bootstrap-fanout.md for /acs:create-docs's cross-skill fan-out; ADR-0124
+# removed the skill and the flow file with it.
 # MAR-402 (inheriting design.md from parent epic MAR-401, Option J/D5) legitimately
 # added ticket-id-reconciliation.md — the fail-closed first-allocate reconciliation
 # gate's own sequence (refusal, evidence scan, confirm, steady state) is a distinct
@@ -95,23 +101,11 @@ BASELINE_FLOWS = {
 # own prose that this guard is not a participant in its skill-boundary diagram, so
 # the deny path with its recording is a distinct runtime flow no existing flow doc
 # covered.
-# MAR-590 (child A of epic MAR-589) legitimately added
-# create-pr-stacked-base-preflight.md — the stacked-base pre-flight runs INSIDE
-# /acs:create-pr step 1, before anything is pushed, and its exit-1 arm terminates
-# the skill before that side effect instead of reporting after it, while exit 2
-# and a qualified exit 0 stay advisory. No existing flow doc covers it:
-# ship-pipeline.md places create-pr in the workflow and reads its verifier brake,
-# hook-gated-skill-run.md covers the inline shape and the gating,
-# ticket-lifecycle.md the state transition, and github-call-failure-policy.md
-# names create-pr/SKILL.md only as a gh call site — none describes what happens
-# inside step 1. The remedy the flow hands the author ends in a git rebase --onto
-# and a git push --force-with-lease, so its dispositions are a distinct runtime
-# flow rather than a re-anchor of an existing one.
 KNOWN_LATER_ADDITIONS = {"enforce-e2e-merge-gate.md", "release-cut.md", "tests-coverage-gate.md",
                           "acs-cost-metering.md", "state-root-resolution.md",
-                          "setup-state-root-setup.md", "doc-bootstrap-fanout.md",
+                          "setup-state-root-setup.md",
                           "ticket-id-reconciliation.md", "github-call-failure-policy.md",
-                          "file-map-guard-deny.md", "create-pr-stacked-base-preflight.md"}
+                          "file-map-guard-deny.md"}
 
 
 def read(path):
@@ -181,7 +175,9 @@ class ContractsMdSettingsKeysTest(unittest.TestCase):
     section says documents are found rather than configured."""
 
     def test_principles_and_standards_path_keys_absent(self):
-        body = read(CONTRACTS_MD)
+        # The whole of what contracts.md held: every interface document.
+        body = "\n".join(read(os.path.join(API_DIR, n)) for n in sorted(os.listdir(API_DIR))
+                         if n.endswith(".md") and not evidence_sidecar.is_evidence_sidecar(n))
         self.assertNotIn("principles_path", body,
                          "contracts.md must not list the removed "
                          "principles_path key (ADR-0102)")
@@ -234,14 +230,15 @@ class SkillsMdReviewLensDimensionTest(unittest.TestCase):
 class SkillsMdCreateDesignVerifierDimensionTest(unittest.TestCase):
     """C-4: the create-design-verifier living-requirements description gains
     a minimal standards-conformance clause, mirroring the code-verifier
-    edit, so it stays consistent with create-design-design-reviewer.md's committed
+    edit, so it stays consistent with the design reviewer's committed
     consistency/nfr standards sub-check."""
 
     def _bullet_window(self):
         body = read(SKILLS_MD)
-        m = re.search(r"(?m)^- The `create-design-design-reviewer` checks:.*$", body)
+        # ADR-0135 renamed the agent create-tech-design-reviewer.
+        m = re.search(r"(?m)^- The `create-tech-design-reviewer` checks:.*$", body)
         self.assertIsNotNone(
-            m, "skills.md must have the create-design-verifier checks bullet")
+            m, "skills.md must have the create-tech-design-reviewer checks bullet")
         nxt = re.search(r"(?m)^- ", body[m.end():])
         end = m.end() + nxt.start() if nxt else len(body)
         return norm(body[m.start():end])
@@ -249,7 +246,7 @@ class SkillsMdCreateDesignVerifierDimensionTest(unittest.TestCase):
     def test_bullet_names_standards_source_of_truth(self):
         window = self._bullet_window()
         self.assertIn("`standards/`", window,
-                      "the create-design-verifier bullet must name `standards/`")
+                      "the create-tech-design-reviewer bullet must name `standards/`")
         self.assertNotIn("standards_path", window)
 
     def test_bullet_keeps_original_checks(self):

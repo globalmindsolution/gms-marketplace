@@ -15,7 +15,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Only adults may check out" task false \
+acs_ticket "Only adults may check out" task \
   "Checkout must refuse shoppers under 18; the release/2.4 line needs it first."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["can_checkout(age) is true for a shopper aged 18 or over", "can_checkout(age) is false for a shopper under 18"]}' \

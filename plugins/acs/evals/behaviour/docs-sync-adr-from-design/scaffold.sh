@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# /acs:docs-sync on an ADR-worthy change: EVAL-1 (needs_design true) moves the
+# /acs:docs-sync on an ADR-worthy change: EVAL-1 (with a tech design) moves the
 # customer listing from a hard-coded empty list onto a SQLite store through
-# the stdlib sqlite3 module. Its approved design (docs/tickets/EVAL-1/design.md,
-# committed on the ticket branch the way the Build phase carries it) records
+# the stdlib sqlite3 module. Its approved tech design
+# (docs/architecture/lld/customer-listing/EVAL-1/tech-design.md, published
+# uncommitted the way /acs:create-tech-design leaves it, then approved) records
 # one accepted decision under `### Decision records`, and the repo keeps ADRs
 # in docs/adr/ (0001, 0002, NNNN-slug.md). /acs:code's step is recorded
 # completed through the plugin's own writers (`acs.py step start`, then
-# `post-code.py`), with no doc updated. The doc-updater charter: "when the
-# ticket has a binding design carrying accepted decision records, commit those
-# records as ADRs under <adr_dir>". What the run must produce: a NEW ADR,
-# docs/adr/0003-*.md, committed on the SAME ticket branch, the existing ADRs
-# untouched.
+# `post-code.py`), with no doc updated and the change left UNCOMMITTED on main
+# (ADR-0127). The doc-updater charter: "when the ticket has a binding design
+# carrying accepted decision records, write those records as ADRs under
+# <adr_dir>". What the run must produce: a NEW ADR, docs/adr/0003-*.md, left
+# uncommitted (no branch, no commit), the existing ADRs untouched.
 #
 # The CLI runs a scaffold in place, so $0 is this file in the case directory.
 set -euo pipefail
@@ -66,58 +67,96 @@ MD
 git add -A
 git commit -qm "ADRs 0001 and 0002"
 
-acs_ticket "Store customers in SQLite" task true \
+ACS_FEATURES=customer-listing
+acs_ticket "Store customers in SQLite" task \
   "Back list_customers with a SQLite store instead of a hard-coded empty list."
-acs_branch task/EVAL-1-store-customers-in-sqlite
 
-# The Build phase carries the approved design onto the ticket branch.
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/design.md <<'MD'
-# Design — EVAL-1: Store customers in SQLite
+# /acs:create-tech-design's published tech design, approved, uncommitted.
+mkdir -p docs/architecture/lld/customer-listing/EVAL-1
+design=docs/architecture/lld/customer-listing/EVAL-1/tech-design.md
+cat > "$design" <<'MD'
+# Tech design — EVAL-1: Store customers in SQLite
 
-Status: approved
+## Decision & options
 
-## Context & constraints
+**Decision:** store customers in SQLite through the stdlib `sqlite3` module (Option 1).
+
+### Context
 
 `list_customers()` returns a hard-coded empty list. Customers must persist
 across restarts. Constraint: no new third-party dependency (ADR 0002's
 stdlib-only stance).
 
-## Options considered
+### Options considered
 
-1. **SQLite through the stdlib `sqlite3` module** — zero dependencies, a
-   single file, transactional.
-2. **A JSON file rewritten on every change** — trivial, but no concurrent
-   writers and no partial reads.
-3. **PostgreSQL** — the scalable choice, but a server to run and a driver
-   dependency.
+#### Option 1 — SQLite through the stdlib `sqlite3` module
 
-## Decision & rationale
+Zero dependencies, a single file, transactional.
 
-Option 1. It persists customers with no new dependency, and paging maps
-directly onto `LIMIT`/`OFFSET`.
+#### Option 2 — a JSON file rewritten on every change
+
+Trivial, but no concurrent writers and no partial reads.
+
+#### Option 3 — PostgreSQL
+
+The scalable choice, but a server to run and a driver dependency.
+
+### Rationale
+
+Option 1 persists customers with no new dependency, and paging maps directly
+onto `LIMIT`/`OFFSET`.
 
 ### Decision records
 
 - **Store customers in SQLite through the stdlib sqlite3 module** — accepted.
-  Commit as an ADR under docs/adr/ with the documentation updates.
+  /acs:docs-sync writes these as ADRs under docs/adr/ once the changeset
+  exists.
 
-## Architecture
+## HLD views affected
 
-`src/shop/store.py` owns the connection and the `customers` table;
-`list_customers()` reads a page from it.
+n/a — the store is internal to the shop service; no HLD view changes.
 
-## Impact & risks
+## LLD
+
+The feature's LLD folder `docs/architecture/lld/customer-listing/`.
+
+### API
+
+n/a — `list_customers()` keeps its signature.
+
+### Data
+
+none yet — run /acs:create-data-design EVAL-1: the `customers` table.
+
+### Flows
+
+n/a — no new runtime flow.
+
+### Components
+
+n/a — `src/shop/store.py` is a module, not a component.
+
+## NFRs
+
+Security: no new input surface. Performance: a page is one indexed query.
+
+## Risks
 
 A single-writer database: fine for one process, revisit before running
 several.
 
-## Rollout/migration
+### Rollout & migration
 
 The table is created on first connect; there is no existing data to migrate.
+
+## Open questions
+
+none
 MD
-git add -A
-git commit -qm "EVAL-1 design"
+python3 "$ACS_SCRIPTS/acs.py" design init --status proposed --ticket EVAL-1 \
+  --feature customer-listing "$design" > /dev/null
+python3 "$ACS_SCRIPTS/acs.py" design status --set approved --by "Ana Lima <ana@example.com>" \
+  "$design" > /dev/null
 
 python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null 2>&1
 cat > src/shop/store.py <<'PY'
@@ -157,11 +196,9 @@ def test_list_customers_pages_the_store():
     db.executemany("INSERT INTO customers (name) VALUES (?)", [("ada",), ("bo",), ("cy",)])
     assert list_customers(1, 1, db=db)["items"] == [{"id": 2, "name": "bo"}]
 PY
-git add -A
-git commit -qm "EVAL-1 store customers in SQLite"
 python3 "$ACS_SCRIPTS/post-code.py" > /dev/null <<'JSON'
 {"status": "completed",
  "summary": "customers are stored in SQLite (src/shop/store.py); list_customers pages the store",
- "states": {"branch": "task/EVAL-1-store-customers-in-sqlite", "docs_updated": []},
+ "states": {"docs_updated": [], "files": ["src/shop/store.py", "src/shop/__init__.py", "tests/test_store.py"]},
  "findings": [], "errors": []}
 JSON

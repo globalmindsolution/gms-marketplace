@@ -104,7 +104,8 @@ class DocsSyncBindingDesignTest(unittest.TestCase):
     def test_the_no_doc_impact_path_is_documented(self):
         body = read(os.path.join(PLUGIN, "skills", "docs-sync", "SKILL.md"))
         self.assertNotIn("step 1 below", body)
-        self.assertIn('"docs_committed": []', body)
+        self.assertIn('"states": {"files": [], "review"', body)
+        self.assertIn("acs.py changes diff", body)
 
 
 if __name__ == "__main__":

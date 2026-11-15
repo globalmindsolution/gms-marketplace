@@ -6,11 +6,11 @@ run_script, 169 call sites) -- a relative `source`, `data_file`, or
 `COVERAGE_PROCESS_START` each silently degrades measured coverage back
 toward ~62% with no error. This module pins the committed configuration
 that avoids that: `.coveragerc`'s [run] parallel/source/data_file/omit
-shape, the `.gitignore` parallel-data-file entry, the `tests.setup`
-coverage-version floor, and `tests.command`'s measurement wiring plus
+shape, the `.gitignore` parallel-data-file entry, the `tests.unit.setup`
+coverage-version floor, and `tests.unit.command`'s measurement wiring plus
 `coverage combine`.
 
-`tests.command` runs repo-wide: it orders `coverage combine` before
+`tests.unit.command` runs repo-wide: it orders `coverage combine` before
 `coverage report`, and it contains no `diff_cover` step -- both properties
 are asserted below.
 """
@@ -127,12 +127,12 @@ class TestGitignoreParallelDataFiles(unittest.TestCase):
 
 
 class TestSettingsCoverageFloor(unittest.TestCase):
-    """AC-4: tests.setup pins a coverage version floor shipping the subprocess startup hook."""
+    """AC-4: tests.unit.setup pins a coverage version floor shipping the subprocess startup hook."""
 
     def test_tests_setup_pins_coverage_version_floor(self):
-        setup = _read_settings()["tests"]["setup"]
+        setup = _read_settings()["tests"]["unit"]["setup"]
         match = re.search(r"coverage>=(\d+)\.(\d+)\.(\d+)", setup)
-        self.assertIsNotNone(match, "tests.setup must pin a coverage>=N.N.N floor: %r" % setup)
+        self.assertIsNotNone(match, "tests.unit.setup must pin a coverage>=N.N.N floor: %r" % setup)
         floor = tuple(int(part) for part in match.groups())
         self.assertGreaterEqual(floor, (7, 14, 2))
         self.assertNotIn("quiet coverage jsonschema", setup,
@@ -140,7 +140,7 @@ class TestSettingsCoverageFloor(unittest.TestCase):
 
 
 class TestSettingsTestsCommand(unittest.TestCase):
-    """AC-5: tests.command wires measurement, runs coverage combine, then reports repo-wide."""
+    """AC-5: tests.unit.command wires measurement, runs coverage combine, then reports repo-wide."""
 
     FINAL_FORM = (
         "export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; "
@@ -150,7 +150,7 @@ class TestSettingsTestsCommand(unittest.TestCase):
     )
 
     def setUp(self):
-        self.command = _read_settings()["tests"]["command"]
+        self.command = _read_settings()["tests"]["unit"]["command"]
 
     def test_coverage_process_start_is_absolute_for_the_whole_chain(self):
         self.assertTrue(self.command.startswith(
@@ -179,12 +179,12 @@ class TestSettingsTestsCommand(unittest.TestCase):
 
 
 class TestSettingsTestsSetup(unittest.TestCase):
-    """AC-2 (MAR-183): tests.setup carries no diff-cover reference and no
+    """AC-2 (MAR-183): tests.unit.setup carries no diff-cover reference and no
     deep base-branch git fetch -- both existed only to support the retired
     diff-cover gate (MAR-174) and its now-moot rollback path."""
 
     def setUp(self):
-        self.setup = _read_settings()["tests"]["setup"]
+        self.setup = _read_settings()["tests"]["unit"]["setup"]
 
     def test_tests_setup_has_no_diff_cover_reference(self):
         self.assertNotIn("diff_cover", self.setup)

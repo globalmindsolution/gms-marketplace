@@ -212,13 +212,13 @@ class Mar129ReleaseSettingsProfileOneConformanceCase(unittest.TestCase):
             "the committed .acs/settings.json release block must structurally conform to the `release` sub-schema shape: %r" % (block,),
         )
 
-    def test_profile_one_version_locations_are_marketplace_and_plugin_manifest(self):
+    def test_profile_one_version_locations_are_the_plugin_manifests_only(self):
         settings = load_json(SETTINGS_PATH)
         files = {entry if isinstance(entry, str) else entry["file"]
                  for entry in settings["release"]["version_locations"]}
         self.assertEqual(
             files,
-            {".claude-plugin/marketplace.json", "plugins/acs/.claude-plugin/plugin.json",
+            {"plugins/acs/.claude-plugin/plugin.json",
              "plugins/acs/.devin-plugin/plugin.json", ".devin-plugin/plugin.json"},
         )
 

@@ -413,10 +413,12 @@ class TheReleaseCutLeavesTheSourceAloneTest(unittest.TestCase):
         """
         files = {loc if isinstance(loc, str) else loc.get("file")
                  for loc in (self.release.get("version_locations") or [])}
-        self.assertIn(".claude-plugin/marketplace.json", files,
-                      "the cut must bump the marketplace's own version")
-        for entry in relative_entries():
-            rel = os.path.relpath(tree_path(entry), REPO_ROOT)
+        self.assertNotIn(".claude-plugin/marketplace.json", files,
+                         "the marketplace is unversioned; the cut must not bump it")
+        for entry in relative_entries() + pinned_entries():
+            src = entry["source"]
+            rel = (os.path.relpath(tree_path(entry), REPO_ROOT)
+                   if isinstance(src, str) else src["path"])
             expected = os.path.join(rel, ".claude-plugin", "plugin.json")
             with self.subTest(plugin=entry.get("name")):
                 self.assertIn(
@@ -455,6 +457,28 @@ class TheLintStepsFindASourceTreeTest(unittest.TestCase):
                     glob.glob(os.path.join(REPO_ROOT, rel, "skills", "*", "SKILL.md")),
                     "%s carries no skills — the frontmatter check would pass "
                     "over an empty set" % rel)
+
+
+
+class TheMarketplaceIsNotReleasedTest(unittest.TestCase):
+    """Consumers update the plugin alone; the marketplace carries no release.
+
+    A top-level `version` would invite a marketplace tag and a pin that moves
+    the plugin with it. Every acs entry instead follows the moving
+    `acs-stable` branch, which release.yml advances to each plugin tag.
+    """
+
+    def test_the_marketplace_declares_no_version(self):
+        self.assertNotIn("version", manifest(),
+                         "marketplace.json must stay unversioned")
+
+    def test_plugin_entries_follow_the_stable_branch(self):
+        for entry in entries():
+            with self.subTest(plugin=entry.get("name")):
+                src = entry.get("source")
+                self.assertIsInstance(src, dict,
+                                      "a relative source would tie the plugin to the marketplace ref")
+                self.assertEqual(src.get("ref"), "%s-stable" % entry["name"])
 
 
 if __name__ == "__main__":

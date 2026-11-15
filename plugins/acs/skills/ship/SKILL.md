@@ -1,7 +1,7 @@
 ---
 name: ship
 description: Umbrella command that drives the delivery pipeline declared in workflows/ship.yaml for one run — asking the run's cursor which step is due, invoking it, and asking again, always stopping before merge. Use when the user wants work shipped end-to-end with one command, or wants to resume a run from where it left off. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id | prompt | document | --run <run-id>]"
+argument-hint: "[ticket-id] [documents…] [prompt] [--run <run-id>]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -78,12 +78,18 @@ on", a subject means "this one", and an id is only for disambiguation.
 | a ticket id (`[A-Z][A-Z0-9]*-[0-9]+`, e.g. `SHOP-123`) | the latest non-terminal run whose subject is that ticket; a new run if there is none |
 | free text | a new run from that prompt — or, if this checkout's current run already has that subject, that run |
 | a path to a file that exists | a new run from that document, resolved the same way |
+| a mix — `SHOP-12 ~/Downloads/spec.pdf "also bulk export"` | the run of the primary subject (ticket > document > prompt), with every one of them recorded as its requirements |
 | `--run <run-id>` | exactly that run; the only form that names an id, for the rare second run on one subject |
 
-You do not have to resolve this yourself: `acs run next` takes the subject
-as a flag — `--ticket <id>`, `--prompt "<text>"` or `--document <path>` —
-resolves it exactly as the table says (creating the run when there is none)
-and answers from the run it finds. When nothing resolves — no
+A ticket id, documents (in the repo, or attached from outside it — copied into
+the run) and a prompt are only containers of the REQUIREMENTS; no ticket is
+needed, and the run's `requirements.md` holds what all of them said.
+
+You do not have to resolve this yourself: `acs run next --args "$ARGUMENTS"`
+takes the raw arguments — or the subject as a flag, `--ticket <id>`,
+`--prompt "<text>"` or `--document <path>` — resolves it exactly as the table
+says (creating the run when there is none, its requirements recorded) and
+answers from the run it finds. When nothing resolves — no
 pointer, no subject — ask the user what to ship rather than guessing.
 
 There is no `flow: product` refusal any more: a run has a SUBJECT, not a flow,
@@ -104,14 +110,16 @@ memory, decides what comes next:
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" run next
 ```
 
-On entry, pass the subject you were given as its flag (`--ticket`, `--prompt`
-or `--document`, per Step 2), or `--run <run-id>` when you were given one; with
-none, it reads this checkout's current run. After a step returns, the run is
+On entry, pass what you were given — `--args "$ARGUMENTS"` (or the subject
+as its flag, `--ticket`, `--prompt` or `--document`, per Step 2), or
+`--run <run-id>` when you were given one; with none, it reads this checkout's
+current run. After a step returns, the run is
 current, so the bare command is enough. It prints one JSON object:
 
 | Field | What you do with it |
 |---|---|
 | `run_id` | the run you are driving; quote it in your report |
+| `args` | the argument text to invoke the step with (see below) |
 | `next` | the cursor: the first step to run now, or `null` |
 | `due` | every step to run now — `[next]` for a plain step, each unfinished member for a parallel group |
 | `parallel` | `true` when `due` holds more than one step → "Running a parallel group" |
@@ -121,7 +129,7 @@ current, so the bare command is enough. It prints one JSON object:
 Branch strictly on what comes back:
 
 1. **Exit 2** → surface stderr verbatim and stop. Two cases matter: an epic
-   (see "Epic fan-out" below) and a run that does not resolve — suggest
+   (see "Epic breakdown" below) and a run that does not resolve — suggest
    `/acs:create-ticket`, or report that an archived ticket is already done.
 2. **`done: true`** → Finish.
 3. **`status: "failed"`** → the run is over: a step failed, or the review loop
@@ -132,7 +140,12 @@ Branch strictly on what comes back:
 5. Otherwise invoke the step `next` names.
 
 Invoking a step is always the same: the Skill tool with skill `acs:<next>` and
-args = the run's subject when it is a ticket (the id alone), else nothing.
+args = the `args` field `run next` printed — the arguments you were given
+(`$ARGUMENTS`) when you passed them, else the run's own subject (its ticket id,
+document path or prompt), for every subject kind. A step re-reads the run's
+requirements either way, and a source it already recorded is a no-op, so even
+on a host whose hooks never fired every source reaches the run's
+`requirements.md`.
 Never pass a partition — the step resolves it itself. Never pass a delivery
 path: it is judged once, by `/acs:create-impl-plan`, and recorded in the
 plan's `## Contract` block, and `/acs:code` dispatches to its leg from there.
@@ -152,7 +165,7 @@ yourself after that.
 
 Invoke the Skill tool directly and follow that step skill to completion as its
 coordinator, in your own context, holding the Agent tool the step needs to
-spawn its own subagents. Keep what you pass lean — the ticket id is enough.
+spawn its own subagents. Keep what you pass lean — the `args` `run next` printed is enough.
 
 You do not prompt a subagent; you run the step skill yourself. A few
 properties of every step skill you must understand as its coordinator:
@@ -196,15 +209,18 @@ run here, in your context — what runs in parallel is their SUBAGENTS:
    member: its current phase and what it is waiting for. Whenever two or more
    members each have subagents ready to spawn — the writers of one, the
    writers or the judge of another — spawn ALL of them in ONE message, in the
-   foreground, and wait for every result before the next batch. A member that
+   foreground, and wait for every result before the next batch. The cap counts
+   the whole batch: at most `settings.parallel.max_agents` (default 4) per
+   message, across members; beyond it, waves of that size. A member that
    must wait (for its own judge's input, or for the user) simply sits out
    that batch.
-3. **A judge that reads the branch diff goes last.** A member whose judge
-   re-derives its verdict from the branch diff — `docs-sync`'s drift-reviewer
-   — must judge the diff the whole group leaves behind. Hold that judge's
-   batch while any sibling still has a writer phase to run, so it spawns
-   only after every sibling writer has committed. If a sibling commits again
-   after that judge already passed (a sibling's own iteration 2 or 3), run
+3. **A judge that reads the changeset goes last.** A member whose judge
+   re-derives its verdict from the working-tree changeset (`acs.py changes
+   diff`) — `docs-sync`'s drift-reviewer — must judge the changeset the whole
+   group leaves behind. Hold that judge's batch while any sibling still has a
+   writer phase to run, so it spawns only after every sibling writer has
+   written (not committed — nothing is committed before `/acs:create-pr`). If
+   a sibling writes again after that judge already passed (a sibling's own iteration 2 or 3), run
    that judge once more before the member finishes; its findings start the
    member's next iteration as usual, within the member's own ceiling.
 4. **Ask the user once.** When more than one member needs input, gather their
@@ -216,9 +232,10 @@ run here, in your context — what runs in parallel is their SUBAGENTS:
 6. **A failure stops the group cleanly.** If one member fails, let the
    others finish the phase already in flight (never abandon a running
    subagent), record them `interrupted` through their own Finish, then stop
-   and report per "Handling the handoff". Commits: members commit on the one
-   ticket branch; a commit that meets git's `index.lock` waits briefly and
-   retries — never delete the lock file.
+   and report per "Handling the handoff". No member stages, commits or
+   switches a branch (ADR-0127): every member writes into the one working
+   tree and records its paths in `states.files`, so there is no index to
+   contend for; `/acs:create-pr`, the last step, is the only committer.
 
 ## Handling the handoff
 
@@ -253,17 +270,24 @@ Breaking another session's lock is the operator's call, not yours: the command
 requires a stated reason and records who broke it in the audit ledger, and
 nothing about being blocked tells you the other session is actually gone.
 
-## Epic fan-out — refuse and point at it
+## Epic breakdown — refuse and point at it
 
 Epics are never shipped. The epic brake refuses every implementation step on
-an epic, printing the whole Design-phase path: settle the epic's design with
-`/acs:create-design <epic-id>`, mint its children with
-`/acs:create-ticket <epic-id> --fan-out`, then run `/acs:ship <child-id>` for
-each child you want shipped, one run at a time (parallel children belong in
-separate worktrees and sessions). Surface that pointer verbatim and stop.
+an epic, printing the whole Design-phase path: settle the epic's tech design
+with `/acs:create-tech-design <epic-id>` if it has none yet and you want one
+(approved with `/acs:set-doc-status`), break it down into child tickets with `/acs:breakdown-ticket <epic-id>`, then
+run `/acs:ship <child-id>` for each child you want shipped, one run at a time
+(parallel children belong in separate worktrees and sessions). Surface that
+pointer verbatim and stop.
 
 Implementation happens on the children, never on the epic itself; the epic is
 auto-marked done by hooks once all children merge — not your concern.
+
+**A bug ships like a story or a task** (ADR-0138): the same `ship.yaml`, the
+same steps, nothing refused. Its two differences live in the steps themselves —
+`/acs:analyze-requirements` reproduces it first, and `/acs:create-impl-plan`
+opens the plan with a failing reproduction test — so you drive it exactly as
+any other ticket.
 
 ## Context pressure
 
@@ -309,7 +333,7 @@ interrupted — ends your final message with the standard block (INTERNALS.md
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
 - **Results**: per-step status from `run.json` (one line per step); the PR reference when the run reached its last step
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <run-directory files, ticket docs folder, branch, PR URL>
+- **Artifacts**: <run-directory files, the phase folders the steps wrote (`<development_dir>/<feature>/<id>/`, the design records), the uncommitted files the steps wrote (until `/acs:create-pr`), then the branch and PR URL it created>
 - **Metrics**: <wall time>
 - **Next**: review the PR yourself, then `/acs:merge-pr <ticket-id>`; on a failed step: the resume command (`/acs:ship <ticket-id>` or `/acs:<skill> <ticket-id>`)
 ```

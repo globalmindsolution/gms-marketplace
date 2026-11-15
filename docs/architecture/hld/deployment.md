@@ -23,7 +23,7 @@ flowchart LR
             CO2["worktree per ticket (parallel sessions)"]
             WS["Workspace folder<br/>(.acs/state-machine, gitignored,<br/>anchored to main checkout)"]
         end
-        PY["python3 (stdlib) · git · gh · acli? · xmllint?"]
+        PY["python3 (stdlib) · git · gh · xmllint?"]
     end
 
     MR -- "claude plugin install acs@gms-marketplace" --> PI_ACS
@@ -55,8 +55,12 @@ Key facts:
   gitignored, anchored to the repo's main checkout (`git rev-parse
   --git-common-dir`) so every linked worktree resolves to the same physical
   partition, with partitions keyed by repo identity derived from the git
-  remote. No setting overrides it ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)); acs must be
-  run from a regular git checkout.
+  remote. No setting overrides it ([ADR-0102](../adr/0102-documents-are-found-not-configured.md)); acs must be
+  run from a regular git checkout. Skills and agents write it through
+  `acs.py write`, never the `Write` tool, so a Claude Code worktree session
+  can record its steps; under the Bash sandbox it needs the `allowWrite`
+  rule `/acs:setup` offers
+  ([ADR-0136](../adr/0136-state-is-written-through-acs-write.md)).
 - **No server-side anything**: the plugins are files; all execution happens in
   the user's Claude Code session and shell. Tracker/PR access goes
   through the user's authenticated CLIs.
@@ -82,9 +86,5 @@ Key facts:
   until a repo admin makes its check a **required status check** on the
   protected default branch (branch protection); that is the actual
   enforcement point — a red check then leaves `mergeStateStatus BLOCKED` and
-  a PR cannot merge.
-  The same `acs-e2e.yml` topology is also reachable via
-  `/acs:standardize-project`'s additive brownfield scaffold path for a repo
-  that already exists — it adds the workflow+runner files only and never
-  wires branch protection itself, so an admin still completes the gate via
-  `/acs:setup` (or the manual `gh api` command) afterward.
+  a PR cannot merge. `/acs:setup` is the one installer of this topology, on
+  a new repo and an existing one alike.

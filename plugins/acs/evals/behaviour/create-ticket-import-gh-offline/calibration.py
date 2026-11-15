@@ -28,7 +28,7 @@ def _start(ws):
 
 def _finish(ws, status):
     result = {"status": status, "summary": "import of #123 blocked: gh issue view failed",
-              "states": {"ticket_id": "EVAL-1", "type": "task", "needs_design": False,
+              "states": {"ticket_id": "EVAL-1", "type": "task",
                          "children": [], "prd_trace": {"feature": None, "divergence": None}},
               "findings": [{"severity": "blocking", "area": "tracker",
                             "message": "gh issue view 123 failed", "command": "gh issue view 123",

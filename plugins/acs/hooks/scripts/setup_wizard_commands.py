@@ -38,12 +38,19 @@ def render_protect(slug, branch, contexts):
     return " ".join(shlex.quote(a) for a in argv)
 
 
-#: The design phase, in order, before the delivery workflow takes over. Entry
-#: points only: `project` is the design-phase umbrella, and `create-project`
-#: is one of the two internal legs it dispatches to -- a user runs the entry
-#: point, never the leg.
-PIPELINE_ORDER = ("create-prd", "create-architecture", "project",
-                  "create-ticket", "create-design")
+#: The phases before the delivery workflow takes over, in order: the PRD, the
+#: architecture, the ticket, then the Design skills in the Design phase's
+#: order (ADR-0134 moved create-api-contract here out of ship.yaml; ADR-0135's
+#: create-tech-design closes it, snapshotting what the other three wrote), then
+#: breakdown-ticket, which mints an epic's children once its tech design is
+#: settled (ADR-0138).
+PIPELINE_ORDER = ("create-prd", "manage-roadmap", "create-architecture", "create-ticket",
+                  "create-api-contract", "create-data-design", "create-flows",
+                  "create-tech-design", "breakdown-ticket")
+
+#: A greenfield repo's scaffold is ordinary ticket work: ticket it, then ship it.
+GREENFIELD_SCAFFOLD_STEP = ('/acs:create-ticket "Scaffold the repository per the '
+                            'architecture docs"')
 
 
 def delivery_steps(root=None):
@@ -61,12 +68,9 @@ def delivery_steps(root=None):
 def render_next_steps(greenfield, root=None):
     """The next-steps list. Derived, because `git ls-files` decides it -- the
     skill should not be re-deriving a branch it can be handed."""
-    steps = ["/acs:create-prd", "/acs:create-architecture"]
+    steps = ["/acs:create-prd", "/acs:manage-roadmap", "/acs:create-architecture"]
     if greenfield:
-        # The entry point, not its `create-project` leg: /acs:project reads the
-        # same greenfield evidence off disk (acs_lib.project_mode) and
-        # dispatches to that leg itself.
-        steps.append("/acs:project")
+        steps.append(GREENFIELD_SCAFFOLD_STEP)
     return {
         "kind": "greenfield" if greenfield else "brownfield",
         "first": steps,
@@ -85,6 +89,6 @@ def render_labels():
     return [
         "%s 2>/dev/null || true" % " ".join(
             shlex.quote(a) for a in
-            ["gh", "label", "create", name, "--description", description])
+            lib.gh_rest.label_create(name, description))
         for name, description in SETUP_LABELS
     ]

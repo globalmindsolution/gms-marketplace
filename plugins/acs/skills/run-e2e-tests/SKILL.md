@@ -1,7 +1,7 @@
 ---
 name: run-e2e-tests
 description: Run this product's configured test suites (all of them, a --suite-selected subset, or the suites one run's test cases name), capture pass/fail results to an auditable run artifact, and on a failure triage and drive a closed regression-ticket loop. Use when asked to run the test suites, run a named suite (e.g. "run the e2e suite"), or check whether anything broke. Use for any request to run, execute or kick off the repo's test suites — all of them or named ones (smoke, api, integration, e2e, nightly) — including after a rebase or when CI is down; it reads the configured suites from acs settings itself, so do not look for package.json, CI files or a test runner. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id | prompt | document] [--suite <name>]"
+argument-hint: "[ticket-id] [documents…] [prompt] [--suite <name>]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -47,6 +47,11 @@ skip). Those reach you, and Step 1 and "Which suites this run runs" decide
 them — `no_harness` or `nothing_to_run` — so do not assume, once you are
 running, that there is something to run.
 
+**Requirements: `context.requirements` / `acs.py requirements show` — a ticket
+id, documents and a prompt are only where they came from; never read
+ticket.json for acceptance criteria.** No ticket is required: a run started on
+a prompt or documents runs its suites the same way.
+
 `${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md` carries resume-and-reconcile,
 context pressure and the completion report — the parts every acs skill shares.
 
@@ -63,9 +68,9 @@ unavailable, record the decision as an assumption under that rule.
 
 Call `acs_lib.build_context(cwd)` to resolve `settings`, `workspace`, and
 `repo_id` exactly as other unhooked skills do. Read
-`ctx["settings"].get("suites", {})` — this is the already-resolved suites map
-(it carries the normalized `"e2e"` entry automatically when `settings.e2e` is
-configured; you never read the raw `e2e` key yourself).
+`ctx["settings"].get("tests", {})` — the suites this run can run are its
+keys other than `coverage` (the coverage target is a number, not a suite);
+call that map `suites` below.
 
 Parse `$ARGUMENTS` for zero or more `--suite <name>` flags:
 
@@ -76,8 +81,8 @@ Parse `$ARGUMENTS` for zero or more `--suite <name>` flags:
   named suite is not a key in `suites`, fail fast with a clear error
   identifying the unknown name(s) — do not silently skip it or fall back to
   running all suites.
-- If `suites` itself is `{}` — the repo configures no suite at all, neither
-  `settings.e2e` nor any `settings.suites` entry — report that plainly ("no
+- If `suites` itself is `{}` — the repo configures no suite under
+  `settings.tests` — report that plainly ("no
   suites configured: no harness to run") and finish `completed` with
   `outcome: no_harness`.
 - If `suites` is non-empty but this run's run set resolves to `{}` (see
@@ -112,21 +117,21 @@ For each suite to run, in order:
 `teardown` by string-interpolating captured failure output, another suite's
 exit code, or any other runtime-captured text into a shell command. Each
 suite's `setup`/`command`/`teardown` strings come verbatim from
-`settings.suites.<name>` as configured — never rewritten, wrapped, or
+`settings.tests.<name>` as configured — never rewritten, wrapped, or
 concatenated with captured data before execution. Captured output is stored
 as artifact data only; it is never re-injected as executable input.
 
 ## Step 3 — Write the results artifact
 
 After all selected suites have run (or immediately, in the zero-suites case),
-write JSON to `<workspace>/<repo_id>/test-runs/<run-id>/results.json`, where
+write JSON to `<workspace>/<repo_id>/test-runs/<run-id>/results.json` through
+`acs.py write` (as in Finish; the absolute path, parents created for you), where
 `<workspace>` and `<repo_id>` are exactly what `build_context()` resolved
 (the same repo-level directory `acs_lib.repo_dir(workspace, repo_id)`
 returns — sibling to `tickets-index.json`, NOT inside any
 ticket partition, since `/acs:run-e2e-tests` is unticketed). `<run-id>` is
 `run-<ISO8601>` (an ISO-8601 UTC timestamp with filesystem-path-safe
-characters — colons replaced or omitted). Create the `test-runs/<run-id>/`
-directory tree as needed.
+characters — colons replaced or omitted).
 
 Artifact shape:
 
@@ -176,7 +181,7 @@ sharing a file.
 The run's DOCUMENTS narrow it; the `e2e` key never does on its own. Which
 rule applies depends only on which documents the run has:
 
-1. The reserved `e2e` key, if `ctx["settings"]["suites"]` carries one, is
+1. The reserved `e2e` key, if `suites` carries one, is
    ADDED to whatever rule 2 or 3 selects — it is the suite
    `/acs:create-e2e-tests` wrote into, so a run that has documents always
    runs it. It is not a selector by itself: it never decides between rules
@@ -189,7 +194,7 @@ rule applies depends only on which documents the run has:
    the plan's Test-strategy section, at `steps/create-impl-plan/plan.md` —
    plus rule 1.
 4. When the run has NEITHER document — a run started from a prompt against a
-   repo, with nothing planned — every entry in `ctx["settings"]["suites"]`,
+   repo, with nothing planned — every entry in `suites`,
    whether or not an `e2e` key is among them. A ticket run with no
    `test-cases.md` and no plan lands here too: the `e2e` key alone does not
    narrow it to `{e2e}`. That is the honest answer there: nothing has said
@@ -198,7 +203,7 @@ rule applies depends only on which documents the run has:
 This is re-resolved on every invocation, never cached from an earlier call, so
 a later case-document or plan write is picked up automatically. A suite named
 in either document is included only when it is also a key in
-`ctx["settings"]["suites"]`.
+`suites`.
 
 **When nothing resolves** — suites are configured, and rule 2 or 3 applied
 but named none of them and there is no `e2e` key — record
@@ -221,8 +226,7 @@ the just-written `results.json` — either is acceptable) and produce:
    <suite-name>:<normalized-failing-test-id>
    ```
 
-   where `<suite-name>` is the exact `suites` map key (or the reserved `e2e`
-   key) the failure came from, and `<normalized-failing-test-id>` is the
+   where `<suite-name>` is the exact suite name (the `settings.tests` key) the failure came from, and `<normalized-failing-test-id>` is the
    lowercase, whitespace-collapsed identifier of the single failing test
    parsed out of the suite's failure output.
 
@@ -350,14 +354,15 @@ out of a transcript without opening the artifact.
 `/acs:run-e2e-tests` carries no notion of "I am scheduled" versus "I was
 invoked by a person" — it is a pure function of "which suites, right now,"
 and the caller (cron, a CI scheduled workflow, or a Claude Code routine)
-decides when to invoke it. See `operations/test-scheduling.md` for the
-concrete cron/CI/routine recipe; this skill itself has no built-in scheduler
-(ADR 0011 G8).
+decides when to invoke it. See
+`${CLAUDE_PLUGIN_ROOT}/skills/run-e2e-tests/references/test-scheduling.md` for
+the concrete cron/CI/routine recipe; this skill itself has no built-in
+scheduler (ADR 0011 G8).
 
 ## Finish
 
-MANDATORY final step — never skipped, also on failure. Write
-`steps/run-e2e-tests/result.json`. A run that completed carries
+MANDATORY final step — never skipped, also on failure. Write `steps/run-e2e-tests/result.json`
+through `acs.py write` (never the Write tool), below. A run that completed carries
 `"status": "completed"` and an `outcome` of `passed`, `no_harness` or
 `nothing_to_run`. A run where any suite failed carries `"status": "failed"`
 and no `outcome` — the failing suites and the regressions this run minted,
@@ -365,6 +370,9 @@ bumped or linked are in its `summary` and `findings`, and the results artifact
 is the evidence. Then:
 
 ```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/run-e2e-tests/result.json <<'ACS_EOF'
+<the result document>
+ACS_EOF
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-run-e2e-tests.py" --result-file "<the result.json you just wrote>"
 ```
 
@@ -372,8 +380,7 @@ The status and outcome are read from that document — a step's transition is
 read from its result, not asserted on the command line. The two empty
 outcomes mean one thing each, the same as in the fragment
 (`skills/run-e2e-tests/state.schema.json`): `no_harness` — the repo
-configures no suite at all (`settings.suites` resolves to `{}`, no
-`settings.e2e` either); `nothing_to_run` — suites are configured but this run
+configures no suite at all (no suite under `settings.tests`); `nothing_to_run` — suites are configured but this run
 has none to run (the plan's `owes.e2e: false`, settled by the pre-hook, or a
 run set that resolved empty). Both are honest completions, not failures: a
 step with nothing to do says which kind of nothing, rather than failing a run

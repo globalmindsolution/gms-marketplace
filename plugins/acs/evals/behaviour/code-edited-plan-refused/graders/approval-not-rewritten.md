@@ -1,7 +1,7 @@
 ---
 type: regex
 target: { source: file, path: .acs/state-machine/example-shop/runs/EVAL-1/steps/create-impl-plan/plan-approval.json }
-pattern: '"plan_sha256"\s*:\s*"8e1495b68a253b3ba0390f433efee5c2e96f1ca654af963faf4f9454e7ebac22"'
+pattern: '"plan_sha256"\s*:\s*"ff9781e58f6ae59b80fc31dac5fe772f1a15a1e5d457299b4e3ae5e96bb98ad7"'
 ---
 
 The approval record still hashes the bytes the human approved (the scaffold

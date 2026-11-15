@@ -18,38 +18,70 @@ from acs_case import AcsWorkspaceCase, lib
 from acs_lib import analysis_loop as L  # noqa: E402
 
 TICKET_TITLE = "Bulk import"
+#: The PRD feature the fixture ticket traces to: a run's documents are filed
+#: under it (ADR-0128), in <development_dir>/<feature>/<ticket-id>/.
+FEATURE = "bulk-import"
 
+#: The analysis is a folder (ADR-0133): README.md plus one file per bounded
+#: context. DRAFT is the README; CONTEXT the one context file it links.
 DRAFT = """---
 ticket: {tid}
 ready_for_planning: true
-api_surface: false
-needs_design_recommendation: false
 ---
 
 # Analysis — {tid}: Bulk import
 
-## Problem restated
+## Scope and summary
 Imports are slow.
+
+## Contexts
+| Context | File | Purpose |
+| --- | --- | --- |
+| Bulk import | [bulk-import.md](bulk-import.md) | the import pipeline |
+
+## Refined acceptance criteria
+AC-1: an import of 10k rows finishes in a minute.
+
+## Cross-cutting risks and decisions
+None.
+
+## Questions and assumptions
+_None recorded._
+
+## Verdict
+ready_for_planning: true
+"""
+
+CONTEXT_NAME = "bulk-import.md"
+CONTEXT = """---
+context: bulk-import
+---
+
+# Bulk import
+
 ## Impact map
 | Path | Component | Change | Evidence |
 | --- | --- | --- | --- |
 | `src/a.py` | import | faster | `a.py:1` |
-## Questions
-_None recorded._
-## Assumptions
-None.
+
+## Rules and edge cases
+An empty file imports nothing.
+
 ## Risks
 None.
-## Refined acceptance criteria
-All testable.
-## Verdict
-ready_for_planning: true
+
+## Open questions
+_None._
+
+## API notes
+No API change.
 """
 
 
 class AnalysisLoopCase(AcsWorkspaceCase):
     def setUp(self):
         super().setUp()
+        self.decide_shared()
         for key, value in (("user.email", "t@example.com"), ("user.name", "T")):
             subprocess.run(["git", "-C", self.repo, "config", key, value], check=True)
         with open(os.path.join(self.repo, "README.md"), "w") as fh:
@@ -60,10 +92,19 @@ class AnalysisLoopCase(AcsWorkspaceCase):
         # default branch's (publish refuses there: TestPublish).
         subprocess.run(["git", "-C", self.repo, "checkout", "-qb", "feature/ticket"],
                        check=True)
-        self.tid = self.new_ticket(TICKET_TITLE, "task")
+        self.tid = self.new_ticket(TICKET_TITLE, "task", "--features", FEATURE)
         out = self.start("analyze-requirements", self.tid)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.r = self.rdir(self.tid)
+
+    def decide_shared(self):
+        """ADR-0132: the user decided once -- documents are shared, in the
+        built-in folders -- so publish files into the repo's phase folders."""
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90},
+                             "docs": {"share_run_documents": True,
+                                      "prd_dir": "docs/product",
+                                      "architecture_dir": "docs/architecture",
+                                      "development_dir": "docs/development"}})
 
     # -- driving the CLI ----------------------------------------------------
 
@@ -119,9 +160,15 @@ class AnalysisLoopCase(AcsWorkspaceCase):
         self.write(L.notes_path(self.r, "synthesis"), "## Synthesis\nNo contradictions.\n")
         self.write(L.iter_path(self.r, 1, "analyst-synthesis.json"), "{}")
 
-    def do_draft(self, n, text=None):
+    def do_draft(self, n, text=None, contexts=None):
+        """Iteration n's draft folder: README.md (`text`) and its context
+        files (`contexts`, {name: text}; the one bulk-import context by default)."""
         self.snapshot("analyst", n)
-        self.write(L.draft_path(self.r), text if text is not None else DRAFT.format(tid=self.tid))
+        self.write(L.draft_readme(self.r, n),
+                   text if text is not None else DRAFT.format(tid=self.tid))
+        for name, body in (contexts if contexts is not None
+                           else {CONTEXT_NAME: CONTEXT}).items():
+            self.write(os.path.join(L.draft_dir(self.r, n), name), body)
         self.write(L.iter_path(self.r, n, "analyst.json"), "{}")
         if n >= 2:
             self.write(L.iter_path(self.r, n, "authoring.md"), "## Findings addressed\n-\n")
@@ -421,29 +468,31 @@ class TestBlocked(AnalysisLoopCase):
 
 
 class TestPublish(AnalysisLoopCase):
+    """ADR-0127: publish writes the ticket docs folder into the working tree,
+    records the paths it wrote, and never stages, commits or pushes -- only
+    /acs:create-pr commits."""
+
     def git(self, *args):
         return subprocess.run(["git", "-C", self.repo] + list(args), capture_output=True,
                               text=True, check=True).stdout
 
-    def test_publish_refuses_the_default_branch_and_writes_nothing(self):
+    def test_publish_on_the_default_branch_writes_and_commits_nothing(self):
+        """No branch is refused any more: nothing is committed, so the branch
+        the working tree is on is /acs:create-pr's business."""
         self.to_publish()
         self.git("checkout", "-q", "master")
         head = self.git("rev-parse", "HEAD")
-        out = self.run_script("acs.py", "analysis", "publish", "--run", self.tid)
-        self.assertEqual(out.returncode, 2, out.stdout)
-        self.assertIn("default branch", out.stderr)
+        out = self.cli("publish")
         self.assertEqual(self.git("rev-parse", "HEAD"), head)
-        self.assertFalse(os.path.exists(
-            os.path.join(self.repo, "docs", "tickets", self.tid, "analysis.md")))
+        self.assertTrue(os.path.isfile(out["publication"]["path"]))
+        self.assertNotIn("committed", out["publication"])
 
-    def test_publish_refuses_a_detached_head(self):
+    def test_publish_on_a_detached_head_is_fine(self):
         self.to_publish()
         self.git("checkout", "-q", "--detach")
-        out = self.run_script("acs.py", "analysis", "publish", "--run", self.tid)
-        self.assertEqual(out.returncode, 2, out.stdout)
-        self.assertIn("detached", out.stderr)
+        self.cli("publish")
 
-    def test_publish_copies_exact_bytes_commits_docs_folder_only_never_pushes(self):
+    def test_publish_copies_exact_bytes_and_records_the_docs_folder_never_commits(self):
         bare = os.path.join(self.tmp, "origin.git")
         subprocess.run(["git", "init", "-q", "--bare", bare], check=True)
         self.git("remote", "set-url", "--push", "origin", bare)
@@ -451,49 +500,78 @@ class TestPublish(AnalysisLoopCase):
         with open(os.path.join(self.repo, "other.txt"), "w") as fh:
             fh.write("unrelated\n")
         self.git("add", "other.txt")
-        docs = os.path.join(self.repo, "docs", "tickets", self.tid)
+        docs = os.path.join(self.repo, "docs", "development", FEATURE, self.tid)
         os.makedirs(docs, exist_ok=True)
-        with open(os.path.join(docs, "ticket.md"), "w") as fh:
-            fh.write("# ticket\n")
+        with open(os.path.join(docs, "plan.md"), "w") as fh:
+            fh.write("# plan\n")
+        head = self.git("rev-parse", "HEAD")
         out = self.cli("publish")
         pub = out["publication"]
-        self.assertEqual(pub["path"], os.path.join(docs, "analysis.md"))
-        with open(pub["path"], "rb") as a, open(L.draft_path(self.r), "rb") as b:
-            self.assertEqual(a.read(), b.read())
-        files = self.git("show", "--name-only", "--format=", "HEAD").split()
-        self.assertEqual(sorted(files), ["docs/tickets/%s/analysis.md" % self.tid,
-                                         "docs/tickets/%s/ticket.md" % self.tid])
-        self.assertEqual(self.git("log", "-1", "--format=%s").strip(),
-                         "%s Add requirements analysis" % self.tid)
-        self.assertIn("other.txt", self.git("diff", "--cached", "--name-only"))
+        self.assertEqual(pub["path"], os.path.join(docs, "analysis", "README.md"))
+        self.assertEqual(pub["dir"], os.path.join(docs, "analysis"))
+        for name in ("README.md", CONTEXT_NAME):
+            with open(os.path.join(docs, "analysis", name), "rb") as a, \
+                    open(os.path.join(L.draft_dir(self.r, 1), name), "rb") as b:
+                self.assertEqual(a.read(), b.read())
+        prefix = "docs/development/%s/%s/" % (FEATURE, self.tid)
+        self.assertEqual(pub["files"], [prefix + "analysis/README.md",
+                                        prefix + "analysis/" + CONTEXT_NAME,
+                                        prefix + "plan.md"])
+        self.assertFalse(os.path.exists(os.path.join(self.repo, "docs", "tickets")),
+                         "nothing writes the legacy docs/tickets tree (ADR-0128)")
+        self.assertEqual(self.git("rev-parse", "HEAD"), head, "publish must not commit")
+        self.assertEqual(self.git("diff", "--cached", "--name-only").split(), ["other.txt"],
+                         "publish must not stage anything")
+        self.assertIn("?? docs/", self.git("status", "--porcelain"))
         self.assertEqual(subprocess.run(["git", "-C", bare, "for-each-ref"], capture_output=True,
                                         text=True).stdout, "")
         self.assertEqual(self.cli("record-publication")["next"]["action"], "completed")
+        self.assertTrue(self.loop()["publication"]["verified"])
 
     def test_publish_refused_unless_review_passed(self):
         self.to_draft()
         self.cli("publish", code=2)
 
-    def test_publish_refuses_on_failed_checks_and_moves_to_next_draft(self):
+    def test_draft_checks_run_beside_the_review_and_fail_its_iteration(self):
+        """ADR-0125: the deterministic checks run when the draft is recorded,
+        not after a passing review, and their findings fail THAT iteration even
+        when every judge slice passed -- so nothing reaches publish unchecked."""
         self.to_draft()
-        self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Risks\n", ""))
-        self.cli("record-draft")
+        self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Verdict\n", ""))
+        review = self.cli("record-draft")["next"]
+        self.assertEqual(review["action"], "review")
+        self.assertEqual([f["dimension"] for f in review["draft_checks"]], ["structure"])
         self.do_review(1)
-        self.assertTrue(self.cli("record-review")["passed"])
-        out = self.run_script("acs.py", "analysis", "publish", "--run", self.tid)
-        self.assertEqual(out.returncode, 2, out.stderr)
-        report = json.loads(out.stdout)
-        self.assertFalse(report["published"])
-        self.assertEqual(report["findings"][0]["dimension"], "structure")
-        self.assertFalse(os.path.exists(os.path.join(self.repo, "docs", "tickets", self.tid,
-                                                     "analysis.md")))
+        out = self.cli("record-review")
+        self.assertFalse(out["passed"])
+        self.assertEqual(out["blocking"][0]["slice"], "draft-checks")
+        self.cli("publish", code=2)
+        self.assertFalse(os.path.exists(os.path.join(
+            self.repo, "docs", "development", FEATURE, self.tid, "analysis")))
         nxt = self.next()
         self.assertEqual((nxt["action"], nxt["iteration"]), ("draft", 2))
         self.assertEqual(nxt["findings"][0]["dimension"], "structure")
 
+    def test_a_clean_draft_records_no_check_findings(self):
+        self.to_draft()
+        self.do_draft(1)
+        self.assertEqual(self.cli("record-draft")["next"]["draft_checks"], [])
+
+    def test_a_loop_recorded_before_the_checks_moved_still_gets_them(self):
+        """A draft recorded by an older acs carries no `checks`; the review
+        runs them over the same bytes rather than passing unchecked."""
+        self.to_draft()
+        self.do_draft(1, text=DRAFT.format(tid=self.tid).replace("## Verdict\n", ""))
+        self.cli("record-draft")
+        loop = self.loop()
+        del loop["draft"]["checks"]
+        L.save_loop(self.r, loop)
+        self.do_review(1)
+        self.assertFalse(self.cli("record-review")["passed"])
+
     def test_publish_refuses_a_draft_changed_after_review(self):
         self.to_publish()
-        with open(L.draft_path(self.r), "a") as fh:
+        with open(L.draft_readme(self.r, 1), "a") as fh:
             fh.write("\nsneaky\n")
         self.cli("publish", code=2)
 
@@ -510,20 +588,33 @@ class TestPublish(AnalysisLoopCase):
         os.unlink(path)
         self.assertIn("is missing", self.cli("record-publication")["next"]["reason"])
 
-    def test_record_publication_requires_the_commit(self):
+    def test_record_publication_needs_no_commit(self):
+        """The working tree is the evidence: HEAD never carries the analysis
+        before /acs:create-pr commits it."""
         self.to_publish()
         self.cli("publish")
-        self.git("reset", "-q", "--soft", "HEAD~1")
-        out = self.cli("record-publication")
-        self.assertIn("HEAD does not carry", out["next"]["reason"])
+        self.assertEqual(self.git("log", "--format=%s").split("\n")[0], "init")
+        self.assertEqual(self.cli("record-publication")["next"]["action"], "completed")
 
-    def test_republish_of_identical_bytes_makes_no_new_commit(self):
+    def test_republish_of_identical_bytes_is_idempotent(self):
+        self.to_publish()
+        first = self.cli("publish")["publication"]
+        head = self.git("rev-parse", "HEAD")
+        again = self.cli("publish")["publication"]
+        self.assertEqual(again["files"], first["files"])
+        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+
+    def test_publish_records_its_paths_for_the_commit_plan(self):
+        """The ticket-docs group /acs:create-pr proposes is built from what
+        publish recorded (acs_lib.commit_plan reads `publication.files`)."""
         self.to_publish()
         self.cli("publish")
-        head = self.git("rev-parse", "HEAD")
-        out = self.cli("publish")
-        self.assertFalse(out["publication"]["committed"])
-        self.assertEqual(self.git("rev-parse", "HEAD"), head)
+        from acs_lib import commit_plan
+        records = commit_plan.Records(self.repo, self.tid)
+        records.read_run(self.r)
+        for name in ("README.md", CONTEXT_NAME):
+            self.assertEqual(records.claims["docs/development/%s/%s/analysis/%s"
+                                            % (FEATURE, self.tid, name)], ("ticket-docs", None))
 
 
 class TestReadOnlyAndRestart(AnalysisLoopCase):
@@ -571,9 +662,141 @@ class TestReadOnlyAndRestart(AnalysisLoopCase):
         self.assertEqual(self.next()["action"], "completed")
         self.cli("plan", code=2)
 
-    def test_run_without_ticket_subject_is_refused(self):
+    def test_an_unknown_run_is_refused(self):
         out = self.run_script("acs.py", "analysis", "next", "--run", "NOPE-1")
         self.assertEqual(out.returncode, 2)
+
+
+class TicketlessAnalysisCase(AnalysisLoopCase):
+    """ADR-0128: a run over a prompt (or documents) is analyzed like a ticket's
+    -- no ticket is required -- and its analysis is filed by feature and phase:
+    a standalone (Discovery) run writes the feature's living analysis, a run
+    being delivered writes its own under the Development folder."""
+
+    PROMPT = "speed up the bulk import"
+
+    def setUp(self):  # noqa: D401 -- a different subject, the same loop
+        AcsWorkspaceCase.setUp(self)
+        self.decide_shared()
+        for key, value in (("user.email", "t@example.com"), ("user.name", "T")):
+            subprocess.run(["git", "-C", self.repo, "config", key, value], check=True)
+        with open(os.path.join(self.repo, "README.md"), "w") as fh:
+            fh.write("shop\n")
+        subprocess.run(["git", "-C", self.repo, "add", "README.md"], check=True)
+        subprocess.run(["git", "-C", self.repo, "commit", "-qm", "init"], check=True)
+        out = self.open_run()
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.tid = json.loads(out.stdout)["run_id"]
+        self.r = self.rdir(self.tid)
+        self.assertIsNone((lib.load_run(self.r)["subject"]).get("ticket_id"))
+
+    def open_run(self):
+        return self.run_script("acs.py", "step", "start", "--step", "analyze-requirements",
+                               "--args", self.PROMPT)
+
+    VERSION_KEYS = "feature: %s\nstatus: proposed\nversion: 1\ntickets: []" % FEATURE
+
+    def do_draft(self, n, text=None, contexts=None):
+        if text is None:
+            text = DRAFT.format(tid=self.tid).replace("ticket: %s" % self.tid,
+                                                      self.VERSION_KEYS)
+        if contexts is None:
+            contexts = {CONTEXT_NAME: CONTEXT.replace(
+                "context: bulk-import", "context: bulk-import\n" + self.VERSION_KEYS)}
+        super().do_draft(n, text=text, contexts=contexts)
+
+    def refine(self, data):
+        out = self.run_script("acs.py", "requirements", "refine", "--run", self.tid,
+                              "--from", "-", stdin=json.dumps(data))
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+
+class TestTicketlessAnalysis(TicketlessAnalysisCase):
+
+    def test_a_prompt_run_is_analyzed_without_a_ticket(self):
+        loop = self.cli("plan")
+        self.assertEqual(loop["phase"], "discovery")
+        self.assertIsNone(self.loop()["ticket_id"])
+        self.assertEqual(self.next()["action"], "survey")
+
+    def test_publish_without_a_feature_is_refused_naming_the_remedy(self):
+        self.to_publish()
+        out = self.run_script("acs.py", "analysis", "publish", "--run", self.tid)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("no PRD feature", out.stderr)
+        self.assertIn("requirements refine", out.stderr)
+
+    def test_a_standalone_run_writes_the_features_living_analysis(self):
+        self.to_publish()
+        self.refine({"feature": FEATURE})
+        pub = self.cli("publish")["publication"]
+        living = os.path.join(self.repo, "docs", "product", "features", FEATURE,
+                              "analysis", "README.md")
+        self.assertEqual(pub["path"], living)
+        self.assertEqual(pub["files"],
+                         ["docs/product/features/%s/analysis/%s" % (FEATURE, name)
+                          for name in ("README.md", CONTEXT_NAME)])
+        self.assertEqual(self.cli("record-publication")["next"]["action"], "completed")
+        self.assertFalse(os.path.exists(os.path.join(self.repo, "docs", "tickets")))
+
+    def test_plan_mode_development_files_it_under_the_run(self):
+        self.cli("plan", "--mode", "development")
+        self.do_survey()
+        self.cli("record-survey")
+        self.do_synthesis()
+        self.cli("record-synthesis")
+        self.cli("record-clarify")
+        self.do_draft(1)
+        self.cli("record-draft")
+        self.do_review(1)
+        self.assertTrue(self.cli("record-review")["passed"])
+        self.refine({"feature": FEATURE})
+        pub = self.cli("publish")["publication"]
+        self.assertEqual(pub["path"], os.path.join(
+            self.repo, "docs", "development", FEATURE, self.tid, "analysis", "README.md"))
+
+    def test_the_draft_names_its_feature_not_a_ticket(self):
+        self.to_draft()
+        self.do_draft(1, text=DRAFT.format(tid=self.tid))
+        checks = self.cli("record-draft")["next"]["draft_checks"]
+        self.assertEqual({c["dimension"] for c in checks}, {"front-matter"})
+        missing = " ".join(c["text"] for c in checks)
+        for key in ("'feature'", "'status'", "'version'", "'tickets'"):
+            self.assertIn(key, missing, "a Discovery analysis is versioned (ADR-0122)")
+
+    def test_the_clarify_ledger_is_the_runs_own(self):
+        mod_out = self.run_script("clarify.py", "add", "--skill", "analyze-requirements",
+                                  "--question", "CSV or JSON?")
+        self.assertEqual(mod_out.returncode, 0, mod_out.stderr)
+        ledger = os.path.join(self.r, "clarifications.json")
+        self.assertEqual(json.loads(self.read(ledger))["run_id"], self.tid)
+        self.cli("plan")
+        self.do_survey()
+        self.cli("record-survey")
+        self.do_synthesis()
+        self.cli("record-synthesis")
+        self.cli("record-clarify")
+        self.assertIn("1 question(s) open", self.loop()["events"][-1]["detail"])
+
+
+class TestShippedPromptRun(TicketlessAnalysisCase):
+    """A prompt run /acs:ship drives (`run next --args`) is being DELIVERED: its
+    analysis goes to the Development folder even with no ticket."""
+
+    def open_run(self):
+        out = self.run_script("acs.py", "run", "next", "--args", self.PROMPT)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return self.run_script("acs.py", "step", "start", "--step", "analyze-requirements",
+                               "--args", self.PROMPT)
+
+    def test_the_analysis_is_filed_on_the_development_side(self):
+        self.assertEqual(lib.load_run(self.r).get("driver"), "ship")
+        self.to_publish()
+        self.refine({"feature": FEATURE})
+        pub = self.cli("publish")["publication"]
+        self.assertEqual(pub["path"], os.path.join(
+            self.repo, "docs", "development", FEATURE, self.tid, "analysis", "README.md"))
 
 
 class TestLibraryUnits(unittest.TestCase):
@@ -601,13 +824,3 @@ class TestLibraryUnits(unittest.TestCase):
     def test_save_loop_refuses_an_invalid_document(self):
         with self.assertRaises(lib.GateError):
             L.save_loop("/nonexistent", {"phase": "nope"})
-
-    def test_role_registered_on_the_executor_tier(self):
-        self.assertEqual(lib.ROLE_KINDS["impact-analyst"], "survey")
-        self.assertEqual(lib.model_tier("impact-analyst"), "executor")
-        self.assertEqual(lib.split_agent_name("analyze-requirements-impact-analyst"),
-                         ("analyze-requirements", "impact-analyst"))
-
-
-if __name__ == "__main__":
-    unittest.main()

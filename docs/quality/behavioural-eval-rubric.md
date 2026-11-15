@@ -3,14 +3,14 @@
 What an artifact-level eval must assert to count as evidence, and what makes
 one green.
 
-The layers below this one are cheap and already complete: structure is 28 of
-32, gating 17 of 17 hooked, routing 32 of 32 (enforced mechanically by
+The layers below this one are cheap and already complete: structure is 25 of
+25, gating 16 of 16 hooked, routing 25 of 25 (enforced mechanically by
 `tests/evals/check_cases.py`, run locally). They prove that a skill *ships*,
 that it *refuses* what it must, and that a request *reaches* it. None of them
 proves it **produced the right thing** — and that is the only layer a user
 would notice missing.
 
-Behavioural coverage is **2 of 32** (`create-ticket`, `code`), as artifact
+Behavioural coverage is **2 of 25** (`create-ticket`, `code`), as artifact
 cases under `plugins/acs/evals/artifacts/` — and neither has yet completed end
 to end (see that folder's README). `create-pr` had a third, a forge-tier
 scenario against a live GitHub remote; it went with the retired behavioural
@@ -77,13 +77,14 @@ The case's scaffold must actually satisfy what its prompt presupposes. This is t
 prompt false — the model looked for the thing, did not find it, and asked
 instead of acting. It was **first mis-triaged as a description defect**.
 
-So: if a prompt says "the code change is done", the scaffold must commit a
-change. If it says "this repo has no tooling", the workspace must be bare. A
+So: if a prompt says "the code change is done", the scaffold must make that
+change — uncommitted in the working tree, where the pipeline leaves it until
+`/acs:create-pr` (ADR-0127). If it says "this repo has no tooling", the workspace must be bare. A
 case whose presupposition is false measures the scaffold, not the skill.
 
-**Three routing cases break this rule today**, knowingly:
-`route-create-design`, `route-create-requirements` and `route-docs-sync` each
-presuppose context (an epic ticket, an existing codebase, a finished change)
+**Two routing cases break this rule today**, knowingly:
+`route-create-tech-design` and `route-docs-sync` each
+presuppose context (an epic ticket, a finished change)
 and run in an empty workspace. Each case's `description` records it as a known
 confound. Seeding them is the fix; until then a miss on one of them is not
 evidence against its description.
@@ -133,9 +134,12 @@ would cost:
    has already acted on it — the `critical` failure mode above, exactly.
 2. **Skills that write to the consumer's repo.** The doc-bootstrap legs,
    `project`, `docs-sync`. Their output is what the user actually keeps.
-3. **Skills that mutate shared state.** `merge-pr`, `release`.
-4. **Session bookkeeping.** `handoff` — named in PRD G8 as today's
-   trigger-only gap, and genuinely the lowest risk of the four.
+3. **Skills that mutate shared state.** `merge-pr`, `release`, and
+   `handoff`, which pushes a ticket's work and state to a hidden ref and,
+   on receive, applies them to the receiver's tree (ADR-0131).
+4. **Session bookkeeping.** Nothing user-facing since the session-handoff
+   skill became a team handoff; the context-pressure pause is `handoff.py`,
+   covered by the unit layer.
 
 Where the skill needs a real codebase, have the case's `scaffold_script`
 build one rather than prompting against an empty workspace, so that

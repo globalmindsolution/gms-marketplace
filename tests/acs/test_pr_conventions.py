@@ -1,8 +1,7 @@
 """Unit tests for the PR-convention helper CLI (MAR-72 spec 01).
 
 plugins/acs/hooks/scripts/pr-conventions.py gives SKILL prose a deterministic
-way to (a) render the configured PR title via acs_lib.render_format and (b)
-self-check a PR body against what CI checks -- that it names its ticket
+way to self-check a PR body against what CI checks -- that it names its ticket
 (ADR-0106) -- by driving check-conventions.py's evaluate(), never a divergent
 re-implementation of the rule.
 
@@ -33,148 +32,6 @@ def conforming_body():
         "## Changes\n\n- did stuff\n\n"
         "## Test plan\n\n- ran tests\n"
     )
-
-
-class TestRenderTitle(unittest.TestCase):
-    """Case 1 & 2: render-title reuses acs_lib.render_format verbatim."""
-
-    def test_default_pr_title_render(self):
-        # Case 1: default pr_title format renders exactly.
-        result = pc.build_title(
-            template="[{ticket_id}] {title}",
-            ticket_id="MAR-72",
-            type_="task",
-            title="Fix thing",
-            summary="",
-            external_key="",
-        )
-        self.assertEqual(result, "[MAR-72] Fix thing")
-
-    def test_custom_pr_title_render(self):
-        # Case 2: custom (non-default) pr_title format.
-        result = pc.build_title(
-            template="PR: {ticket_id} — {title}",
-            ticket_id="MAR-72",
-            type_="task",
-            title="Fix thing",
-            summary="",
-            external_key="",
-        )
-        self.assertEqual(result, "PR: MAR-72 — Fix thing")
-
-    def test_custom_pr_title_full_token_vocabulary(self):
-        # Full mapping: {type}/{summary}/{external_key} all render.
-        result = pc.build_title(
-            template="[{ticket_id}]({type}) {title} - {summary} ({external_key})",
-            ticket_id="MAR-72",
-            type_="task",
-            title="Fix thing",
-            summary="short summary",
-            external_key="ACME-9",
-        )
-        self.assertEqual(
-            result,
-            "[MAR-72](task) Fix thing - short summary (ACME-9)",
-        )
-
-    def test_omitted_flag_renders_as_empty_string(self):
-        # An omitted token renders empty, matching render_format's own behavior.
-        result = pc.build_title(
-            template="[{ticket_id}] {title} {external_key}",
-            ticket_id="MAR-72",
-            type_="",
-            title="Fix thing",
-            summary="",
-            external_key="",
-        )
-        self.assertEqual(result, "[MAR-72] Fix thing ")
-
-    def test_render_title_uses_acs_lib_render_format(self):
-        # White-box: build_title must call acs_lib.render_format, not
-        # reimplement the substitution.
-        with mock.patch.object(pc.lib, "render_format",
-                                wraps=pc.lib.render_format) as spy:
-            pc.build_title(
-                template="[{ticket_id}] {title}",
-                ticket_id="MAR-72",
-                type_="task",
-                title="Fix thing",
-                summary="",
-                external_key="",
-            )
-        spy.assert_called_once()
-
-    def test_build_title_github_provider_ticket_ref(self):
-        # AC-1: github-synced ticket renders "[#<key>] <title>" via
-        # {ticket_ref}, end-to-end through render_format.
-        result = pc.build_title(
-            template="[{ticket_ref}] {title}",
-            ticket_id="MAR-80",
-            type_="task",
-            title="Render PR title",
-            summary="",
-            external_key="161",
-            provider="github",
-        )
-        self.assertEqual(result, "[#161] Render PR title")
-
-    def test_build_title_jira_provider_ticket_ref(self):
-        # AC-2: jira-synced ticket renders "[<JIRA-KEY>] <title>" via
-        # {ticket_ref}, end-to-end through render_format.
-        result = pc.build_title(
-            template="[{ticket_ref}] {title}",
-            ticket_id="MAR-80",
-            type_="task",
-            title="Render PR title",
-            summary="",
-            external_key="ACME-9",
-            provider="jira",
-        )
-        self.assertEqual(result, "[ACME-9] Render PR title")
-
-    def test_build_title_unsynced_ticket_ref_falls_back_to_ticket_id(self):
-        # AC-3: local/unsynced ticket renders "[<ticket_id>] <title>" via
-        # {ticket_ref} — same shape as the id-based default.
-        result = pc.build_title(
-            template="[{ticket_ref}] {title}",
-            ticket_id="MAR-80",
-            type_="task",
-            title="Render PR title",
-            summary="",
-            external_key="",
-            provider="",
-        )
-        self.assertEqual(result, "[MAR-80] Render PR title")
-
-    def test_build_title_default_provider_argument_is_backward_compatible(self):
-        # design.md R5: omitting `provider` entirely (today's pre-change call
-        # shape, no `provider` kwarg at all) must be byte-identical to the
-        # pre-change behavior — proof the signature change is additive.
-        result = pc.build_title(
-            "[{ticket_id}] {title}", "MAR-72", "task", "Fix thing", "", "",
-        )
-        self.assertEqual(result, "[MAR-72] Fix thing")
-
-
-class TestComputeTicketRef(unittest.TestCase):
-    """New pure helper: tracker-native reference when synced, else local id."""
-
-    def test_github_with_key_returns_hash_prefixed_key(self):
-        self.assertEqual(pc.compute_ticket_ref("github", "MAR-80", "161"), "#161")
-
-    def test_jira_with_key_returns_key_verbatim(self):
-        self.assertEqual(pc.compute_ticket_ref("jira", "MAR-80", "ACME-9"), "ACME-9")
-
-    def test_unsynced_returns_ticket_id(self):
-        self.assertEqual(pc.compute_ticket_ref("", "MAR-80", ""), "MAR-80")
-
-    def test_provider_set_but_key_empty_falls_back_to_ticket_id(self):
-        # Defensive edge case: provider set but external_key falsy must not
-        # return "#" or crash — falls back to ticket_id.
-        self.assertEqual(pc.compute_ticket_ref("github", "MAR-80", ""), "MAR-80")
-
-    def test_both_empty_returns_empty_string(self):
-        self.assertEqual(pc.compute_ticket_ref("", "", ""), "")
 
 
 class TestCheckPasses(unittest.TestCase):
@@ -297,30 +154,6 @@ class TestMain(unittest.TestCase):
             sys.stdout = real_stdout
         return code, out
 
-    def test_main_render_title(self):
-        code, out = self._run_main([
-            "render-title",
-            "--template", "[{ticket_id}] {title}",
-            "--ticket-id", "MAR-72",
-            "--title", "Fix thing",
-        ])
-        self.assertEqual(code, 0)
-        self.assertEqual(out.strip(), "[MAR-72] Fix thing")
-
-    def test_main_render_title_with_provider_flag(self):
-        # Proves args.provider reaches build_title through the real argparse
-        # path (not just the internal function call).
-        code, out = self._run_main([
-            "render-title",
-            "--template", "[{ticket_ref}] {title}",
-            "--ticket-id", "MAR-80",
-            "--title", "Render PR title",
-            "--external-key", "161",
-            "--provider", "github",
-        ])
-        self.assertEqual(code, 0)
-        self.assertEqual(out.strip(), "[#161] Render PR title")
-
     def test_main_check_pass(self):
         import tempfile
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as fh:
@@ -365,7 +198,7 @@ class TestMain(unittest.TestCase):
         import contextlib
         import io as io_
         with contextlib.redirect_stderr(io_.StringIO()):
-            code, _out = self._run_main(["render-title"])
+            code, _out = self._run_main(["check"])
         self.assertEqual(code, 2)
 
 
@@ -392,20 +225,6 @@ class TestIssueLinkNonRegression(unittest.TestCase):
         )
         self.assertTrue(result["passed"])
         self.assertEqual(result["errors"], [])
-
-    def test_pr_title_render_unchanged_by_mechanism(self):
-        # AC-4 (R-1 guard): external_key being non-empty (a synced ticket)
-        # never leaks into the rendered title — the acs id stays in the
-        # title, the issue link stays in the body.
-        result = pc.build_title(
-            template="[{ticket_id}] {title}",
-            ticket_id="MAR-75",
-            type_="task",
-            title="Fix thing",
-            summary="",
-            external_key="156",
-        )
-        self.assertEqual(result, "[MAR-75] Fix thing")
 
     def test_unsynced_external_key_empty_renders_no_closes_line_and_passes_check(self):
         # AC-4 (dedicated, explicit): the unsynced fixture (external_key="",

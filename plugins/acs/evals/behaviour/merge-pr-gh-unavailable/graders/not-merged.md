@@ -5,6 +5,6 @@ pattern: '"merged"\s*:\s*true'
 match: not_contains
 ---
 
-`merged` is `true` only when `gh pr view` confirmed the PR `MERGED`. Nothing
+`merged` is `true` only when the PR read confirmed the PR merged. Nothing
 could be confirmed, so the state may say `false` or say nothing -- never
 `true`.

@@ -1,7 +1,8 @@
 ---
 type: regex
 target: { source: file, path: .acs/state-machine/example-shop/EVAL-1/clarifications.json }
-pattern: '"skill"\s*:\s*"create-impl-plan"[^{}]*"answer"\s*:\s*"[^"]*[Ss]plit'
+pattern: '"skill"\s*:\s*"create-impl-plan"[^{}]*"answer"\s*:\s*"[^"]*split'
+flags: i
 ---
 
 Split-answer termination (ADR 0069): the user's answer to the oversize

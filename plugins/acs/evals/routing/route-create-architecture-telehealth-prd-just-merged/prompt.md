@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-The PRD for our telehealth app just merged. Before any scaffolding happens, lay out the system context, the containers and the main request flows as Mermaid docs.
+The PRD for our telehealth app just merged. Before any scaffolding happens, lay out the system context, the containers and the API landscape as Mermaid docs.

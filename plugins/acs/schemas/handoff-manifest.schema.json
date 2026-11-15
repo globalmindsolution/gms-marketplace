@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/globalmindsolution/gms-marketplace/plugins/acs/schemas/handoff-manifest.schema.json",
+  "title": "acs team handoff manifest.json",
+  "description": "The manifest at the root of a team-handoff commit on refs/acs/handoff/<ID> (ADR-0131), written by `acs.py handoff send` and validated by `acs.py handoff receive` before anything is applied. The commit's tree also holds work/ (the working-tree snapshot), acs/ticket/ and acs/run/ (the resume set, absolute paths replaced by the tokens in path_tokens), attachments/ (only the --attach-confirmed outside-repo copies), note.md and trees/<id> (every tree id the state cites).",
+  "type": "object",
+  "required": ["format", "ticket", "run_id", "sender", "sent_at", "base_sha", "work_tree",
+               "files", "attachments", "withheld_attachments", "trees", "path_tokens"],
+  "properties": {
+    "format": {"type": "integer", "minimum": 1},
+    "ticket": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*-[0-9]+$"},
+    "run_id": {"type": ["string", "null"]},
+    "repo_id": {"type": ["string", "null"]},
+    "sender": {
+      "type": "object",
+      "properties": {
+        "name": {"type": ["string", "null"]},
+        "email": {"type": ["string", "null"]},
+        "checkout_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "sent_at": {"type": "string", "minLength": 1},
+    "base_sha": {"type": ["string", "null"]},
+    "branch": {"type": ["string", "null"]},
+    "work_tree": {"type": "string", "minLength": 1},
+    "counters_next": {"type": ["integer", "null"]},
+    "files": {"type": "array", "items": {"type": "string", "pattern": "^acs/(ticket|run)/"}},
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "ref": {"type": ["string", "null"]},
+          "path": {"type": "string", "pattern": "^attachments/[^/]+$"},
+          "sha256": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "withheld_attachments": {"type": "array", "items": {"type": "object"}},
+    "trees": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"}},
+    "unresolved_ids": {"type": "array", "items": {"type": "string"}},
+    "path_tokens": {"type": "object", "additionalProperties": {"type": "string"}},
+    "rewritten": {"type": "array", "items": {"type": "string"}},
+    "excluded": {"type": "array", "items": {"type": "string"}},
+    "note": {"type": "boolean"}
+  },
+  "additionalProperties": true
+}

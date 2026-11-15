@@ -39,25 +39,28 @@ Setup writes only what differs from a default, to the committed
 ```text
 /create-prd            # reverse-engineers a baseline PRD from code + docs,
                        #   asks you to confirm open points
-                       # → delivery ticket SHOP-1, docs PR "Product definition"
-/merge-pr SHOP-1       # after you review the PR yourself
-
-/create-architecture   # reverse-engineers HLD (C4 1–3, data model, deployment)
-                       #   + LLD (key flows you confirm), all Mermaid
-                       # → delivery ticket SHOP-2, docs PR
-/merge-pr SHOP-2
+                       # → docs/product/prd.md + roadmap.md, uncommitted
+/create-architecture   # reverse-engineers the HLD (C4 1–3, data model,
+                       #   API landscape, deployment), all Mermaid
+                       # → docs/architecture/hld/*.md, uncommitted
+/create-pr "Baseline the PRD and architecture"
+                       # no ticket: previews one commit per doc set,
+                       #   commits on a branch of its own, opens one PR
+/merge-pr --pr <n>     # after you review the PR yourself
 ```
 
 ### Fresh product (greenfield)
 
 Same as above, but `/create-prd` and `/create-architecture` *elicit* instead
-of reverse-engineer, and one extra step scaffolds the repo:
+of reverse-engineer, and one extra ticket scaffolds the repo — ordinary ticket
+work, no skill of its own (ADR-0118):
 
 ```text
-/create-project        # layout per the C4 containers, build config,
-                       #   test framework + coverage tooling, lint, CI,
+/create-ticket "Scaffold the repository per the architecture docs"
+                       # → SHOP-3: layout per the C4 containers, build config,
+                       #   test framework + coverage tooling, lint,
                        #   minimal green vertical slice
-                       # → delivery ticket SHOP-3, bootstrap PR (CI runs on it)
+/ship SHOP-3           # analysis → plan → code → review → PR
 /merge-pr SHOP-3
 ```
 
@@ -70,11 +73,14 @@ of reverse-engineer, and one extra step scaffolds the repo:
 What happens (you are asked clarifying questions along the way):
 
 1. `/create-ticket` — analyzes the prompt against the PRD, codebase, and
-   docs; creates epic `SHOP-4` with **no children** (`children: []`). Its
-   `/create-design` runs next; then `/acs:create-ticket SHOP-4 --fan-out`
-   mints children `SHOP-5`, `SHOP-6` from the design's slices (you confirm
-   the breakdown). Epic flips to **In Progress** when work starts.
-2. Per child: `/create-design` (or the child inherits the epic's design) →
+   docs; creates epic `SHOP-4` with **no children** (`children: []`). When
+   you want a design, run `/create-tech-design` next (approve its
+   `tech-design.md` with `/set-doc-status approved <feature>`) — no ticket
+   flag asks for it (ADR-0139); then `/acs:breakdown-ticket SHOP-4`
+   mints children `SHOP-5`, `SHOP-6` from the design's seams (you confirm
+   the breakdown in one step; each child inherits the epic's features). Epic flips to **In Progress** when work starts.
+2. Per child: `/create-tech-design` if you want one (otherwise the child reads
+   the epic's design when there is one) →
    `/code` (TDD against 90% coverage, verifier review loop
    ≤3 iterations, docs + architecture updated) → `/docs-sync` → `/create-pr`.
 3. `/ship` **stops before merge** — it never merges for you.
@@ -92,7 +98,8 @@ Then, per PR, after your own review:
 Every step is invocable on its own; hooks enforce the order:
 
 ```text
-/create-ticket Fix flaky checkout total rounding     # → SHOP-7 (task)
+/create-ticket Fix flaky checkout total rounding     # → SHOP-7 (bug: reproduction,
+                                                       #   expected vs actual, severity)
 /code SHOP-7                                          # TDD + review loop
                                                        #   (self-authors specs/ since none exist)
 /docs-sync SHOP-7
@@ -109,8 +116,8 @@ resolution order is explicit argument → session context → branch name.
 /ship SHOP-123         # continues from the first incomplete step
                        #   (ledger decides; gates re-verify)
 
-# ticket only exists in Jira / GitHub Projects?
-/create-ticket PROJ-456    # imports it: local id + external mapping,
+# ticket only exists in GitHub Projects?
+/create-ticket '#456'    # imports it: local id + external mapping,
                            #   then normal analysis/clarification
 /ship SHOP-124             # ship the imported ticket
 ```
@@ -149,25 +156,41 @@ ticket partition is locked by its session, so the two never collide. The
 workspace resolves to the same main-checkout-anchored location from every
 worktree, precisely so both worktrees share one state store (ADR-0086).
 
-## Long session? Hand off
+## Handing a ticket to a teammate
 
 ```text
-/handoff
-  → flushed in-flight work + decisions to SHOP-5's partition
-  → the in-flight step marked interrupted (stop_reason: context_pressure), lock released
-  → continue with:  /code SHOP-5   (in a fresh session)
+# Ana, who planned SHOP-5:
+/acs:handoff SHOP-5
+  → one ask: the note (done / in flight / next / decisions), each outside-repo
+    attachment (include or skip), push?
+  → pushed refs/acs/handoff/SHOP-5 — your work, run and lock are unchanged
+
+# Bo, on another machine, from a clean tree:
+/acs:handoff list            → SHOP-5
+/acs:handoff receive SHOP-5
+  → work applied (3-way), run restored, ref deleted
+  → Ana's note; continue with:  /acs:ship SHOP-5
 ```
 
-Crashed or interrupted instead? Just re-run the same skill — the
-coordinator sees the `in_progress` run entry and reconciles (e.g. re-runs
-the tests for specs marked implemented) before continuing.
+Anyone who can read the remote can fetch that ref — hand off only what the
+repo's readers may see. Handing a finished *phase* to the next team needs no
+handoff: approve the documents with `/acs:set-doc-status`, open the docs PR
+with `/acs:create-pr`, and tell them.
+
+## Long session, crash or interruption?
+
+Just re-run the same skill. A step that ran low on context paused itself
+(`interrupted`, `stop_reason: context_pressure`, lock released); a crash
+left an `in_progress` run entry. Either way the coordinator reconciles (e.g.
+re-runs the tests for specs marked implemented) before continuing.
 
 ## Changing product scope
 
 ```text
 /create-ticket Let customers share wishlists publicly
   → diverges from the PRD (sharing is out-of-scope) — amend the PRD?
-/create-prd            # confirmed amendment → new delivery ticket + docs PR
+/create-prd            # confirmed amendment → PRD edited in place, uncommitted
+/create-pr "Amend the PRD: public wishlists"   # → a PR for the amendment
 ```
 
 ## Where everything lives
@@ -183,6 +206,6 @@ pipeline.
 
 acs reports no usage: it records no tokens, spend or time totals and ships
 no dashboard for them
-([ADR 0104](../../adr/0104-no-usage-dashboards-no-usage-recording.md)).
+([ADR 0104](../../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)).
 Tokens, spend and time per ticket are Claude Code's to report — its own
 `/cost`, the console, or its usage exports.

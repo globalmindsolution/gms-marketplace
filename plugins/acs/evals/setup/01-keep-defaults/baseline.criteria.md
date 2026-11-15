@@ -1,2 +1,2 @@
-PASS if, like the reference, the run applies the stated choices (default branch, commit and PR title formats; no CI checks) through setup without asking the user anything the request already answered, and its reply confirms what was kept and that nothing was installed.
-FAIL if the run asks a question the request answered, asks for a ticket prefix or a workspace location, installs or offers to install a CI check anyway, or writes custom formats.
+PASS if, like the reference, the run applies the stated choices (default ticket prefix; no model scaffold; no CI checks) through setup without asking the user anything the request already answered, and its reply confirms what was kept and that nothing was installed.
+FAIL if the run asks a question the request answered, asks for a workspace location, installs or offers to install a CI check anyway, or writes a ticket prefix or other settings.

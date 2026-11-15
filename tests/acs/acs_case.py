@@ -45,6 +45,25 @@ def tracker_body(case, text="## Description\n\nBulk import.\n"):
     return path
 
 
+def write_prd(root, features=("wishlist",), requirements=("R1", "R2")):
+    """A minimal PRD in the standard layout (ADR-0142) under `root`:
+    `docs/product/prd.md` indexing each of `features`, and each feature's own
+    `features/<slug>/prd.md` declaring `requirements`. Tickets are made from
+    the PRD (ADR-0144), so a fixture that creates or breaks down one needs it."""
+    product = os.path.join(root, "docs", "product")
+    bullets = "".join("- [%s](features/%s/prd.md) (supports G1)\n" % (f, f) for f in features)
+    os.makedirs(product, exist_ok=True)
+    with open(os.path.join(product, "prd.md"), "w", encoding="utf-8") as fh:
+        fh.write("# PRD\n\n## Goals & success metrics\n\n- G1: grow\n\n"
+                 "## Features (prioritized)\n\n### Must have\n\n" + bullets)
+    for slug in features:
+        os.makedirs(os.path.join(product, "features", slug), exist_ok=True)
+        with open(os.path.join(product, "features", slug, "prd.md"), "w",
+                  encoding="utf-8") as fh:
+            fh.write("# %s\n\n## Requirements\n\n%s" % (slug, "".join(
+                "- **%s** — %s\n" % (r, r.lower()) for r in requirements)))
+
+
 def acs_lib_paths():
     """Every module file of the acs_lib package, sorted for stable output.
 
@@ -81,7 +100,7 @@ class AcsWorkspaceCase(unittest.TestCase):
         with open(os.path.join(self.repo, ".git", "info", "exclude"), "a") as fh:
             fh.write(".acs/state-machine/\n")
         os.makedirs(os.path.join(self.repo, ".acs"))
-        self.write_settings({"ticket_prefix": "SHOP", "test_coverage_percent": 90})
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"coverage": 90}})
         self.seed_counters(next_n=1)
 
     def _counters_path(self, repo_id="acme-shop"):
@@ -107,6 +126,10 @@ class AcsWorkspaceCase(unittest.TestCase):
         path = self._counters_path(repo_id)
         if os.path.exists(path):
             os.unlink(path)
+
+    def write_prd(self, features=("wishlist",), requirements=("R1", "R2")):
+        """The repo's PRD (module-level `write_prd`)."""
+        write_prd(self.repo, features, requirements)
 
     def write_settings(self, data):
         with open(os.path.join(self.repo, ".acs", "settings.json"), "w") as fh:

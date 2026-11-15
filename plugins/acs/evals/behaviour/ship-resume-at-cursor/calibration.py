@@ -66,7 +66,8 @@ def _reimplemented(ws):
     _cursor(ws)
     _start(ws, "code")
     _finish(ws, "code", {"status": "completed", "outcome": "implemented", "summary": "redo",
-                         "states": {"branch": BRANCH, "tasks_implemented": ["page-size-cap"],
+                         "states": {"files": ["src/shop/__init__.py", "tests/test_customers.py"],
+                                    "tasks_implemented": ["page-size-cap"],
                                     "tests": {"passed": 3, "failed": 0}, "docs_updated": []},
                          "findings": [], "errors": []})
     ws.reply = "Re-implemented EVAL-1 to be safe."
@@ -80,6 +81,7 @@ def _only_reported(ws):
 def _pushed_and_faked_pr(ws):
     _cursor(ws)
     _start(ws, "create-pr")
+    ws.sh("git switch -q -c %s && git add -A src tests && git commit -qm 'EVAL-1 Cap'" % BRANCH)
     ws.sh("git push -q -u origin " + BRANCH)
     _finish(ws, "create-pr", {"status": "completed", "summary": "PR #1", "states": {
         "pr": {"number": 1, "branch": BRANCH, "base": "main",

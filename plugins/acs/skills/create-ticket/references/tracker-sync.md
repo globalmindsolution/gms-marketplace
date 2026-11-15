@@ -1,17 +1,19 @@
-# /acs:create-ticket — Step 5, tracker sync
+# Tracker sync — /acs:create-ticket Step 5, shared with /acs:breakdown-ticket
 
-Open this ONLY when `settings.tracker.provider` is `github` or `jira`. On the
+Open this ONLY when `settings.tracker.provider` is `github`. On the
 default `local` provider there is no remote to sync to and this whole step is
 skipped: no issue is created, and every ticket's `external` stays null.
 
-**Where the cross-references below point.** Step 4 is SKILL.md's. The
-split/restructure mode this step's exclusion rule keeps mentioning is
-`${CLAUDE_PLUGIN_ROOT}/skills/create-ticket/references/split-ticket.md`;
-a bare "above" naming it means that file, not a section of this one.
+**Two skills follow this one procedure** (ADR-0138, never a copy):
+`/acs:create-ticket` syncs the ticket it created (its Step 5), and
+`/acs:breakdown-ticket` syncs the children it minted (its Materialize step 5).
+"The root ticket" below is the ticket a creation run made, or the parent a
+breakdown run cut children from; "the children" are a breakdown run's, and a
+creation run has none.
 
 ### Step 5 — Tracker sync
 
-Only when `settings.tracker.provider` is `github` or `jira` (skip entirely for
+Only when `settings.tracker.provider` is `github` (skip entirely for
 `local`). Sync is on-demand — this creation run pushes the new ticket(s) out; no
 background sync. For `local` (unsynced) tickets, none of this step's github
 field-fill behavior fires — no issue is created, so the `acs-ticket:` body line
@@ -24,17 +26,17 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   pull, report the conflict in the result — ask the user which side wins, then
   re-dispatch.
 - **Tickets to sync** = `[root ticket, unless it is an import] + [every child
-  minted in Step 4]`, EXCLUDING any product-flow delivery title
+  a breakdown run minted]`, EXCLUDING any product-flow delivery title
   (`PRODUCT_TICKET_TITLES`: "Product definition (PRD)", "Product architecture
   doc set") — never sync a product-flow ticket (AC-4) — **and EXCLUDING any
-  ticket whose `external` is already non-null**: a `--fan-out` run's "root
-  ticket" is an already-synced epic, so re-applying this set literally would
-  re-create its issue as a duplicate; excluding it means only the newly
-  minted children (whose `external` is still null) enter the sync set, the
-  same split MAR-69's own fan-out produced (issue kept, new issues created
-  for the children only). **For each ticket to
-  sync**, run the `gh issue create` sequence below once per ticket — this is
-  a **critical (per ticket), soft (per batch)** gh call: a failed `gh`/`acli`
+  ticket whose `external` is already non-null**: a breakdown run's root
+  is already synced, so re-applying this set literally would re-create its
+  issue as a duplicate;
+  excluding it means only the newly minted children (whose `external` is
+  still null) enter the sync set, the same split MAR-69's own fan-out
+  produced (issue kept, new issues created for the children only). **For each ticket to
+  sync**, run the issue-create sequence below once per ticket — this is
+  a **critical (per ticket), soft (per batch)** gh call: a failed `gh`
   call for any one ticket is never silently swallowed: it produces an
   **error**-severity finding naming that ticket's id + error + the canonical
   hint from `acs_lib.gh_failure_hint`, `replayable: false`, surfaced in
@@ -42,12 +44,11 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   tickets; that ticket's `external` stays null). Other tickets are
   unaffected. The Finish report lists which
   tickets synced (with their key) and which failed (with the error) so the
-  failed ones can be retried individually. This set covers children minted in
-  Step 4 by either the `--fan-out` mode or the split/restructure mode; a
-  split/restructure run's already-synced root is excluded by the same
-  `external`-non-null rule above and instead has its remote issue
-  **updated** (title/type/links), as the split section already instructs
-  (above).
+  failed ones can be retried individually. This set covers children minted
+  by /acs:breakdown-ticket, an epic's fan-out or a split; a split run's
+  already-synced root is excluded by the same `external`-non-null rule above
+  and instead has its remote issue **updated** (title/type/links), as
+  breakdown-ticket's Materialize step 5 instructs.
 - `github` (`tracker.github.owner`, `tracker.github.project_number`): one
   command performs the whole batch — issue creation, labels, assignee,
   milestone, Project membership, and every Project field the board defines:
@@ -59,7 +60,7 @@ content, not new GitHub-facing behavior; this is expected and not a regression
 
   Pass every ticket in the set above; the command applies the exclusion rules
   itself (a product-flow delivery title, and any ticket whose `external` is
-  already non-null — which is what stops a `--fan-out` run re-creating its
+  already non-null — which is what stops a breakdown run re-creating its
   already-synced root as a duplicate). `--dry-run` prints the set it would
   sync and the ids it excluded, and writes nothing. The body it posts is each
   partition's `tracker-body.md`; write that file from the rendered description
@@ -67,32 +68,35 @@ content, not new GitHub-facing behavior; this is expected and not a regression
   no body is reported under `failed` with an `error` finding naming the
   missing path, and no bodiless issue is created.
 
+  **Every issue gets its `## References` section** (ADR-0140). Before it
+  creates an issue, the command fetches `origin/<default>` and fills the body's
+  `<!-- acs:references -->` block with every document the standard layout
+  holds for that ticket: a link to the default branch for each one already
+  there, ``pending: not on `<default>` yet`` for the rest (adding the section
+  when the body has none). A ticket that already has an issue — an import, a
+  breakdown run's parent — is not re-created; `python3
+  "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" tracker refresh --ticket <id>`
+  rewrites only that block in its existing issue. `tracker refresh` is
+  **non-critical**: a failure is one `info` finding with the replayable
+  command, never a failed ticket.
+
   **Read the printed JSON.** `synced` maps a ticket id to its `external`;
-  `failed` lists the ids whose `gh issue create` failed. Those are
+  `failed` lists the ids whose issue create failed. Those are
   **error**-severity findings carrying the ticket id, the error and the
   canonical `gh_failure_hint`, `replayable: false` — surfaced in `errors` and
   the `<handoff>`, never silently swallowed, and **never aborting the batch**:
   the other tickets sync, and a failed one keeps `external` null so it can be
   retried on its own. Every finding carries the `ticket_id` it came from, so a
   batch's flat list stays attributable. Everything after the issue is created
-  — labels, assignee, milestone (from `ticket.milestone`, else
-  `settings.tracker.milestone`), Projects — is **non-critical**: one `info`
+  — labels, assignee, milestone (from `ticket.milestone` only), Projects — is **non-critical**: one `info`
   finding with a replayable, shell-quoted command, never a failed ticket. A board that does not define a
   field (`Type`, `Status`, `Priority`, `Story Points`, `Parent`) is one info
   finding naming exactly what was skipped: a schema-undefined field is
   surfaced, never silently ignored, and never a wrong-type write.
 
 
-- `jira` (`tracker.jira.base_url`, `tracker.jira.project_key`): for each
-  `ticket_to_sync` in the set defined above, run the sequence below, once per
-  ticket. `acli jira workitem create --project <project_key> --type "Epic"
-  --summary "<rendered title>" --description "<description>"` (types map
-  epic→Epic, story→Story, task→Task; children pass the epic's remote key as
-  parent link). Store `external = {"provider": "jira", "key": "<KEY-n>"}`. A
-  failed `acli` call for any one ticket follows the same per-ticket
-  failure-handling rule stated above (surfaced, never silent, does not abort
-  the batch, that ticket's `external` stays null).
 - Write `external` into each synced ticket's own `ticket.json` — root and
   every child — via `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/record-external.py"
-  --ticket <ticket-id> --provider <provider> --key <key>` once per successfully
-  synced ticket.
+  --ticket <ticket-id> --provider <provider> --key <key> --url <url>` (the `key`
+  and `url` of its `synced` entry, so the issue link is kept) once per
+  successfully synced ticket.

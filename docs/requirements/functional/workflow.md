@@ -20,12 +20,16 @@ schema REJECTS `when`, `paths`, `requires`, `needs`, `max_parallel`,
 (ADR-0096). Three requirements follow, and together they are what "pipeline"
 now means:
 
-- **Every skill MUST be runnable on its own**, from a ticket id, a prompt or
-  a document. A skill's pre-hook MUST NOT refuse it for running before or
+- **Every skill MUST be runnable on its own**, from requirements in any
+  container — a ticket id, documents (in the repo or attached from outside
+  it), a prompt, or a mix of them
+  ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)).
+  No skill requires a ticket. A skill's pre-hook MUST NOT refuse it for running before or
   after another skill, or because an upstream artifact is missing; it checks
   only a small set of safety brakes ([hooks.md](hooks.md)). A skill whose
-  upstream artifact is absent falls back to the run's subject — the ticket's
-  acceptance criteria, the prompt or the document.
+  upstream artifact is absent falls back to the run's requirements
+  (`requirements.md`: the ticket's acceptance criteria, the prompt, the
+  documents).
 - **No workflow construct may decide whether a skill applies.** A predicate in
   the workflow makes a skill untrustworthy standalone: invoked by hand it
   never evaluates the condition the workflow was evaluating for it. Each skill
@@ -65,23 +69,27 @@ inside a parallel group (a loop that re-entered half a group would leave the
 other half's work neither kept nor redone) — and never what a skill needs. An
 out-of-order override validates, and its steps run on their fallbacks.
 
-`/create-ticket` and `/create-design` are **design** work that runs before
-`/ship`; `/merge-pr` is **ship** work a human drives after review.
+`/create-ticket`, `/breakdown-ticket`, `/create-tech-design`, `/create-api-contract`, `/create-data-design`
+and `/create-flows` are **design** work that runs before `/ship`; `/merge-pr` is **ship** work a
+human drives after review.
 
 | Step (`ship.yaml`) | Phase | Purpose (summary) |
 |--------------------|-------|-------------------|
-| — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, or **task**. Runs before `/ship`. |
-| — `/create-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce an approved design (`design.md`): decision & rationale, architecture, contracts, risks, rollout. For an **epic**, the step that follows is `/acs:create-ticket <epic-id> --fan-out`, not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when `needs_design`. |
-| `analyze-requirements` | build | Read the subject, the product docs and the codebase; write `analysis.md` — problem restated, impact map, recorded questions, assumptions, risks, refined acceptance criteria, and the `api_surface` verdict. A not-ready analysis returns `needs_input`. |
+| — `/create-ticket` | design | Analyze & clarify requirements from the user prompt, codebase, and docs; create a ticket of type **epic**, **story**, **task** or **bug**, drafted by one author for that type and checked by a reviewer before you confirm it ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). Runs before `/ship`. |
+| — `/breakdown-ticket` | design | Break an epic — or a story or task too large for one PR, converted to an epic that keeps its id — into PR-sized children, proposed in one confirmation and minted with the parent's `features` ([ADR-0138](../../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)). Runs before `/ship`, after the epic's tech design. |
+| — `/create-tech-design` | design | Analyze the ticket, codebase, and docs; evaluate options with trade-offs and produce the hand-off the team reviews before implementation (`tech-design.md`, `status: proposed` until approved with `/set-doc-status`): decision & options, the HLD views affected, snapshots of the feature's API, data, flows and components documents, NFRs, risks, open questions ([ADR-0135](../../architecture/adr/0135-create-tech-design.md)). For an **epic**, the step that follows is `/acs:breakdown-ticket <epic-id>` (ADR-0138), not implementation — the epic's own ticket is never implemented. Runs before `/ship`, when you want a design — no ticket flag asks for it ([ADR-0139](../../architecture/adr/0139-tickets-carry-no-design-flag.md)). |
+| — `/create-data-design` | design | Write the ticket's data low-level design under `lld/<feature>/data/` — logical ERD and physical schema with a migration outline, for the enabled `design.lld_types` only; documents only. Runs before `/ship`, on any ticket that adds or changes persisted data ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
+| — `/create-api-contract` | design | Design the interfaces a feature or a change adds or changes under `lld/<feature>/api/` — one living, versioned file per interface (a REST resource, a CLI command group, an event topic, a gRPC service), each endpoint, command or message traced to an acceptance criterion — plus the run's `api-contract.md` record linking them; documents only, never the repo's OpenAPI, JSON Schema, proto or AsyncAPI files, which `/code` makes from plan items. Runs before `/ship`, before the plan, on any ticket (an epic included), feature or prompt ([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)). |
+| — `/create-flows` | design | Write the ticket's behaviour low-level design under `lld/<feature>/flows/` (and `components/` when enabled) — one file per flow and one per entity state machine; documents only. Runs before `/ship` ([ADR-0126](../../architecture/adr/0126-lld-data-design-and-flows.md)). |
+| `analyze-requirements` | build | Read the subject, the product docs and the codebase; write the `analysis/` folder ([ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)) — a `README.md` with the scope, refined acceptance criteria, cross-cutting risks, questions and assumptions and a contexts table (an interface change is named in the report's Next as work for `/create-api-contract`), plus one file per bounded context with its impact map, rules, risks, open questions and API notes. A not-ready analysis returns `needs_input`. |
 | `create-impl-plan` | build | The plan phase carved out of `/code`: the planner's survey, the spec fold, the executor file map, and plan approval, ending in an approved `plan.md`. **It also judges the delivery path**, once, from the plan's own scope, and writes it into the plan's `## Contract` block (ADR-0098). |
-| `create-api-contract` | build | Write `api-contract.md` — every endpoint/command/message the plan adds or changes, shapes, error codes, compatibility notes, examples, each traced to an acceptance criterion and a plan item — plus the machine-readable contract files where the repo keeps them (else `docs/api/`). Records an evidenced no-op when the Contract says `owes.api_contract: false`. |
 | `create-test-docs` | build | Write `test-cases.md`: `TC-n` cases typed unit \| integration \| e2e, each traced to an acceptance criterion, with preconditions, steps, expected result and target suite. Every acceptance criterion MUST be covered by at least one case. Records an evidenced no-op when the Contract says `owes.test_cases: false`. |
 | `code` | build | Implement features / bug fixes / tasks using the **TDD pattern** against the approved `plan.md`, writing tests from `test-cases.md` when present. It dispatches to the delivery-path leg the plan recorded. **It has no verifier, does not judge the changeset, and never runs the full suite** — targeted tests only. |
 | `review-code` | build | The changeset review: five read-only lenses in parallel, one fresh-context adjudicator per candidate finding, then a final gate running build, lint, the full unit suite and coverage. **The only place the full suite runs.** Blocking findings re-enter at `code` through the workflow's single loop — see [Review feedback loop](#review-feedback-loop). |
-| `create-e2e-tests` | test | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, committed on the ticket branch. Records an evidenced no-op when no e2e suite is configured or the Contract says `owes.e2e: false`. |
+| `create-e2e-tests` | test | Write the ticket's e2e suites at the repo's configured e2e location, covering the e2e-typed rows of `test-cases.md`, left uncommitted. Records an evidenced no-op when no e2e suite is configured or the Contract says `owes.e2e: false`. |
 | `run-e2e-tests` | test | Run this product's configured suites for the subject, scoped from `test-cases.md`. Records an evidenced no-op when there is nothing configured to run. |
-| `docs-sync` | build | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the branch diff (`git diff <default_branch>...HEAD`), `/code`'s `result.json` and `/acs:review-code`'s verdict rather than from a hand-off summary; runs on the same ticket branch, adding commits to the existing changeset. |
-| `create-pr` | ship | Create a pull request shipping the implementation. It is the last step in the list, so `/ship` ends there. |
+| `docs-sync` | build | Re-verify and complete the doc updates a ticket's changeset requires, re-deriving them independently from the run's changeset (`acs.py changes diff`), `/code`'s `result.json` and `/acs:review-code`'s verdict rather than from a hand-off summary; writes into the same working tree, uncommitted, never a branch or a PR of its own. |
+| `create-pr` | ship | The one step that branches, commits and pushes ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)): split the working tree's uncommitted changes into small commits (the run's documents, design docs, per plan slice its tests then its code, doc updates, e2e suites), preview them for the user to confirm, commit on the run's branch, push, and open the pull request; takes a ticket id or a prompt. It is the last step in the list, so `/ship` ends there. |
 | — `/merge-pr` | ship | Review PR readiness and merge it if possible; when the readiness check fails, it is **report-only** (no automatic fixes). **User-invoked only**, after the user has reviewed the PR themselves — never auto-triggered by the pipeline. |
 
 **There is no predicate vocabulary.** The `when:` / `requires:` kinds, their
@@ -89,21 +97,24 @@ closed predicate list (`design_approved`, `api_surface_changed`,
 `e2e_configured`, `post_code_test_active`) and the `status: skipped` they
 produced are all removed. What each of them decided is now decided by the
 skill that owns the question, and recorded by it: an unapproved design is a
-brake in `/acs:create-impl-plan`'s own gate, an absent API surface is
-`owes.api_contract: false` on the plan, and an unconfigured e2e suite is an
-evidenced no-op that `/acs:create-e2e-tests` records for itself.
+brake in `/acs:create-impl-plan`'s own gate, an API surface is designed
+before the plan by `/acs:create-api-contract`, which is not a step at all
+([ADR-0134](../../architecture/adr/0134-api-contract-is-a-design-document.md)),
+and an unconfigured e2e suite is an evidenced no-op that
+`/acs:create-e2e-tests` records for itself.
 
 ```mermaid
 flowchart LR
     U[User prompt] --> T[/create-ticket/]
-    T -->|needs design, epic| D[/create-design/]
-    D -->|epic: after design| FO[/create-ticket --fan-out/]
+    T -.->|when you want a design| D[/create-tech-design/]
+    D -->|epic: after design| FO[/breakdown-ticket/]
     FO -->|per child| A
-    D -->|child inherits the design| A
+    D -.->|read when it exists, own or the epic's| A
     T -->|otherwise| A[/analyze-requirements/]
+    T -.->|an interface changes| AC[/create-api-contract/]
+    AC -.->|the plan reads the contract| PL
     A --> PL[/create-impl-plan/]
-    PL --> AC[/create-api-contract/]
-    AC --> TD[/create-test-docs/]
+    PL --> TD[/create-test-docs/]
     TD --> C[/code/]
     C --> RV[/review-code/]
     RV -->|blocking findings, max 3 rounds| C
@@ -118,26 +129,54 @@ flowchart LR
 `create-e2e-tests` and `docs-sync` fan out from `review-code` side by side:
 they are one parallel group, and `run-e2e-tests` waits for both.
 
-`/create-design` runs only for tickets flagged **`needs_design: true`** —
-set for **epics only**; stories/tasks are always `false`. Child tickets of
-an epic do **not** repeat design: they inherit the parent epic's `design.md`.
+`/create-tech-design` runs **when the user asks for it**, on any ticket — epic,
+story, task or bug — a prompt or documents. No ticket carries a design flag
+and nothing in the pipeline asks for a design
+([ADR-0139](../../architecture/adr/0139-tickets-carry-no-design-flag.md)).
+A design is **found, not required**: the later skills read the ticket's own
+`tech-design.md`, else its parent epic's, when one exists, and go on without
+one when none does. Child tickets of an epic do **not** repeat design: they
+read the parent epic's.
+
+`/create-api-contract`, `/create-data-design` and `/create-flows` work the same
+way: the SA or Tech Lead runs them on a ticket (or a feature, or a
+prompt) whose interfaces, persisted data or behaviour they want designed
+before implementation. Neither takes a run position, and neither branches,
+commits or opens a PR: each leaves its `lld/` documents as local uncommitted
+changes and lists every path it wrote in its result's `states.files`, for
+`/create-pr` to commit with the ticket's design documents.
 
 ### Where a ticket's artifacts live
 
 The workflow reads and writes two distinct stores, and a requirement in this
 document belongs to exactly one of them:
 
-- **The repo docs tree** — `<repo>/docs/tickets/<ID>/`, a fixed location
-  with no setting and no opt-out
-  ([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)), holds the
-  **human-facing ticket documents**: `ticket.md`, `design.md`,
-  `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`. They are
-  committed on the ticket branch and reviewed in the PR like any other doc.
+- **The repo's phase folders** hold the **human-facing documents**, one
+  folder per phase keyed by the run's feature
+  ([ADR-0128](../../architecture/adr/0128-requirements-from-any-container.md)):
+  Discovery `<prd_dir>/features/<feature>/analysis/` (the feature's living
+  analysis — a folder, `README.md` plus one file per bounded context,
+  [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)); Design `<architecture_dir>/lld/<feature>/<ticket-id or run-id>/`
+  (`tech-design.md`, `api-contract.md`, beside the living LLD the Design skills edit
+  in place — `lld/<feature>/{api,data,flows,components}/`, ADR-0126,
+  ADR-0134); Development
+  `<development_dir>/<feature>/<ticket-id or run-id>/` (the `analysis/`
+  folder, `plan.md`, `test-cases.md`). The skills that write them leave them
+  uncommitted; `/create-pr` commits them in the PR's documents commits,
+  where they are reviewed like any other doc
+  ([ADR-0127](../../architecture/adr/0127-only-create-pr-commits.md)). A ticket
+  is not among them: it lives in the workspace and the tracker, and nothing
+  writes `docs/tickets/<ID>/` — an existing folder there is still read when a
+  phase folder has no such document. A repo that keeps run documents
+  local ([ADR-0132](../../architecture/adr/0132-share-or-keep-run-documents-local.md))
+  keeps a run's own documents in its step folders instead; only the living
+  documents then reach the phase folders.
 - **The workspace run** — `<workspace>/<repo>/runs/<run-id>/` holds the **run
   ledger**: `run.json` (the run machine), `steps/<skill>/state.json` (the step
   machine), each step's `result.json` and its `iter-<n>/` audit trail,
-  `subject/`, `requirements.md`, verdicts, `lock.json`,
-  `clarifications.json`, and the repo-level index files
+  `subject/` (`sources.json` and copied documents), `requirements.md`,
+  verdicts, `lock.json`, a ticketless run's `clarifications.json` (a ticket
+  run's ledger stays in the ticket partition), and the repo-level index files
   ([workspace-and-state.md](workspace-and-state.md)). The run is keyed by the
   **run id**, which is derived from the subject — a ticket id when there is
   one, otherwise a slug of the prompt or document (ADR-0097).
@@ -163,7 +202,7 @@ to the run's subject.
   confirms goals, NFRs and constraints through the clarification ledger.
 - **A pre-hook may also COMPLETE its step, from evidence, without running
   it.** When the plan's `## Contract` block says the step owes nothing —
-  `owes.api_contract: false`, say — the pre-hook records an evidenced no-op
+  `owes.e2e: false`, say — the pre-hook records an evidenced no-op
   carrying the Contract's own reason, and the skill does not run. This is not
   a skip: the step is `completed`, with a recorded sentence, by the hook that
   owns it. A step with no Contract entry to stand on MUST run.
@@ -205,8 +244,9 @@ requirements.
 existing ticket**. It takes a **ticket id only**: a non-id argument MUST be
 refused with a pointer at the design phase ("ship takes a ticket id; run
 /acs:create-ticket \"<prompt>\" and then /acs:ship <id>"), and an epic id
-with the design-and-fan-out pointer — an epic's own ticket is never
-implemented.
+with the design-and-breakdown pointer (`/acs:create-tech-design <id>`, then
+`/acs:breakdown-ticket <id>`) — an epic's own ticket is never implemented. A
+`bug` ships like a story (ADR-0138).
 
 `/ship` MUST NOT hard-code the order. It is a **loop over
 `acs.py run next`**:
@@ -270,7 +310,7 @@ every skill's transcript in one context:
 - The `/ship` coordinator **invokes each step skill directly in its own
   context** (it holds the Agent tool the step needs to spawn its own
   subagents). Between steps it reads only `run.json`, the subject's
-  own document (`ticket.md` in the docs tree), the output of
+  requirements (`acs.py requirements show`), the output of
   `acs.py run next`, and
   the step's handoff / `result.json` — never the step's transcript — so its
   own context stays small.
@@ -288,8 +328,12 @@ every skill's transcript in one context:
 
 ## Ticket context
 
-Every workflow skill except `/create-ticket` operates on an existing ticket
-and therefore MUST resolve a `<ticket-id>` before doing anything. Resolution
+Every workflow skill MUST resolve what it works on before doing anything:
+this checkout's current run, else the sources in its arguments — ticket ids,
+documents and a prompt, parsed into the run's `subject.sources` and
+normalised into its `requirements.md`
+([workspace-and-state.md](workspace-and-state.md#requirements-of-a-run)). No
+skill requires a ticket; a ticket id, where one is used, resolves in this
 order:
 
 1. **Explicit argument** — the user passes a ticket id when invoking the
@@ -301,7 +345,20 @@ order:
    name, which embeds it by convention (see formats in
    [configuration.md](configuration.md)).
 
-If no ticket id can be resolved, the skill MUST stop and ask the user.
+If neither a run nor any source resolves, the skill MUST stop and ask the user.
+
+Once the subject resolves, the skill MUST also know the documents that exist
+for it: the step-start context's `references` lists every document the
+standard layout holds for the run's features and ticket — the PRD feature
+section, the living analysis, the HLD views, the living LLD, the tech designs
+and API contracts (the ticket's own and its parent epic's) and the ticket's
+development documents
+([ADR-0140](../../architecture/adr/0140-tickets-link-their-documents.md)).
+A skill reads the ones relevant to its step from that list and never searches
+the repo for them. The same list is the ticket's `## References` section in
+the tracker, linked to the remote default branch; a document still pending
+there becomes a link when `/merge-pr` refreshes the synced tickets after a
+merge.
 
 Note: pre/post **hooks** are deterministic scripts and cannot interpret
 conversation history — they resolve the ticket id from the **per-checkout
@@ -312,17 +369,22 @@ branch name. See [hooks.md](hooks.md) and
 
 ## Epic fan-out
 
-An epic's own **creation** run MUST NOT propose a child breakdown and MUST
-end with `children: []` — no children are minted at epic-creation time. Two
-of `/create-ticket`'s modes mint children, and neither is the epic's own
-creation run: a later `/acs:create-ticket <epic-id> --fan-out` run, invoked
-**after** the epic's `/create-design` has completed, and a split/restructure
-run, which mints children at the recorded seams (see
-[skills.md](skills.md)). The `--fan-out` run mints children only (it does
-not repeat the epic's own Steps 1-3); the proposed breakdown is derived from
-the epic's `design.md` slice/seam content when a design exists, and is
-presented and user-confirmed at the same Step-2 confirmation gate before any
-child is minted. Each child ticket:
+An epic's own **creation** run MUST NOT mint children and MUST end with
+`children: []` — no children are minted at epic-creation time; its draft
+carries a candidate breakdown *outline* only, and
+the run points at `/acs:create-tech-design <id>` (when you want a design) and then
+`/acs:breakdown-ticket <id>`. Children are minted by **`/acs:breakdown-ticket`**
+([ADR-0138](../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md);
+it replaced `/acs:create-ticket <epic-id> --fan-out` and `/acs:create-ticket
+split <id>`, which now refuse with a pointer to it), run **after** the epic's
+tech design — it warns, without blocking, when that design is not yet
+`approved` — or on an oversized story or task, which it first converts to an
+epic that keeps its id (see [skills.md](skills.md)). The breakdown is derived
+from the tech design's seams when one exists (else from the ticket's
+description and acceptance criteria, and any oversize seams the plan
+recorded), and every proposed child — title, type `story`/`task`/`bug`,
+acceptance criteria, the parent's `features` unless narrowed — is presented in
+ONE grouped confirmation before any child is minted. Each child ticket:
 
 - gets its own `<ticket-id>` and its own workspace partition;
 - runs its own pipeline (`/code` → … → `/merge-pr`) independently —
@@ -341,12 +403,11 @@ Done.
 ## Inside each step: Reflection
 
 Each skill spawns only the subagents its own logic needs, each named for
-the work it does (ADR-0109). The twelve **authoring** skills and `/acs:create-docs` MUST
+the work it does (ADR-0109). The twelve **authoring** skills MUST
 internally run a **write → judge** cycle with a dedicated subagent per role
-(e.g. `docs-sync-doc-updater`, `docs-sync-drift-reviewer`); `create-prd` and
-`create-requirements` add a read-only `surveyor`, and `standardize-project`
-an `auditor`, that run on iteration 1 only and freeze the notes the writer
-works from. No skill has a plan phase before its writer (ADR 0092): a writer
+(e.g. `docs-sync-doc-updater`, `docs-sync-drift-reviewer`); `create-prd`
+adds a read-only `surveyor` that runs on iteration 1 only and freezes the
+notes the writer works from. No skill has a plan phase before its writer (ADR 0092): a writer
 with no survey role before it surveys first and records the survey in
 `iter-<n>/authoring.md`, which the judge judges the deliverable against.
 `/create-impl-plan`'s `planner` authors the plan on every run (ADR-0095
@@ -354,7 +415,7 @@ removed the TRIVIAL/SMALL fork on which the coordinator authored it itself).
 `/acs:code` has **no plan of its own** — its plan phase became
 `/create-impl-plan` — and spawns `code-implementer`s against that approved
 plan; its review is `/acs:review-code`, a step of its own.
-The three **apply-work** skills (`create-ticket`, `create-pr`, `merge-pr`)
+The three **apply-work** skills (`breakdown-ticket`, `create-pr`, `merge-pr`)
 run **inline** instead — the coordinator runs the steps from its
 `references/` and spawns no subagent in any lane. The coordinator
 orchestrates its subagents and communicates with them in a task/result
@@ -386,10 +447,13 @@ the review now, and the loop is **automatic**:
   Corroboration-by-count is not used: two lenses agreeing is not evidence
   when both read the same diff.
 - **A final gate runs the build, the lint, the full unit suite and
-  coverage — once, last.** This is the ONLY place in the pipeline the full
-  suite runs. It runs after the reading dimensions have had their say,
-  because an iteration already blocked by a finding does not need a suite run
-  to say so and the tree it would measure is about to change.
+  coverage — once per iteration, read last.** This is the ONLY place in the
+  pipeline the full suite runs. Its commands start as `acs.py job` jobs beside
+  the lenses (the tree is frozen while read-only agents review it,
+  [ADR-0125](../../architecture/adr/0125-parallelism-in-skills.md)), and its
+  result is read only after the reading dimensions have had their say: an
+  iteration already blocked by a finding stops the jobs and records the gate
+  as not run, since the tree it measured is about to change.
 - When the review records blocking findings, the workflow's single `loops:`
   entry returns the cursor to `code`, which passes every confirmed finding to
   the next iteration's implementer(s) in its context **with no intervening plan
@@ -447,38 +511,73 @@ Resume works at three levels, all from workspace state alone:
 The `.lock` file is **re-entrant for the same checkout**: resuming from the
 same worktree reclaims its own lock; only other sessions are blocked.
 
-## Session handoff
+## Ticket handoff
 
-A long session can deliberately hand a ticket off to a fresh session — a
-handoff is a *planned* resume, so it can do better than crash recovery:
+A ticket can pass from one team member to another — across machines — in
+mid-flight, with its uncommitted work and its pipeline state
+([ADR-0131](../../architecture/adr/0131-ticket-handoff-between-members.md)).
+The workspace itself stays machine-local in the main checkout's
+`.acs/state-machine/` (ADR-0086); what crosses is a package of one ticket.
 
-1. **Flush** — the coordinator persists all in-flight work to the ticket
-   partition, including soft context that phase boundaries have not captured
-   yet: user clarifications and decisions, partial findings of the current
-   phase, discovered gotchas.
-2. **Mark** — the in-flight step is finalized **`interrupted`** with a
-   `stop_reason` from the closed set (`context_pressure` for a handoff,
-   `session_end` for the safety net, `needs_input` when a decision is owed)
-   plus a **handoff summary**: what is done, what is in flight, next actions,
-   and any decisions not yet reflected in other files. `handed_off` is not a
-   status — it was a reason wearing a state's clothes (ADR-0097).
-3. **Release** — the run's lock is released, so any session (not only the
-   same checkout) can take over.
-4. **Take over** — in the new session the user re-runs the same skill (or
-   `/ship`); the ticket resolves via argument, pointer file, or branch name.
-   The coordinator sees the step's last invocation `interrupted`, reads the
-   handoff summary, runs a light reconcile (recorded state is trusted but cheaply
-   verified, e.g. by running the tests), and continues.
+1. **Send** — `/acs:handoff <ID>` asks ONE grouped question: the handoff note
+   (what is done, what is in flight, what is next, decisions not yet in a
+   file), each outside-repo attachment of the run (include or skip, one by
+   one), and confirmation of the push. `acs.py handoff send` then builds one
+   commit on the run's `baseline.base_sha` through a temporary index — the
+   sender's HEAD, index, branches and working tree are untouched — and pushes
+   it to the hidden ref `refs/acs/handoff/<ID>` on `origin`. An existing ref is
+   refused unless `--replace`. An archived ticket is refused.
+2. **The package is the resume set** — what a resume reads, nothing else: the
+   uncommitted work (`acs changes snapshot`, ignored files excluded); the
+   ticket and its clarification ledger; the run's `run.json`,
+   `requirements.md`, `requirements-refined.json`, `subject/sources.json`,
+   `baseline.json` and `handoff-context.md`; per step the files at its root
+   (`state.json`, `result.json`, current artifacts) and its verdicts; the
+   trees the state cites (the baseline's, a verdict's `reviewed_sha`); the
+   note; and a manifest. Absolute paths travel as tokens and are rewritten to
+   the receiver's. The rest of the `iter-*/` audit trails, `jobs/`,
+   `agents/`, the lock and its events, session pointers and logs stay behind,
+   and so does every outside-repo attachment the sender did not confirm.
+3. **The sender keeps everything** — work, run and lock stay as they were. A
+   handoff is a copy; the sender decides when to discard.
+4. **Receive** — `/acs:handoff receive <ID>` on a **clean working tree**
+   fetches the ref, checks the work applies with `git apply --3way` in a
+   temporary index first (a receiver whose HEAD has moved on still applies; a
+   conflict stops with the paths and the checkout untouched), applies it
+   unstaged, restores the resume set with local paths, indexes the ticket and
+   the run, raises `counters.next` to at least the sender's, points the
+   checkout at the run and deletes the remote ref (`--keep-ref` keeps it; the
+   receiver keeps a local `refs/acs/received/<ID>`). A local run or ticket
+   with the same id is refused unless `--replace`, which backs it up first. It
+   shows the note and prints `continue_with` — the step to resume, else
+   `/acs:ship <ID>`.
+5. **List** — `/acs:handoff list` names the tickets waiting under
+   `refs/acs/handoff/`.
 
-Triggers: the user invokes the **`/handoff`** utility skill explicitly, and
+The ref is hidden from a default fetch, not private: anyone with read access
+to the remote can fetch it. A **phase handoff** — Design done, Development
+takes over — needs no skill: approve the documents with
+`/acs:set-doc-status`, open the docs PR with `/acs:create-pr`, and tell the
+next team, which starts from the merged documents.
+
+### Session pause
+
+The context-pressure mechanism that used to be the session-handoff skill is
+internal and unchanged. It flushes the in-flight soft context to the run
+(user clarifications and decisions, partial findings, gotchas), and
 every workflow skill's coordinator SHOULD perform the same flush proactively
 when it detects its context window running low — never burn the last of the
-context on work that would be lost with the session.
-
-Scope: handoff targets a new session on the **same machine/checkout** — the
-state machine lives in the repo's main checkout at `.acs/state-machine/`,
-with no override (ADR-0086). Cross-machine handoff
-would require a shared or synced workspace — out of scope for now.
+context on work that would be lost with the session. It then calls
+`handoff.py`, which finalizes the in-flight step **`interrupted`** with
+`stop_reason: context_pressure` plus a summary (what is done, in flight,
+next), releases the run's lock and prints `continue_with`; the `PreCompact`
+hook writes `handoff-context.md` before the window shrinks. `handed_off` is
+not a status — it was a reason wearing a state's clothes (ADR-0097). In the
+new session the user re-runs the same skill (or `/ship`); the coordinator
+sees the step's last invocation `interrupted`, reads the summary, runs a
+light reconcile (recorded state is trusted but cheaply verified) and
+continues. A pause stays on the same checkout; crossing to another member is
+a [ticket handoff](#ticket-handoff).
 
 ## Parallel work
 
@@ -489,15 +588,15 @@ would require a shared or synced workspace — out of scope for now.
   rev-parse --git-common-dir`), every linked worktree resolves to the same
   `.acs/state-machine/` tree, so the same ticket pipeline can run inside a
   dedicated git worktree without state colliding with other worktrees
-  (ADR-0086).
-- A second, narrower mechanism layers cross-*skill*, phase-level fan-out on
-  top of the above: `/acs:create-docs` mints one delivery ticket per
-  eligible doc-bootstrap skill and runs each phase (plan, then execute,
-  then verify) as a parallel batch across both tickets, rather than running
-  the skills one after another — reusing the same worktree-per-ticket
-  primitive per leg, with each leg entering its own worktree at its own
-  Branch step, before that leg's Execute phase.
-  See `docs/architecture/lld/flows/doc-bootstrap-fanout.md`.
+  (ADR-0086) — a Claude Code worktree session included, because state is
+  written through `acs.py write`, never the `Write` tool
+  ([ADR-0136](../../architecture/adr/0136-state-is-written-through-acs-write.md)).
+- **One checkout, one changeset.** No step commits before `/create-pr`
+  (ADR-0127), so a run's changes are the working tree's. Two tickets in flight
+  in one checkout share that working tree and so one changeset; the run's
+  baseline keeps files that were dirty before it started out of its commits,
+  but it cannot tell two concurrent runs' new files apart. Run concurrent
+  tickets in a worktree each.
 - **Step-level parallelism within one run is declared, never computed.**
   `ship.yaml` v3 rejects `max_parallel` and `exclusive`; the only overlap is a
   parallel group the list itself declares (ADR-0110), whose members
@@ -509,8 +608,7 @@ would require a shared or synced workspace — out of scope for now.
   coordinator runs several instances of one role at once over disjoint slices
   — writers, judges with five or more check dimensions, surveys spanning
   disjoint repo areas — at most four per phase unless the skill sets its own
-  cap (`/acs:create-docs`'s sets run two at a time; `/acs:review-code` fans out
-  its five lenses). The rules are in [reflection.md](reflection.md#decomposition--concurrency-rules).
+  cap (`/acs:review-code` fans out its five lenses). The rules are in [reflection.md](reflection.md#decomposition--concurrency-rules).
 
 ## Product-level architecture
 
@@ -520,7 +618,7 @@ bootstrapped by the product-level `/create-architecture` skill
 `docs/architecture/` — is the stable frame around it. Every skill finds
 these documents the way any session does, through `CLAUDE.md` and the repo
 itself, rather than through a setting
-([ADR-0102](../../adr/0102-documents-are-found-not-configured.md)).
+([ADR-0102](../../architecture/adr/0102-documents-are-found-not-configured.md)).
 
 Above the architecture sits the **PRD** (found the same way, else
 `docs/product/prd.md`; bootstrapped and amended by `/create-prd`): vision,
@@ -530,14 +628,19 @@ The architecture is designed and verified to satisfy it, and
 capability that diverges from it.
 
 - **Input**: `/create-ticket` reads the PRD and the architecture doc set
-  when analyzing requirements; `/create-design` designs against the doc
+  when analyzing requirements; `/create-tech-design` designs against the doc
   set; a per-ticket design conforms to the documented architecture or
   explicitly states the architecture changes it requires.
 - **Output**: `/code` updates the doc set whenever a change alters the
   architecture — both **HLD** (C4 views, data model, deployment) and
   **LLD**, merging the ticket design's new or changed sequence diagrams
   into `lld/flows/`; `/acs:review-code`'s documentation lens checks
-  that consistency.
+  that consistency. `/acs:docs-sync` then brings each run feature's
+  `lld/<feature>/{api,data,flows,components}/` documents in line with the
+  code — a `proposed` document updated and bumped, drift from an `approved`
+  one asked about, never silently rewritten — and moves a document whose
+  code now fully matches from `approved` to `implemented`
+  ([ADR-0137](../../architecture/adr/0137-docs-sync-keeps-the-feature-lld-current.md)).
 - **Enforcement (docs current by induction)**: `/acs:review-code` makes a
   positive, evidenced architectural-impact determination from each diff —
   impact without matching doc changes in the same changeset is a blocking
@@ -566,11 +669,11 @@ markdown file per feature area):
   same changeset, same induction as the architecture doc set; the
   `/acs:review-code`'s documentation lens blocks a behavioral change whose
   requirements file was not updated.
-- The set grows organically from ticket #1 — OR is bootstrapped in one run
-  via `/acs:create-requirements` (brownfield reverse-engineer, greenfield
-  elicit, or amend an existing set); either way, `/code`'s documentation step
-  continues to accrete acceptance criteria and behavior-defining
-  clarifications into the touched area file afterward. Brownfield
+- The set grows organically from ticket #1: `/code`'s documentation step
+  accretes acceptance criteria and behavior-defining clarifications into the
+  touched area file. acs does not bootstrap the set in one run
+  ([ADR-0118](../../architecture/adr/0118-discovery-design-development-phases.md)); a set a
+  repo already keeps is optional context its readers use. Brownfield
   repos MAY seed area files during `/create-prd`'s baseline analysis.
 
 ## Starting a fresh product
@@ -585,24 +688,36 @@ ticket:
    problem, personas, goals with success metrics, prioritized features,
    product-level NFRs, constraints; shipped as the PRD doc set.
 3. **`/create-architecture`** — design the system to satisfy the PRD;
-   produce the full system design (HLD + LLD).
-4. **`/create-project`** — scaffold the repo skeleton from that
-   architecture: layout, build, **test framework + coverage tooling**,
-   linters, CI, and a minimal green vertical slice. Without this, the
-   `/code` TDD gates have no harness to run against.
+   produce the high-level design (`hld/`). Then **`/create-pr "Baseline the
+   PRD and architecture"`** commits both doc sets, one commit each, and opens
+   one PR.
+4. **`/create-ticket "Scaffold the repository per the architecture docs"`**,
+   then **`/ship`** it — the repo skeleton is ordinary ticket work
+   ([ADR-0118](../../architecture/adr/0118-discovery-design-development-phases.md)):
+   layout, build, **test framework + coverage tooling**, linters and a
+   minimal green vertical slice, planned and implemented from that
+   architecture like any other ticket. Without this, the `/code` TDD gates
+   have no harness to run against. The CI gates come from `/setup`.
 5. **`/create-ticket`** — typically an MVP **epic** derived from the PRD
-   roadmap, created childless; its `/create-design` then runs; then
-   `/acs:create-ticket <epic-id> --fan-out` mints the child stories/tasks
+   roadmap, created childless; its `/create-tech-design` then runs; then
+   `/acs:breakdown-ticket <epic-id>` mints the child stories, tasks and bugs
    ([Epic fan-out](#epic-fan-out)).
 6. **`/ship`** each child through the pipeline; **`/merge-pr`** after your
    own review.
 
-Each product-level step (2–4) creates its own **delivery ticket** and PR
-([skills.md](skills.md#product-level-delivery-tickets)), so even the
-bootstrap work is tracked in project management — a fresh product's history
-starts at ticket #1.
+A PRD feature can be analysed before any ticket is cut:
+`/analyze-requirements` run on its own with the feature, a prompt or a
+specification (Discovery, [ADR-0129](../../architecture/adr/0129-discovery-design-development-regroup.md))
+writes the feature's living analysis to `<prd_dir>/features/<feature>/analysis/` (a `README.md` plus one file per bounded context, [ADR-0133](../../architecture/adr/0133-analysis-is-a-folder-by-bounded-context.md)),
+and every later run on that feature starts from it.
+
+The product-level steps (2–3) run without a ticket and leave their documents
+uncommitted; `/create-pr "<prompt>"` delivers them as one PR, one commit per
+doc set ([skills.md](skills.md#product-level-delivery-no-ticket)). The
+scaffold (4) is the first ticket, with its own PR, so a fresh product's
+ticket history starts at ticket #1.
 
 From then on the product is effectively brownfield: the pipeline maintains
 the architecture docs as changes land, the PRD is amended via `/create-prd`
-re-runs (each amendment a new ticket) when scope grows, and
-`/create-project` is never needed again.
+re-runs (each amendment delivered through `/create-pr "<prompt>"`) when scope grows, and the scaffold
+ticket is never needed again.

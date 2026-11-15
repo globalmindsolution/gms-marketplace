@@ -71,7 +71,7 @@ class TestGates(AcsWorkspaceCase):
         with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", "create-architecture",
                                "SKILL.md"), encoding="utf-8") as fh:
             body = " ".join(fh.read().split())
-        self.assertIn("no PRD found — working from <the subject>", body)
+        self.assertIn("no PRD found — working from <the requirements>", body)
         self.assertNotIn("run /acs:create-prd first", body)
 
     def test_code_requires_resolvable_ticket(self):
@@ -79,47 +79,23 @@ class TestGates(AcsWorkspaceCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("ticket id", result.stderr)
 
-    def test_unknown_placeholder_rejected(self):
+    def test_retired_formats_and_enforcement_settings_are_ignored(self):
+        """Branch, commit and title style are the model's to follow, so a
+        `formats` or `enforcement` block a repo still carries is tolerated and
+        ignored -- it can no longer make a gate refuse."""
         self.write_settings({"ticket_prefix": "SHOP",
-                             "formats": {"branch_name": "{nope}/{ticket_id}"}})
-        result = self.pre("create-ticket")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("placeholder", result.stderr)
-
-    def test_pr_title_ticket_ref_placeholder_accepted(self):
-        """MAR-80: {ticket_ref} is a valid pr_title-scoped placeholder (renders
-        the tracker's native reference when synced, the local ticket id when
-        not) -- validate_formats/FORMAT_PLACEHOLDERS must accept it in
-        formats.pr_title."""
-        self.write_settings({"ticket_prefix": "SHOP",
-                             "formats": {"pr_title": "[{ticket_ref}] {title}"}})
+                             "formats": {"branch_name": "{nope}/{ticket_id}"},
+                             "enforcement": {"checks": {"commit_message": True}}})
         result = self.pre("create-ticket")
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_ticket_ref_rejected_in_branch_name(self):
-        """Scope fence (AC-4): {ticket_ref} is pr_title-scoped only -- it must
-        stay rejected in branch_name (and, by the same vocabulary table,
-        commit_message)."""
-        self.write_settings({"ticket_prefix": "SHOP",
-                             "formats": {"branch_name": "{type}/{ticket_ref}-{slug}"}})
-        result = self.pre("create-ticket")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("placeholder", result.stderr)
-
-    def test_branch_name_must_embed_ticket_id(self):
-        self.write_settings({"ticket_prefix": "SHOP",
-                             "formats": {"branch_name": "{type}/{slug}"}})
-        result = self.pre("create-ticket")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("ticket_id", result.stderr)
-
     def test_e2e_settings_validation(self):
-        self.write_settings({"ticket_prefix": "SHOP", "e2e": {"setup": "x"}})
+        self.write_settings({"ticket_prefix": "SHOP", "tests": {"e2e": {"setup": "x"}}})
         result = self.pre("create-ticket")
         self.assertEqual(result.returncode, 2)
-        self.assertIn("e2e", result.stderr)
+        self.assertIn("tests.e2e", result.stderr)
         self.write_settings({"ticket_prefix": "SHOP",
-                             "e2e": {"command": "make e2e", "per_iteration": False}})
+                             "tests": {"e2e": {"command": "make e2e"}}})
         self.assertEqual(self.pre("create-ticket").returncode, 0)
 
     def plan(self, ticket):
@@ -220,68 +196,19 @@ class TestCreateSpecSurfaceDeleted(unittest.TestCase):
             REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        self.assertNotIn("spec_template", schema["properties"]["formats"]["properties"])
-        self.assertNotIn("spec_sections", schema["properties"]["enforcement"]["properties"])
-        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
-            "propertyNames"]["enum"]
-        self.assertNotIn("create-spec", overrides_enum)
+        for gone in ("formats", "enforcement", "hook_gates"):
+            self.assertNotIn(gone, schema["properties"])
+        self.assertNotIn("create-spec", json.dumps(schema["properties"]["models"]))
 
-    def test_settings_schema_overrides_enum_tracks_hooked_skills(self):
-        """The schema enum and acs_lib.HOOKED_SKILLS are two copies of one list.
-
-        The schema half is hand-maintained, so nothing but this test notices
-        when a skill is hooked (or unhooked) and only one copy is updated --
-        which is the drift MAR-516 exists to close.
-        """
+    def test_settings_schema_descriptions_do_not_reference_create_spec(self):
         schema_path = os.path.join(
             REPO_ROOT, "plugins", "acs", "schemas", "settings.schema.json")
         with open(schema_path, encoding="utf-8") as fh:
             schema = json.load(fh)
-        overrides_enum = schema["properties"]["models"]["properties"]["overrides"][
-            "propertyNames"]["enum"]
-        self.assertEqual(sorted(overrides_enum), sorted(lib.HOOKED_SKILLS))
-        for field in ("e2e",):
+        for field in ("tests",):
             self.assertNotIn(
                 "/create-spec", schema["properties"][field]["description"],
                 "%s description must not reference the deleted /create-spec" % field)
-
-
-class TestProducerDocSetGates(AcsWorkspaceCase):
-    """MAR-122: the four doc-set producer skills (create-quality,
-    create-operations, create-principles, create-standards) had no GATES
-    entry, so run_pre's bare GATES[skill] subscript raised KeyError, caught
-    by the fail-closed handler as exit 2 "unexpected error in gate" -- these
-    drive the real dispatcher end-to-end and prove that failure mode is gone."""
-
-    PRODUCERS = ("create-docs",)
-
-    def test_passes_with_architecture_present(self):
-        hld = os.path.join(self.repo, "docs", "architecture", "hld")
-        os.makedirs(hld)
-        with open(os.path.join(hld, "tech-stack.md"), "w") as fh:
-            fh.write("# tech stack")
-        for skill in self.PRODUCERS:
-            with self.subTest(skill=skill):
-                result = self.pre(skill)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertNotIn("KeyError", result.stderr)
-
-    def test_without_architecture_neither_the_skill_nor_the_hook_stops(self):
-        """ADR-0102: the architecture check moved into the skill, which can
-        find a set wherever the repo keeps it; the hook passes. Since the
-        per-skill subagents the skill does not stop either: it falls back to
-        the PRD/repo and only RECOMMENDS /acs:create-architecture."""
-        for skill in self.PRODUCERS:
-            with self.subTest(skill=skill):
-                result = self.pre(skill)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertNotIn("KeyError", result.stderr)
-                with open(os.path.join(REPO_ROOT, "plugins", "acs", "skills", skill,
-                                       "SKILL.md"), encoding="utf-8") as fh:
-                    body = " ".join(fh.read().split())
-                self.assertIn("run /acs:create-architecture first", body)
-                self.assertIn("(a recommendation, never a precondition)", body)
-                self.assertNotIn("None found → STOP", body)
 
 
 class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
@@ -319,7 +246,7 @@ class TestOrderAdvisoryAndPrBrake(AcsWorkspaceCase):
         self.walk_to(ticket, "create-impl-plan")
         result = self.pre("create-pr", ticket)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("the cursor for %s is create-api-contract" % ticket,
+        self.assertIn("the cursor for %s is create-test-docs" % ticket,
                       result.stderr)
 
     def test_a_member_of_the_due_parallel_group_is_advised_of_nothing(self):
@@ -454,7 +381,7 @@ class TestClarifications(AcsWorkspaceCase):
         self.assertEqual((entry["id"], entry["status"]), ("C-1", "answered"))
 
         opened = json.loads(self.clarify(
-            "add", "--skill", "create-design", "--question", "Duplicates?").stdout)
+            "add", "--skill", "create-tech-design", "--question", "Duplicates?").stdout)
         self.assertEqual(opened["status"], "open")
         answered = json.loads(self.clarify(
             "answer", "--id", "C-2", "--answer", "reject with 409").stdout)
@@ -490,7 +417,7 @@ class ToolchainTests(unittest.TestCase):
 
     def test_reports_every_known_tool(self):
         names = [r["name"] for r in lib.check_toolchain()]
-        self.assertEqual(set(names), {"git", "python3", "gh", "pre-commit", "acli"})
+        self.assertEqual(set(names), {"git", "python3", "gh", "pre-commit"})
 
     def test_core_tools_present_and_required(self):
         rows = {r["name"]: r for r in lib.check_toolchain()}
@@ -502,12 +429,10 @@ class ToolchainTests(unittest.TestCase):
     def test_tracker_bumps_conditional_tools_to_required(self):
         gh = {r["name"]: r for r in lib.check_toolchain({"tracker": {"provider": "github"}})}["gh"]
         self.assertEqual(gh["kind"], "required")
-        acli = {r["name"]: r for r in lib.check_toolchain({"tracker": {"provider": "jira"}})}["acli"]
-        self.assertEqual(acli["kind"], "required")
         # local tracker leaves them at their baseline kinds
         base = {r["name"]: r for r in lib.check_toolchain()}
         self.assertEqual(base["gh"]["kind"], "recommended")
-        self.assertEqual(base["acli"]["kind"], "optional")
+        self.assertNotIn("acli", base)
 
     def test_missing_tools_excludes_present_and_optional(self):
         missing = lib.missing_tools()  # required + recommended by default
@@ -650,12 +575,9 @@ class TestRecordExternal(AcsWorkspaceCase):
         the parent epic's own ticket.json is untouched by those writes."""
         epic = self.new_ticket("Wishlist", "epic")
         children = [
-            self.new_ticket("Wishlist API", "story", "--parent", epic,
-                            "--needs-design", "false"),
-            self.new_ticket("Wishlist UI", "story", "--parent", epic,
-                            "--needs-design", "false"),
-            self.new_ticket("Wishlist notifications", "task", "--parent", epic,
-                            "--needs-design", "false"),
+            self.new_ticket("Wishlist API", "story", "--parent", epic),
+            self.new_ticket("Wishlist UI", "story", "--parent", epic),
+            self.new_ticket("Wishlist notifications", "task", "--parent", epic),
         ]
         epic_json = os.path.join(self.tdir(epic), "ticket.json")
         epic_stat_before = os.stat(epic_json)

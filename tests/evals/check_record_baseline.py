@@ -37,7 +37,8 @@ trace = os.path.join(run_dir, "out", "trace.jsonl")
 with open(trace, "w") as fh:
     fh.write(json.dumps({"type": "user", "message": {"content": "the prompt"}}) + "\n")
     fh.write(json.dumps({"type": "assistant", "message": {"content": [
-        {"type": "tool_use", "name": "Skill", "input": {"skill": "acs:setup"}}]}}) + "\n")
+        {"type": "tool_use", "name": "Skill", "input": {"skill": "acs:setup"}}]}})
+             + ("" if mode == "no-final-newline" else "\n"))
 graders = [{"name": "skill-fired", "passed": True, "scored": True},
            {"name": "outcome", "passed": mode != "failed-grader", "scored": True}]
 error = {"session-limit": "exit 1: You've hit your session limit",
@@ -66,6 +67,11 @@ class RecordTest(unittest.TestCase):
         source = next(c for c in ec.all_cases() if c.name == "01-keep-defaults")
         self.case_dir = os.path.join(self.tmp, "01-keep-defaults")
         shutil.copytree(source.path, self.case_dir)
+        # The source case may carry its own recorded baseline: start unrecorded.
+        for path in (os.path.join(self.case_dir, rb.BASELINE_FILE),
+                     os.path.join(self.case_dir, "graders", rb.GRADER_FILE)):
+            if os.path.exists(path):
+                os.remove(path)
         self.case = ec.Case(self.case_dir)
 
     @staticmethod
@@ -94,6 +100,14 @@ class RecordTest(unittest.TestCase):
             self.assertEqual(grader.body.strip(), fh.read().strip())
         with open(os.path.join(self.case_dir, rb.BASELINE_FILE), encoding="utf-8") as fh:
             self.assertEqual(len([json.loads(l) for l in fh if l.strip()]), 2)
+
+    def test_the_transcript_always_ends_with_a_newline(self):
+        # The CLI writes the last line without one; end-of-file-fixer would add it.
+        self.record("no-final-newline")
+        with open(os.path.join(self.case_dir, rb.BASELINE_FILE), "rb") as fh:
+            data = fh.read()
+        self.assertTrue(data.endswith(b"}\n"))
+        self.assertEqual(data.count(b"\n"), 2)
 
     def test_a_run_stopped_at_its_turn_limit_is_still_clean(self):
         self.record("turn-limit")

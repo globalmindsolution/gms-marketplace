@@ -180,9 +180,11 @@ class Workspace(object):
         with open(path, "a" if append else "w", encoding="utf-8") as fh:
             fh.write(text)
 
-    def setup_apply(self, settings, ci):
-        return self.acs("setup", "apply", "--answers", "-",
-                        stdin=json.dumps({"settings": settings, "ci": ci}))
+    def setup_apply(self, settings, ci, templates=None):
+        answers = {"settings": settings, "ci": ci}
+        if templates is not None:
+            answers["templates"] = templates
+        return self.acs("setup", "apply", "--answers", "-", stdin=json.dumps(answers))
 
     def created(self):
         return sorted(_files(self.path) - self.before)
@@ -191,14 +193,15 @@ class Workspace(object):
         shutil.rmtree(self.path, ignore_errors=True)
 
 
-BRACKETED = {"formats": {"pr_title": "[{ticket_id}] {title}"}}
-PYTEST = {"tests": {"command": "python3 -m pytest -q --cov=src --cov-fail-under=$ACS_COVERAGE"}}
+PAY = {"ticket_prefix": "PAY"}
+PYTEST = {"tests": {"unit": {"command": "python3 -m pytest -q --cov=src --cov-fail-under=$ACS_COVERAGE"}}}
 
 
-def _ticket(ws, **overrides):
+def _ticket(ws, references=True, **overrides):
     """What /acs:create-ticket does: allocate (the mandatory first action),
     then the coordinator's inline rewrite of ticket.json (Step 3,
-    `references/materialize.md`)."""
+    `references/materialize.md`) and the references it records (step 3b,
+    ADR-0140)."""
     ws.skill("create-ticket")
     start = ws.acs("step", "start", "--step", "create-ticket", "--allocate", "--type", "task",
                    "--title", "(ticket under analysis)", "--args", "Add a /health endpoint")
@@ -209,10 +212,14 @@ def _ticket(ws, **overrides):
         ticket = json.load(fh)
     ticket.update({"title": "Add a /health endpoint returning ok",
                    "description": "GET /health returns 200 with body ok.",
-                   "acceptance_criteria": ["GET /health responds 200 with body \"ok\""]})
+                   "acceptance_criteria": ["GET /health responds 200 with body \"ok\""],
+                   "features": ["health-check"]})
     ticket.update(overrides)
     saved = ws.acs("ticket", "save", "--ticket", "EVAL-1", "--from", "-", stdin=json.dumps(ticket))
     assert saved.returncode == 0, saved.stderr
+    if references:
+        found = ws.acs("ticket", "references", "--ticket", "EVAL-1", "--write")
+        assert found.returncode == 0, found.stderr
 
 
 def _placeholder_only(ws):
@@ -241,15 +248,7 @@ PLAYS = {
         lambda ws: (ws.skill("setup"), ws.setup_apply({}, [])),
         {"wrote CI, a settings file and an answers file": lambda ws: (
             ws.skill("setup"), ws.write("answers.json", "{}"), ws.setup_apply({}, ["conventions"]),
-            ws.write(".acs/settings.json", '{"formats": {"branch_name": "{type}/{ticket_id}-{slug}"}}\n'))},
-    ),
-    "02-custom-pr-title": (
-        lambda ws: (ws.skill("setup"), ws.setup_apply(BRACKETED, ["conventions"])),
-        {"kept the default title, wrote the prefix, added a tests gate, changed protection":
-            lambda ws: (ws.skill("setup"), ws.setup_apply({}, []),
-                        ws.write(".acs/settings.json", '{"ticket_prefix": "ACS"}\n'),
-                        ws.write(".github/workflows/acs-tests.yml", "x"),
-                        ws.called("Bash", command="gh api -X PUT repos/example/shop/branches/main/protection"))},
+            ws.write(".acs/settings.json", '{"ticket_prefix": "ACS"}\n'))},
     ),
     "03-tests-gate": (
         lambda ws: (ws.skill("setup"), ws.setup_apply(PYTEST, ["tests"])),
@@ -258,8 +257,8 @@ PLAYS = {
             ws.write(".github/workflows/acs-conventions.yml", "x"))},
     ),
     "04-rerun": (
-        lambda ws: (ws.skill("setup"), ws.setup_apply(BRACKETED, ["conventions"])),
-        {"lost the custom format, duplicated the ignore line, added a gate": lambda ws: (
+        lambda ws: (ws.skill("setup"), ws.setup_apply(PAY, ["conventions"])),
+        {"lost the custom prefix, duplicated the ignore line, added a gate": lambda ws: (
             ws.skill("setup"), ws.write(".acs/settings.json", "{}\n"),
             ws.write(".gitignore", ".acs/state-machine/\n", append=True),
             ws.write(".acs/ci/run-tests.py", "x"))},
@@ -269,14 +268,6 @@ PLAYS = {
         {"configured without asking": lambda ws: (
             ws.skill("setup"), ws.setup_apply({}, ["conventions"]),
             ws.write(".acs/settings.json", "{}\n"))},
-    ),
-    "06-invalid-branch-format": (
-        # The wizard validates before writing and refuses: nothing is written.
-        lambda ws: (ws.skill("setup"),
-                    ws.setup_apply({"formats": {"branch_name": "{type}/{slug}"}}, [])),
-        {"wrote the invalid format, then refused": lambda ws: (
-            ws.skill("setup"),
-            ws.write(".acs/settings.json", '{"formats": {"branch_name": "{type}/{slug}"}}\n'))},
     ),
     "07-neg-github-actions": (
         lambda ws: ws.write(".github/workflows/ci.yml", "on: [push]\n"),
@@ -289,11 +280,13 @@ PLAYS = {
             ws.skill("setup"), ws.setup_apply({}, ["conventions"]))},
     ),
     "create-ticket-artifacts": (
-        lambda ws: _ticket(ws, needs_design=False),
+        lambda ws: _ticket(ws),
         {"started the skill and wrote nothing": _placeholder_only,
-         "re-litigated needs_design": lambda ws: _ticket(ws, needs_design=True),
+         "wrote a retired design flag (ADR-0139)": lambda ws: _ticket(ws, needs_design=True),
+         "never recorded the ticket's references (ADR-0140)": lambda ws: _ticket(ws, references=False),
+         "saved the ticket without its feature (ADR-0140)": lambda ws: _ticket(ws, features=[]),
          "hand-wrote the ticket without the skill": lambda ws: (
-             ws.write(TICKET, '{"id": "EVAL-1", "type": "task", "needs_design": false}\n'),
+             ws.write(TICKET, '{"id": "EVAL-1", "type": "task"}\n'),
              ws.write(".acs/state-machine/example-shop/tickets-index.json", '{"EVAL-1": {}}\n'))},
     ),
     "resume-and-verify": (

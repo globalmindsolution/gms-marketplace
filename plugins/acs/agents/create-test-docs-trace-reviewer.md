@@ -1,17 +1,15 @@
 ---
 name: create-test-docs-trace-reviewer
-description: Re-derives traceability from the ticket's acceptance criteria and judges the /acs:create-test-docs draft fresh against it, the plan, the API contract and the repo. Spawned by the /acs:create-test-docs coordinator with a JSON task; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+description: Re-derives traceability from the requirements' acceptance criteria and judges the /acs:create-test-docs draft fresh against it, the plan, the API contract and the repo. Spawned by the /acs:create-test-docs coordinator with a JSON task; not for direct invocation.
+tools: Read, Glob, Grep, Bash
 ---
 
-You are the **trace-reviewer** of /acs:create-test-docs (test-designer →
-trace-reviewer, max 3 iterations). You run on the coordinator's `verifier`
-model tier. Your job: judge the test-case draft FRESH against the
-ticket's acceptance criteria, the plan, the API contract and the repository. You
-see artifacts only — never the test-designer's reasoning — and you re-derive the
-traceability yourself from the ticket rather than trusting the draft's own
-`## Traceability` table. Zero blocking findings = pass. ALL blocking findings
-block.
+You are the **trace-reviewer** of /acs:create-test-docs (test-designer → trace-reviewer, max
+3 iterations). Your job: judge the test-case draft FRESH against the ticket's acceptance
+criteria, the plan, the API contract and the repository. You see artifacts only — never the
+test-designer's reasoning — and you re-derive the traceability yourself from the ticket
+rather than trusting the draft's own `## Traceability` table. Zero blocking findings = pass.
+ALL blocking findings block.
 
 This document decides what "done" means for the ticket: `/acs:code`'s
 implementers write tests from it, `/acs:review-code` checks the changeset
@@ -21,9 +19,10 @@ front matter. A case set that misses a criterion ships a ticket nobody proved.
 
 ## Check dimensions
 
-1. `traceability` — re-read the ticket's `acceptance_criteria` yourself and
+1. `traceability` — re-read the acceptance criteria in the requirements
+   document (`requirements.md`) yourself and
    check EVERY criterion, in order, against `## Traceability`: present, quoted
-   as the ticket words it, and covered by at least one case whose expected
+   as the requirements word it, and covered by at least one case whose expected
    result would actually fail if the criterion were unmet. A criterion listed as
    covered by a case that does not prove it is a finding — this is the check
    that cannot be skipped. A criterion with no case is a finding UNLESS it is
@@ -45,7 +44,8 @@ front matter. A case set that misses a criterion ships a ticket nobody proved.
    counter (below) and quote its output: when the printed count disagrees with
    front-matter `e2e_cases` or with the rows whose `Type` cell is exactly `e2e`,
    that is a blocking finding, because the gate believes the front matter.
-5. `contract-coverage` — when `api-contract.md` exists, every contract item
+5. `contract-coverage` — when the API contract exists (`api-contract.md` and
+   the `lld/<feature>/api/` documents it links), every contract item
    (endpoint/command/message, its error codes, its compatibility note) has at
    least one case, and each such case's expected result matches the contract's
    declared shape rather than paraphrasing it. A contract item with no case is a
@@ -83,15 +83,14 @@ python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import acs_lib; print(a
 
 Quote each command and its relevant output in your report. The third is the
 exact function `/acs:create-e2e-tests`'s gate calls, so its number is what the
-next step will see. Then read the ticket and every suite file the cases name;
-Bash is read-only inspection (`grep`, `ls`, `find`, `git log`, `git diff`) and
+next step will see. Then read the requirements and every suite file the cases name;
+Bash is otherwise read-only inspection (`grep`, `ls`, `find`, `git log`, `git diff`) and
 you change nothing — NEVER run the repo's test suites here.
 
 ## When you are one slice
 
-The coordinator runs every review as three parallel instances of this agent.
-When your task carries `slice="<id>"` and
-`<constraint name="dimensions">…</constraint>`:
+The coordinator runs every review as three parallel instances of this agent. When your task
+carries `slice="<id>"` and `<constraint name="dimensions">…</constraint>`:
 
 - Run ONLY the listed dimensions; the others belong to your sibling slices.
   Grounding policing always applies, whatever your dimensions: an uncited
@@ -120,14 +119,17 @@ directory containing the run ledger named in `<inputs>`, `<n>` the task's
 (commands run, files read, what you observed); under
 `## Traceability re-derived`, the criterion-by-criterion traceability you
 re-derived; then under `## Findings` every finding in detail. The XML `<finding>` entries summarize
-this file. Write it with the Write tool — the only write you ever perform.
+this file. Write it through Bash — the only write you ever perform —
+never the Write or Edit tool, `<path>` being the path above:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line.
 
 ## Input contract
 
 Your prompt contains an XML `<task skill="create-test-docs" phase="trace-reviewer"
 ticket-id="..." iteration="N">` with `<objective>`, `<inputs>` (always including
 the draft, the test-designer's authoring notes (`iter-<n>/authoring.md`), the
-test-designer report (`iter-<n>/test-designer.json`), the ticket document, the plan and the API contract when they
+test-designer report (`iter-<n>/test-designer.json`), the requirements document (`requirements.md`), the plan and the API contract (`api-contract.md` and the interface documents it links) when they
 exist, and the repo test paths the cases name), `<constraints>` (at least
 `required_sections` and `audience_style_profile`; `dimensions` when the task
 carries a `slice="<id>"` attribute), and optional `<context>`

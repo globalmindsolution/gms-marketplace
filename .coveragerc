@@ -27,39 +27,43 @@ data_file = ${ACS_COV_ROOT}/.coverage
 # nothing whenever the variable is unset at report time.
 omit =
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-analyze-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-audit-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-audit-security.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-review-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-run-e2e-tests.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-breakdown-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-api-contract.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-architecture.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-design.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-docs.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-tech-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-data-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-flows.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-e2e-tests.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-impl-plan.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-prd.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-project.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-manage-roadmap.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-test-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-create-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-docs-sync.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-merge-pr.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/pre-standardize-project.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-analyze-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-audit-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-audit-security.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-review-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-run-e2e-tests.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-breakdown-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-code.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-api-contract.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-architecture.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-design.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-docs.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-tech-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-data-design.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-flows.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-e2e-tests.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-impl-plan.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-pr.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-prd.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-project.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-requirements.py
+    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-manage-roadmap.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-test-docs.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-create-ticket.py
     ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-docs-sync.py
-    ${ACS_COV_ROOT}/plugins/acs/hooks/scripts/post-standardize-project.py

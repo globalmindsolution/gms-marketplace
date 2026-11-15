@@ -7,28 +7,8 @@
       "project_number": 1
     }
   },
-  "models": {
-    "planner": {
-      "model": "claude-opus-5",
-      "effort": "high"
-    },
-    "executor": {
-      "model": "claude-opus-5",
-      "effort": "high"
-    },
-    "verifier": {
-      "model": "claude-opus-5",
-      "effort": "high"
-    }
-  },
-  "enforcement": {
-    "checks": {
-      "commit_message": true
-    }
-  },
   "release": {
     "version_locations": [
-      ".claude-plugin/marketplace.json",
       "plugins/acs/.claude-plugin/plugin.json",
       "plugins/acs/.devin-plugin/plugin.json",
       ".devin-plugin/plugin.json"
@@ -53,7 +33,7 @@
     "publish_driver": {
       "workflow": ".github/workflows/release.yml",
       "trigger_paths": [
-        ".claude-plugin/marketplace.json"
+        "plugins/acs/.claude-plugin/plugin.json"
       ]
     },
     "pre_release_gate": [
@@ -63,7 +43,217 @@
     ]
   },
   "tests": {
-    "setup": "sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils && python3 -m pip install --quiet \"coverage>=7.14.2\" jsonschema",
-    "command": "export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage report --fail-under=$ACS_COVERAGE"
+    "unit": {
+      "command": "export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage report --fail-under=$ACS_COVERAGE",
+      "setup": "sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils && python3 -m pip install --quiet \"coverage>=7.14.2\" jsonschema"
+    }
+  },
+  "models": {
+    "analyze-requirements": {
+      "analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "impact-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "impact-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "code": {
+      "implementer": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      }
+    },
+    "create-api-contract": {
+      "contract-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "contract-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      }
+    },
+    "create-architecture": {
+      "architect": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      }
+    },
+    "create-tech-design": {
+      "designer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-e2e-tests": {
+      "suite-runner": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "test-writer": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      }
+    },
+    "create-impl-plan": {
+      "plan-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "planner": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-prd": {
+      "author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "surveyor": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "manage-roadmap": {
+      "author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "surveyor": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-test-docs": {
+      "test-designer": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "trace-reviewer": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      }
+    },
+    "create-ticket": {
+      "bug-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "epic-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "story-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "task-author": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      }
+    },
+    "docs-sync": {
+      "doc-updater": {
+        "model": "claude-sonnet-5-5",
+        "effort": "medium"
+      },
+      "drift-reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      }
+    },
+    "review-code": {
+      "adjudicator": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "lens": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      }
+    },
+    "audit-design": {
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      }
+    },
+    "audit-security": {
+      "adjudicator": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "auditor": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-data-design": {
+      "designer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    },
+    "create-flows": {
+      "designer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      },
+      "gap-analyst": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high"
+      },
+      "reviewer": {
+        "model": "claude-opus-5-5",
+        "effort": "high"
+      }
+    }
   }
 }

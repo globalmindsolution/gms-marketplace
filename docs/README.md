@@ -13,7 +13,7 @@ cover define → specify → design → constrain → standardize → decide →
 | Design | [architecture/](architecture/) | HOW the system is structured — HLD (C4, data model, deployment, tech stack) + LLD (flows, contracts) |
 | Constrain | [principles/](principles/) | the engineering principles every change is held to — each with the problem it prevents, the tradeoff accepted, and the violation cue a reviewer looks for |
 | Standardize | [standards/](standards/) | the coding and testing standards the repo holds itself to — naming conventions, the module-size limit, testing conventions; the checklist a review is read against |
-| Decide | [adr/](adr/) | WHY each structural choice was made |
+| Decide | [architecture/adr/](architecture/adr/) | WHY each structural choice was made — the decision records sit with the architecture they explain |
 | **Verify** | [quality/](quality/) | HOW correctness is assured — test strategy, coverage policy, the release gate |
 | **Release & operate** | [operations/](operations/) | HOW it ships and runs — release process, runbooks, observability, incident response |
 

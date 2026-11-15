@@ -18,6 +18,7 @@ create_run / step start path a real invocation takes.
 
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -246,6 +247,102 @@ class TestResumeHint(acs_case.AcsWorkspaceCase):
         self.assertIn("# Handoff context \u2014 SHOP-42", body)
         self.assertIn("## Workflow", body)
         self.assertIn("`/acs:code` invocation started", body)
+
+
+# ---------------------------------------------------------------------------
+# The /acs:handoff SKILL (ADR-0131). handoff.py above is the INTERNAL
+# context-pressure pause the step skills call; the skill of the same name is
+# the member -> member ticket handoff over `refs/acs/handoff/<ID>`, and never
+# calls handoff.py. These pin its contract; acs.py handoff's own behaviour is
+# tested with the CLI.
+# ---------------------------------------------------------------------------
+
+HANDOFF_SKILL = os.path.join(acs_case.REPO_ROOT, "plugins", "acs", "skills",
+                             "handoff", "SKILL.md")
+
+
+class TestTeamHandoffSkill(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with open(HANDOFF_SKILL, encoding="utf-8") as fh:
+            text = fh.read()
+        _, cls.fm, cls.body = text.split("---\n", 2)
+        cls.norm = re.sub(r"\s+", " ", cls.body)
+
+    def section(self, heading):
+        start = self.body.index(heading)
+        nxt = self.body.find("\n## ", start + len(heading))
+        return self.body[start:nxt if nxt != -1 else len(self.body)]
+
+    def test_frontmatter_routes_ticket_handoff_between_members(self):
+        self.assertRegex(self.fm, r'(?m)^argument-hint: "<ticket-id> \| receive <ticket-id> \| list"$')
+        desc = re.search(r"(?m)^description: (.*)$", self.fm).group(1)
+        self.assertIn("teammate", desc)
+        self.assertIn("refs/acs/handoff/<ID>", desc)
+        self.assertIn("pick up", desc)
+        self.assertIn("handoffs are waiting", desc)
+        self.assertIn("Call it as your first action", desc)
+        # A session pause is no longer this skill's job: the description
+        # says so, so a "continue this in a new session" request routes
+        # nowhere rather than here.
+        self.assertIn("Not for pausing your own session", desc)
+        self.assertNotIn("disallowed-tools", self.fm)
+
+    def test_unhooked_and_inline(self):
+        from acs_lib import UNHOOKED_SKILLS
+        self.assertIn("handoff", UNHOOKED_SKILLS)
+        self.assertIn("no `acs step start`", self.norm)
+        self.assertIn("no subagents", self.norm)
+        self.assertNotIn("handoff.py", self.body)
+
+    def test_three_modes_each_one_cli_call(self):
+        for mode in ("send", "receive", "list"):
+            self.assertRegex(self.body, r'acs\.py" handoff %s\b' % mode, mode)
+        self.assertIn("## Step 2 — Send", self.body)
+        self.assertIn("## Step 3 — Receive", self.body)
+        self.assertIn("## Step 4 — List", self.body)
+
+    def test_send_previews_then_asks_once_then_pushes(self):
+        send = self.section("## Step 2 — Send")
+        preview = send.index("--dry-run")
+        ask = send.index("ONE grouped AskUserQuestion")
+        push = send.index("--note-file")
+        self.assertLess(preview, ask)
+        self.assertLess(ask, push)
+        norm = re.sub(r"\s+", " ", send)
+        for part in ("done", "in flight", "next", "decisions"):
+            self.assertIn("**%s**" % part, norm, part)
+        self.assertIn("`Include` / `Skip`", norm)
+        self.assertIn("Confirm the push", norm)
+        self.assertIn("--attach", norm)
+        self.assertRegex(norm, r"(?i)ever packaged without its own `Include`")
+
+    def test_sender_keeps_everything(self):
+        send = re.sub(r"\s+", " ", self.section("## Step 2 — Send"))
+        self.assertRegex(send, r"(?i)nothing on this machine changes")
+        self.assertRegex(send, r"(?i)lock")
+
+    def test_never_commits_branches_or_opens_a_pr(self):
+        self.assertIn("ADR-0127", self.body)
+        self.assertRegex(self.norm, r"(?i)never create or switch a branch, stage, commit, push or open a PR")
+        self.assertRegex(self.norm, r"(?i)never push the ref yourself")
+
+    def test_receive_shows_the_note_and_continue_with(self):
+        recv = re.sub(r"\s+", " ", self.section("## Step 3 — Receive"))
+        self.assertIn("**note**", recv)
+        self.assertIn("`continue_with` VERBATIM", recv)
+        self.assertRegex(recv, r"(?i)never stash or discard")
+
+    def test_a_session_pause_is_answered_not_sent(self):
+        self.assertRegex(self.norm, r"(?i)Not a session pause")
+        self.assertIn("/acs:ship <ID>", self.norm)
+
+    def test_completion_report(self):
+        report = self.body[self.body.index("## Completion report (normative)"):]
+        for label in ("Ticket", "Status", "Results", "Findings", "Artifacts",
+                      "Metrics", "Next"):
+            self.assertIn("- **%s**:" % label, report, label)
+        self.assertNotIn("iterations <n>", report)
 
 
 if __name__ == "__main__":

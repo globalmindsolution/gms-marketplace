@@ -14,7 +14,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Cap the customer page size at 100" task false \
+acs_ticket "Cap the customer page size at 100" task \
   "GET /customers must not return more than 100 customers per page: list_customers refuses a larger limit instead of silently serving it."
 acs_local_origin
 

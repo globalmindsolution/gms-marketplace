@@ -1,7 +1,7 @@
 ---
 type: regex
 target: { source: file, path: .acs/settings.json }
-pattern: '"(?:suites|e2e)"'
+pattern: '"(?:tests|suites|e2e)"'
 match: not_contains
 ---
 

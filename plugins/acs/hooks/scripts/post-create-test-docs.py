@@ -8,6 +8,8 @@ Result-document `states` this run records for the steps that follow it:
     refuses when this is zero, and its gate counts the file itself.
   * untraced_acs  list — acceptance criteria no case covers; must be empty for a
     completed run.
+  * files          list — repo-relative paths this run wrote and left
+    uncommitted in the working tree (ADR-0127); /acs:create-pr commits them.
 
 Both counts mirror test-cases.md, which is the artifact every later step reads.
 

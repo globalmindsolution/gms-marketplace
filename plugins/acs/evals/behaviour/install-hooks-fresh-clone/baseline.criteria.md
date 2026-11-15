@@ -1,2 +1,0 @@
-PASS if, like the reference, the run checks the conventions resolve, finds .acs/ci/ already present (copying nothing), runs the committed installer, which installs both commit-msg and pre-push into this clone's hooks directory, verifies them, and tells the user both are installed, that hooks are per-clone, and that there is nothing new to commit.
-FAIL if the run installs only one hook, writes a .pre-commit-config.yaml, hand-writes hooks that do not run the committed checker, commits anything, or asks the user a question.

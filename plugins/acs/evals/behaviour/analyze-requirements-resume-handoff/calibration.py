@@ -3,8 +3,8 @@
 IDEAL does what a resumed /acs:analyze-requirements does, through the
 plugin's own writers: `acs step start` (which now reports reconcile and the
 handoff summary), `clarify.py list` (the ledger answers everything, so Stage
-2 is skipped and nothing is re-recorded), the draft, the ticket branch, the
-Publish copy and its commit, then result.json and the post-hook."""
+2 is skipped and nothing is re-recorded), the draft, the Publish copy left
+uncommitted (ADR-0127), then result.json and the post-hook."""
 
 import json
 import os
@@ -14,29 +14,45 @@ SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/analyze-requirements"
 BRANCH = "story/EVAL-1-cursor-pagination-for-get-customers"
-ANALYSIS = '---\nticket: EVAL-1\nready_for_planning: true\napi_surface: true\nneeds_design_recommendation: false\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Problem restated\n\nOffset paging on GET /customers skips or repeats customers when rows are\ninserted between page requests. Clients need an opaque cursor.\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | `list_customers` gains `cursor`, returns `next_cursor` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents `cursor` and `next_cursor` | README.md:7 |\n\n## Questions\n\n- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.\n- C-2 offset compatibility — answered: kept, deprecated; cursor wins.\n- C-3 maximum page size — answered: `limit` defaults to 20, maximum 250.\n- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.\n\n## Assumptions\n\n_None._\n\n## Risks\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Verdict\n\nReady for planning; api_surface true; no design needed.\n'
+README = '---\nticket: EVAL-1\nready_for_planning: true\n---\n\n# Analysis — EVAL-1: Cursor pagination for GET /customers\n\n## Scope and summary\n\nOffset paging on GET /customers skips or repeats customers when rows are\ninserted between page requests. Clients need an opaque cursor.\n\n## Contexts\n\n| Context | File | Purpose |\n|---|---|---|\n| Customer listing | [customer-listing.md](customer-listing.md) | how a client pages through customers |\n\n## Refined acceptance criteria\n\nThe three criteria on the ticket are confirmed as written.\n\n## Cross-cutting risks and decisions\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Questions and assumptions\n\n- C-1 cursor encoding — answered: URL-safe base64 of the last customer id.\n- C-2 offset compatibility — answered: kept, deprecated; cursor wins.\n- C-3 maximum page size — answered: `limit` defaults to 20, maximum 250.\n- C-4 malformed cursor — answered: HTTP 400, `invalid_cursor`.\n\nAssumptions: none.\n\n## Verdict\n\nReady for planning.\n'
 
-def _finish(ws, status="completed", ready=True, api_surface=True, questions_open=0,
+CONTEXT = '---\ncontext: customer-listing\n---\n\n# Customer listing\n\n## Impact map\n\n| Path | Component | Change | Evidence |\n|---|---|---|---|\n| src/shop/__init__.py | shop | `list_customers` gains `cursor`, returns `next_cursor` | src/shop/__init__.py:8 |\n| README.md | docs | API section documents `cursor` and `next_cursor` | README.md:7 |\n\n## Rules and edge cases\n\n_None._\n\n## Risks\n\n- Public API: GET /customers is documented in README.md; `offset` must keep working.\n\n## Open questions\n\n_None._\n\n## API notes\n\n_None._\n'
+
+#: The analysis is a folder (ADR-0133): a README plus one file per context.
+ANALYSIS = {"README.md": README, "customer-listing.md": CONTEXT}
+
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
+
+
+def _finish(ws, status="completed", ready=True, questions_open=0,
             stop_reason=None):
     result = {"status": status, "summary": "calibration",
-              "states": {"ready_for_planning": ready, "api_surface": api_surface,
-                         "questions_open": questions_open},
+              "states": {"ready_for_planning": ready, "questions_open": questions_open},
               "findings": [], "errors": []}
     if stop_reason:
         result["stop_reason"] = stop_reason
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-analyze-requirements.py" --result-file "%s/result.json"'
           % (SCRIPTS, STEP))
 
 
-def _publish(ws, text, branch, commit=True):
-    ws.write(STEP + "/analysis.md", text)
-    ws.sh('git rev-parse --verify --quiet "%s" >/dev/null && git checkout -q "%s" || git checkout -q -b "%s"'
-          % (branch, branch, branch))
-    cmd = 'mkdir -p docs/tickets/EVAL-1 && cp "%s/analysis.md" docs/tickets/EVAL-1/analysis.md' % STEP
-    if commit:
-        cmd += ' && git add docs/tickets/EVAL-1 && git commit -qm "EVAL-1 Analyze"'
-    ws.sh(cmd)
+def _publish(ws, files):
+    """The draft folder, then the Publish copy of every file, left uncommitted
+    on the checked-out branch (ADR-0127, ADR-0133)."""
+    for name, text in files.items():
+        ws.write(STEP + "/iter-1/analysis/" + name, text)
+    ws.sh('mkdir -p docs/development/customer-listing/EVAL-1/analysis && cp "%s"/iter-1/analysis/*.md docs/development/customer-listing/EVAL-1/analysis/' % STEP)
+
+
+def _edit(files, old, new):
+    """Every file of the folder with `old` replaced by `new`."""
+    out = {n: t.replace(old, new) for n, t in files.items()}
+    assert out != files, old
+    return out
 
 
 def _clarify(ws, question, answer=None, source=None, rationale=None):
@@ -59,7 +75,7 @@ def _start(ws):
 def IDEAL(ws):
     _start(ws)
     ws.sh('python3 "%s/clarify.py" list --ticket EVAL-1 > /dev/null' % SCRIPTS)
-    _publish(ws, ANALYSIS, BRANCH)
+    _publish(ws, ANALYSIS)
     _finish(ws)
 
 
@@ -67,7 +83,7 @@ def _ignored_the_ledger(ws):
     """Started over: asked the limit question again, assumed 100."""
     _start(ws)
     _clarify(ws, "What is the maximum page size?", "100", "assumption", "conventional default")
-    _publish(ws, ANALYSIS.replace("maximum 250", "maximum 100"), BRANCH)
+    _publish(ws, _edit(ANALYSIS, "maximum 250", "maximum 100"))
     _finish(ws)
 
 
@@ -78,7 +94,8 @@ def _started_only(ws):
 def _draft_never_published(ws):
     """Wrote the draft and closed the step, but never published it."""
     _start(ws)
-    ws.write(STEP + "/analysis.md", ANALYSIS)
+    for name, text in ANALYSIS.items():
+        ws.write(STEP + "/iter-1/analysis/" + name, text)
     _finish(ws)
 
 
@@ -87,3 +104,13 @@ BAD = {
     "reconciled, then wrote nothing": _started_only,
     "closed the step with the draft unpublished": _draft_never_published,
 }
+
+
+def _committed_on_a_ticket_branch(ws):
+    """The pre-ADR-0127 publish: everything right, then a ticket branch and a
+    commit -- only /acs:create-pr branches and commits now."""
+    IDEAL(ws)
+    ws.sh('git checkout -q -b "%s" && git add docs && git commit -qm "EVAL-1 Analyze"' % BRANCH)
+
+
+BAD["committed the analysis on a new ticket branch"] = _committed_on_a_ticket_branch

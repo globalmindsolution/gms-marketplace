@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-We are bringing acs onto an existing Go payments repo that has no design docs at all. Reverse-engineer its structure from the source and the PRD into Mermaid C4 diagrams and low-level flows.
+We are bringing acs onto an existing Go payments repo that has no design docs at all. Reverse-engineer its structure from the source and the PRD into Mermaid C4 diagrams, a data model and a deployment view.

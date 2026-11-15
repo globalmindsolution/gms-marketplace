@@ -1,29 +1,22 @@
 # /acs:create-pr — resuming an interrupted run
 
-Open this when `context.reconcile` is true, or when `context.handoff_summary`
-is set. A run that opens the PR in one session reads none of it. The whole
-point of the procedure is that a PR may already exist for this branch: the
-reality check comes before anything is created, because a second PR for one
-ticket is the one mistake this step cannot undo.
+Open this when `context.reconcile` is true or `context.handoff_summary` is set.
+Check recorded state against reality BEFORE committing or creating anything: a
+commit made twice and a second PR for one run are the mistakes this step cannot
+quietly undo.
 
-**Where the cross-references below point.** The numbered steps are the Inline
-apply flow's, in SKILL.md.
-
-## Resume & reconcile
-
-If `context.reconcile` is true, verify recorded state against reality BEFORE
-continuing:
-
-1. Read `steps/create-pr/state.json` (`invocations[-1]`) and any
-   `steps/create-pr/iter-*/publish.json` to see how far the prior run got.
-2. Re-check reality: does the branch exist on origin
-   (`git ls-remote origin <branch>`)? Does an open PR for it exist
-   (`gh pr list --head <branch> --state open --json number,url,baseRefName`)?
-   A PR recorded but missing remotely is not done; a PR that exists but was
-   never recorded is done-but-unfinalized — verify it, then finish normally.
-3. Continue from the first unfinished phase of the recorded iteration.
-
-If `context.handoff_summary` exists, read it plus
-`steps/create-pr/handoff-context.md` (if present), do a light
-reconcile (trust the summary, cheaply spot-check the PR/branch it names), and
-continue from where it points.
+- Read `steps/create-pr/state.json` and any `iter-*/commit-plan.json`. A confirmed
+  plan on disk is the user's answer: do not re-plan or ask again.
+- Compare it with git: is the plan's branch checked out, and which group subjects
+  are already commits on it? Resume from the first uncommitted group by writing
+  the remaining groups, unchanged and in order, to `commit-plan.resume.json` and
+  running `acs.py pr commit --plan` on it (it refuses a path that is no longer an
+  uncommitted change, so nothing is committed twice). Record the earlier commits
+  from `git log` as well as the new ones.
+- If the branch carries commits the plan does not account for, or its paths
+  changed since it was confirmed, show the user what you found and ask.
+- Check origin for the branch and for an open PR on it. A PR recorded but missing
+  remotely is not done; a PR that exists but was never recorded is
+  done-but-unfinalized: verify it, then finish normally.
+- With `handoff_summary`, read it and `steps/create-pr/handoff-context.md`, trust
+  it, spot-check the branch, commits and PR it names, and continue from there.

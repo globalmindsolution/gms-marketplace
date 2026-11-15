@@ -5,6 +5,12 @@ an interrupted prior run to reconcile against, or a published `plan.md` that
 is now wrong. A first run over a ticket with no partition history reads
 neither half.
 
+Nearly all of the skill is one flow: the planner surveys the ticket and
+authors a plan draft, the plan reviewer judges it, you publish it. What a run
+does when the ticket already carries an interrupted prior run, or a published
+plan that has since been superseded, is not — which is why it lives here, so a
+first run never reads it.
+
 Both halves answer the same question — what already exists on disk, and what
 may be done to it — from the two directions a re-run can come from. The
 reconcile half trusts nothing it can cheaply re-check; the revocation half
@@ -34,7 +40,10 @@ continuing:
    whose report is on disk is never re-run, and the joined
    `iter-<n>/plan-reviewer.md` is written only once every slice's report
    exists.
-4. Nothing carries across iterations but the draft: the planner's authoring
+4. The `suite` job (SKILL.md, The suite job) belongs to the run, not to an
+   iteration: `acs.py job status --name suite` — `missing` or `stopped` →
+   start it again; `running`, `passed` or `failed` → keep it, never re-run it.
+5. Nothing carries across iterations but the draft: the planner's authoring
    notes (`iter-<n>/authoring.md`) belong to their iteration, and a resumed
    run never re-runs an iteration whose plan review is already on disk.
 
@@ -56,21 +65,28 @@ naming the plan as superseded.
 Letting the loop dissolve its own contract without that record is precisely
 the rubber-stamp failure ADR 0004 exists to prevent.
 
-1. **Copy before revise, never move.**
-   `cp plan.md plan-superseded-<k>.md` inside `steps/code/`,
-   `<k>` the smallest positive integer with no existing file. The copy is
-   byte-identical, so every `plan.md:<line>` citation already written into an
-   earlier `/acs:code` `iter-<n>/verify.md` resolves unchanged against
-   `plan-superseded-<k>.md` — the operation is a copy, never a rename or
-   move, and the superseded bytes are never deleted.
+1. **Copy before revise, never move.** The step root holds the current plan
+   and `iter-<n>/` holds the plans there were. Copy the current plan into the
+   last completed iteration's folder before the planner overwrites it:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-impl-plan/iter-<n>/plan.md \
+     < "<partition>/steps/create-impl-plan/plan.md"
+   ```
+
+   The copy is byte-identical, so every `plan.md:<line>` citation an earlier
+   `/acs:code` or `/acs:review-code` round wrote resolves unchanged against
+   `iter-<n>/plan.md`. It is a copy, never a rename or move, and the
+   superseded bytes are never deleted.
 2. **Revise the draft and re-publish** it over the same `plan_path` (Publish
    above), so the plan the next `/acs:code` reads is the current one.
 3. **Any existing `plan-approval.json` is now stale**, and that is the point:
    it records a digest, so the moment the plan's bytes change it stops
-   matching, and the `code-standard`/`code-complex` leg that re-runs
-   `plan-approval.py` at its next Start writes a fresh record over the new
-   digest. The superseded copies are the audit trail. Nothing here re-approves
-   — a run that revised a plan must not also bless it.
-4. **`plan-superseded-<k>.md` is never an approval input and never a
-   conformance contract** — guaranteed by `/acs:code`'s dimension 15
-   activation condition that `plan_path` must equal `steps/code/plan.md`.
+   matching, and `/acs:code`'s pre-hook refuses the `standard` and `complex`
+   paths until a human approves the revised plan with `acs.py plan check`
+   (see `references/plan-approval.md`). The superseded copies are the audit
+   trail. Nothing here re-approves — a run that revised a plan must not also
+   bless it.
+4. **`iter-<n>/plan.md` is never an approval input and never a conformance
+   contract**: `plan-approval.py` hashes only `steps/create-impl-plan/plan.md`,
+   and `/acs:code` reads only that file (`acs.py plan path`).

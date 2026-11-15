@@ -7,9 +7,9 @@
 #
 # Seeded through the plugin's own writers wherever one exists:
 #   create-impl-plan   acs.py step start, the planner's draft, acs.py filemap
-#                      set, the published copy committed, post-create-impl-plan.py
+#                      set, the published copy (uncommitted), post-create-impl-plan.py
 #   create-test-docs   acs.py step start, the test designer's test-cases.md in
-#                      the step directory and its published copy committed,
+#                      the step directory and its published copy (uncommitted),
 #                      result.json, post-create-test-docs.py
 # `small` needs no approval.
 set -euo pipefail
@@ -17,7 +17,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Reject a non-positive page limit" task false \
+ACS_FEATURES=customer-listing
+acs_ticket "Reject a non-positive page limit" task \
   "list_customers(limit=0) returns an empty page forever; a limit below 1 is a caller bug."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers(limit=0) and list_customers(limit=-5) raise ValueError", "list_customers(limit=1) still returns a page with limit 1"]}' \
@@ -25,7 +26,6 @@ printf '%s\n' '{"acceptance_criteria": ["list_customers(limit=0) and list_custom
 run="$ACS_PARTITION/runs/EVAL-1"
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "task/EVAL-1-reject-a-non-positive-page-limit"
 draft="$run/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Reject a non-positive page limit
@@ -50,7 +50,6 @@ target: 90%, measured by the review's final gate.
 ## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases: true
   e2e: false
   reason: "one local guard in a library function; no HTTP surface change and no browser flow"
@@ -60,13 +59,11 @@ owes:
 MD
 acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_list_customers.py > /dev/null
-mkdir -p docs/tickets/EVAL-1
-cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
+mkdir -p docs/development/customer-listing/EVAL-1
+cp "$draft" docs/development/customer-listing/EVAL-1/plan.md
 cat > "$run/steps/create-impl-plan/result.json" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",
- "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
+ "states": {"plan_path": "docs/development/customer-listing/EVAL-1/plan.md", "plan_approved": false,
             "file_map": {"1": ["src/shop/__init__.py", "tests/test_list_customers.py"]}},
  "findings": [], "errors": []}
 JSON
@@ -86,7 +83,7 @@ e2e_cases: 0
 ## Scope
 
 The two acceptance criteria, at unit level in tests/ with pytest, as
-docs/tickets/EVAL-1/plan.md plans. The plan owes no e2e.
+docs/development/customer-listing/EVAL-1/plan.md plans. The plan owes no e2e.
 
 ## Cases
 
@@ -107,9 +104,7 @@ docs/tickets/EVAL-1/plan.md plans. The plan owes no e2e.
 
 _None._
 MD
-cp "$run/steps/create-test-docs/test-cases.md" docs/tickets/EVAL-1/test-cases.md
-git add docs/tickets/EVAL-1/test-cases.md
-git commit -qm "EVAL-1 Test cases for the page limit guard"
+cp "$run/steps/create-test-docs/test-cases.md" docs/development/customer-listing/EVAL-1/test-cases.md
 cat > "$run/steps/create-test-docs/result.json" <<'JSON'
 {"status": "completed", "outcome": "cases_written", "summary": "3 cases, every AC traced",
  "states": {"cases": 3, "e2e_cases": 0, "untraced_acs": []}, "findings": [], "errors": []}

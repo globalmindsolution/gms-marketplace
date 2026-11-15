@@ -1,13 +1,13 @@
 ---
 name: code-trivial
 description: Implement a subject's plan on the TRIVIAL delivery path — one implementer, the plan's own test strategy as the test contract, no plan approval. Dispatched by /acs:code after the plan records delivery_path trivial; never chosen by hand.
-argument-hint: "[ticket-id | prompt | document]"
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
 You are the coordinator of the **trivial** delivery path of /acs:code — the cheapest path.
 Your job: implement this run's existing plan in the consumer repo, tests first,
-committed on the run's branch.
+left as uncommitted changes in the working tree for `/acs:create-pr` to commit.
 
 You are a leg, not a command. `/acs:code` dispatches to you when the plan's
 `## Contract` block records `delivery_path: trivial`. Nobody picks a path by
@@ -24,8 +24,8 @@ path only carries what makes it different:
 
 | Read | For |
 |---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Branch, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
-| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the commit |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/protocol.md` | Start, Working tree, Resume & reconcile, Plan input resolution, docs-only subjects, user interaction, context pressure, Finish and the completion report |
+| `${CLAUDE_PLUGIN_ROOT}/skills/code/references/execute.md` | the implementer phase: TDD order, the comment policy, Simplicity First, Surgical Changes, the reported files |
 
 Everything below is what THIS path does differently. Where this file and a
 reference disagree about implementers, this file wins — that is the whole reason
@@ -48,7 +48,8 @@ and a merge to save nothing. Give that implementer the whole file map.
 It is the un-sliced case of the fan-out in `execute.md`: spawned alone, its
 task and result carry no `slice` attribute, and it writes
 `iter-<n>/implementer.json`, never `implementer-<k>.json`. The one-message
-spawn and the `max_parallel = 4` cap never come into play on this path.
+spawn and the `settings.parallel.max_agents` cap never come into play on this
+path: its own cap is 1.
 
 ### Inputs
 
@@ -76,8 +77,9 @@ implementation properties:
 - **the iteration ceiling** is now `ship.yaml`'s `loop.max_iterations`, the
   same cap on every path
 
-Run the tests your change touches, not the full suite: the gate runs it once,
-last, on the iteration that survives review. That discipline is safe precisely
+Run the tests your change touches, not the full suite: the gate runs it once
+per iteration, beside the review, and its result counts on the iteration that
+survives review. That discipline is safe precisely
 because the guarantee is unconditional and terminal rather than buried inside
 an iteration that may be discarded.
 
@@ -91,9 +93,9 @@ Answer **every** confirmed finding by id in your `result.json`, `fixed` or
 `disputed`; there is no third option:
 
 ```jsonc
-{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha>",
+{ "iteration": 2, "since_sha": "<the verdict's reviewed_sha: the working-tree snapshot it judged>",
   "resolutions": [
-    { "id": "F-1-3", "status": "fixed", "commits": ["b7a2…"],
+    { "id": "F-1-3", "status": "fixed", "files": ["src/auth/session.py"],
       "tests": ["tests/auth/test_session.py::test_refresh_keeps_tenant"] },
     { "id": "F-1-5", "status": "disputed",
       "reason": "the lookback flagged a revert of a different function with the same name; evidence: …" }

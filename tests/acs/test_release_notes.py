@@ -5,7 +5,7 @@ Pure stdlib (unittest, tempfile, json, os, subprocess, contextlib, unittest.mock
 status/draft/bump subcommands both as pure functions and through the CLI (main()), always via a
 `--release-config` block (no test constructs a hardcoded-path invocation). `git` is exercised
 against real, fully-offline scratch git repos (a working checkout plus a local bare "origin");
-the single `gh pr list` seam (release_notes.gh_pr_list) is monkeypatched so no test depends on
+the single open-PR seam (release_notes.gh_pr_list, a `gh api` REST read) is monkeypatched so no test depends on
 `gh` authentication or network.
 """
 
@@ -119,6 +119,10 @@ def make_repo(root, changelog_text=CHANGELOG_TEMPLATE, marketplace=None, plugin=
         if with_origin:
             bare = root + "-origin.git"
             _run(["git", "init", "-q", "--bare", bare], os.path.dirname(root))
+            # A push runs `git gc --auto` in the receiving repo, which newer git
+            # detaches; it can still be writing a lock file into the bare repo
+            # while TemporaryDirectory removes it ("Directory not empty").
+            _run(["git", "config", "receive.autogc", "false"], bare)
             _run(["git", "remote", "add", "origin", bare], root)
             _run(["git", "push", "-q", "-u", "origin", base_branch], root)
     return root
@@ -1474,7 +1478,7 @@ class ForgeUnevaluableTest(unittest.TestCase):
 
     def test_an_open_pr_is_still_reported(self):
         code, out, _err = self._status(self._gh(
-            0, stdout='[{"number": 42, "url": "https://example/pull/42"}]'))
+            0, stdout='[{"number": 42, "html_url": "https://example/pull/42"}]'))
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out)["open_pr"],
                          {"number": 42, "url": "https://example/pull/42"})

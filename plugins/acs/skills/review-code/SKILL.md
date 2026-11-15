@@ -1,7 +1,7 @@
 ---
 name: review-code
 description: Review any branch, diff, PR or ticket's changes — with or without a ticket id, "this branch against main" or someone else's branch against origin/main — whenever the user asks to review, audit, examine, scrutinize, critique or check them; prefer it over a generic code review. Call it as your first action on such a request — do not Glob, Grep, Read, ToolSearch or look for a shell or git first: it runs git itself and finds the changeset and base ref. It reviews in three stages — five read-only lenses in parallel, one fresh-context adjudicator per candidate finding prompted to refute it, then a final gate running build, lint, the full unit suite and coverage. It never edits the code under review: its verdict is recorded in acs's own state outside the working tree, so "don't change anything", "no edits, just a verdict" and "just tell me what's wrong" requests are exactly what it is for. On blocking findings /acs:code reads the verdict and fixes them. Use after /acs:code, or on its own against any base ref.
-argument-hint: "[ticket-id | prompt | document] [--base <ref>]"
+argument-hint: "[ticket-id] [documents…] [prompt] [--base <ref>]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
@@ -13,12 +13,26 @@ write a verdict; `/acs:code` is what acts on it.
 
 ## What you are reviewing
 
-The changeset is `--base <ref>` (default: the repo's default branch) against
-`HEAD` **and the working tree**. Uncommitted changes are part of the
-changeset: a review that ignored them would pass a tree that does not exist.
+The changeset is everything between the merge base of `--base <ref>`
+(default: the repo's default branch) and HEAD, **plus the working tree** —
+untracked files included. Inside a pipeline nothing is committed before
+`/acs:create-pr` (ADR-0127), so the change under review is usually ALL
+uncommitted: a review that read `git diff <base>...HEAD` would judge an empty
+changeset and pass a tree that does not exist. Read it only through acs:
 
-Resolve it once, at Start, and record the base sha as `reviewed_sha` — every
-lens judges the same diff, and `/acs:code` needs that sha as its baseline.
+```bash
+base_sha="$(git merge-base <ref> HEAD)"   # <ref> = --base, else the default branch
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --since "$base_sha" --patch
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --since "$base_sha" --name-only
+```
+
+Resolve it once, at Start, and freeze what you judged: run
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes snapshot` and
+record its `tree` as `reviewed_sha` — the working-tree snapshot every lens
+judges, and the baseline `/acs:code` diffs its fixes from
+(`acs.py changes diff --since <reviewed_sha>`). A commit sha would not do:
+the reviewed change is not committed. Every lens task names `base_sha`, so every lens
+reads the same changeset the same way.
 
 ## Start
 
@@ -27,20 +41,50 @@ python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step review-co
 ```
 
 This records the step `in_progress` and tells you the run, the iteration and
-whether a previous verdict exists. `${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`
+whether a previous verdict exists. **Requirements: `context.requirements` /
+`acs.py requirements show` — a ticket id, documents and a prompt are only where
+they came from; never read ticket.json for acceptance criteria.**
+**References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
+`requirements.path` (the run's `requirements.md`) is lens A's input, and `acs.py
+artifacts show` reports the run's `plan.md`, `test-cases.md` (Development
+folder), `api-contract.md` and `tech-design.md` (design records under
+`<architecture_dir>/lld/<feature>/<id>/`; the contract links the living
+interface documents under `<architecture_dir>/lld/<feature>/api/`), the run's `analysis.md` and the
+feature's living analysis (`feature_analysis`) — a legacy `docs/tickets/<ID>/`
+file only when the new folder has none. `${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`
 carries Start, resume-and-reconcile, context pressure and the completion
 report — the parts every acs skill shares.
 
 ## Stage 1 — the lenses
 
 Five lenses, spawned **in parallel**, read-only, running nothing. Each writes
-`iter-<n>/lens-<A..E>.md` and returns its candidate findings.
+`iter-<n>/lens-<A..E>.md` and returns its candidate findings. The five lenses
+are ONE message whatever `settings.parallel.max_agents` says — five is the
+review's own fan-out, not a wave of the cap. When lens B fans out (below),
+its instances beyond the first run after that message, in waves of
+`settings.parallel.max_agents` (default 4).
+
+**The gate starts in the same turn.** In the message that spawns the lenses,
+also start stage 3's commands as jobs (`${CLAUDE_PLUGIN_ROOT}/docs/INTERNALS.md`,
+"Jobs: commands beside the agents"), so the suite runs while the lenses read:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name gate-build -- <the repo's build command>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name gate-lint -- <the repo's lint command>
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job start --name gate-suite -- <the full unit suite with coverage>
+```
+
+Build and lint are separate jobs so they run concurrently; the suite and its
+coverage are one job, because one run answers both. This is safe because the
+tree is frozen for the whole review: lenses and adjudicators are read-only and
+you edit nothing, so the gate runs over exactly the changeset they judge. A
+repo with no build step has no `gate-build` job; record that in `gate.json`.
 
 | Lens | Judges | May read |
 |---|---|---|
 | A — Acceptance | requirement conformance, features delivered | `requirements.md`, the plan, `test-cases.md`, the diff |
 | B — Changed-hunk defects | logic errors, security | **the diff and nothing else** |
-| C — Contracts & architecture | API/data contract, design, plan conformance | `api-contract.md`, `design.md`, architecture docs, the plan |
+| C — Contracts & architecture | API/data contract, design, plan conformance | `api-contract.md` and the `lld/<feature>/api/` documents, `tech-design.md` (a legacy `design.md`), architecture docs, the plan |
 | D — History & regression | revert/hotfix patterns on the touched lines | `git log --follow -p`, bounded lookback |
 | E — Craft & scope | quality, standards, simplicity, scope creep, documentation of the change | `standards/`, the diff |
 
@@ -82,11 +126,13 @@ Measure the changeset yourself; never take a fan-out count from `/acs:code`
 or from `ship.yaml`.
 
 **Down, by the same rule: a lens runs when its inputs exist.** Lens C judges
-conformance to the API contract and the design; on a run whose
-`create-api-contract` recorded `no_surface_owed` and whose subject has no
-`design.md`, it has nothing to judge — record that in `lens-C.md` and do not
-spawn it. Lens A without `requirements.md` falls back to the subject
-(§3.11); with neither, it records that it had no requirement to judge against.
+conformance to the API contract — `api-contract.md` and the living interface
+documents it links under `lld/<feature>/api/`, written in the Design phase —
+and the design; on a run with neither an API contract nor a `tech-design.md`
+(`acs.py artifacts show` reports both null), it has nothing to judge — record
+that in `lens-C.md` and do not spawn it. Lens A without `requirements.md` falls back to the subject
+(§3.11) — a ticket is one container of requirements, never required; with
+neither, it records that it had no requirement to judge against.
 
 What **never** scales down, on any delivery path: lenses A, B, D and E,
 per-finding adjudication, and the gate. There is no rigor setting, and you do
@@ -95,7 +141,10 @@ not read the delivery path.
 ## Stage 2 — adjudication
 
 **Every candidate finding gets exactly one fresh-context adjudicator.** Spawn
-them in parallel, one `acs:review-code-adjudicator` per finding.
+them in parallel, one `acs:review-code-adjudicator` per finding, at most
+`settings.parallel.max_agents` (default 4) per message; more findings than
+that run in waves of that size, each wave one message, the next only after the
+last returned.
 
 Each adjudicator receives: the finding, the requirement's intent, and read
 access to the cited evidence. It receives **neither the other findings nor
@@ -121,22 +170,41 @@ being raised by only one lens, and never promote one for being raised by two.
 
 ## Stage 3 — the final gate
 
-Runs **only** when stage 2 leaves nothing blocking. Run all four yourself and
-record the commands and their output in `iter-<n>/gate.json`:
+Its result counts **only** when stage 2 leaves nothing blocking. Run all four
+yourself — the jobs you started beside the lenses — and record the commands
+and their output in `iter-<n>/gate.json`:
 
 - **build** succeeds
 - **lint** clean
 - **full unit test suite** green
-- **coverage ≥ `settings.test_coverage_percent`**
+- **coverage ≥ `settings.tests.coverage`**
+
+After adjudication:
+
+- **Nothing blocks** → collect the gate with ONE blocking call, and call it
+  again while it exits 3 (timeout, still running) — never `sleep`:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" job wait --name gate-build --name gate-lint --name gate-suite
+  ```
+
+  Each job's command, exit code and log are its evidence; read the coverage
+  figure from the suite job's log. Record `gate.json` from them exactly as a
+  gate you ran in the foreground.
+- **Findings block** → stop the jobs (`acs.py job stop --name <each>`) and
+  record the gate as not run for this iteration: the changeset is going back
+  to `/acs:code` and the tree is about to change.
 
 This is the only place the full suite runs in the whole pipeline. It runs
-last, exactly once per iteration that survives review. A gate failure is a
-blocking finding of `kind: gate` with the failing command as its evidence —
-it needs no separate channel and does not skip the loop.
+once per iteration, beside the review, and its result is read last, only by
+an iteration that survives review. A gate failure is a blocking finding of
+`kind: gate` with the failing command as its evidence — it needs no separate
+channel and does not skip the loop.
 
 ## The verdict
 
-Write `verdict.json` at the step root (and a copy in `iter-<n>/`). Findings
+Write `verdict.json` at the step root (and a copy in `iter-<n>/`) through `acs.py write`,
+as in Finish. Findings
 carry the fields `/acs:code` needs to act without re-deriving your work:
 
 | Field | Why |
@@ -158,7 +226,8 @@ conclude.
 Every lens receives the previous verdict's confirmed findings and
 `/acs:code`'s `result.json` resolutions as context, and reviews the **whole
 changeset** — a fix can break something the first review passed. Prioritise
-hunks changed since `since_sha`, but do not restrict to them.
+hunks changed since `since_sha` (`acs.py changes diff --since <since_sha>`
+— the snapshot the previous review judged), but do not restrict to them.
 
 - a finding whose `resolved_when` now holds → `status: resolved` in the new
   verdict, so the trail shows closure
@@ -170,11 +239,18 @@ hunks changed since `since_sha`, but do not restrict to them.
   human breaks the tie rather than the last iteration being spent on the same
   argument.
 
-The gate runs again in full.
+The gate runs again in full, started again beside that iteration's lenses.
 
 ## Finish
 
+Write `steps/review-code/result.json` (and every other file in the run: `gate.json`,
+`verdict.json`) through Bash, never the Write tool — the workspace sits in the main
+checkout (ADR-0136), where a worktree session's Write is refused:
+
 ```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/review-code/result.json <<'ACS_EOF'
+<the result document>
+ACS_EOF
 python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-review-code.py" --result-file "<the result.json you just wrote>"
 ```
 
@@ -220,5 +296,5 @@ order, `none` where empty:
 - **Findings**: <confirmed findings by id, or "none">
 - **Artifacts**: `verdict.json`, the lens reports, `adjudication.json`, `gate.json`
 - **Metrics**: iteration <n>/<cap> · <wall time>
-- **Next**: `/acs:code` on blocking findings; `/acs:docs-sync` then `/acs:create-pr` on a pass
+- **Next**: `/acs:code` on blocking findings; `/acs:docs-sync` then `/acs:create-pr` on a pass (the reviewed change stays uncommitted until `/acs:create-pr`)
 ```

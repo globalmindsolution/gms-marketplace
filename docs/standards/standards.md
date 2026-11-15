@@ -3,7 +3,7 @@
 A first-class, documentary record of the coding and testing standards this
 repository holds itself to. It states what the codebase does today; it is not a
 runtime-enforced settings surface (no acs setting points at it —
-[ADR-0102](../adr/0102-documents-are-found-not-configured.md)) — the guard test
+[ADR-0102](../architecture/adr/0102-documents-are-found-not-configured.md)) — the guard test
 and the pipeline guidance are the live enforcers.
 
 ## Naming conventions

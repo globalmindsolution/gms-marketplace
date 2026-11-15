@@ -37,15 +37,17 @@ SKILL_PATH = os.path.join(PLUGIN, "skills", "create-test-docs", "SKILL.md")
 AGENTS = os.path.join(PLUGIN, "agents")
 
 sys.path.insert(0, HOOKS)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import front_matter_check as fmc  # noqa: E402
 import structure_lint  # noqa: E402
 import acs_lib as lib  # noqa: E402
+from skill_text import result_example  # noqa: E402
 
 ROLES = ("test-designer", "trace-reviewer")
 
 #: The result-document keys the post-hook documents and the next steps read.
-STATES_KEYS = ("cases", "e2e_cases", "untraced_acs")
+STATES_KEYS = ("cases", "e2e_cases", "untraced_acs", "files")
 
 #: The four headings, in order.
 SECTIONS = ["Scope", "Cases", "Traceability", "Gaps and assumptions"]
@@ -135,7 +137,7 @@ class TestSkillFrontmatter(unittest.TestCase):
         self.assertRegex(self.fm, r"(?m)^name: create-test-docs$")
 
     def test_it_is_a_ticket_scoped_coordinator(self):
-        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\]"$')
+        self.assertRegex(self.fm, r'(?m)^argument-hint: "\[ticket-id\] \[documents…\] \[prompt\]"$')
         self.assertRegex(self.fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
 
     def test_description_routes_on_what_it_produces(self):
@@ -382,8 +384,7 @@ class TestResultDocument(unittest.TestCase):
         """The step completes in two ways, so the post-hook refuses a result
         document that does not say which; the documented example must pass
         the kernel's own validator."""
-        block = re.search(r"(?ms)^   ```json\n(.*?)^   ```", self.body).group(1)
-        doc = json.loads(block)
+        doc = json.loads(result_example(self.body))
         self.assertEqual(doc["outcome"], "cases_written")
         self.assertEqual(lib.validate_result(doc, "create-test-docs"), [])
 
@@ -434,7 +435,9 @@ class TestPublishing(unittest.TestCase):
         cls.body = read(SKILL_PATH)
 
     def test_the_artifact_path_is_resolved_by_the_cli_not_guessed(self):
-        self.assertIn("artifacts show --ticket <id>", self.body)
+        self.assertIn('acs.py" artifacts show\n', self.body)
+        self.assertNotIn("artifacts show --ticket <id>\n", self.body)
+        self.assertIn('`paths["%s"]` non-null → publish there' % "test-cases.md", self.body)
         self.assertIn("acs_lib.artifacts.artifact_path", self.body)
 
     def test_publishing_copies_the_verified_bytes(self):
@@ -455,7 +458,7 @@ class TestTriadShape(unittest.TestCase):
 
     def test_role_tool_restrictions(self):
         fm, _ = frontmatter(agent("trace-reviewer"), "trace-reviewer")
-        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash, Write$")
+        self.assertRegex(fm, r"(?m)^tools: Read, Glob, Grep, Bash$")
         fm, _ = frontmatter(agent("test-designer"), "test-designer")
         self.assertRegex(fm, r"(?m)^disallowedTools: Agent, Skill$")
         self.assertNotRegex(fm, r"(?m)^tools:")
@@ -592,7 +595,7 @@ class TestParallelFanOut(unittest.TestCase):
 
     def test_the_slices_are_spawned_in_one_message_under_the_cap(self):
         self.assertIn("Spawn the three in ONE message", self.body)
-        self.assertIn("within `max_parallel = 4`", self.body)
+        self.assertRegex(self.body, r"three is within the default\s+`settings.parallel.max_agents` of 4")
 
     def test_the_sliced_pass_rule(self):
         self.assertIn("passes only if EVERY\nslice returned `status=\"completed\"` with zero blocking findings",

@@ -1,6 +1,6 @@
 ---
 type: regex
-target: { source: file, path: docs/tickets/EVAL-1/test-cases.md }
+target: { source: file, path: docs/development/customer-listing/EVAL-1/test-cases.md }
 pattern: '^## Gaps and assumptions[ \t]*$(?:(?!^## )[\s\S])*AC-4'
 flags: m
 ---

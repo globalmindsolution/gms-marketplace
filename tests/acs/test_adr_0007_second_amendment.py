@@ -1,6 +1,6 @@
 """MAR-162 spec 03 — ADR 0007 second amendment + plugin-internal reconciliation.
 
-Falsifiable AC-4/AC-5 guard: asserts docs/adr/0007-living-docs-by-induction.md
+Falsifiable AC-4/AC-5 guard: asserts docs/architecture/adr/0007-living-docs-by-induction.md
 leads with `## Amendment — ` headings MAR-65, MAR-162, MAR-72 IN THAT ORDER —
 the first three, not a total count, because ADRs are append-only and later
 amendments legitimately append after them (MAR-72 promoted the third amendment
@@ -21,14 +21,14 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-ADR_0007 = os.path.join(REPO_ROOT, "docs", "adr", "0007-living-docs-by-induction.md")
+ADR_0007 = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0007-living-docs-by-induction.md")
 DOCS_SYNC_SKILL = os.path.join(PLUGIN, "skills", "docs-sync", "SKILL.md")
 README = os.path.join(PLUGIN, "README.md")
 INTERNALS = os.path.join(PLUGIN, "docs", "INTERNALS.md")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from acs_case import acs_lib_source  # noqa: E402
 
-# The MAR-65 amendment's original byte span (docs/adr/0007-…md:29-75 on
+# The MAR-65 amendment's original byte span (docs/architecture/adr/0007-…md:29-75 on
 # origin/main, before this ticket's append). Recorded here so a later diff
 # of that exact span can be checked for zero drift.
 MAR65_SPAN_START = "## Amendment — MAR-65"
@@ -50,13 +50,13 @@ class Adr0007SecondAmendmentShapeTest(unittest.TestCase):
 
     def test_the_three_guarded_amendments_lead_in_order(self):
         # Pins the three amendments this ticket guards, and their order, rather
-        # than a total count: ADRs are append-only (docs/adr/README.md), so a
+        # than a total count: ADRs are append-only (docs/architecture/adr/README.md), so a
         # frozen count would forbid the next amendment instead of guarding
         # these three against drift.
         headings = re.findall(r"^## Amendment — (.*)$", self.body, re.MULTILINE)
         self.assertEqual(
             headings[:3], ["MAR-65", "MAR-162", "MAR-72"],
-            "docs/adr/0007's first three '## Amendment — ' headings must stay "
+            "docs/architecture/adr/0007's first three '## Amendment — ' headings must stay "
             "MAR-65, MAR-162, MAR-72 in that order; later amendments append "
             "after them")
 
@@ -156,13 +156,13 @@ class Adr0007SecondAmendmentShapeTest(unittest.TestCase):
 
 
 class Adr0007ScopeDisciplineTest(unittest.TestCase):
-    """spec 03's not_docs_only constraint: docs/adr/0012 stays untouched
+    """spec 03's not_docs_only constraint: docs/architecture/adr/0012 stays untouched
     (spec 03's own file map excludes it)."""
 
     def test_0012_not_touched_by_this_module(self):
         # This module intentionally has no assertions about 0012's content —
         # it is out of spec 03's scope. This test documents that boundary.
-        path = os.path.join(REPO_ROOT, "docs", "adr", "0012-design-time-doc-consistency.md")
+        path = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0012-design-time-doc-consistency.md")
         self.assertTrue(os.path.isfile(path), "0012 must still exist (untouched)")
 
 

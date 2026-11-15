@@ -173,7 +173,7 @@ class LoopTest(unittest.TestCase):
         self.wf = ship()
         self.rid, self.rdir, _doc = R.create_run(
             self.repo, {"kind": "ticket", "ticket_id": "MAR-1"}, self.wf, SHIP)
-        for step in ("analyze-requirements", "create-impl-plan", "create-api-contract",
+        for step in ("analyze-requirements", "create-impl-plan",
                      "create-test-docs", "code"):
             R.start_step(self.rdir, step, self.wf)
             S.write_noop_result(self.rdir, step, self.rid, None, "x")
@@ -255,11 +255,11 @@ class InvariantTest(unittest.TestCase):
 
     def test_i5_catches_a_leg_that_is_not_a_leg_of_that_step(self):
         doc = R.require_run(self.rdir)
-        doc["steps"]["code"] = {"status": "in_progress", "leg": "create-project"}
+        doc["steps"]["code"] = {"status": "in_progress", "leg": "code-elsewhere"}
         doc["cursor"] = "code"
         R.save_run(self.rdir, doc)
         errors, _warnings = R.check(self.rdir, self.wf)
-        self.assertTrue(any("I5" in e and "create-project" in e for e in errors), errors)
+        self.assertTrue(any("I5" in e and "code-elsewhere" in e for e in errors), errors)
 
 
 class ArtifactLocatorTest(unittest.TestCase):

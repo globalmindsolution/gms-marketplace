@@ -21,7 +21,7 @@ python3 -m unittest discover -s tests -v
 python3 -m unittest tests.acs.test_acs_plugin
 python3 -m unittest tests.acs.test_acs_plugin.SomeTest.test_case
 
-# The required "Tests & coverage" gate, byte-identical to .acs/settings.json tests.command
+# The required "Tests & coverage" gate, byte-identical to .acs/settings.json tests.unit.command
 export ACS_COVERAGE=90
 export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc
 python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage report --fail-under=$ACS_COVERAGE
@@ -52,17 +52,20 @@ claude plugin eval acs@gms-marketplace --tag routing --ablation none           #
 
 ### Marketplace layout
 
-`.claude-plugin/marketplace.json` resolves acs from the relative source `./plugins/acs`.
-A relative source resolves from the marketplace checkout itself, so there is **no second ref
-to keep in sync** — consumers pin by pinning the marketplace
-(`claude plugin marketplace add <repo>@v0.5.0`), not per-plugin.
+`.claude-plugin/marketplace.json` is **unversioned and never released**. The acs entry is a
+`git-subdir` object (`path: plugins/acs`, `ref: acs-stable`); `release.yml` tags `v<version>`
+when `plugins/acs/.claude-plugin/plugin.json` bumps on `main` and force-moves the `acs-stable`
+**branch** to that tag, so consumers update the plugin alone
+(`claude plugin update acs@gms-marketplace`) and never re-pin the marketplace. The ref must be a
+branch or tag, never a bare SHA (`git clone --branch` rejects one), and never a per-release
+value, which goes stale. The first release creates the branch; `workflow_dispatch` seeds it.
 
-This matters historically: the entry previously used a `git-subdir` object with its own
-`path` + `ref`, which has two readers that disagree — CI's validator resolves `path` against
-the **working tree** while the installer resolves it **at `ref`**. In September 2026 each
-field was individually correct and the pair was unresolvable, making the plugin uninstallable.
-If you ever reintroduce an object source, `tests/acs/test_marketplace_ref_resolves.py` is the
-test that guards it.
+History worth knowing: an earlier `git-subdir` entry pinned a per-release `ref`, and CI's
+validator (path against the **working tree**) and the installer (path **at `ref`**) disagreed.
+In September 2026 each field was individually correct and the pair was unresolvable, making the
+plugin uninstallable; a relative `./plugins/acs` source replaced it, at the price of tying the
+plugin to the marketplace ref. The stable-branch ref keeps the decoupling without the per-release
+coordinate. `tests/acs/test_marketplace_ref_resolves.py` guards the shape.
 
 `.github/scripts/plugin_source_dirs.py` deliberately discovers plugin directories by walking
 for the `.claude-plugin/plugin.json` marker rather than reading `path` from the manifest —
@@ -82,8 +85,8 @@ holding `prompt.md` and `graders/*.md`, grouped under `routing/`, `behaviour/`, 
 and `setup/`. Every shipped skill has a behaviour case (ADR-0113): what it writes, records
 and replies, with free graders calibrated by `tests/evals/check_grader_calibration.py` and a
 `baseline` grader once `scripts/record_baseline.py` has recorded the case's reference
-transcript — which needs a host where Claude Code's Bash sandbox starts (not the cloud
-container). **The case files are the source of truth**: there is no dataset
+transcript — which needs a host where Claude Code's Bash sandbox starts (in the cloud
+container, after `apt install bubblewrap socat`). **The case files are the source of truth**: there is no dataset
 they are rendered from and no generator.
 Edit a case by editing its files. `plugins/acs/evals/README.md` is the reference for tags,
 grading, and the suite's known limits — read it before quoting a number.
@@ -111,7 +114,7 @@ golden suite, a schema-constraint generator, mutation sweeps, a tier-3 session m
 routing dataset with a renderer, and a Python behavioural harness. All of it was retired in
 favour of the documented format; git history has it. Two limits came with that, both recorded in
 the suite README: an explicit `/acs:<skill>` invocation is not reliably observable (it can be
-expanded before any model turn, so no `Skill` call happens), and three routing prompts presuppose
+expanded before any model turn, so no `Skill` call happens), and two routing prompts presuppose
 context the empty eval workspace lacks.
 
 **No eval runs in CI** (ADR-0022, ADR-0108). The invariant is a grep that must keep
@@ -125,7 +128,7 @@ lives in hooks, bound in `hooks/hooks.json`:
 
 - `PreToolUse` on `Skill` — the pipeline precondition gate
 - `PreToolUse` on `Write|Edit|MultiEdit|NotebookEdit` — the executor file-map guard
-- `SubagentStart` / `SubagentStop` matching `^acs:` — phase-artifact validation, session bookkeeping
+- `SubagentStart` / `SubagentStop` matching `^acs[:-]` (the plugin's agents and their generated `acs-<skill>-<role>` copies) — phase-artifact validation, session bookkeeping
 - `Stop`, `PreCompact`, `SessionEnd`
 
 On a host that does not fire these events, the skills still read as instructions and a pipeline
@@ -136,10 +139,26 @@ appears to run while **nothing gates it**. That degraded state is meant to be re
 **800 lines**, enforced by `tests/acs/test_module_line_budget.py` — split along seams rather than
 letting a module grow.
 
+### Changing a skill
+
+Every change to a skill (its `SKILL.md`, `references/`, agents, or the hook scripts it drives)
+must keep the acs standards — the mandatory `step start`, clarification ledger, `acs.py write`,
+lifecycle skeleton, result document + post-hook + completion report, hooks and state machine —
+**and** add or update its evals in the same change: routing cases for a new `description`,
+a behaviour case for each new mode, branch or refusal, and fixes to any case the change makes
+stale. Shorter prose is fine; dropping a standard or skipping the evals is not. Run the free
+checks (`python3 -m unittest discover -s tests/evals -p 'check_*.py'`,
+`python3 scripts/eval_changed.py --dry-run`). The full rule is in
+`plugins/acs/docs/AUTHORING.md` ("Changing a skill: standards and evals, every time").
+
 ### State and settings
 
 Pipeline state lives **outside** the repo tree in `.acs/state-machine/<repo-id>/` (gitignored),
-partitioned per ticket. Settings resolve through a cascade — user → project → `.acs/settings.local.json`
+partitioned per ticket and run: one folder at the **main checkout's** root that every linked worktree
+resolves to. Skills and agents write state files through `acs.py write <path>` (stdin, atomic, refused
+outside the root, ADR-0136) — **never the Write tool**, which a Claude Code worktree session is refused
+on main-checkout paths; under the Bash sandbox, `/acs:setup` offers the `allowWrite` rule for the folder.
+Settings resolve through a cascade — user → project → `.acs/settings.local.json`
 (machine-specific, gitignored) — merged over `DEFAULT_SETTINGS` in `acs_lib/settings.py`. Keys whose
 value equals the default are correctly **absent** from `.acs/settings.json`; don't read absence as drift.
 
@@ -154,7 +173,8 @@ Two load-bearing conventions you will otherwise trip over:
 ### Docs
 
 `docs/` is a full-SDLC set: `product/` (PRD, roadmap) → `requirements/` → `architecture/`
-(HLD/LLD, Mermaid) → `adr/` → `principles/` · `standards/` · `quality/` · `operations/`.
+(HLD/LLD, Mermaid, and the ADRs in `architecture/adr/`) → `principles/` · `standards/` ·
+`quality/` · `operations/`.
 `docs/README.md` is the map. ADRs are immutable records — supersede them, never edit a decision
 in place. `plugins/acs/docs/` (INTERNALS, AUTHORING) is the implementation contract for anyone
 changing the plugin itself.

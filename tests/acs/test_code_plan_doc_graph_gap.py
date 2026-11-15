@@ -25,7 +25,11 @@ Stdlib-only (os, re, unittest, importlib.util). Run:
 import importlib.util
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from skill_text import skill_contract  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -33,7 +37,7 @@ AGENTS_DIR = os.path.join(PLUGIN, "agents")
 
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
 IMPL_PLAN_SKILL = os.path.join(PLUGIN, "skills", "create-impl-plan", "SKILL.md")
-ADR_0012 = os.path.join(REPO_ROOT, "docs", "adr", "0012-design-time-doc-consistency.md")
+ADR_0012 = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0012-design-time-doc-consistency.md")
 SKILLS_REQ = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
 CONSISTENCY_FINDINGS = os.path.join(PLUGIN, "hooks", "scripts", "consistency_findings.py")
 DOC_CONSISTENCY_STEP_TEST = os.path.join(
@@ -169,7 +173,9 @@ class PlanSkillPointerSentenceTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        # The bullet moved to `references/plan-shape.md` (progressive
+        # disclosure); the contract text reads it where SKILL.md points.
+        cls.body = skill_contract("create-impl-plan")
         start = cls.body.index("- The documentation map: whether any factual")
         end = cls.body.index("- Risks, and what a reviewer")
         cls.bullet = cls.body[start:end]
@@ -184,7 +190,7 @@ class PlanSkillPointerSentenceTest(unittest.TestCase):
         self.assertRegex(self.bullet_norm, r"(?i)touched-area")
 
     def test_pointer_distinguishes_from_full_step_without_restating_table(self):
-        # Scaled-down pattern mirroring create-design/SKILL.md:125-126 — must
+        # Scaled-down pattern mirroring create-tech-design/SKILL.md (create-design/SKILL.md:125-126 then) — must
         # not restate the E1-E4 table, only point at it, and must name that
         # this is narrower than the full shared design-time step.
         self.assertRegex(self.bullet_norm, r"(?i)not the full")
@@ -209,7 +215,7 @@ class Adr0012ThirdAmendmentTest(unittest.TestCase):
 
     def test_the_four_guarded_amendments_lead_in_order(self):
         # Pins the four amendments this ticket guards, and their order, rather
-        # than a total count: ADRs are append-only (docs/adr/README.md), so a
+        # than a total count: ADRs are append-only (docs/architecture/adr/README.md), so a
         # frozen count would forbid the next amendment instead of guarding
         # these four against drift.
         self.assertEqual(

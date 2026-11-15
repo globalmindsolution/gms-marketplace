@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-We have a PRD now. Draw up the system architecture docs — the C4 views and the key flows.
+We have a PRD now. Draw up the system architecture docs — the C4 views, the data model and the API landscape.

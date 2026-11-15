@@ -4,8 +4,10 @@ updates run.json and tickets-index.json.
 
 Result-document `states` this run records for the steps that follow it:
   * suites_written  list — the e2e suite files written under the repo's
-    configured e2e location, committed on the ticket branch.
+    configured e2e location, left uncommitted in the working tree.
   * cases_covered   list — the TC-n ids from test-cases.md those suites cover.
+  * files          list — repo-relative paths this run wrote and left
+    uncommitted in the working tree (ADR-0127); /acs:create-pr commits them.
 
 /acs:run-e2e-tests executes them; it is unhooked and records its own step
 through `pipeline-step.py`, not through a post hook.

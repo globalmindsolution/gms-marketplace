@@ -14,9 +14,9 @@ win — change them first, then the implementation.
 |-------|------|
 | `name` | Equals the directory name, kebab-case. Users invoke `/acs:<name>`. |
 | `description` | 1–2 sentences: what it does **and when to use it** — this text is what drives model auto-invocation, so write the trigger condition into it ("Use when …"). Keep it under ~2 lines; details belong in the body. |
-| `argument-hint` | Always set for skills taking arguments (`"[ticket-id]"`, `"<request or remote-key>"`). |
-| `disable-model-invocation` | **Do not set.** No skill carries it: the CLI refuses a Skill call to a skill that sets it, and every entry point (`/acs:code`, `/acs:project`) dispatches to its internal legs — listed in `acs_lib.skills.SKILL_LEGS` — with a real Skill call. `/ship` invokes each step skill the same way. |
-| `disallowed-tools` | `Edit, NotebookEdit` on every hooked skill and `/ship`: coordinators orchestrate — they Write workspace files but never edit repo source themselves (a fix is a remediation iteration through the skill's write role, not a coordinator hot-patch). `/setup` and `/handoff` stay unrestricted (user-present utility skills; `/setup` legitimately edits `.gitignore`). |
+| `argument-hint` | Always set for skills taking arguments. A skill that works on requirements takes them from any container (ADR-0128): `"[ticket-id] [documents…] [prompt]"`, plus the skill's own extras (`"<request or remote-key>"` for `/acs:create-ticket`). |
+| `disable-model-invocation` | **Do not set.** No skill carries it: the CLI refuses a Skill call to a skill that sets it, and the entry point `/acs:code` dispatches to its internal legs — listed in `acs_lib.skills.SKILL_LEGS` — with a real Skill call. `/ship` invokes each step skill the same way. |
+| `disallowed-tools` | `Edit, NotebookEdit` on every hooked skill and `/ship`: coordinators orchestrate — they write workspace files through `acs.py write` (never the `Write` tool, see "State files are written through `acs.py write`" below) but never edit repo source themselves (a fix is a remediation iteration through the skill's write role, not a coordinator hot-patch). `/setup` and `/handoff` stay unrestricted (user-present utility skills; `/setup` legitimately edits `.gitignore`). |
 | `model` / `effort` / `context` / `agent` | **Do not set.** Hooked skills must run in the invoking context so they can talk to the user; `context: fork` would break clarifying questions. Model/effort for *subagents* comes from `settings.json`, not frontmatter. |
 
 ### Body
@@ -43,14 +43,18 @@ win — change them first, then the implementation.
    was said earlier", rewrite it to read a file — and make sure something wrote
    that file. Which file depends on the audience: the run ledger
    (`<skill>-state.json`, `run.json`, phase artifacts) stays in the
-   workspace partition; the documents a human reads or reviews (`ticket.md`,
-   `design.md`, `analysis.md`, `api-contract.md`, `plan.md`, `test-cases.md`)
-   live in the repo's ticket docs tree. NEVER hard-code either path: resolve a
-   ticket artifact with `acs_lib.artifacts.artifact_path(...)` (or
-   `workflow.ticket_artifact_path(...)` from a predicate), which looks in the
-   docs folder, then the partition, then the legacy location, and which returns
-   the correct WRITE target when nothing exists yet — that one helper is what
-   keeps a partition built before the move working instead of broken. A repo
+   workspace partition; the documents a human reads or reviews (`tech-design.md`,
+   the `analysis/` folder (ADR-0133), `api-contract.md`, `plan.md`, `test-cases.md`) live in the
+   repo one folder per phase, keyed by the run's feature and its ticket or run
+   id (ADR-0128): the feature's living analysis under
+   `<prd_dir>/features/<feature>/`, design records under
+   `<architecture_dir>/lld/<feature>/<id>/`, Development documents under
+   `<development_dir>/<feature>/<id>/`. A ticket is not one of them — it lives
+   in the workspace and the tracker, and nothing writes `docs/tickets/`.
+   NEVER hard-code a document path: resolve it BY RUN with `acs.py artifacts
+   show` (`acs_lib.run_docs.document_path(...)` in code), which looks in the
+   phase folder, then a legacy `docs/tickets/<ID>/`, then the partition, and
+   returns the WRITE target when nothing exists yet. A repo
    document (the PRD, the architecture set, the ADR folder) has no setting
    either: find it the way any session does — `CLAUDE.md`, the docs index it
    points at, then a search — and create a missing one at its `docs/`
@@ -67,7 +71,11 @@ win — change them first, then the implementation.
    specify the `/ship` behavior too: return a `<handoff status="needs_input">`
    with `<questions>` instead of guessing.
 8. **Length budget 180–330 lines.** Shorter usually means missing failure
-   paths; longer usually means prose that belongs in INTERNALS.md or a script.
+   paths; longer usually means prose that belongs in INTERNALS.md or a script,
+   or procedure a run reads only in some arms, which belongs in
+   `references/<name>.md` behind a one-line "read it when …" pointer.
+   `tests/acs/test_skill_size_budget.py` fails a SKILL.md over 400 lines, and
+   names the files still over at a ceiling they may only shrink from.
 9. **Failure paths are first-class.** Iteration cap, coverage hard-fail,
    blocked gates, lock contention, dirty resume — each needs an explicit
    instruction (status, stop_reason, what to tell the user).
@@ -99,9 +107,18 @@ skill"; what a SKILL.md must say is:
    `acs notes merge` takes the slice id as what follows the prefix its inputs
    share. `integration` is reserved for the integration pass.
 3. **One message, the cap, waves.** Spawn every instance of a phase in ONE
-   message, in the foreground, and wait for all of them. At most
-   `max_parallel = 4` per phase unless the skill has its own cap
-   (`/acs:create-docs` keeps 2 for doc sets); beyond it, run in waves.
+   message, in the foreground, and wait for all of them. The cap is the
+   setting `settings.parallel.max_agents` (default 4, defined once in
+   INTERNALS.md "Fan-out inside a skill"): write "at most
+   `settings.parallel.max_agents` (default 4) per message; beyond it, waves of
+   that size" — never a literal number. A skill keeps its own SMALLER
+   structural cap where it has one (`/acs:code-small` 2, `/acs:code-trivial`
+   1).
+   A long deterministic command that runs beside the agents (a build, a
+   suite) is an `acs.py job`, started in the same turn and collected with
+   `job wait` (INTERNALS.md "Jobs: commands beside the agents"); a $0 check
+   on a draft runs beside the judge spawn, and its failures are that
+   iteration's findings.
 4. **The task carries the slice.** `<task skill="S" phase="<role>"
    slice="<id>" …>`; a sliced judge's task also carries `<constraint
    name="dimensions">`, and a survey slice names its area. The result echoes
@@ -129,9 +146,10 @@ skill"; what a SKILL.md must say is:
    missing slice".
 8. **Resume per slice.** The Resume & reconcile section re-runs only the
    slices whose report is missing.
-9. **Commits on a shared branch.** A writer whose commit meets git's
-   `index.lock` waits briefly and retries; it never deletes the lock and
-   never forces anything.
+9. **Writers write; nobody commits.** Parallel writers leave their files in
+   the working tree and list them in their reports (`files_changed`); the
+   join is the reports plus the file-map guard. There is no commit, so no
+   `index.lock` to wait on (ADR-0127).
 
 ## Subagent definitions (`agents/<skill>-<role>.md`)
 
@@ -141,9 +159,9 @@ skill"; what a SKILL.md must say is:
 |-------|------|
 | `name` | `<skill>-<role>`, where the role is named for what it does for that skill (`surveyor`, `author`, `plan-reviewer`, `implementer`, `build-checker`, …) and appears in `acs_lib.skills.ROLE_KINDS` with its kind — `survey`, `write` or `judge` (ADR-0109). A new role is one line there. Never reuse an agent across skills — the per-skill charter is the point. |
 | `description` | One sentence saying what this role does for `/acs:<skill>`, ending "Spawned by the /acs:<skill> coordinator with a JSON task; not for direct invocation." |
-| `tools` | Survey and judge roles: `Read, Glob, Grep, Bash, Write` (Write *solely* for its own `steps/<skill>/` artifacts — restate this in the body; Bash is for read-only inspection and running tests/builds). The allowlist deliberately omits `Agent` and `Skill`. Write roles: omit `tools` (they need broad file/shell access) but set `disallowedTools: Agent, Skill` — decomposition is the coordinator's job, and a skill invocation from inside a subagent would re-enter the hook pipeline. |
+| `tools` | Survey and judge roles: `Read, Glob, Grep, Bash` — they write nothing but their own `steps/<skill>/` artifacts, and those go through `acs.py write` (restate this in the body; Bash is for read-only inspection, running tests/builds and `acs.py write`). No `Write`: a survey or judge role never writes a repo file, and a state file is never written with the `Write` tool (ADR-0136). The allowlist deliberately omits `Agent` and `Skill`. Write roles: omit `tools` (they need broad file/shell access) but set `disallowedTools: Agent, Skill` — decomposition is the coordinator's job, and a skill invocation from inside a subagent would re-enter the hook pipeline. |
 | `disallowedTools` | `Agent, Skill` on every write role (see above). |
-| `model` / `effort` | **Never set.** The coordinator resolves `settings.json` `models.<tier>` / `models.overrides.<skill>.<tier>` for the role's tier — `planner` for survey roles (and `create-impl-plan`'s planner), `executor` for write roles, `verifier` for judge roles (`acs_lib.skills.model_tier`) — and applies them at spawn; frontmatter values would silently fight user configuration. |
+| `model` / `effort` | **Never set.** They come from `settings.json` `models.<skill>.<role>`: `acs step start` writes a generated copy of the agent (`.claude/agents/acs-<skill>-<role>.md`) carrying them, and the coordinator spawns the name in `context.agents.<role>`. Frontmatter values would be overwritten in that copy and, in the plugin agent, would silently fight user configuration. A new role also needs a row in `acs_lib.models`' scaffold table. |
 
 ### Body (the system prompt)
 
@@ -159,7 +177,12 @@ skill"; what a SKILL.md must say is:
    different from the writer; if its checks read like the writer's survey, it
    will rubber-stamp. A mechanical sequence of commands that nothing
    independent reviews needs no subagent at all: the coordinator runs it
-   inline from `references/` (`create-ticket`, `create-pr`, `merge-pr`).
+   inline from `references/` (`breakdown-ticket`, `create-pr`, `merge-pr`).
+   When the write differs by the kind of thing written, make one write role
+   per kind and spawn only the one the coordinator chose, with the rules they
+   share in ONE `references/` file each of them reads — `create-ticket`'s
+   epic, story, task and bug authors over `references/authoring-rules.md`,
+   judged by one `reviewer` (ADR-0138).
 2. **Spell out the I/O contract.** Input: an XML `<task skill="<skill>"
    phase="<role>" …>` (objective, file `<inputs>`, constraints,
    prior-iteration findings in `<context>`). The phase is the role. Output:
@@ -219,15 +242,18 @@ skill"; what a SKILL.md must say is:
    role that can run as the integration pass says what `slice="integration"`
    reconciles and that it never rewrites a slice's substance.
 9. **Length budget 60–140 lines** per agent (the grounding section counts).
+   The same test fails an agent over 200 lines; an agent may read its skill's
+   `references/` (for example a template) instead of carrying a copy.
 
 ## Tool-restriction policy (summary)
 
 | Component | Restriction | Enforces |
 |-----------|-------------|----------|
 | Hooked skills + `/ship` | `disallowed-tools: Edit, NotebookEdit` | coordinators orchestrate; only write roles mutate sources |
-| `/setup`, `/handoff` | none | user-present utility skills |
-| Survey and judge roles | `tools: Read, Glob, Grep, Bash, Write` | read-only discipline + own phase artifacts; no spawning, no skill calls |
-| Write roles | `disallowedTools: Agent, Skill` | no sub-subagents; no re-entering the hook pipeline |
+| `/setup`, `/handoff`, `/update`, `/release` | none | user-present utility skills |
+| `/set-doc-status` | `disallowed-tools: Edit, NotebookEdit, Write` | a status moves only through `acs.py design status`, never by hand-editing front matter |
+| Survey and judge roles | `tools: Read, Glob, Grep, Bash` | read-only discipline; own phase artifacts through `acs.py write` only; no spawning, no skill calls |
+| Write roles | `disallowedTools: Agent, Skill` | no sub-subagents; no re-entering the hook pipeline; `Write`/`Edit` for repo files only, state through `acs.py write` |
 
 Be honest about what this buys: with Bash granted (judges must run
 tests/builds, writers run everything), these lists are
@@ -240,23 +266,81 @@ them for ordering or safety guarantees.
 
 ## Cross-cutting rules
 
+- **State files are written through `acs.py write`, never the Write tool
+  (ADR-0136).** The workspace is `<main-checkout>/.acs/state-machine`, one
+  folder at the main checkout's root for every worktree: a Claude Code session
+  in a worktree is refused a `Write` or `Edit` there, while a Bash call to
+  `acs.py` run from the worktree writes it with Python (under the Bash
+  sandbox, once the `allowWrite` rule `/acs:setup` offers is in place). Every
+  state file a skill or agent writes — `result.json`, `ticket.json`, a
+  clarification ledger, `iter-<n>/` notes, reports, verdicts and JSON
+  reports, drafts, handoff notes, documents kept local under
+  `steps/<skill>/local/` — is written with one Bash call:
+
+  ```
+  python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <path> <<'ACS_EOF'
+  …content…
+  ACS_EOF
+  ```
+
+  Quote the delimiter (`'ACS_EOF'`) so nothing in the content expands. A
+  coordinator may give a path relative to its run directory
+  (`steps/<skill>/result.json`; `--run R` names another run); an agent writes
+  to the absolute path under the `partition` its task carries
+  (`acs.py write <partition>/<path>`), because a subagent in its own worktree
+  has no current run — only an agent whose task carries no `partition`, and
+  that runs in its coordinator's checkout, uses the run-relative form. `--append` adds to a file.
+  The command refuses, exit 2 and nothing written, any path outside the
+  workspace root and the machine-owned ledgers that have verbs of their own
+  (`run.json`, `steps/<skill>/state.json`, `lock.json`, the indexes,
+  `sessions/`, `active-agents/`, `filemap.json`). Repo files — code, tests,
+  documents in the checkout — are still written with `Write`/`Edit`, by write
+  roles only: they are inside the session's worktree.
+- **Requirements, not tickets.** A skill reads what it is asked from the run:
+  `context.requirements` from `acs step start`, or `acs.py requirements show`
+  — the generated `<run>/requirements.md` holding the ticket, the prompt and
+  the documents it was given (ADR-0128). A ticket id, documents and a prompt
+  are only where requirements came from; never read `ticket.json` for
+  acceptance criteria, and never refuse a run for having no ticket. Steps that
+  only make sense with a ticket (`acs.py ticket save`, tracker sync) run only
+  when there is one, and refined criteria go through `acs.py requirements
+  refine`, which patches the ticket when there is one.
 - **Clarification ledger.** All requirement Q&A goes through
-  `clarify.py` into `<partition>/clarifications.json` (see INTERNALS.md
-  "Requirement clarification"): research first, ask once at the cheapest
+  `clarify.py` into `clarifications.json` — the ticket partition's for a
+  ticket run, `runs/<run-id>/clarifications.json` for a ticketless one (see
+  INTERNALS.md "Requirement clarification"): research first, ask once at the cheapest
   phase, record everything, assumptions are visible debt. A skill that asks
   the user something the ledger already answers — or acts on an answer
   without recording it — is defective.
 - **Altitude boundaries between pipeline artifacts.** Each artifact owns one
-  altitude and does not duplicate the next one down: `ticket.md` owns the WHY
-  and the acceptance criteria; `design.md` owns options/decision/architecture;
-  `analysis.md` owns the impact map, assumptions and risks; `api-contract.md`
-  owns the external surface; `test-cases.md` owns the WHAT to prove — `TC-n`
+  altitude and does not duplicate the next one down: the run's requirements
+  (`requirements.md`, refined by analyze-requirements) own the WHY and the
+  acceptance criteria; `tech-design.md` owns the options and the decision, and hands the team the
+  design views the change touches — snapshots linked at their versions, never
+  a second copy of the living `lld/<feature>/` documents (ADR-0135);
+  the analysis owns the impact map, assumptions and risks — a folder
+  (ADR-0133): `README.md` for the scope, refined criteria, cross-cutting risks
+  and verdict, one file per bounded context for its impact map, rules and
+  risks; a reader opens the README first and then only the contexts it needs; the API
+  contract owns the external surface — the living `lld/<feature>/api/<interface>.md`
+  files and the run's `api-contract.md` record linking them, Design documents only
+  (ADR-0134), from which the plan's items make any machine-readable contract files; `test-cases.md` owns the WHAT to prove — `TC-n`
   cases traced to ACs; `plan.md` owns the HOW — the authoritative file map,
   implementer decomposition, concrete failing tests, commands. A skill reads the
   upstream artifacts that EXIST and works without the ones that do not (each is
   produced by a step that may legitimately have been skipped or not yet run);
   it re-litigates an upstream artifact only on contradiction with reality.
 
+- **Only `/acs:create-pr` touches git history (ADR-0127).** A skill never
+  creates or switches a branch, stages, commits or pushes — `/acs:release`'s
+  `release/*` PR and `/acs:merge-pr`'s merge and cleanup are the only other
+  exceptions. It leaves its output as uncommitted changes, records every
+  repo-relative path it wrote in result `states.files`, and its final message
+  lists those files and points at the next step (at the end, `/acs:create-pr`).
+  A changeset read uses `acs.py changes diff`, never `git diff
+  <default>...HEAD`; a scope check snapshots at step start (`acs.py changes
+  snapshot`) and diffs `--since` that tree. On a failure or context pressure,
+  leave the work in the working tree — never commit to save it.
 - **Namespaced invocations everywhere** users/models will type them:
   `/acs:ship`, not `/ship`.
 - **Schema changes are additive.** State files tolerate unknown keys; never
@@ -279,6 +363,45 @@ them for ordering or safety guarantees.
   requirements (+ decision-log row) → INTERNALS.md contract → SKILL.md /
   agents → tests → CHANGELOG.md.
 
+## Changing a skill: standards and evals, every time
+
+A skill is only as good as the standards it keeps and the evals that show it keeps
+them. **Any change to a `SKILL.md`, its `references/`, its agents or the hook scripts
+it drives is not done until both hold.** Simplifying a skill — shorter prose, more
+trust in the model — is welcome; it never removes either.
+
+1. **Keep the standards.** However short the prose, the skill still: starts with the
+   mandatory `acs.py step start` and stops on its failure; reads requirements from the
+   run, not `ticket.json`; sends every question through the clarification ledger
+   (ledger first, grouped asks, nothing auto-answered, headless `<handoff>`); writes
+   state only through `acs.py write`; follows the lifecycle skeleton (Start → Resume &
+   reconcile → User interaction → Failure paths → Context pressure → Finish); ends in
+   the result document, the post-hook and the completion report, also on failure;
+   spawns no subagent unless it owns agents; never touches git history unless it is
+   `/acs:create-pr` (ADR-0127); and works in a degraded-hook run by reporting it. Give
+   the goal and the rules; leave command spelling and sequencing to the model — but the
+   standards above are not style, and the contract tests
+   (`tests/acs/test_skill_contracts.py` and the per-skill modules) pin them.
+2. **Add or update the evals in the same change.** The suite is under
+   `plugins/acs/evals/` (read its README first):
+   - a changed or new `description` → add or adjust the **routing** cases for that skill
+     (plain, indirect, and a `confusable` one against its neighbours);
+   - a new or changed mode, branch, refusal or state the skill handles → add or update a
+     **behaviour** case (`behaviour/<skill>-<what>/`: `prompt.md`, `scaffold.sh`,
+     `graders/`, `calibration.py` with an `IDEAL` and a `BAD` play per grader,
+     `baseline.criteria.md`), and fix any existing case whose prompt, graders or criteria
+     quote behaviour you changed;
+   - a skill's output or state shape → the **artifacts** case when it has one.
+   A change that alters what a skill does and touches no case is a defect, exactly as a
+   code change with no test is.
+3. **Run the free checks before committing:** `python3 -m unittest discover -s tests/evals
+   -p 'check_*.py'` (malformed cases, grader calibration) and `python3 scripts/eval_changed.py
+   --dry-run` (the cases this branch's skill changes would run). The paid run
+   (`pre-commit run acs-evals --hook-stage manual`, or the release gate) is how a case
+   is shown to pass in a real session; say in the PR whether you ran it.
+4. **Update the docs in the order below** ("Keep docs honest"), and record a standards-level
+   change in an ADR rather than editing an old one.
+
 ## Adding a skill
 
 A new skill is a directory. There is no registry and no per-skill manifest
@@ -299,7 +422,7 @@ owns the agents named after it. In order:
    `hooks/scripts/pre-<name>.py` and `post-<name>.py` wrappers, and a line in
    `.coveragerc`'s forwarder omit list. `HOOKED_SKILLS` is derived from the
    three lists, so `acs step start --step`, `dispatch.py`, the SessionEnd net
-   and `models.overrides` all follow for free. An UNHOOKED skill (a utility)
+   and `settings.models` all follow for free. An UNHOOKED skill (a utility)
    needs none of this and must appear in `UNHOOKED_SKILLS` instead.
 4. **Decide whether it is a LEG.** A skill another skill dispatches to (as
    `/acs:code` dispatches to its delivery-path legs) is listed in
@@ -326,3 +449,6 @@ owns the agents named after it. In order:
    (skills on disk, agent files, hooks entries, README rows, INTERNALS
    sections); grep for an existing skill's name to find them all, and update
    each — they exist precisely so a half-registered skill cannot ship.
+8. **Add its evals** (see "Changing a skill: standards and evals, every time"): at least a
+   routing case set and a behaviour case per documented mode, branch or refusal.
+   `tests/evals/check_cases.py` fails a shipped skill without a routing case.

@@ -19,7 +19,11 @@ tests/acs/test_code_loop_topology.py. Stdlib only (os, re, unittest). Run:
 import io
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from skill_text import skill_contract  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -89,6 +93,17 @@ def read(path):
         return fh.read()
 
 
+def impl_plan_contract():
+    """What the skill SAYS: SKILL.md with the `references/` it points at read
+    in place. Progressive disclosure moved the plan's shape, the judge-slice
+    and messaging rules, the user-interaction arms, approval and the result
+    states behind one-line pointers; a pin on what the skill says reads them
+    where the pointer stands, so order and section slices still measure what
+    they did. Pins on SKILL.md itself (front matter, which headings it keeps)
+    read IMPL_PLAN_SKILL."""
+    return skill_contract("create-impl-plan")
+
+
 def norm(body):
     """Collapse whitespace runs so markdown line-wrap can never break a
     phrase-spanning match."""
@@ -115,7 +130,7 @@ class SkillSurfaceTest(unittest.TestCase):
     def test_skill_frontmatter(self):
         fm = frontmatter(read(IMPL_PLAN_SKILL))
         self.assertRegex(fm, r"(?m)^name: create-impl-plan$")
-        self.assertRegex(fm, r"(?m)^argument-hint: \"\[ticket-id\]\"$")
+        self.assertRegex(fm, r"(?m)^argument-hint: \"\[ticket-id\] \[documents…\] \[prompt\]\"$")
         self.assertRegex(fm, r"(?m)^disallowed-tools: Edit, NotebookEdit$")
         self.assertRegex(fm, r"(?m)^description: .+")
 
@@ -157,15 +172,33 @@ class PlanContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        cls.body = impl_plan_contract()
         cls.norm = norm(cls.body)
 
     def test_the_contract_block_and_its_three_readers_are_named(self):
         self.assertIn("## Contract", self.body)
         self.assertIn("### Executor tasks & file map", self.body)
-        for key in ("delivery_path", "owes", "api_contract", "test_cases", "e2e"):
+        for key in ("delivery_path", "owes", "test_cases", "e2e"):
             with self.subTest(key=key):
                 self.assertIn(key, self.body)
+
+    def test_the_api_contract_is_an_input_not_an_owed_step(self):
+        """ADR-0134: /acs:create-api-contract is a Design skill that runs before
+        the plan and writes documents only. The plan reads the contract and
+        plans the machine-readable contract files from it; `owes` no longer
+        names it, and a legacy `api_contract` key is ignored."""
+        block = re.search(r"(?s)```markdown\n## Contract\n(.*?)```", self.body).group(1)
+        self.assertNotIn("api_contract", block)
+        self.assertNotIn("is NOT an input", self.body)
+        for phrase in ('`artifacts["api-contract.md"]`', "The approved contract is binding",
+                       "creating or updating them from the contract is THIS plan's work",
+                       "an `api_contract` key a plan written before ADR-0134 carries is "
+                       "ignored"):
+            self.assertIn(phrase, self.norm)
+        planner = norm(read(IMPL_PLAN_PLANNER))
+        self.assertIn("The API contract is an input when `<inputs>` names it", planner)
+        self.assertNotIn("is never an input", planner)
+        self.assertNotIn("/acs:create-api-contract <ticket-id>` first", self.body)
 
     def test_the_four_delivery_paths_are_named(self):
         self.assertRegex(
@@ -210,10 +243,10 @@ class PlanContractTest(unittest.TestCase):
         self.assertRegex(self.norm, r"(?i)\*\*The plan IS the spec content\.\*\*")
         self.assertRegex(
             self.norm,
-            r"(?i)every `ticket\.acceptance_criteria` entry maps to at least "
+            r"(?i)every `requirements\.acceptance_criteria` entry maps to at least "
             r"one test")
         self.assertRegex(
-            self.norm, r"(?i)`settings\.test_coverage_percent` is stated")
+            self.norm, r"(?i)`settings\.tests\.coverage` is stated")
         for retired in FOLD_SECTIONS:
             with self.subTest(section=retired):
                 self.assertNotIn("### %s" % retired, self.body)
@@ -242,11 +275,12 @@ class PlanContractTest(unittest.TestCase):
         self.assertRegex(self.norm, r"(?i)iteration 1'?s planner surveys")
         self.assertRegex(self.norm, r"(?i)planner → plan review")
 
-    def test_each_role_runs_on_its_model_tier(self):
-        """The planner writes a draft but runs on the `planner` tier its name
-        promises; the plan reviewer, a judge, on the `verifier` tier."""
-        self.assertIn("`context.models.planner.model`", self.norm)
-        self.assertIn("`context.models.verifier.model`", self.norm)
+    def test_each_role_is_spawned_under_its_configured_agent_name(self):
+        """Model and effort come from `settings.models.create-impl-plan.<role>`
+        through the agent the context document names, not from the coordinator."""
+        self.assertIn("`context.agents.<role>`", self.norm)
+        self.assertIn("generated `acs-create-impl-plan-<role>` copy", self.norm)
+        self.assertNotIn("context.models", self.norm)
         self.assertIn('subagent_type: "acs:create-impl-plan-planner"', self.norm)
         self.assertIn('subagent_type: "acs:create-impl-plan-plan-reviewer"', self.norm)
 
@@ -262,13 +296,16 @@ class PublishTest(unittest.TestCase):
         cls.norm = norm(cls.body)
 
     def test_artifact_path_is_resolved_through_the_cli(self):
-        self.assertIn("artifacts show --ticket", self.body)
-        self.assertRegex(
-            self.norm,
-            r"(?i)docs_dir.{0,120}plan\.md|plan\.md.{0,120}docs_dir")
+        # ADR-0128: resolved by the RUN (the checkout's pointer), so a
+        # ticketless run resolves the same way; the write goes to the
+        # Development folder the CLI names, never a guessed docs/tickets path.
+        self.assertIn('acs.py" artifacts show\n', self.body)
+        self.assertNotIn("artifacts show --ticket <id>\n", self.body)
+        self.assertIn('`paths["plan.md"]` non-null → the plan is published there', self.body)
+        self.assertIn("`<development_dir>/<feature>/<id>/`", self.body)
         self.assertIn("<partition>/plan.md", self.body,
-                      "the fallback write target (no docs_dir to anchor the "
-                      "ticket docs folder to) must be named")
+                      "the fallback write target (no path to anchor the "
+                      "Development folder to) must be named")
 
     def test_coordinator_is_the_only_writer_of_the_published_plan(self):
         section = slice_between(self.body, "### Publish", "### Plan approval")
@@ -341,7 +378,7 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        cls.body = impl_plan_contract()
 
     def _section(self):
         return slice_between(self.body, "### Plan approval", "### Docs-only tickets")
@@ -356,7 +393,7 @@ class PlanApprovalContractTest(unittest.TestCase):
         docs_only_idx = self.body.index("### Docs-only tickets")
         self.assertGreater(approval_idx, plan_idx)
         self.assertLess(approval_idx, docs_only_idx)
-        self.assertNotIn("### Plan revocation", self.body)
+        self.assertNotIn("### Plan revocation", read(IMPL_PLAN_SKILL))
 
     def test_subsection_says_which_paths_bind_and_where_the_call_went(self):
         section_norm = norm(self._section())
@@ -378,7 +415,7 @@ class PlanApprovalContractTest(unittest.TestCase):
 
     def test_script_is_the_sole_writer_of_the_record(self):
         # The prohibition travelled with the call site, to the deep legs.
-        section_norm = norm(read(os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")))
+        section_norm = norm(impl_plan_contract())
         found = False
         for m in re.finditer(re.escape("plan-approval.json"), section_norm):
             window = section_norm[max(0, m.start() - 250):m.end() + 250]
@@ -415,10 +452,14 @@ class PlanRevocationTest(unittest.TestCase):
         self.assertRegex(section, r"(?i)never.{0,10}(?:a\s+)?(?:rename|move)")
 
     def test_revocation_preserves_citation_resolvability(self):
+        """The superseded plan is copied into the iteration folder it came
+        from: `iter-<n>/` replaced the retired `plan-superseded-<k>.md` prefix
+        (acs_lib.run.iteration_dir), and the step root holds the current plan."""
         section = self._section()
         self.assertIn("plan.md:", section)
         self.assertRegex(section, r"(?i)resolve[sd]?\s+unchanged")
-        self.assertIn("plan-superseded-", section)
+        self.assertIn("iter-<n>/plan.md", section)
+        self.assertNotIn("plan-superseded-", section)
 
     def test_revocation_is_boundary_gated_and_recorded(self):
         section = self._section()
@@ -451,7 +492,7 @@ class ResultDocumentStatesTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.body = read(IMPL_PLAN_SKILL)
+        cls.body = impl_plan_contract()
         cls.post = read(POST_HOOK)
 
     def test_finish_example_carries_all_three_states(self):
@@ -487,7 +528,7 @@ class OversizeSplitSignalTest(unittest.TestCase):
         cls.item2 = slice_between(
             body, "2. **Executor decomposition with a file map.**",
             "3. **Test strategy per spec")
-        cls.skill_body = read(IMPL_PLAN_SKILL)
+        cls.skill_body = impl_plan_contract()
 
     def test_rubric_numbers_present(self):
         for token in ("~4", "~400", "~7", "create-ticket/SKILL.md"):
@@ -523,7 +564,7 @@ class OversizeSplitSignalTest(unittest.TestCase):
         section = self._split_section()
         section_norm = norm(section)
         self.assertIn('"failed"', section)
-        self.assertIn("/acs:create-ticket split", section)
+        self.assertIn("/acs:breakdown-ticket", section)
         self.assertIn("clarify.py add", section)
         self.assertIn(C9_STOP_REASON, section_norm)
         self.assertIsNotNone(
@@ -560,7 +601,7 @@ class DocGraphGapTest(unittest.TestCase):
             body, "4. **Documentation map — docs are part of the change.**",
             "5. **Risks.**")
         cls.item4_norm = norm(cls.item4)
-        skill = read(IMPL_PLAN_SKILL)
+        skill = impl_plan_contract()
         cls.bullet = slice_between(
             skill, "- The documentation map: whether any factual",
             "- Risks, and what a reviewer")
@@ -694,7 +735,7 @@ class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.norm = norm(read(IMPL_PLAN_SKILL))
+        cls.norm = norm(impl_plan_contract())
         cls.analyze = norm(read(os.path.join(SKILLS_DIR, "analyze-requirements", "SKILL.md")))
 
     def test_the_plan_skill_carries_open_proposals_instead_of_asking(self):
@@ -707,7 +748,9 @@ class AnalysisProposalsDoNotBlockTest(unittest.TestCase):
 
     def test_the_two_skills_state_the_same_contract(self):
         self.assertRegex(self.analyze, r"(?i)`/acs:create-impl-plan` plans against the ticket as written")
-        self.assertRegex(self.norm, r"(?i)plans? against the ticket(?:'s acceptance criteria)? as written")
+        # The plan skill states the same contract over the run's requirements
+        # (ADR-0128): a ticket is only one container of them.
+        self.assertRegex(self.norm, r"(?i)plans? against the requirements(?:' acceptance criteria)? as written")
 
 
 #: The plan reviewer's judge slices and the dimension numbers each owns.
@@ -726,10 +769,10 @@ class ParallelismTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.skill = _flat(read(IMPL_PLAN_SKILL))
+        cls.skill = _flat(impl_plan_contract())
         cls.rerun = _flat(read(IMPL_PLAN_RERUN_REF))
         cls.reviewer = _flat(read(IMPL_PLAN_REVIEWER))
-        cls.raw = read(IMPL_PLAN_SKILL)
+        cls.raw = impl_plan_contract()
 
     def test_the_planner_stays_single_and_says_why(self):
         self.assertIn("Writer — one planner, never sliced.", self.skill)
@@ -739,7 +782,8 @@ class ParallelismTest(unittest.TestCase):
 
     def test_fan_out_is_one_message_and_capped(self):
         self.assertIn("in ONE message (all foreground, in the same message)", self.skill)
-        self.assertIn("`max_parallel = 4`", self.skill)
+        self.assertIn("At most `settings.parallel.max_agents` (default 4) instances "
+                      "run per message", self.skill)
 
     def test_slice_table_covers_all_ten_dimensions_once(self):
         owned = []
@@ -754,7 +798,19 @@ class ParallelismTest(unittest.TestCase):
 
     def test_the_single_suite_run_stays_in_one_slice(self):
         self.assertIn("the ONE run of the repo's existing suite command", self.skill)
-        self.assertIn("belongs to `tests` and runs nowhere else", self.reviewer)
+        self.assertIn("is the coordinator's `suite` job, read by `tests` alone with "
+                      "`acs.py job wait --name suite` and run by no slice", self.reviewer)
+
+    def test_the_suite_job_starts_beside_the_planner_once_per_run(self):
+        """ADR-0125: the existing suite command does not depend on the plan, so
+        it runs as a job beside iteration 1's planner, once per run, and every
+        iteration's `tests` slice reads that one result."""
+        self.assertIn('acs.py" job start --name suite -- <the repo\'s existing suite '
+                      'command>', self.skill)
+        self.assertIn("in the same message as iteration 1's planner spawn", self.skill)
+        self.assertIn("Start it once per run, not per iteration", self.skill)
+        self.assertIn("never runs the suite itself", self.skill)
+        self.assertIn("You do not run the suite yourself.", self.reviewer)
 
     def test_slices_are_joined_by_notes_merge(self):
         self.assertIn('/hooks/scripts/acs.py" notes merge --out '

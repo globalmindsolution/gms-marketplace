@@ -8,7 +8,7 @@ description: >-
   map carries the new module, declare that map, and close the step as a
   second, completed invocation.
 expected_outcome: >-
-  docs/tickets/EVAL-1/plan.md exists and its Executor tasks & file map names
+  docs/development/customer-listing/EVAL-1/plan.md exists and its Executor tasks & file map names
   src/shop/cursor.py; the code step's iteration-1 filemap.json names
   src/shop/cursor.py; the ledger holds exactly one cursor-codec question; the
   step's state.json records the interrupted invocation followed by a completed
@@ -21,9 +21,9 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 
 Resume the interrupted /acs:create-impl-plan run for ticket EVAL-1 (cursor
 pagination for GET /customers) — run the skill on EVAL-1 and take it all the
-way through: plan published to the ticket's docs folder and committed on the
-ticket branch that is checked out, the executor file map declared, and the
-step finished.
+way through: plan published to the ticket's docs folder and left uncommitted
+(no branch, no commit: /acs:create-pr commits later), the executor file map
+declared, and the step finished.
 
 The earlier session was handed off part-way, after I had answered its
 question; my answer is in the ticket's clarification ledger. I have nothing

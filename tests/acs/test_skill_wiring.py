@@ -98,20 +98,14 @@ class WorkflowCoverageTest(unittest.TestCase):
         self.assertEqual(K.agent_roles_of("code"), ["implementer"])
 
 
-class SettingsEnumTest(unittest.TestCase):
-    """The schema enum and HOOKED_SKILLS are two copies of one list. The schema
-    half is hand-maintained, so nothing but this notices when a skill is hooked
-    and only one copy is updated."""
+class SettingsModelsSkillsTest(unittest.TestCase):
+    """The skills `settings.models` may name are the ones that spawn agents, and
+    every one of them is a hooked skill: a subagent of an unhooked skill would
+    run with no gate. The schema half is generated from the agents directory
+    (test_models_settings), so only this relation needs pinning."""
 
-    def setUp(self):
-        with open(os.path.join(PLUGIN, "schemas", "settings.schema.json"),
-                  encoding="utf-8") as handle:
-            self.schema = json.load(handle)
-
-    def test_the_model_override_enum_tracks_hooked_skills(self):
-        enum = self.schema["properties"]["models"]["properties"]["overrides"][
-            "propertyNames"]["enum"]
-        self.assertEqual(sorted(enum), sorted(lib.HOOKED_SKILLS))
+    def test_every_skill_with_agents_is_a_hooked_skill(self):
+        self.assertEqual(set(lib.models.inventory()) - set(lib.HOOKED_SKILLS), set())
 
 
 class RemovedVocabularyTest(unittest.TestCase):

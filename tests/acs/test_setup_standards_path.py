@@ -4,13 +4,14 @@ registry membership (AC-8).
 AC-7 was a prose-contract test that /acs:setup's optional-settings batch
 defaulted `standards_path` to `docs/standards`. ADR-0102 removed every
 document-locating settings key: the standards set is found where the repo
-keeps it, else created at the conventional `docs/standards/` that
-`acs_lib.DOC_SETS` declares. AC-7 is therefore inverted into a guard that
+keeps it (ADR-0124 removed /acs:create-docs, the skill that created one at
+the conventional `docs/standards/`). AC-7 is therefore inverted into a guard that
 setup -- its skill prose and its deterministic half, `setup_wizard.py` --
 never names the key and that `DEFAULT_SETTINGS` never seeds it. The
 "always ask explicitly" carve-out check was deleted with it: a key setup
 never offers has no batch placement to pin. AC-8's registry assertions
-are unchanged in intent.
+pinned the skill that delivered the set; ADR-0124 removed it, so they now
+pin that neither it nor the leg it folded in is registered.
 
 Renamed under MAR-1 (the skill formerly invoked as acs:initialize is now
 acs:setup).
@@ -51,25 +52,16 @@ class SetupOffersNoStandardsPathCase(unittest.TestCase):
 
 
 class StandardsRegistryCase(unittest.TestCase):
-    """AC-8, after ADR-0094: the standards set is a row of acs_lib.DOC_SETS -- the
-    one skill that delivers it, create-docs, is the registered product skill
-    and joins the derived HOOKED_SKILLS; the set's delivery-ticket title is
-    the row's."""
+    """AC-8, after ADR-0124: no skill delivers the standards set any more. The
+    repo writes it by hand; the skills that read it find it where it is."""
 
-    def test_standards_is_a_declared_doc_set(self):
-        self.assertIn("standards", acs_lib.DOC_SETS)
-        # ADR-0102: the row declares where a NEW set is created, not a key.
-        self.assertEqual(acs_lib.DOC_SETS["standards"]["default_dir"], "docs/standards")
-        self.assertNotIn("settings_key", acs_lib.DOC_SETS["standards"])
+    def test_no_skill_delivers_the_standards_set(self):
+        for retired in ("create-docs", "create-standards"):
+            with self.subTest(skill=retired):
+                self.assertNotIn(retired, acs_lib.PRODUCT_SKILLS)
+                self.assertNotIn(retired, acs_lib.HOOKED_SKILLS)
+        self.assertFalse(hasattr(acs_lib, "DOC_SETS"))
 
-    def test_standards_delivery_ticket_title(self):
-        self.assertEqual(acs_lib.DOC_SET_TITLES.get("standards"), "Product standards doc set")
-
-    def test_create_docs_in_product_and_hooked_skills(self):
-        self.assertIn("create-docs", acs_lib.PRODUCT_SKILLS)
-        self.assertIn("create-docs", acs_lib.HOOKED_SKILLS)
-        self.assertNotIn("create-standards", acs_lib.HOOKED_SKILLS,
-                         "the leg skill was folded into create-docs (ADR-0094)")
 
 if __name__ == "__main__":
     unittest.main()

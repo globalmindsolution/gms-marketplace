@@ -1,17 +1,23 @@
 """Calibration plays for create-prd-brownfield-baseline (see
 tests/evals/check_grader_calibration.py). The ideal run does what the skill
-does, through its own writers: `acs step start --allocate` mints the delivery
-ticket, the author writes the two documents, the coordinator commits and
-pushes the delivery branch, gh fails, and the result document goes through
-the real post-hook."""
+does, through its own writers: `acs step start` resumes the ticketless run the
+scaffold opened, the authors write the hub and the feature PRDs (no roadmap:
+it is /acs:manage-roadmap's, ADR-0145) and leave them uncommitted, the coordinator gives every document its first version front matter
+(`acs.py design init --status proposed`), and the result document, listing them all in `states.files`, goes
+through the real post-hook. Nothing is branched, committed or pushed
+(ADR-0127)."""
 
 import json
 import os
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 POST = os.path.join(PLUGIN, "hooks", "scripts", "post-create-prd.py")
-STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-prd"
+STEP = ".acs/state-machine/example-shop/runs/write-the-first-prd-96bb/steps/create-prd"
 BRANCH = "task/EVAL-1-product-definition-prd"
+FEATURES = (("customer-listing", "G2"), ("card-checkout", "G1"),
+            ("order-tracking", "G1"), ("saved-carts", "G1"))
+FILES = ("docs/product/prd.md",) + tuple(
+    "docs/product/features/%s/prd.md" % slug for slug, _goal in FEATURES)
 
 PRD = """# PRD — shop
 
@@ -37,10 +43,22 @@ Setting up a storefront with payments takes merchants weeks of engineering.
 
 ## Features (prioritized)
 
-- **Must**: customer listing (shipped; G2), card checkout (G1)
-- **Should**: order tracking (G1)
-- **Could**: saved carts (G1)
-- **Won't**: a marketplace for third-party sellers
+### Must have
+
+- [Customer listing](features/customer-listing/prd.md) — shipped (supports G2)
+- [Card checkout](features/card-checkout/prd.md) — pay by card (supports G1)
+
+### Should have
+
+- [Order tracking](features/order-tracking/prd.md) — follow an order (supports G1)
+
+### Could have
+
+- [Saved carts](features/saved-carts/prd.md) — keep a cart (supports G1)
+
+### Won't have
+
+- A marketplace for third-party sellers (supports G1)
 
 ## Non-functional requirements
 
@@ -74,84 +92,127 @@ Delivers order tracking.
 | v2.6.0 | Order tracking | Order tracking |
 """
 
-GH_FINDING = {"severity": "critical", "area": "pr",
-              "message": "gh pr create failed; the docs-only PR was not opened",
-              "command": "gh pr create --base main --head %s --label ACS" % BRANCH,
-              "error": "gh: command not found",
-              "hint": "check `gh auth status` and repo access"}
 
 
 def _start(ws):
     ws.skill("create-prd")
-    started = ws.acs("step", "start", "--step", "create-prd", "--allocate")
+    started = ws.acs("step", "start", "--step", "create-prd", "--args", '')
     assert started.returncode == 0, started.stderr
 
 
-def _write_docs(ws, prd=PRD, roadmap=ROADMAP):
-    ws.sh("git checkout -q -b %s main" % BRANCH)
+def _write_docs(ws, prd=PRD, roadmap=None, features=True):
     ws.write("docs/product/prd.md", prd)
-    ws.write("docs/product/roadmap.md", roadmap)
+    if roadmap:
+        ws.write("docs/product/roadmap.md", roadmap)
+    for slug, goal in (FEATURES if features else ()):
+        name = slug.replace("-", " ").capitalize()
+        ws.write("docs/product/features/%s/prd.md" % slug, (
+            "# %s\n\n## Summary\n\n%s.\n\n## Goals served\n\n- %s\n\n## Requirements\n\n"
+            "- **R1** — %s works\n\n## Acceptance criteria\n\n- It works.\n\n"
+            "## Dependencies\n\nNone.\n\n## Out of scope\n\nNothing else.\n")
+            % (name, name, goal, name.lower()))
+
+
+def _commit(ws):
+    """The pre-ADR-0127 delivery: a delivery branch and a commit."""
+    ws.sh("git checkout -q -b %s" % BRANCH)
     ws.sh("git add docs/product && git commit -qm 'EVAL-1 Add product requirements document and roadmap'")
 
 
-def _finish(ws, findings=(GH_FINDING,), pr=None, status="completed"):
-    states = {"prd": {"path": "docs/product",
-                      "files": ["docs/product/prd.md", "docs/product/roadmap.md"]}}
+def _finish(ws, files=FILES, pr=None, status="completed"):
+    states = {"prd": {"path": "docs/product"}, "files": list(files)}
     if pr:
         states["pr"] = pr
     ws.write(STEP + "/result.json", json.dumps({
-        "status": status, "summary": "PRD written and branch pushed; gh failed, no PR opened",
-        "states": states, "findings": list(findings), "errors": []}, indent=2))
+        "status": status, "summary": "PRD written and reviewed; left as local changes",
+        "states": states, "findings": [], "errors": []}, indent=2))
     ws.sh("python3 %s --result-file %s/result.json" % (POST, STEP))
+
+
+def _version(ws):
+    """The coordinator's Versions step: a new document gets `design init`."""
+    done = ws.acs("design", "init", "--status", "proposed", *FILES)
+    assert done.returncode == 0, done.stderr
 
 
 def IDEAL(ws):
     _start(ws)
     _write_docs(ws)
-    ws.sh("git push -q -u origin %s" % BRANCH)
+    _version(ws)
     _finish(ws)
-    ws.reply = ("EVAL-1: PRD and roadmap written on %s and pushed. The PR could not be "
-                "opened: gh pr create failed (gh unavailable), recorded as a finding." % BRANCH)
+    ws.reply = ("PRD written. Uncommitted: docs/product/prd.md and the feature PRDs. Review "
+                "them, then run /acs:create-pr to commit them and open the PR, and "
+                "/acs:manage-roadmap to schedule the Checkout and Order tracking milestones.")
 
 
 def _allocated_only(ws):
     _start(ws)
 
 
+def _single_file_prd(ws):
+    """The layout this replaced: every feature inside prd.md, no feature PRDs."""
+    _start(ws)
+    _write_docs(ws, features=False)
+    _finish(ws)
+
+
+def _unversioned(ws):
+    _start(ws)
+    _write_docs(ws)
+    _finish(ws)
+
+
 def _template_prd(ws):
     _start(ws)
     generic = PRD.replace("3.5%", "a higher rate").replace("300 ms", "fast").replace(
         "**Won't**", "**Later**")
-    _write_docs(ws, prd=generic, roadmap="# Roadmap\n\n- Checkout\n- Order tracking\n")
-    ws.sh("git push -q -u origin %s" % BRANCH)
+    _write_docs(ws, prd=generic)
     _finish(ws)
 
 
-def _never_pushed(ws):
+def _committed(ws):
     _start(ws)
     _write_docs(ws)
+    _commit(ws)
+    _finish(ws)
+
+
+def _pushed(ws):
+    _start(ws)
+    _write_docs(ws)
+    _commit(ws)
+    ws.sh("git push -q -u origin %s" % BRANCH)
     _finish(ws)
 
 
 def _invented_pr(ws):
     _start(ws)
     _write_docs(ws)
-    ws.sh("git push -q -u origin %s" % BRANCH)
-    _finish(ws, findings=(), pr={"number": 1, "branch": BRANCH,
-                                 "url": "https://github.com/example/shop/pull/1"})
+    _finish(ws, pr={"number": 1, "url": "https://github.com/example/shop/pull/1"})
 
 
-def _hid_the_failure(ws):
+def _wrote_the_roadmap(ws):
+    """The pre-ADR-0145 run: the roadmap written beside the PRD."""
+    _start(ws)
+    _write_docs(ws, roadmap=ROADMAP)
+    _version(ws)
+    _finish(ws, files=FILES + ("docs/product/roadmap.md",))
+
+
+def _recorded_no_files(ws):
     _start(ws)
     _write_docs(ws)
-    ws.sh("git push -q -u origin %s" % BRANCH)
-    _finish(ws, findings=())
+    _finish(ws, files=())
 
 
 BAD = {
-    "allocated the ticket and wrote nothing": _allocated_only,
+    "wrote the roadmap, which is manage-roadmap's": _wrote_the_roadmap,
+    "kept every feature in prd.md, writing no feature PRDs": _single_file_prd,
+    "left the new documents without version front matter": _unversioned,
+    "started the run and wrote nothing": _allocated_only,
     "wrote a generic PRD without the stated facts or versions": _template_prd,
-    "committed but never pushed the delivery branch": _never_pushed,
+    "committed the documents on a delivery branch": _committed,
+    "pushed a delivery branch": _pushed,
     "recorded a PR that cannot exist": _invented_pr,
-    "finished with the gh failure unrecorded": _hid_the_failure,
+    "recorded no files in states.files": _recorded_no_files,
 }

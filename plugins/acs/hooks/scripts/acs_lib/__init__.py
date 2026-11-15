@@ -12,7 +12,7 @@ it always did. In dependency order:
   run / step     the two state machines (§4.3, §4.4)
   lock           the run lock and its audit ledger
   tickets        ticket.json, the id counter and tickets-index.json
-  setup_helpers  doc-set fan-out, toolchain probing, exempt-PR classifier
+  setup_helpers  toolchain probing, exempt-PR classifier
   forge          PR-metadata fill and tracker sync against gh (MAR-525)
   gate_inputs    the ticket-artifact input checks the Build/Test gates share
   gates          context resolution, the input/brake gates, post-hook persistence
@@ -23,6 +23,17 @@ it always did. In dependency order:
   yamlsubset     the strict YAML subset the workflow files and front matter use
   workflow       phases registry, ship.yaml resolution/validation, predicates, `workflow next`
   artifacts      the ticket documents in the repo docs tree: ticket.md, derived status, migrate
+  changes        the run's baseline, working-tree snapshots and changeset (ADR-0127)
+  commit_plan    the commits /acs:create-pr proposes from the recorded paths, and makes
+  doc_sets       which doc set a document belongs to (commit_plan and `design list` share it)
+  requirements   a run's requirements from any container: sources, requirements.md, refine
+  doc_layout     the phase folders a run's documents live in (prd/lld/development dirs)
+  run_docs       one run's documents: where each is read from and written to
+  doc_share      shared or kept local, and whether a docs folder still needs an answer (ADR-0132)
+  doc_links      a ticket's links to its feature's documents, and its ## References block (ADR-0140)
+  claude_permissions  the Claude Code permission rules /acs:setup offers (opt-in)
+  team_handoff   member -> member ticket handoff over refs/acs/handoff/<ID> (ADR-0131);
+                 team_handoff_receive is its receiving half (reached via acs_handoff_commands).
 
 PATCHING: a name imported into a sibling binds at import time, so patching it on
 this facade does NOT reach a caller that already imported it. Patch the module
@@ -34,25 +45,23 @@ from . import (_common, settings, repo, hostgates, planrules, lock, tickets,  # 
                setup_helpers, forge, verdict, derive, gate_inputs, gates, lifecycle,  # noqa: F401
                advisory)  # noqa: F401
 
-from ._common import (DELIVERY_TICKET_SKILLS,
-    DELIVERY_TICKET_TITLES, DOC_BOOTSTRAP_DEPENDENCIES, DOC_BOOTSTRAP_FANOUT_V1,
-    DOC_BOOTSTRAP_SENTINEL, DOC_SET_DEFAULT_DIR, DOC_SET_TITLES, DOC_SETS,
-    CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
+from ._common import (AUDIT_SKILLS, DELIVERY_TICKET_SKILLS, STANDALONE_RUN_SKILLS,
+    LEGACY_DELIVERY_TICKET_SKILLS,
+    BUG_FIELDS, BUG_SEVERITIES,
+    DELIVERY_TICKET_TITLES, CODE_PATH_LEGS, GateError, HOOKED_SKILLS, LEG_ENTRY_POINTS,
     PLANNING_SKILLS, PRIORITIES, PRODUCT_SKILLS,
-    PRODUCT_TICKET_TITLES, PROJECT_MODE_LEG, PROJECT_MODE_SENTINEL,
-    PROJECT_MODE_SETTINGS_KEY, PROJECT_MODES, ReconciliationRequired, TICKET_ID_RE,
+    PRODUCT_TICKET_TITLES, ReconciliationRequired, TICKET_ID_RE,
     TICKET_STATUSES, TICKET_TYPES, UNHOOKED_SKILLS, WORKFLOW_SKILLS, _ISO_INSTANT,
     _git, deep_merge, now_iso, parse_iso, plugin_root, read_json, slugify, write_json)  # noqa: F401
 
 from .settings import (BUILTIN_TEMPLATES, DEFAULT_SETTINGS, DEFAULT_TICKET_PREFIX,
-    ENFORCEMENT_DEFAULTS,
-    FORMAT_PLACEHOLDERS, MODEL_EFFORTS, MODEL_OVERRIDE_SKILLS, MODEL_ROLES,
-    RECOMMENDED_MODELS, RETIRED_SETTINGS_KEYS, _model_override_skills, _normalize_e2e_into_suites,
-    enforcement_value, load_settings, render_format, resolve_role_model,
-    resolve_template, settings_files, validate_formats, validate_models,
+    RETIRED_SETTINGS_KEYS, coverage_target, test_suites, validate_tests,
+    load_settings,
+    resolve_template, settings_files,
     validate_settings)  # noqa: F401
 
 from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
+    GH_GRAPHQL_HINT, GH_GRAPHQL_MARKER,
     GUARD_ATTEMPTS, GUARD_ATTEMPTS_ENV, GUARD_ATTEMPTS_MAX, GUARD_INTERVAL,
     GUARD_STALE_SECONDS, GuardTimeout, guard_attempts, guard_stale_seconds,
     _EVIDENCE_RANKS, _evidence_source_commands, _guarded_repo_write, archive_dir,
@@ -64,15 +73,14 @@ from .repo import (GH_ACCESS_DENIED_MARKER, GH_ACCESS_HINT, GH_GENERIC_HINT,
     sessions_dir, ticket_dir,
     ticket_id_from_text)  # noqa: F401)  # noqa: F401
 
-from .hostgates import (DEFAULT_GATE_RESPONSE, GATE_EVIDENCE_MAX_AGE_SECONDS,
-    GATE_RESPONSES, HOOK_ENFORCEMENTS,
+from .hostgates import (GATE_EVIDENCE_MAX_AGE_SECONDS, HOOK_ENFORCEMENTS,
     accepted_gate_evidence, consume_gate_evidence,
-    gate_evidence, gate_evidence_path, gate_notice, gate_response,
+    gate_evidence, gate_evidence_path, gate_notice,
     record_gate_evidence, refuse_gate_evidence)  # noqa: F401
 
 from .planrules import (PLAN_FILE_MAP_HEADING, RETIRED_PLAN_SECTIONS,
     _PLAN_HEADING_RE, _coverage_target_stated,
-    _plan_headings, classify_additive_diff, plan_approval_eligible)  # noqa: F401
+    _plan_headings, plan_approval_eligible)  # noqa: F401
 
 from .readiness import (DECISION_FIELDS, NO_REQUIRED_CHECKS_MARKERS,
     DIMENSIONS, PASSING_CONCLUSIONS, PENDING_STATES,
@@ -85,24 +93,22 @@ from .lock import (LOCK_MAX_AGE_HOURS, LOCK_STALENESS_REASONS,  # noqa: F401
     lock_audit_path, lock_is_stale, lock_staleness, read_lock, release_lock)
 
 from . import tickets as tickets_module  # noqa: F401
-from .tickets import (allocate_ticket_id, load_ticket, new_ticket_doc,  # noqa: F401
-    save_ticket, update_index)
+from . import prd_link  # noqa: F401,E402
+from .tickets import (allocate_ticket_id, check_bug_fields, check_references, load_ticket,  # noqa: F401
+    new_ticket_doc, parse_features, save_ticket, update_index)
 
-from .setup_helpers import (DOC_SET_ALL, DocSetRequest,
-    TOOLCHAIN, _BARE_INT_RE,
-    _FANOUT_FOR_RE, _LEGACY_FOR_NOTE, _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
-    _pr_labels, _short_doc_set, _unknown_doc_set_note,
-    _sentinel_present, _soft_peers, _tool_version,
-    canonical_doc_set, check_toolchain,
-    classify_merge_pr_arg, doc_set_spellings, fanout_batches, missing_tools,
-    parse_doc_set_arg, parse_fanout_for_arg, project_mode,
+from .setup_helpers import (TOOLCHAIN, _BARE_INT_RE,
+    _PR_FLAG_RE, _PR_HASH_RE, _PR_URL_RE,
+    _pr_labels, _tool_version, check_toolchain,
+    classify_merge_pr_arg, missing_tools,
     tracker_cli_warning, validate_exempt_pr)  # noqa: F401
 
 from .gate_inputs import _refuse_epic, e2e_case_count  # noqa: F401
 from .gates import _workflow_for as workflow_for  # noqa: F401
 from .gates import (BRAKES, NothingOwed,  # noqa: F401
     SUBJECT_GATES, _merge_pr_arg_text,
-    build_context, design_requirement, gate_create_design, gate_merge_pr,
+    build_context, design_source, gate_breakdown_ticket, gate_create_tech_design,
+    gate_merge_pr,
     gate_outcome, parent_epic_dir, resolve_run_for,
     run_pre, run_pre_payload, session_end, step_brakes,
     subject_from_payload)
@@ -140,7 +146,8 @@ from .verdict import (ADJUDICATIONS, FINDING_KINDS, FINDING_STATUSES, LENSES,
     next_finding_id, open_findings, unanswered, validate_verdict,
     verdict_filename, verdict_path, write_verdict)  # noqa: F401
 
-from .derive import (DERIVED_KEYS, VERDICT_SKILLS, derive_states, derive_tests,
+from .derive import (DERIVED_KEYS, IMPLEMENTED_SKILLS, VERDICT_SKILLS,
+    derive_implemented, derive_states, derive_tests,
     derive_verifier_passed, disagreements, execute_reports,
     gh_pr_for_branch, guard_denials, latest_verdict, review_iterations)  # noqa: F401
 
@@ -154,9 +161,21 @@ from .workflow import (OVERRIDE_WORKFLOW_RELPATH,  # noqa: F401
     steps_of, validate_workflow, validate_workflow_file, workflow_name)
 
 from . import skills as skills_registry  # noqa: F401,E402
-from .skills import (AGENT_ROLES, KIND_MODEL_TIERS, ROLE_KINDS,  # noqa: F401
+from . import models  # noqa: F401,E402
+from . import launch_config  # noqa: F401,E402
+from . import design_types  # noqa: F401,E402
+from . import gh_rest  # noqa: F401,E402
+from . import claude_permissions  # noqa: F401,E402
+from . import design_docs  # noqa: F401,E402
+from . import audit_report  # noqa: F401,E402
+from . import jobs  # noqa: F401,E402
+from . import migrate_settings  # noqa: F401,E402
+from . import conventions  # noqa: F401,E402
+from . import agent_sync  # noqa: F401,E402
+from .models import validate_models  # noqa: F401,E402
+from .skills import (AGENT_ROLES, ROLE_KINDS,  # noqa: F401
     ROLE_KIND_NAMES, SKILL_LEGS, SkillsError, agent_files, agent_roles_of,
-    agents_dir, entry_point_of, is_skill, legs_of, load_schema, model_tier,
+    agents_dir, entry_point_of, is_skill, legs_of, load_schema,
     registered_skills, role_kind, schema_path, skill_agents, skill_dir,
     skill_legs, skills_dir, split_agent_name, unreachable_agents, workflows_dir)
 
@@ -195,7 +214,12 @@ from .step import state_path, state_path as step_state_path  # noqa: F401
 from . import notes  # noqa: F401,E402
 from .notes import merge_files as merge_notes, merge_texts, split_sections  # noqa: F401
 
+from . import doc_layout, requirements, run_docs, doc_share, doc_links  # noqa: F401,E402
+from . import doc_templates  # noqa: F401,E402
+from .gates import record_requirements  # noqa: F401,E402
+
 from . import artifacts  # noqa: F401,E402
+from . import changes, commit_plan, doc_sets  # noqa: F401,E402
 from .artifacts import (ARTIFACT_NAMES, MOVED_POINTER_FILENAME, TICKET_MD_FILENAME,  # noqa: F401
     artifact_path, derive_status, parse_ticket_md, render_ticket_md, ticket_docs_dir,
     ticket_docs_root, ticket_source)

@@ -601,6 +601,28 @@ class CliContractTest(unittest.TestCase):
         self.assertEqual(before, after)
 
 
+class NoRoadmapTest(unittest.TestCase):
+    """ADR-0145: create-prd no longer writes the roadmap, so its floor runs
+    without --roadmap -- the roadmap-outline family is skipped, and an answer
+    anchored in roadmap.md has no file to land in."""
+
+    def _argv(self, plan, clar):
+        return ["--plan", _write_plan(plan), "--mode", "greenfield",
+                "--repo-root", _mkroot(), "--clarifications", _clarifications_path(clar),
+                "--prd", _write_plan("# PRD\n\nShoppers keep products for later.\n")]
+
+    def test_milestones_are_not_checked_without_a_roadmap(self):
+        code, out, err = _run_main(self._argv('## Roadmap milestones\n\n- Milestone: "M1 — v0.1.0"\n', []))
+        self.assertEqual((code, err), (0, ""))
+        self.assertNotIn("roadmap-outline", out)
+
+    def test_a_roadmap_anchor_is_an_unknown_file(self):
+        plan = '## Answer fidelity\n\n- C-1 — roadmap.md — "keep"\n'
+        code, _out, err = _run_main(self._argv(plan, [{"id": "C-1", "status": "answered"}]))
+        self.assertEqual(code, 1)
+        self.assertIn("[answer-anchor-file-unknown]", err)
+
+
 class SubprocessInvocationTest(unittest.TestCase):
     """K8: the sibling `citation_check` import must resolve when the script is
     invoked by absolute path from an unrelated cwd, the way the verifier will

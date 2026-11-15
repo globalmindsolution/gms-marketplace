@@ -26,13 +26,13 @@ which leg wrote them.
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step code
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step code --args "$ARGUMENTS"
 ```
 
 If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
 improvise a workaround. The pre-hook refuses only what running now would
-damage: the run must resolve to a live, unlocked partition, an epic is never
-implemented, and when a plan records a deep path its approval must be present
+damage: the run must resolve to a live, unlocked partition, an epic ticket is
+never implemented, and when a plan records a deep path its approval must be present
 and current. It never refuses because an upstream artifact is missing and
 requires no predecessor step to have completed — the order lives in
 `workflows/ship.yaml`, not in this gate. A run with no plan on disk is
@@ -42,10 +42,29 @@ from the subject (see `/acs:code`'s **No plan at all**).
 Parse the printed context JSON. Fields you will use:
 
 - `run_id`, `subject` — what this run is about. A subject is a **ticket, a
-  prompt or a document** (§3.11); `subject.kind` says which. The implementation
-  must satisfy it.
+  prompt or a document** (§3.11), or a mix of them (`subject.sources`).
+- `requirements` — `{path, sources, acceptance_criteria, features, feature}`. **Requirements: `context.requirements` / `acs.py requirements
+  show` — a ticket id, documents and a prompt are only where they came from;
+  never read ticket.json for acceptance criteria.** The implementation must
+  satisfy every criterion in `requirements.path` (the run's `requirements.md`).
+  `ticket` is present only when a ticket is one of the sources.
+- `references` — **References: `context.references` lists this run's documents found in the standard layout — read the ones relevant to this step before working; never search the repo for them.** Subagents get the same list as `requirements.md`'s `## References`; name the relevant ones in their `<inputs>`.
 - `partition` — absolute path of the run directory. Read `plan.md` (see Plan
-  input resolution), `test-cases.md` and `api-contract.md` when they exist.
+  input resolution), `test-cases.md` and `api-contract.md` when they exist —
+  `acs.py artifacts show` reports each (`<development_dir>/<feature>/<id>/` for
+  `plan.md` and `test-cases.md`, `<architecture_dir>/lld/<feature>/<id>/` for
+  `api-contract.md` and `tech-design.md` (else a legacy `design.md`), a legacy `docs/tickets/<ID>/` file only
+  when the new folder has none), plus the living interface documents under
+  `<architecture_dir>/lld/<feature>/api/` the contract links — the API design
+  `/acs:create-api-contract` wrote in the Design phase (ADR-0134), documents
+  only: the plan items that create or update the repo's machine-readable
+  contract files (OpenAPI, JSON Schema, `.proto`) from it are implemented
+  here, like any other task — and the analyses it reports: the run's
+  analysis and the feature's living analysis (`feature_analysis`,
+  `<prd_dir>/features/<feature>/analysis/`), for the impact map and risks the
+  change was planned against. Each is a folder (ADR-0133): its `README.md`
+  (`artifacts["analysis.md"]`) first, then only the context files the plan's
+  file map touches (`analysis_files`); a legacy single `analysis.md` whole.
   Step artifacts go in `steps/code/`.
 - `iteration` — the review loop's current iteration. The context carries
   **no** `verdict` key: on iteration `n` ≥ 2, read the verdict the previous
@@ -55,12 +74,13 @@ Parse the printed context JSON. Fields you will use:
   (`acs_lib.verdict_path(partition, "review-code", n - 1)`); `acs.py verdict
   show --iteration <n-1>` prints that copy validated. Then see
   **On iteration 2+** in your leg's SKILL.md.
-- `design` — `{required, dir, source}` when a design document applies.
-- `settings` — you need `formats.branch_name`, `formats.commit_message`, and
-  `e2e` when set. The repo's standards set and `test_coverage_percent` are
+- `design` — `{exists, dir, source}`: the tech design found for the run (its
+  own, else its parent epic's, ADR-0139). When `design.exists`, the plan was
+  judged against it; when not, the plan is the whole contract — no advisory.
+- `settings` — you need `tests.e2e` when set. The repo's standards set and `tests.coverage` are
   the **reviewer's** inputs, not yours.
-- `models` — per-tier `{model, effort}`; the implementer runs on the
-  `executor` tier.
+- `agents` — the agent name to spawn per role; the implementer's model and
+  effort come from `settings.models.code.implementer` (inheriting when unset).
 - `reconcile`, `handoff_summary`, `prior_status` — see Resume & reconcile.
 
 ---
@@ -76,10 +96,12 @@ implementer follows.
 
 Spawn subagents with the Agent tool: `acs:code-implementer` (fall back to the
 un-namespaced `code-implementer` only if the runtime rejects the namespaced
-one). The implementer is a `write`-kind role and runs on the `executor` model
-tier: apply `context.models.executor.model` / `.effort` at spawn when not
-`"inherit"`; if the runtime rejects the model or effort, FAIL the run with
-that exact error — no silent fallback.
+one). The implementer is a `write`-kind role. Spawn it under the name in
+`context.agents.implementer` — the plugin's `acs:code-implementer`, or the
+generated `acs-code-implementer` copy `acs step start` wrote where
+`settings.models` sets a model or effort for it. Model and effort travel with
+that agent, so pass none of your own. If the runtime rejects the agent, FAIL the
+run with that exact error — no silent fallback.
 
 **Spawn in the foreground and wait on the result, never on a clock.** Pass
 `run_in_background: false` to the Agent tool: the implementer's result is your
@@ -92,8 +114,10 @@ Messaging rules (the SubagentStop hook checks them):
 
 - Send each implementer one task message, `<task skill="code"
   phase="implementer" …>`, carrying `objective`, `inputs` (file refs: the
-  resolved `plan.md`, `test-cases.md` and `api-contract.md` when they exist,
-  the subject document, `design.md` when it applies, repo paths) and
+  resolved `plan.md`, `test-cases.md`, `api-contract.md` and the
+  `lld/<feature>/api/` documents it links when they exist,
+  `requirements.md`, the analysis and the feature's living analysis when they
+  exist, `tech-design.md` when it applies, repo paths) and
   `constraints`. The implementer returns a `<result skill="code"
   phase="implementer" …>` document as its final content. When several
   implementers run at once, each task and its result carry the slice id,
@@ -112,14 +136,14 @@ Messaging rules (the SubagentStop hook checks them):
   the plan's file map); any overlap — source, tests, or docs — means sequential
   execution. When they are disjoint, parallel is the default from iteration 1:
   every implementer of a wave is spawned in ONE message, at most
-  `max_parallel = 4` per wave, and you wait for all of them before the next
+  `settings.parallel.max_agents` (default 4) per wave, and you wait for all of them before the next
   phase (`execute.md`, **Parallel implementers**).
 
 ---
 
 ### Epics are never implemented
 
-An epic subject is refused by the `code` gate before this skill ever starts —
+An epic ticket (a ticket-only check: a prompt or document run has no type) is refused by the `code` gate before this skill ever starts —
 the epic brake runs for every implementation step, so an epic is turned away
 at `analyze-requirements` rather than three steps later with a plan on disk.
 Every ticket that reaches this
@@ -128,9 +152,9 @@ step therefore has `ticket.type != "epic"`.
 That invariant is true of a gate that fired. If `ticket.type == "epic"`
 nonetheless reaches this step — a bypassed or best-effort pre-gate on some
 runtimes — STOP immediately and surface the same breakdown message the gate
-would have raised: design the epic with `/acs:create-design <id>` if it has
-none, break it down into child tickets with `/acs:create-ticket <id>` (epic
-fan-out), then run `/acs:code` on a child. **Never implement an epic under any
+would have raised: design the epic with `/acs:create-tech-design <id>` if it has
+none, break it down into child tickets with `/acs:breakdown-ticket <id>`,
+then run `/acs:code` on a child. **Never implement an epic under any
 circumstance**, regardless of what the pre-gate did or did not enforce.
 
 This is defence in depth, and it is a rule of every delivery path: a leg that
@@ -139,28 +163,16 @@ onto a path and implementing it.
 
 ---
 
-## Branch — FIRST, before any code
+## Working tree — no branch, no commits
 
-All work happens on the run's branch. Render `settings.formats.branch_name`
-(default `"{type}/{ticket_id}-{slug}"`) with:
-
-- `{ticket_id}` — the run's ticket id when the subject is a ticket, the run id
-  otherwise;
-- `{type}` — the subject's type (`epic|story|task`), `task` when it has none;
-- `{slug}` — the slugified subject title: lowercase, every non-alphanumeric run
-  becomes `-`, trimmed, max 40 chars (`acs slug` renders exactly this);
-- `{external_key}` — the tracker's key when set, else empty.
-
-Then create or reuse it:
-
-```bash
-git rev-parse --verify --quiet "<branch>" && git checkout "<branch>" || git checkout -b "<branch>"
-```
-
-On resume the branch usually already exists — reuse it, never recreate or reset
-it. Every commit message follows `settings.formats.commit_message` (default
-`"{ticket_id} {summary}"`). Commit work on this branch as the plan's tasks
-land; do NOT push — `/acs:create-pr` owns the push and the PR.
+All work happens in the working tree, on whatever is checked out. This step
+never creates, switches or names a branch, and never stages, commits or pushes
+(ADR-0127): every file an implementer writes stays an uncommitted change,
+listed in its report's `files_changed`, and the run records the union in the
+result's `states.files`. `/acs:create-pr` is the only skill that branches and
+commits — it reads those reports to split the change into a tests commit and a
+code commit per partition. Never commit to "save" work: the working tree is
+where the work lives until then.
 
 ---
 
@@ -172,7 +184,9 @@ continuing:
 1. Read `steps/code/state.json` (`invocations[-1]` and `states`) and the
    artifacts under `steps/code/iter-*/` to see what was recorded implemented
    and where the prior invocation stopped.
-2. Check out the recorded `states.branch` (it should exist — see Branch).
+2. See what the prior invocation left in the working tree:
+   `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --name-only`
+   — uncommitted by design (see Working tree); never stash, reset or commit it.
 3. Re-run **the tests your change touches** — once. Trust nothing that fails: a
    task whose tests fail or whose files are missing is NOT done, whatever the
    state file says. The full suite is the reviewer's gate, not yours.
@@ -195,7 +209,7 @@ The plan is an INPUT here, never an output: `/acs:create-impl-plan` wrote it
 and this skill reads it. It is at `steps/create-impl-plan/plan.md` when
 `/acs:create-impl-plan` ran for this run (`acs.py plan path` names the one it
 read). On a standalone run with no plan, `/acs:code` derived an implicit plan
-from the subject for the cheap paths and recorded it at `steps/code/plan.md`;
+from the requirements for the cheap paths and recorded it at `steps/code/plan.md`;
 that file is the plan for this run. There is no approval mirror: one plan, one
 path, and `plan-approval.json` hashes that same file.
 
@@ -214,7 +228,7 @@ steps, and point at `/acs:create-impl-plan`.
 
 ## Docs-only subjects
 
-When the subject carries the user-confirmed `docs_only` flag, the TDD steps
+When the run's ticket carries the user-confirmed `docs_only` flag, the TDD steps
 relax — the delivery guarantees do not: implementers skip
 write-failing-tests-first and new-test generation, and the existing tests are
 still run once and must be green (a docs-only change that breaks the build is a
@@ -260,7 +274,8 @@ honest resolution is that the plan is wrong, end the step `failed` with
 ## Context pressure
 
 If your context window is running low mid-run: do NOT burn the remainder on
-work that would be lost. Commit any uncommitted green work on the branch, flush
+work that would be lost. Leave the green work in the working tree (never
+commit it to save it), flush
 in-flight state plus soft context (user answers, decisions, partial findings,
 what is green, gotchas) to `steps/code/handoff-context.md`, then finish the
 step `interrupted` with `stop_reason: context_pressure`:
@@ -279,24 +294,30 @@ resumable state: a later session re-runs the step and reconciles.
 
 MANDATORY final step — never skipped, also on failure:
 
-1. Write `steps/code/result.json`:
+1. Write `steps/code/result.json` through `acs.py write` (never the Write tool):
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/code/result.json <<'ACS_EOF'
    {
      "status": "completed",
      "outcome": "implemented",
      "summary": "bulk import behind a feature flag, 3 partitions, 84 tests green",
      "iteration": 1,
      "states": {
-       "branch": "task/SHOP-123-bulk-import",
        "tasks_implemented": ["01-data-model", "02-import-endpoint"],
        "tests": {"passed": 84, "failed": 0},
-       "docs_updated": ["README.md", "docs/api/import.md"]
+       "docs_updated": ["README.md", "docs/api/import.md"],
+       "files": ["src/import/api.py", "tests/test_import_api.py", "README.md",
+                 "docs/api/import.md"]
      },
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
+
+   `files` is the union of every implementer report's `files_changed` this
+   invocation — the repo-relative paths left uncommitted for `/acs:create-pr`.
 
    On iteration 2+ it also carries `since_sha` and a `resolutions` entry for
    **every** confirmed finding of the verdict — see **On iteration 2+** in your
@@ -309,7 +330,7 @@ MANDATORY final step — never skipped, also on failure:
    yours at all**: it is derived from `/acs:review-code`'s verdict, and you
    cannot open the `/acs:create-pr` gate by writing it.
 
-   On failure keep whatever is true: the branch, the tasks that ARE implemented
+   On failure keep whatever is true: the files written, the tasks that ARE implemented
    and green, docs actually updated, open findings in `findings`, and the
    reason in `summary`.
 
@@ -332,8 +353,9 @@ MANDATORY final step — never skipped, also on failure:
    `step finish` leaves `verifier_passed` underived — which shuts
    `/acs:create-pr`'s brake permanently — and the lock held.
 
-3. Report a compact summary to the user: branch, what was implemented, the
-   targeted tests' result, docs updated, and the next step
+3. Report a compact summary to the user: what was implemented, the
+   uncommitted files it left in the working tree, the targeted tests' result,
+   docs updated, and the next step
    (`/acs:review-code` on success, `/acs:create-impl-plan` after a plan
    failure).
 
@@ -352,11 +374,11 @@ AFTER the post-hook succeeded. Same labels, same order, `none` where empty:
 
 - **Subject**: <id or title> (<kind>)
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: branch; what was implemented; targeted tests passed/failed; docs updated
+- **Results**: what was implemented; targeted tests passed/failed; docs updated
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <run files, repo paths, branch>
+- **Artifacts**: <uncommitted files written (repo-relative), run files>
 - **Metrics**: iteration <n>/<cap> · <wall time>
-- **Next**: `/acs:review-code` on success; on `needs_input`, answer the questions and re-run; on a plan failure, `/acs:create-impl-plan`
+- **Next**: `/acs:review-code` on success (the files stay uncommitted until `/acs:create-pr`); on `needs_input`, answer the questions and re-run; on a plan failure, `/acs:create-impl-plan`
 ```
 
 Any assumption recorded during the run surfaces on the **Findings** line

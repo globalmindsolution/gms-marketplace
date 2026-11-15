@@ -213,21 +213,6 @@ class EvidenceConsumptionTest(EvidenceCase):
         self.assertTrue(verdict["gated"])
 
 
-class GateResponseTest(unittest.TestCase):
-    """AC-4: settings.hook_gates.when_absent resolution."""
-
-    def test_default_is_warn(self):
-        self.assertEqual(lib.gate_response({}), "warn")
-
-    def test_both_values_resolve(self):
-        self.assertEqual(lib.gate_response({"hook_gates": {"when_absent": "warn"}}), "warn")
-        self.assertEqual(lib.gate_response({"hook_gates": {"when_absent": "refuse"}}), "refuse")
-
-    def test_an_unrecognized_value_falls_back_to_warn(self):
-        self.assertEqual(
-            lib.gate_response({"hook_gates": {"when_absent": "explode"}}), "warn")
-
-
 class NoticeTest(EvidenceCase):
     """AC-2: the notice names every enforcement, and claims only absence of
     evidence -- never that the gate did not fire."""

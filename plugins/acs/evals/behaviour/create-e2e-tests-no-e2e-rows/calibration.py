@@ -11,7 +11,7 @@ import os
 
 SCRIPTS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                         "..", "..", "..", "hooks", "scripts"))
-CASES = "docs/tickets/EVAL-1/test-cases.md"
+CASES = "docs/development/customer-listing/EVAL-1/test-cases.md"
 SUITE = "tests/e2e/test_eval_1_page_cap.py"
 
 
@@ -67,7 +67,6 @@ def _retyped_a_case(ws):
     text = text.replace("e2e_cases: 0", "e2e_cases: 1").replace("| TC-1 | AC-1 | unit |",
                                                                 "| TC-1 | AC-1 | e2e |")
     ws.write(CASES, text)
-    ws.sh("git commit -qm 'EVAL-1 type TC-1 e2e' -- %s" % CASES)
     _finish(ws, "no_e2e_owed")
     ws.reply = REPLY
 

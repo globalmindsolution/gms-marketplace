@@ -15,7 +15,7 @@ import os
 import shutil
 import sys
 
-from ._common import (DELIVERY_TICKET_SKILLS, GateError, WorkflowError, now_iso,
+from ._common import (STANDALONE_RUN_SKILLS, GateError, WorkflowError, now_iso,
                       read_json, write_json)
 from .repo import (GuardTimeout, archive_dir, current_branch,
                    find_ticket_partition, index_path, repo_dir, sessions_dir)
@@ -24,7 +24,7 @@ from .tickets import update_index
 from .lock import release_lock
 from .step import STEP_STATUSES, STOP_REASONS
 from .derive import DERIVED_KEYS, derive_states, disagreements
-from . import derive, run as run_machine, sessions, step as step_machine, workflow
+from . import audit_report, derive, run as run_machine, sessions, step as step_machine, workflow
 
 # `gates` owns the context, the epic lookup and the workflow resolver, and it
 # imports this module's siblings rather than this module, so this is not a
@@ -218,6 +218,21 @@ _POST_GUARD_REPAIR = {
 }
 
 
+def _ticket_link_problems(ctx, doc):
+    """What is wrong with the PRD link of the ticket a run is over ([] when
+    sound, or when the run has no ticket to judge)."""
+    from . import prd_link
+    ticket_id = (doc.get("subject") or {}).get("ticket_id")
+    tdir = (find_ticket_partition(ctx["workspace"], ctx["repo_id"], ticket_id)[0]
+            if ticket_id else None)
+    ticket = load_ticket(tdir) if tdir and os.path.isdir(tdir) else None
+    if not ticket:
+        return []
+    return prd_link.check_link(ctx.get("checkout_root"), ticket.get("type"),
+                               ticket.get("features"), ticket.get("requirements"),
+                               ctx["settings"])
+
+
 def run_post(skill):
     """Entry point for post-<skill>.py: persist one step's outcome.
 
@@ -265,12 +280,32 @@ def run_post(skill):
         sys.exit(1)
     status = result["status"]
 
+    # An Audit skill's report follows its template (ADR-0123): a completed
+    # audit whose report breaks the contract is refused before anything is
+    # written, and the counts it carries are derived from it below.
+    audit_problems, audit_counts, _report = audit_report.derive(
+        rdir, skill, ctx.get("checkout_root"), ctx["plugin_root"])
+    if audit_problems and status == "completed":
+        sys.stderr.write("acs post-%s: the report does not follow its template: %s\n"
+                         % (skill, "; ".join(audit_problems)))
+        sys.exit(1)
+
+    # A ticket is made from the PRD (ADR-0144): a completed create-ticket run
+    # whose ticket does not link it soundly is refused, whatever the result says.
+    link_problems = _ticket_link_problems(ctx, doc) if (
+        skill == "create-ticket" and status == "completed") else []
+    if link_problems:
+        sys.stderr.write("acs post-%s: the ticket does not link the PRD: %s\n"
+                         % (skill, "; ".join(link_problems)))
+        sys.exit(1)
+
     try:
         derived, notes = derive_states(
             rdir, skill, result, settings=ctx["settings"], run_id=run_id,
             since=(step_machine.last_invocation(
                 step_machine.load_state(rdir, skill, run_id)) or {}).get("started_at"),
-            branch=(result.get("states") or {}).get("branch") or current_branch(cwd))
+            branch=(result.get("states") or {}).get("branch") or current_branch(cwd),
+            root=ctx.get("checkout_root"))
     except Exception as exc:  # noqa: BLE001
         # A derivation that cannot run degrades to "not derived", never to a
         # stranded step: it happens BEFORE the finalize below, so anything it
@@ -279,6 +314,11 @@ def run_post(skill):
         # running elsewhere" while the coordinator's result was lost.
         derived, notes = {}, {"__error__": "derivation failed (%r); no key was "
                                            "computed from artifacts" % exc}
+    if audit_counts:
+        audit = dict((result.get("states") or {}).get("audit") or {})
+        audit.update(audit_counts)
+        derived["audit"] = audit
+        notes["audit"] = "counted from the report's sections against its template"
     conflicts = disagreements(result.get("states") or {}, derived)
     if derived:
         result.setdefault("states", {}).update(derived)
@@ -302,7 +342,7 @@ def run_post(skill):
             % (skill, key, was, now, notes.get(key, "derived")))
 
     # The RUN transition, only for a step the workflow names. A skill invoked
-    # on its own -- `standardize-project`, the product skills -- has step state
+    # on its own -- the product skills -- has step state
     # but no position in a run, and I5 refuses a `steps` entry that the
     # workflow does not name. The two machines are separate, which is what
     # lets the invocation above be recorded either way.
@@ -312,9 +352,17 @@ def run_post(skill):
             summary=result.get("summary") or result.get("stop_reason"),
             stop_reason=result.get("stop_reason"),
             extra={"leg": result["leg"]} if result.get("leg") else None)
-    elif skill in DELIVERY_TICKET_SKILLS:
-        # The run exists only to carry this skill's delivery ticket; it ends
-        # when the skill does, and the pointer is cleared below with it.
+    elif skill in STANDALONE_RUN_SKILLS or not (
+            (doc.get("subject") or {}).get("ticket_id") or doc.get("driver")):
+        # ...and since ADR-0128 a ticketless run a design skill (create-api-contract,
+        # create-data-design, create-flows, create-tech-design) was invoked on with a prompt or
+        # documents: left open, its cursor would hand the next /acs:ship from
+        # this checkout `analyze-requirements` on requirements it never asked
+        # to deliver.
+        # The run `step start` opened over a ticketless skill's invocation (an
+        # audit, and since ADR-0127 the product skills) ends with it; a run
+        # that also carries workflow steps is left alone (the helper refuses
+        # one). The pointer is cleared below with it.
         doc = run_machine.conclude_standalone_run(rdir, skill, status)
 
     ticket_id = (doc.get("subject") or {}).get("ticket_id")
@@ -343,14 +391,6 @@ def run_post(skill):
         if ticket:
             if status == "completed":
                 if skill == "create-pr" and ticket.get("status") != "done":
-                    ticket["status"] = "in_review"
-                    save_ticket(tdir, ticket)
-                # A delivery-ticket skill opens its OWN PR, so a recorded
-                # `states.pr` from one moves the ticket to review just as
-                # create-pr does.
-                if (skill in DELIVERY_TICKET_SKILLS
-                        and recorded_pr
-                        and ticket.get("status") != "done"):
                     ticket["status"] = "in_review"
                     save_ticket(tdir, ticket)
                 if skill == "merge-pr":

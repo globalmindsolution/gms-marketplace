@@ -4,7 +4,7 @@ call-criticality classification and gh-only transport decision (AC-6).
 Prose-contract tests over the architecture doc set T3 amends/adds, mirroring
 the whitespace-normalized substring/regex discipline used elsewhere in this
 repo (tests/acs/test_ticket_id_reconciliation_docs.py,
-tests/acs/test_create_docs_skill.py): every assertion checks that a claim
+tests/acs/test_create_docs_skill.py, since removed by ADR-0124): every assertion checks that a claim
 from the design/plan is actually present in the shipped doc, never a
 line-number match (prose is revised; line numbers drift). Kept in its own
 module so T3's file map stays disjoint from T1's library-level tests
@@ -25,22 +25,23 @@ C4_CONTEXT = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-context.
 C4_CONTAINER = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-container.md")
 C4_COMPONENT = os.path.join(REPO_ROOT, "docs", "architecture", "hld", "c4-component.md")
 FLOW_DOC = os.path.join(
-    REPO_ROOT, "docs", "architecture", "lld", "flows", "github-call-failure-policy.md"
+    REPO_ROOT, "docs", "architecture", "lld", "acs", "flows", "github-call-failure-policy.md"
 )
 TICKET_LIFECYCLE = os.path.join(
-    REPO_ROOT, "docs", "architecture", "lld", "flows", "ticket-lifecycle.md"
+    REPO_ROOT, "docs", "architecture", "lld", "acs", "flows", "ticket-lifecycle.md"
 )
 SECURITY = os.path.join(REPO_ROOT, "docs", "requirements", "non-functional", "security.md")
 ADR_0088 = os.path.join(
     REPO_ROOT,
     "docs",
+    "architecture",
     "adr",
     "0088-gh-only-github-transport-and-criticality-classification.md",
 )
 ADR_0087 = os.path.join(
-    REPO_ROOT, "docs", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
+    REPO_ROOT, "docs", "architecture", "adr", "0087-ticket-id-allocation-fail-closed-reconciliation.md"
 )
-ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
+ADR_README = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
 CHANGELOG = os.path.join(REPO_ROOT, "plugins", "acs", "CHANGELOG.md")
 
 
@@ -142,7 +143,7 @@ class C4ComponentDocsTest(unittest.TestCase):
 
 
 class FailurePolicyFlowDocTest(unittest.TestCase):
-    """docs/architecture/lld/flows/github-call-failure-policy.md (new)."""
+    """docs/architecture/lld/acs/flows/github-call-failure-policy.md (new)."""
 
     def test_failure_policy_flow_doc_exists_and_is_a_sequence_diagram(self):
         self.assertTrue(os.path.isfile(FLOW_DOC), "%s must exist" % FLOW_DOC)
@@ -224,7 +225,7 @@ class SecurityDocsTest(unittest.TestCase):
     def test_gh_owns_auth_sentence_is_unchanged(self):
         self.assertIsNotNone(
             re.search(
-                r"(?i)which manage their own authentication.{0,10}gh auth login",
+                r"(?i)which manages its own authentication.{0,10}gh auth login",
                 self.norm,
             )
         )
@@ -294,7 +295,7 @@ class Adr0088Test(unittest.TestCase):
         body = read(ADR_README)
         self.assertIsNotNone(
             re.search(r"\[0088\]\(0088-[a-z0-9-]+\.md\)", body),
-            "docs/adr/README.md must index ADR-0088",
+            "docs/architecture/adr/README.md must index ADR-0088",
         )
         self.assertTrue(os.path.isfile(ADR_0088))
 

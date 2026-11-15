@@ -11,7 +11,7 @@
 #     plan-approval.py and /acs:code read; the planner subagent writes it with
 #     the Write tool, so there is no CLI writer for its bytes
 #   acs.py filemap set --skill code --iteration 1 (the map the guard enforces)
-#   the published copy in docs/tickets/EVAL-1/, committed on the ticket branch
+#   the published copy in docs/development/<feature>/EVAL-1/, left uncommitted on main
 #   post-create-impl-plan.py (finishes the step, releases the lock)
 # and then APPROVED the way a human approves it: `acs.py plan check`, the sole
 # writer of plan-approval.json, which hashes the plan's bytes. Nothing here
@@ -21,14 +21,14 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Track order status for shoppers" story false \
+ACS_FEATURES=order-tracking
+acs_ticket "Track order status for shoppers" story \
   "Orders move placed -> paid -> shipped -> delivered and never backwards; shoppers see a friendly label for each status."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["advance(order, status) moves an order one step forward: placed, paid, shipped, delivered", "advance refuses a backward or skipped transition with ValueError", "tracking_label(status) gives a shopper-facing label for every status an order can have"]}' \
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "story/EVAL-1-track-order-status-for-shoppers"
 draft="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Track order status for shoppers
@@ -83,7 +83,6 @@ by the review's final gate.
 ## Contract
 delivery_path: complex
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "library modules only; no HTTP surface and no browser flow in this change"
@@ -96,14 +95,12 @@ acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/orders.py --file tests/test_orders.py > /dev/null
 acs filemap set --skill code --iteration 1 --task 2 \
   --file src/shop/tracking.py --file tests/test_tracking.py > /dev/null
-mkdir -p docs/tickets/EVAL-1
-cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
+mkdir -p docs/development/order-tracking/EVAL-1
+cp "$draft" docs/development/order-tracking/EVAL-1/plan.md
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; two disjoint executor tasks and one seam",
- "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
+ "states": {"plan_path": "docs/development/order-tracking/EVAL-1/plan.md", "plan_approved": false,
             "file_map": {"1": ["src/shop/orders.py", "tests/test_orders.py"],
                          "2": ["src/shop/tracking.py", "tests/test_tracking.py"]}},
  "findings": [], "errors": []}

@@ -2,7 +2,7 @@
   pr-default — built-in PR description template (used by /create-pr and the
   product-level skills). Placeholders: {ticket_id}, {type}, {title}, {summary},
   {external_key}. Fill every section from workspace state (ticket.json, specs/,
-  design.md, code-state.json) — never from conversation memory.
+  tech-design.md, code-state.json) — never from conversation memory.
 -->
 ## Summary
 

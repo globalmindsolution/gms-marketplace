@@ -15,6 +15,6 @@ allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit, Agent]
 ---
 
 We set acs up in this repo with an old version a long time ago. Run the
-/acs:setup skill again and check everything is in order. Keep the default
-branch, commit and PR title formats and don't add any CI checks. Don't ask
+/acs:setup skill again and check everything is in order. Keep the
+default settings and don't add any CI checks. Don't ask
 me anything; tell me if anything in our config is out of date.

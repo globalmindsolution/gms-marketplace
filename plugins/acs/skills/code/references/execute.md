@@ -65,17 +65,21 @@ than one.
   single un-sliced implementer writes `iter-<n>/implementer.json`. The
   post-hook reads every `implementer*.json` of the iteration, so the per-slice
   reports are the join — nothing merges them by hand.
-- **The cap.** At most `max_parallel = 4` implementers per message. More
-  partitions than that run in waves of at most four, each wave one message,
+- **The cap.** At most `settings.parallel.max_agents` (default 4)
+  implementers per message — the leg's own smaller cap wins (`code-small` 2,
+  `code-trivial` 1). More partitions than that run in waves of that size, each
+  wave one message,
   the next wave spawned only once every slice of the previous one returned.
-- **One branch, one working tree.** Every slice commits on the run's branch.
-  An implementer stages and commits ONLY its own file map's paths, by name —
-  never `git add -A` or `git commit -a`, which would sweep up a sibling's work
-  in flight — and on `index.lock` contention it waits briefly and retries the
-  commit. Nothing is ever forced.
+- **One working tree, no git writes.** Every slice writes into the same
+  working tree, on whatever is checked out. An implementer writes ONLY its own
+  file map's paths and lists every one it changed in its report's
+  `files_changed`; no implementer stages, commits, switches a branch or pushes
+  (ADR-0127), so siblings never contend for the index. The join is the reports
+  plus the file-map guard — `/acs:create-pr` later turns each partition's
+  `files_changed` into its tests commit and its code commit.
 - **After the wave.** Every slice `completed` → the partition work is done. A
   slice that returned `needs_input` or `failed` does not undo its siblings'
-  green commits: resolve that slice (answer its questions, adjust its file
+  green work: resolve that slice (answer its questions, adjust its file
   map) and re-run THAT slice alone, under the same `k`.
 - **Then the seams — a join is not a synthesis.** Parallel slices can disagree
   where their partitions meet: a call site that crosses the boundary, a type
@@ -83,7 +87,7 @@ than one.
   implementer lists what it saw in its report's `seams` field. The integration
   slice, `slice="integration"`, is the one pass that reconciles them: ONE more
   implementer, spawned alone after every slice returned and before
-  `/acs:review-code`, given every slice's report and the union of their diffs.
+  `/acs:review-code`, given every slice's report and the union of their changes (`acs.py changes diff`).
   It reconciles ONLY the seams — never a slice's substance — returns
   `needs_input` with a question on a conflict the evidence cannot settle, and
   writes `iter-<n>/implementer-integration.json` listing each seam it changed
@@ -113,7 +117,7 @@ parallel) must, in order:
    plan: write one test per case, name the `TC-n` id in the test's docstring,
    and report any case you could not write as a `problems` entry rather than
    silently dropping it. When the Test plan names e2e flows
-   and `settings.e2e` is configured, the new/updated e2e tests are part of
+   and `settings.tests.e2e` is configured, the new/updated e2e tests are part of
    this step — same changeset, never a follow-up.
 2. **Implement** until the tests pass, iterating against the TARGETED set the
    plan's test strategy names for that implementer's file map — `plan.md` is
@@ -134,7 +138,7 @@ parallel) must, in order:
    The implementer also applies the **Simplicity First** and **Surgical
    Changes** authoring rules (see code-implementer.md Charter) throughout.
 3. **Coverage** is measured in the review's final gate, off that same run,
-   against `settings.test_coverage_percent`; implementers record
+   against `settings.tests.coverage`; implementers record
    `{"percent": null, "target": "measured in review"}`. When a spec's code
    genuinely cannot be covered (e.g. untestable generated code), the implementer
    says so in `problems` — that reason, not a number, is what you need for the
@@ -159,15 +163,25 @@ parallel) must, in order:
    intent content. When the changeset alters no factual item in prd.md or
    roadmap.md, this step is a no-op for those files.
 
+   **A factual edit is a new version.** prd.md and roadmap.md carry version
+   front matter (ADR-0122, ADR-0130). After a factual edit the implementer
+   runs `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design bump
+   [--ticket <id>] <the edited file>` once per edited file — version + 1,
+   re-opened as `proposed` for the team to approve again — and never edits
+   the front-matter block by hand. A file without a block is left without
+   one (its owner, `/acs:create-prd`, gives it its first); a `deprecated`
+   file is not edited at all — flag the stale claim in `problems` instead.
+
    **Boy-scout drift items — carried, never repaired here:** when the plan's
    `## Documentation map` names a doc section the plan's author found already
    disagreeing with the CURRENT code (its Boy-scout drift-repair survey), the
    implementer does NOT repair it in this step — it copies the item verbatim,
    with the cited doc section and `file:line` disagreement, into the
    implementer report's `problems` field, so `/acs:docs-sync` (which reads
-   every implementer report's `problems` as a mandatory input) repairs it on
-   the same branch/PR.
-5. **Commit** the spec's work on the ticket branch per
-   `formats.commit_message` (one or a few coherent commits per spec), staging
-   only the implementer's own paths by name; on `index.lock` contention, wait
-   briefly and retry. Never push, never force.
+   every implementer report's `problems` as a mandatory input) repairs it in
+   the same working tree before the PR.
+5. **Leave the work uncommitted and report it.** Every path the implementer
+   wrote stays an uncommitted change in the working tree and is listed in its
+   report's `files_changed` — tests and code alike, since `/acs:create-pr`
+   splits each partition into a tests commit and a code commit from that list.
+   Never stage, commit, switch a branch or push (ADR-0127).

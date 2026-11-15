@@ -2,7 +2,7 @@
 + extend to create-spec (reverses MAR-138 / ADR 0057's advisory carve-out).
 
 Prose-contract tests over the 8 producer `*-verifier.md` agents that declare
-an `audience_style_profile` (create-prd, create-architecture, create-design,
+an `audience_style_profile` (create-prd, create-architecture, create-tech-design,
 create-principles, create-standards, create-quality, create-operations,
 create-requirements): each carries an APPENDED, deterministic, blocking
 `structure` dimension (invokes structure_lint.py) and — after this change — a
@@ -12,8 +12,8 @@ register mismatch; a coordinator-recorded waiver via
 block). ADR 0057's advisory carve-out sentences ("except the advisory" /
 "except the sanctioned") are reversed in every producer charter.
 
-create-project stays N/A (AC-3) — locked here by a negative test.
-create-design/SKILL.md is unchanged (clarification C-1): it has no advisory
+create-project was N/A (AC-3) until ADR-0118 removed it.
+create-tech-design/SKILL.md is unchanged (clarification C-1): it has no advisory
 carve-out to reverse, only the `audience_style_profile` declaration, which
 stays.
 
@@ -32,7 +32,11 @@ Stdlib-only (re, os, unittest). Run:
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -42,12 +46,10 @@ DOCS = os.path.join(REPO_ROOT, "docs")
 
 HELPER_PATH = "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/structure_lint.py"
 
-CREATE_PROJECT_VERIFIER = os.path.join(AGENTS, "create-project-build-checker.md")
-CREATE_PROJECT_SKILL = os.path.join(SKILLS, "create-project", "SKILL.md")
-CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-design", "SKILL.md")
+CREATE_DESIGN_SKILL = os.path.join(SKILLS, "create-tech-design", "SKILL.md")
 
 ADR_0063 = os.path.join(
-    DOCS, "adr",
+    DOCS, "architecture", "adr",
     "0063-audience-style-verifier-dimension-advisory-to-blocking-create-spec.md")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 
@@ -58,7 +60,7 @@ VERIFIERS = {
         (
             "Required sections", "Feature -> goal traceability",
             "Measurable success metrics", "Prioritization discipline",
-            "Constraint consistency", "Roadmap coverage", "Plan conformance",
+            "Constraint consistency", "Feature index ↔ documents", "Plan conformance",
             "Amend-mode diff discipline", "Iteration 2+ regression check",
         ),
     ),
@@ -67,47 +69,26 @@ VERIFIERS = {
         (
             "doc-set-completeness", "prd-coverage", "codebase-match",
             "mermaid-diagrams", "internal-consistency",
-            "diagram-prose-agreement", "hld-lld-consistency",
+            "diagram-prose-agreement",
             "authoring-conformance", "docs-only-changeset",
         ),
     ),
-    "create-design-design-reviewer.md": (
+    "create-tech-design-reviewer.md": (
         "completeness",
         ("alternatives", "consistency", "feasibility", "nfr", "completeness"),
     ),
-    "create-docs-reviewer.md": (
-        "consistency",
-        (
-            "doc-set-completeness", "architecture-conformance",
-            "required-sections", "authoring-conformance", "docs-only-changeset",
-            "consistency",
-        ),
-    ),
-    "create-requirements-reviewer.md": (
-        "Interactive-confirm discipline",
-        (
-            "Required-file-presence", "Mode-conformance", "Authoring-conformance",
-            "Iteration 2+ regression check",
-            "Coverage (≥90%, 0 silent omissions)", "Citation (100%)",
-            "DRAFT marker", "No-fabrication",
-            "Functional/non-functional routing spot-check",
-            "Augment-only-absent / no-overwrite",
-            "Interactive-confirm discipline", "structure", "audience-style",
-        ),
-    ),
 }
 
-# every audience-style-gated verifier: the 5 producers (create-docs judges all four doc sets).
+# every audience-style-gated verifier: the producers above (ADR-0124 removed
+# create-docs, whose reviewer judged the four product doc sets).
 AUDIENCE_VERIFIERS = list(VERIFIERS)
 
 # SKILL.md name -> whether it uses per-file required_sections:<file> constraints.
-# The 7 MAR-138 prose skills whose declarations MAR-150 leaves untouched
-# (create-requirements declares its sections differently).
+# The MAR-138 prose skills whose declarations MAR-150 leaves untouched.
 SKILLS_MULTI_FILE = {
     "create-prd": False,
     "create-architecture": True,
-    "create-design": False,
-    "create-docs": True,
+    "create-tech-design": False,
 }
 
 
@@ -220,7 +201,7 @@ class AudienceStyleDimensionTest(unittest.TestCase):
 class CarveOutTest(unittest.TestCase):
     """AC-1: every ADR-0057 advisory carve-out sentence is reversed — neither
     "except the advisory" nor "except the sanctioned" survives in any producer
-    charter, and create-design's two former carve-out anchors now assert
+    charter, and create-tech-design's (then create-design's) two former carve-out anchors now assert
     blocking."""
 
     def test_no_advisory_carveout_anywhere(self):
@@ -233,12 +214,12 @@ class CarveOutTest(unittest.TestCase):
                                   "%s still carries an 'except the sanctioned' carve-out" % fname)
 
     def test_design_both_anchors_now_blocking(self):
-        # create-design carried the carve-out at TWO anchors (preamble +
+        # create-tech-design carried the carve-out at TWO anchors (preamble +
         # findings-format); both now assert audience-style blocks with the rest.
-        body = read(os.path.join(AGENTS, "create-design-design-reviewer.md"))
+        body = read(os.path.join(AGENTS, "create-tech-design-reviewer.md"))
         self.assertEqual(
             body.count("including the `audience-style` dimension"), 2,
-            "create-design must assert the audience-style dimension blocks at both anchors")
+            "create-tech-design must assert the audience-style dimension blocks at both anchors")
 
 
 class WaiverClauseTest(unittest.TestCase):
@@ -292,46 +273,22 @@ class DimensionListRegressionTest(unittest.TestCase):
 
 
 class DesignCompletenessDiagramUntouchedTest(unittest.TestCase):
-    """MAR-137 no-disturb: create-design dim 5's byte-pinned completeness
-    body is not disturbed by MAR-150's audience-style-only edits."""
+    """MAR-137 no-disturb: create-tech-design dim 5's completeness body is
+    not disturbed by MAR-150's audience-style-only edits. ADR-0135 moved the
+    runtime flows into the feature's LLD, so the dimension now checks the LLD
+    snapshots where it checked a sequence diagram per flow, and keeps the
+    Mermaid lint for any diagram the tech design quotes."""
 
     def test_completeness_core_text_survives(self):
-        body = read(os.path.join(AGENTS, "create-design-design-reviewer.md"))
+        body = read(os.path.join(AGENTS, "create-tech-design-reviewer.md"))
         block = dimension_block(body, "completeness")
         self.assertIn("all six required sections present and substantive", block)
         self.assertIn(
-            "A Mermaid `sequenceDiagram` exists for EVERY new\n"
-            "   or changed runtime flow named by the ticket and plan",
+            "`## LLD` holds\n"
+            "   `### API`, `### Data`, `### Flows` and `### Components`",
             block,
         )
-
-
-class CreateProjectNegativeTest(unittest.TestCase):
-    """AC-3: create-project is explicitly N/A — no structure dimension, no
-    audience-style dimension, no structure_lint.py reference, and its SKILL.md
-    declares neither required_sections nor audience_style_profile."""
-
-    def test_verifier_has_no_structure_lint_reference(self):
-        body = read(CREATE_PROJECT_VERIFIER)
-        self.assertNotIn("structure_lint.py", body)
-
-    def test_verifier_has_no_structure_or_audience_style_dimension(self):
-        body = read(CREATE_PROJECT_VERIFIER)
-        self.assertFalse(dimension_present(body, "structure"))
-        self.assertFalse(dimension_present(body, "audience-style"))
-
-    def test_all_eleven_pre_existing_dimensions_untouched(self):
-        body = read(CREATE_PROJECT_VERIFIER)
-        for label in ("build", "lint", "tests", "coverage-tooling", "vertical-slice",
-                       "layout", "tech-stack", "ci", "pre-commit", "repo-hygiene",
-                       "plan-conformance"):
-            with self.subTest(dimension=label):
-                self.assertTrue(dimension_present(body, label))
-
-    def test_skill_declares_neither_constraint(self):
-        body = read(CREATE_PROJECT_SKILL)
-        self.assertNotIn("required_sections", body)
-        self.assertNotIn("audience_style_profile", body)
+        self.assertIn("mermaid_lint.py", block)
 
 
 class SkillDeclarationTest(unittest.TestCase):
@@ -342,7 +299,7 @@ class SkillDeclarationTest(unittest.TestCase):
     def test_required_sections_declared(self):
         for skill, multi in SKILLS_MULTI_FILE.items():
             with self.subTest(skill=skill):
-                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
+                body = skill_text.skill_contract(skill)
                 names = re.findall(r'name="required_sections(:[^"]+)?"', body)
                 self.assertTrue(names, "%s/SKILL.md declares no required_sections constraint"
                                  % skill)
@@ -357,7 +314,7 @@ class SkillDeclarationTest(unittest.TestCase):
     def test_audience_style_profile_declared_non_empty(self):
         for skill in SKILLS_MULTI_FILE:
             with self.subTest(skill=skill):
-                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
+                body = skill_text.skill_contract(skill)
                 m = re.search(r'<constraint name="audience_style_profile">([^<]+)</constraint>',
                                body)
                 self.assertIsNotNone(m, "%s/SKILL.md declares no audience_style_profile" % skill)
@@ -366,7 +323,7 @@ class SkillDeclarationTest(unittest.TestCase):
     def test_both_referenced_in_verify_phase_region(self):
         for skill in SKILLS_MULTI_FILE:
             with self.subTest(skill=skill):
-                body = read(os.path.join(SKILLS, skill, "SKILL.md"))
+                body = skill_text.skill_contract(skill)
                 region = verify_phase_region(body, skill)
                 self.assertIn("required_sections", region,
                                "%s: verify-phase region does not mention required_sections"
@@ -377,17 +334,17 @@ class SkillDeclarationTest(unittest.TestCase):
 
 
 class CreateDesignSkillGroundingTest(unittest.TestCase):
-    """AC-1 / clarification C-1: create-design/SKILL.md carries no audience-style
+    """AC-1 / clarification C-1: create-tech-design/SKILL.md carries no audience-style
     advisory carve-out to reverse (no `severity="info"` audience language) — its
     `audience_style_profile` declaration stays; the flip lives in the verifier
     charters, not this SKILL."""
 
     def test_skill_has_no_info_severity_carveout(self):
-        body = read(CREATE_DESIGN_SKILL)
+        body = skill_text.skill_contract("create-tech-design")
         self.assertNotIn('severity="info"', body)
 
     def test_skill_retains_profile_declaration(self):
-        body = read(CREATE_DESIGN_SKILL)
+        body = skill_text.skill_contract("create-tech-design")
         self.assertIn("audience_style_profile", body)
 
 

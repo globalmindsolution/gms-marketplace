@@ -16,7 +16,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Cap the customer page size at 100" task false \
+acs_ticket "Cap the customer page size at 100" task \
   "list_customers must refuse a limit above 100 with ValueError; 100 itself is allowed."
 acs_local_origin
 
@@ -56,7 +56,8 @@ python3 "$ACS_SCRIPTS/acs.py" step start --step code --ticket EVAL-1 > /dev/null
 cat > "$run/steps/code/result.json" <<JSON
 {"status": "completed", "outcome": "implemented",
  "summary": "list_customers refuses a limit above MAX_PAGE_SIZE", "iteration": 1,
- "states": {"branch": "$branch", "tasks_implemented": ["01-page-size-cap"],
+ "states": {"specs_implemented": ["01-page-size-cap"],
+            "files": ["src/shop/__init__.py", "tests/test_customers.py"],
             "tests": {"passed": 2, "failed": 0}, "docs_updated": []},
  "findings": [], "errors": []}
 JSON

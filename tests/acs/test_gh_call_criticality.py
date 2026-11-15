@@ -23,6 +23,7 @@ from acs_lib import (  # noqa: E402
     GH_ACCESS_DENIED_MARKER,
     GH_ACCESS_HINT,
     GH_GENERIC_HINT,
+    GH_GRAPHQL_HINT,
     gh_failure_hint,
 )
 
@@ -50,6 +51,12 @@ class GhFailureHintTest(unittest.TestCase):
     def test_unrelated_stderr_selects_the_generic_hint(self):
         stderr = "gh: could not resolve host: github.com"
         self.assertEqual(gh_failure_hint(stderr), GH_GENERIC_HINT)
+
+    def test_graphql_refusal_selects_the_rest_hint(self):
+        stderr = ("HTTP 403: GitHub GraphQL is not available from Claude Code "
+                  "sessions; use the REST API (https://api.github.com/graphql)")
+        self.assertEqual(gh_failure_hint(stderr), GH_GRAPHQL_HINT)
+        self.assertIn("gh api", GH_GRAPHQL_HINT)
 
     def test_empty_and_none_stderr_return_the_generic_hint_without_raising(self):
         self.assertEqual(gh_failure_hint(""), GH_GENERIC_HINT)

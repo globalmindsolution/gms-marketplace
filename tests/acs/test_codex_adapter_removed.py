@@ -25,10 +25,10 @@ SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 #: Where a reference is a record of the deletion rather than a live pointer.
 HISTORY = (
     os.path.join(PLUGIN, "CHANGELOG.md"),
-    os.path.join(REPO_ROOT, "docs", "adr"),
-    os.path.join(REPO_ROOT, "docs", "architecture", "lld",
+    os.path.join(REPO_ROOT, "docs", "architecture", "adr"),
+    os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "MAR-4",
                  "runtime-coupling-inventory.md"),
-    os.path.join(REPO_ROOT, "docs", "architecture", "lld",
+    os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "MAR-4",
                  "runtime-coupling-inventory.evidence.md"),
     os.path.join(REPO_ROOT, "docs", "product"),
     os.path.join(REPO_ROOT, "tests", "acs", "test_codex_adapter_removed.py"),

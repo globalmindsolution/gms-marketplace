@@ -87,7 +87,8 @@ class DetectTest(WizardCase):
     def test_it_reports_the_ignore_state_before_anything_is_written(self):
         out = setup_wizard.detect(self.repo)
         self.assertEqual(out["ignored"], {".acs/settings.local.json": False,
-                                          ".acs/state-machine/": False})
+                                          ".acs/state-machine/": False,
+                                          ".claude/worktrees/": False})
 
     def test_it_names_the_files_a_broad_rule_would_swallow(self):
         with open(os.path.join(self.repo, ".gitignore"), "w", encoding="utf-8") as fh:
@@ -247,12 +248,12 @@ class RefusalTest(WizardCase):
         runner exits 1 on every PR because there is no command to run."""
         out = self.apply({"settings": {}, "ci": ["tests"]})
         self._nothing_written(out)
-        self.assertTrue(any("tests.command" in e for e in out["errors"]), out["errors"])
+        self.assertTrue(any("tests.unit.command" in e for e in out["errors"]), out["errors"])
 
     def test_an_e2e_gate_without_a_suite_is_refused(self):
         out = self.apply({"settings": {}, "ci": ["e2e"]})
         self._nothing_written(out)
-        self.assertTrue(any("suites.e2e.command" in e for e in out["errors"]), out["errors"])
+        self.assertTrue(any("tests.e2e.command" in e for e in out["errors"]), out["errors"])
 
     def test_a_tests_command_ci_cannot_read_does_not_count(self):
         """CI reads only the committed project file, so a command that lives
@@ -260,30 +261,10 @@ class RefusalTest(WizardCase):
         local = os.path.join(self.repo, ".acs", "settings.local.json")
         os.makedirs(os.path.dirname(local))
         with open(local, "w", encoding="utf-8") as fh:
-            json.dump({"tests": {"command": "pytest"}}, fh)
+            json.dump({"tests": {"unit": {"command": "pytest"}}}, fh)
         out = self.apply({"settings": {}, "ci": ["tests"]})
         self.assertFalse(out["ok"])
         self.assertFalse(os.path.exists(os.path.join(self.repo, ".github")))
-
-    def test_an_invalid_format_is_refused_before_anything_is_written(self):
-        """It was written to .acs/settings.json and only then validated, so
-        the run reported ok:false and left a file that made every other acs
-        skill refuse to start until someone edited it by hand."""
-        for formats in ({"branch_name": "{type}/{slug}"}, {"pr_title": "{nope} {title}"}):
-            with self.subTest(formats=formats):
-                out = self.apply({"settings": {"formats": formats}, "ci": ["conventions"]})
-                self._nothing_written(out)
-
-    def test_an_invalid_format_leaves_an_existing_file_untouched(self):
-        path = os.path.join(self.repo, ".acs", "settings.json")
-        os.makedirs(os.path.dirname(path))
-        original = '{\n  "ticket_prefix": "SHOP"\n}\n'
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(original)
-        out = self.apply({"settings": {"formats": {"branch_name": "{slug}"}}})
-        self.assertFalse(out["ok"])
-        with open(path, encoding="utf-8") as fh:
-            self.assertEqual(fh.read(), original)
 
     def test_a_re_run_adds_no_duplicate_to_either_layer(self):
         """The .gitignore write is guarded by git itself; the exclude append
@@ -333,33 +314,33 @@ class SettingsWriteTest(WizardCase):
         self.assertEqual(after["merge_strategy"], "rebase")
 
     def test_a_nested_object_is_merged_not_replaced(self):
-        """A run that sets tracker.provider must not drop the tracker.github
-        block a previous run wrote."""
+        """A run that sets one tracker key must not drop the tracker.provider
+        and tracker.github block a previous run wrote."""
         self.apply(self.answers(settings={"tracker": {"provider": "github",
                                                       "github": {"owner": "acme"}}}))
-        self.apply(self.answers(settings={"tracker": {"provider": "jira"}}))
+        self.apply(self.answers(settings={"tracker": {"note": "kept"}}))
         tracker = json.loads(self.read(".acs", "settings.json"))["tracker"]
-        self.assertEqual(tracker["provider"], "jira")
+        self.assertEqual(tracker["provider"], "github")
+        self.assertEqual(tracker["note"], "kept")
         self.assertEqual(tracker["github"], {"owner": "acme"})
 
     def test_a_value_equal_to_its_default_is_never_written(self):
         out = self.apply(self.answers(settings={
             "ticket_prefix": "SHOP", "merge_strategy": "squash",
-            "formats": {"branch_name": lib.DEFAULT_SETTINGS["formats"]["branch_name"],
-                        "pr_title": "{ticket_id}: {title}"}}))
+            "workflow": {"advisories": lib.DEFAULT_SETTINGS["workflow"]["advisories"],
+                         "extra": 1}}))
         doc = json.loads(self.read(".acs", "settings.json"))
-        self.assertEqual(doc, {"ticket_prefix": "SHOP",
-                               "formats": {"pr_title": "{ticket_id}: {title}"}})
+        self.assertEqual(doc, {"ticket_prefix": "SHOP", "workflow": {"extra": 1}})
         self.assertIn("merge_strategy", out["defaulted"])
-        self.assertIn("formats.branch_name", out["defaulted"])
+        self.assertIn("workflow.advisories", out["defaulted"])
 
     def test_choosing_the_default_again_removes_an_earlier_value(self):
         """Otherwise the stale value would silently override the choice just
         made -- the file would say rebase while the user picked the default."""
         self.apply(self.answers(settings={"ticket_prefix": "SHOP", "merge_strategy": "rebase",
-                                          "formats": {"pr_title": "{ticket_id}: {title}"}}))
+                                          "workflow": {"advisories": False}}))
         self.apply(self.answers(settings={"merge_strategy": "squash",
-                                          "formats": {"pr_title": lib.DEFAULT_SETTINGS["formats"]["pr_title"]}}))
+                                          "workflow": {"advisories": True}}))
         doc = json.loads(self.read(".acs", "settings.json"))
         self.assertEqual(doc, {"ticket_prefix": "SHOP"})
 
@@ -403,7 +384,8 @@ class IgnoreTest(WizardCase):
         with open(os.path.join(self.repo, ".gitignore"), "w", encoding="utf-8") as fh:
             fh.write(".acs/\n")
         out = self.apply()
-        self.assertEqual(self.read(".gitignore"), ".acs/\n")
+        # `.acs/` covers both acs entries; only the worktrees entry is added.
+        self.assertEqual(self.read(".gitignore"), ".acs/\n.claude/worktrees/\n")
         self.assertTrue(any("already ignored" in line for line in out["unchanged"]))
 
     def test_a_missing_trailing_newline_cannot_glue_the_entry_on(self):
@@ -421,20 +403,111 @@ class IgnoreTest(WizardCase):
         joined = " | ".join(out["warnings"])
         self.assertIn(".acs/settings.json", joined)
         self.assertIn("narrow the rule", joined)
-        self.assertEqual(self.read(".gitignore"), ".acs/\n")
+        self.assertEqual(self.read(".gitignore"), ".acs/\n.claude/worktrees/\n")
+
+
+class ClaudePermissionsTest(WizardCase):
+    """The opt-in question: acs's permission rules in .claude/settings.json
+    (team), .claude/settings.local.json (me), or nowhere (skip)."""
+
+    def allow(self, name):
+        return json.loads(self.read(".claude", name))["permissions"]["allow"]
+
+    def allow_write(self):
+        doc = json.loads(self.read(".claude", "settings.local.json"))
+        return doc["sandbox"]["filesystem"]["allowWrite"]
+
+    def state_root(self):
+        return os.path.join(self.repo, ".acs", "state-machine")
+
+    def test_detect_offers_the_rules_verbatim(self):
+        out = setup_wizard.detect(self.repo)["claude_permissions"]
+        self.assertEqual(out["rules"], list(lib.claude_permissions.RULES))
+        self.assertEqual(out["team"]["present"], [])
+        self.assertEqual(out["sandbox_rule"]["path"], self.state_root())
+        self.assertFalse(out["sandbox_rule"]["present"])
+
+    def test_no_answer_or_skip_writes_no_claude_file(self):
+        for answers in (self.answers(), self.answers(claude_permissions="skip")):
+            out = self.apply(answers)
+            self.assertTrue(out["ok"], out["errors"])
+            self.assertIsNone(out["claude_permissions"])
+            self.assertFalse(os.path.exists(os.path.join(self.repo, ".claude")))
+
+    def test_team_writes_the_shared_file_and_stages_it(self):
+        out = self.apply(self.answers(claude_permissions="team"))
+        self.assertTrue(out["ok"], out["errors"])
+        self.assertEqual(self.allow("settings.json"), list(lib.claude_permissions.RULES))
+        self.assertEqual(out["claude_permissions"]["added"], list(lib.claude_permissions.RULES))
+        self.assertIn(os.path.join(".claude", "settings.json"), out["stage_for_commit"])
+        # The sandbox write rule is machine-specific: the local file, ignored
+        # and never staged, even when the team chose the shared file.
+        self.assertEqual(self.allow_write(), [self.state_root()])
+        self.assertNotIn("sandbox", json.loads(self.read(".claude", "settings.json")))
+        self.assertIn(".claude/settings.local.json", self.read(".gitignore").splitlines())
+        self.assertNotIn(os.path.join(".claude", "settings.local.json"), out["stage_for_commit"])
+        self.assertTrue([c for c in out["changed"] if "sandbox write rule" in c], out["changed"])
+        again = self.apply(self.answers(claude_permissions="team"))
+        self.assertEqual(again["claude_permissions"]["added"], [])
+        self.assertEqual(again["claude_permissions"]["sandbox"]["added"], [])
+        self.assertNotIn(os.path.join(".claude", "settings.json"), again["stage_for_commit"])
+
+    def test_user_writes_the_local_file_and_ignores_it_in_both_layers(self):
+        out = self.apply(self.answers(claude_permissions="user"))
+        self.assertTrue(out["ok"], out["errors"])
+        self.assertEqual(self.allow("settings.local.json"), list(lib.claude_permissions.RULES))
+        self.assertEqual(self.allow_write(), [self.state_root()])
+        self.assertEqual(out["claude_permissions"]["sandbox"]["added"], [self.state_root()])
+        self.assertNotIn(os.path.join(".claude", "settings.local.json"), out["stage_for_commit"])
+        self.assertIn(".claude/settings.local.json", self.read(".gitignore").splitlines())
+        self.assertIn(".claude/settings.local.json",
+                      self.read(".git", "info", "exclude").splitlines())
+        self.assertTrue(setup_wizard.detect(self.repo)["claude_permissions"]["user"]["ignored"])
+
+    def test_an_already_ignored_local_file_adds_no_gitignore_line(self):
+        with open(os.path.join(self.repo, ".gitignore"), "w", encoding="utf-8") as fh:
+            fh.write(".claude/*.local.json\n")
+        self.apply(self.answers(claude_permissions="user"))
+        self.assertNotIn(".claude/settings.local.json", self.read(".gitignore").splitlines())
+
+    def test_dry_run_reports_and_writes_nothing(self):
+        out = self.apply(self.answers(claude_permissions="team"), dry_run=True)
+        self.assertEqual(out["claude_permissions"]["added"], list(lib.claude_permissions.RULES))
+        self.assertTrue([c for c in out["changed"] if "permission rules" in c], out["changed"])
+        self.assertEqual(out["claude_permissions"]["sandbox"]["added"], [self.state_root()])
+        self.assertTrue([c for c in out["changed"] if "sandbox write rule" in c], out["changed"])
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".claude")))
+
+    def test_an_unknown_answer_is_refused_and_nothing_is_written(self):
+        out = self.apply({"settings": {"ticket_prefix": "SHOP"}, "claude_permissions": "all"})
+        RefusalTest._nothing_written(self, out)
+        self.assertTrue(any("team, user or skip" in e for e in out["errors"]), out["errors"])
+        self.assertFalse(os.path.exists(os.path.join(self.repo, ".claude")))
+        self.assertTrue(setup_wizard.validate_answers({"claude_permissions": ["team"]}))
+        self.assertEqual(setup_wizard.validate_answers({"claude_permissions": "user"}), [])
+
+    def test_a_file_it_cannot_merge_into_is_refused_untouched(self):
+        os.makedirs(os.path.join(self.repo, ".claude"))
+        with open(os.path.join(self.repo, ".claude", "settings.json"), "w") as fh:
+            fh.write("{oops")
+        out = self.apply(self.answers(claude_permissions="team"))
+        RefusalTest._nothing_written(self, out)
+        self.assertEqual(self.read(".claude", "settings.json"), "{oops")
 
 
 class CiInstallTest(WizardCase):
 
-    TESTS = {"tests": {"command": "python3 -m pytest -q --cov-fail-under=$ACS_COVERAGE"}}
-    E2E = {"suites": {"e2e": {"command": "npx playwright test"}}}
+    UNIT = {"command": "python3 -m pytest -q --cov-fail-under=$ACS_COVERAGE"}
+    TESTS = {"tests": {"unit": UNIT}}
+    E2E = {"command": "npx playwright test"}
 
     def test_each_install_copies_its_files_and_its_workflow(self):
         out = self.apply(self.answers(ci=["conventions", "tests"],
                                       settings=dict(self.TESTS, ticket_prefix="SHOP")))
-        for name in ("check-conventions.py", "commit-msg", "pre-push",
-                     "install-hooks.sh", "run-tests.py"):
+        for name in ("check-conventions.py", "run-tests.py"):
             self.assertTrue(os.path.exists(os.path.join(self.repo, ".acs", "ci", name)), name)
+        for gone in ("commit-msg", "pre-push", "install-hooks.sh"):
+            self.assertFalse(os.path.exists(os.path.join(self.repo, ".acs", "ci", gone)), gone)
         for workflow in ("acs-conventions.yml", "acs-tests.yml"):
             self.assertTrue(os.path.exists(
                 os.path.join(self.repo, ".github", "workflows", workflow)), workflow)
@@ -463,7 +536,7 @@ class CiInstallTest(WizardCase):
         self.assertNotIn("# tampered", open(path, encoding="utf-8").read())
 
     def test_the_required_check_contexts_come_back_for_branch_protection(self):
-        settings = dict(self.TESTS, ticket_prefix="SHOP", **self.E2E)
+        settings = {"ticket_prefix": "SHOP", "tests": {"unit": self.UNIT, "e2e": self.E2E}}
         out = self.apply(self.answers(ci=["conventions", "tests", "e2e"], settings=settings))
         self.assertEqual(out["required_check_contexts"],
                          ["Branch / PR / commit conventions", "Tests & coverage", "E2E suite"])
@@ -508,6 +581,31 @@ class NextStepsTest(WizardCase):
         self.assertIn("/acs:review-code", steps)
         self.assertEqual(pipeline[len(setup_wizard.PIPELINE_ORDER):-1], steps)
         self.assertEqual(pipeline[-1], "/acs:merge-pr")
+
+    def test_the_design_phase_runs_in_its_order_before_delivery(self):
+        """ADR-0134 moved create-api-contract out of ship.yaml into Design,
+        whose order is architecture, api contract, data design, flows,
+        tech design (ADR-0135) -- so the suggested pipeline still names it, once, there."""
+        pipeline = setup_wizard.render_next_steps(False, self.repo)["pipeline"]
+        design = ["/acs:create-architecture", "/acs:create-api-contract",
+                  "/acs:create-data-design", "/acs:create-flows", "/acs:create-tech-design"]
+        positions = [pipeline.index(step) for step in design]
+        self.assertEqual(positions, sorted(positions))
+        self.assertEqual(pipeline.count("/acs:create-api-contract"), 1)
+        self.assertLess(positions[-1], pipeline.index("/acs:analyze-requirements"))
+
+    def test_breakdown_ticket_closes_the_order_before_delivery(self):
+        """ADR-0138: an epic is broken down once its tech design is approved, so
+        /acs:breakdown-ticket follows /acs:create-tech-design and the delivery
+        steps follow it."""
+        self.assertEqual(setup_wizard.PIPELINE_ORDER[-2:],
+                         ("create-tech-design", "breakdown-ticket"))
+        pipeline = setup_wizard.render_next_steps(False, self.repo)["pipeline"]
+        at = pipeline.index("/acs:breakdown-ticket")
+        self.assertEqual(pipeline[at - 1], "/acs:create-tech-design")
+        self.assertEqual(pipeline[at + 1:-1],
+                         ["/acs:%s" % s for s in setup_wizard.delivery_steps(self.repo)])
+        self.assertEqual(pipeline.count("/acs:breakdown-ticket"), 1)
 
     def test_a_repo_override_is_what_gets_suggested(self):
         override = os.path.join(self.repo, ".acs", "workflows", "ship.yaml")
@@ -581,15 +679,19 @@ class SkillShapeTest(unittest.TestCase):
     def test_the_conversation_is_not(self):
         """Everything a user is told stays: the offers, their defaults, what
         declining costs, and the trade-offs no command can make."""
-        for kept in ("ticket_prefix", "formats.branch_name", "formats.commit_message",
-                     "formats.pr_title", "What declining costs", "suites.e2e",
+        for kept in ("ticket_prefix", "What declining costs", "tests.e2e",
                      "Completion report (normative)"):
             self.assertIn(kept, self.body, kept)
+        for gone in ("formats.", "enforcement.", "install-hooks", "commit-msg", "pre-push"):
+            self.assertNotIn(gone, self.body, gone)
 
     def test_setup_configures_conventions_and_ci_only(self):
         """What setup no longer does: write a CLAUDE.md block, set the status
-        line, pick a scope, or ask about models, tracker or doc locations.
-        Those keep their defaults until someone edits the file by hand."""
+        line, pick a scope, or ask about models or the tracker. Those keep
+        their defaults until someone edits the file by hand. (The doc folders
+        and the share default came back as answers in ADR-0132: setup shows
+        and changes them through `acs.py docs where|decide` -- pinned in
+        test_doc_share_skills.)"""
         for gone in ("CLAUDE.acs.md", "claude_md", "status_line", "statusLine",
                      "### models", "Recommended (default)", "### Optional settings",
                      "| `workspace_path` |", "**Scope**"):

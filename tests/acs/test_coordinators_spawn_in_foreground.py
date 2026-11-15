@@ -91,7 +91,7 @@ class CoordinatorsSpawnInForegroundTest(unittest.TestCase):
                       "the reviewer spawns lenses and adjudicators; the rule "
                       "applies to it word for word")
         for skill, body in sorted(self.spawning.items()):
-            if skill in ("ship", "release", "create-ticket", "create-pr", "merge-pr"):
+            if skill in ("ship", "release", "create-pr", "merge-pr"):
                 continue  # no reflection-loop spawn of their own, or an optional inline executor
             self.assertIn(RULE, body, skill)
             self.assertIn("`run_in_background: false`", body, skill)

@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
-ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "adr")
 
 
 def read(path):
@@ -52,19 +52,21 @@ class ContractsMdSettingsKeyListTest(unittest.TestCase):
     must not name them and states that no key locates a document."""
 
     def _contracts(self):
-        return read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md"))
+        # The Settings section of the old contracts.md is lld/acs/api/settings.md.
+        return read(os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api",
+                                 "settings.md"))
 
-    def test_settings_key_list_has_suites_and_e2e_alias_note(self):
+    def test_settings_key_list_has_tests_map_and_removed_suites_e2e_note(self):
         body = self._contracts()
         window = section(body, "## Settings (consumer repo)")
-        self.assertIn("suites", window,
-                      "contracts.md's settings-key list must gain `suites`")
-        m = re.search(r"e2e", window)
-        self.assertIsNotNone(m, "contracts.md must still mention `e2e`")
-        after = window[m.start():m.start() + 300]
+        self.assertIn("`tests` is `{coverage?, unit?, e2e?, <name>?}`", window,
+                      "contracts.md's settings-key list must describe the `tests` map")
+        self.assertIn("named suite", window)
+        self.assertIn("`tests.e2e`", window,
+                      "contracts.md must name the end-to-end suite `tests.e2e`")
+        m = re.search(r"top-level `test_coverage_percent`, `suites` and `e2e` keys are gone", " ".join(window.split()))
         self.assertIsNotNone(
-            re.search(r"(?i)deprecated|alias", after),
-            "contracts.md must note `e2e` is a deprecated alias near its mention")
+            m, "contracts.md must note the old top-level `suites`/`e2e` keys are gone")
 
     def test_settings_key_list_names_no_document_path_key(self):
         """Boy-scout repair, inverted: MAR-114 added the missing
@@ -91,30 +93,29 @@ class ConfigurationMdKeysTableTest(unittest.TestCase):
     def _configuration(self):
         return read(os.path.join(REPO_ROOT, "docs", "requirements", "functional", "configuration.md"))
 
-    def test_suites_row_exists_and_mentions_e2e_and_test_consumer(self):
+    def test_tests_row_exists_and_mentions_e2e_and_test_consumer(self):
         body = self._configuration()
-        m = re.search(r"(?m)^\|\s*`suites`\s*\|.*$", body)
-        self.assertIsNotNone(m, "configuration.md must have a `| `suites` |` row")
+        m = re.search(r"(?m)^\|\s*`tests`\s*\|.*$", body)
+        self.assertIsNotNone(m, "configuration.md must have a `| `tests` |` row")
         row = m.group(0)
+        self.assertIn("object", row)
+        self.assertIn("unset", row)
         self.assertIsNotNone(
             re.search(r"(?i)e2e", row),
-            "the suites row must mention e2e (the auto-populated reserved name)")
-        self.assertIsNotNone(
-            re.search(r"(?i)`?/?acs:test`?|\btest\b", row),
-            "the suites row must reference /acs:test (or 'test') as a consumer")
+            "the tests row must mention e2e (the end-to-end suite)")
+        self.assertIn("named suite", row)
+        self.assertIn("/acs:run-e2e-tests", row,
+                      "the tests row must reference /acs:run-e2e-tests as the suite consumer")
 
-    def test_e2e_row_deprecated_but_shape_preserved(self):
+    def test_removed_keys_row_names_suites_and_e2e(self):
         body = self._configuration()
-        m = re.search(r"(?m)^\|\s*`e2e`\s*\|.*$", body)
-        self.assertIsNotNone(m, "configuration.md must still have a `| `e2e` |` row")
-        row = m.group(0)
+        m = re.search(r"(?m)^\|\s*`test_coverage_percent`, `suites`, top-level `e2e`.*$", body)
         self.assertIsNotNone(
-            re.search(r"(?i)deprecated|alias", row),
-            "the e2e row's description must note deprecation/alias status")
-        self.assertIn("object", row,
-                      "the e2e row's Type column ('object') must be unchanged")
-        self.assertIn("unset", row,
-                      "the e2e row's Default column ('unset') must be unchanged")
+            m, "configuration.md must have a row for the removed top-level keys")
+        row = m.group(0)
+        self.assertIn("**Removed.**", row)
+        self.assertIn("`tests.e2e`", row)
+        self.assertIn("settings migrate", row)
 
 
 class SkillsMdCountAndTestSectionTest(unittest.TestCase):

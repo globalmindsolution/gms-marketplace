@@ -53,7 +53,7 @@ cd plugins/acs && claude plugin eval . --case route-code --runs 1 --ablation non
 ### Reproducing the *Tests & coverage* gate locally
 
 The required `Tests & coverage` check runs the exact command committed at
-`.acs/settings.json`'s `tests.command`. The floor itself, its exclusions, and
+`.acs/settings.json`'s `tests.unit.command`. The floor itself, its exclusions, and
 the escalation path are the normative subject of
 [docs/quality/coverage-policy.md](docs/quality/coverage-policy.md) — this
 section only covers reproducing the gate locally. Measurement now depends on a
@@ -68,10 +68,10 @@ above:
    python3 -m pip install "coverage>=7.14.2"
    ```
 2. `export ACS_COVERAGE=90` — CI's runner exports this from
-   `settings.test_coverage_percent` (this repo's `.acs/settings.json` sets
+   `tests.coverage` (this repo's `.acs/settings.json` sets
    no override, so the schema default of `90` applies). Without it,
    `--fail-under` receives an empty argument locally.
-3. The gate itself, byte-identical to the committed `tests.command`:
+3. The gate itself, byte-identical to the committed `tests.unit.command`:
    ```bash
    export ACS_COV_ROOT=$PWD COVERAGE_PROCESS_START=$PWD/.coveragerc; python3 -m coverage run -m unittest discover -s tests && python3 -m coverage combine && python3 -m coverage report --fail-under=$ACS_COVERAGE
    ```

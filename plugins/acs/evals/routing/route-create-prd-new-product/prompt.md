@@ -9,4 +9,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-We are starting a new product for independent bookshops. Before any tickets, write down the vision, who it is for, the goals with success metrics, and a first roadmap.
+We are starting a new product for independent bookshops. Before any tickets, write down the vision, who it is for, the goals with success metrics, and which features matter most.

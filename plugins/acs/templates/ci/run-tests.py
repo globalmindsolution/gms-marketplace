@@ -8,7 +8,7 @@ runs the optional setup then the command, and exits with the command's status.
 
 Coverage is the command's responsibility — delegate to the tool, e.g.
 `pytest --cov --cov-fail-under=$ACS_COVERAGE`. acs exports ACS_COVERAGE
-(= settings.test_coverage_percent) into the environment so the command can
+(= settings.tests.coverage) into the environment so the command can
 reference it. A failing suite OR a coverage shortfall fails the check.
 """
 
@@ -35,16 +35,17 @@ def main():
         fail("cannot read %s: %s" % (SETTINGS, exc))
 
     tests = settings.get("tests")
-    if not isinstance(tests, dict) or not tests.get("command"):
-        fail("no `tests.command` in %s — re-run /acs:setup and enable the tests "
+    unit = tests.get("unit") if isinstance(tests, dict) else None
+    if not isinstance(unit, dict) or not unit.get("command"):
+        fail("no `tests.unit.command` in %s — re-run /acs:setup and enable the tests "
              "CI gate (the command must run the suite and fail on coverage "
              "shortfall)." % SETTINGS)
 
-    coverage = settings.get("test_coverage_percent", 90)
+    coverage = tests.get("coverage", 90)
     env = dict(os.environ)
     env["ACS_COVERAGE"] = str(coverage)
 
-    setup = tests.get("setup")
+    setup = unit.get("setup")
     if setup:
         print("::group::acs tests — setup\n$ %s" % setup, flush=True)
         rc = subprocess.run(setup, shell=True, env=env).returncode
@@ -52,7 +53,7 @@ def main():
         if rc != 0:
             fail("setup failed (exit %d): %s" % (rc, setup))
 
-    command = tests["command"]
+    command = unit["command"]
     print("acs tests — ACS_COVERAGE=%s\n$ %s" % (coverage, command), flush=True)
     rc = subprocess.run(command, shell=True, env=env).returncode
     if rc != 0:

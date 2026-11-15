@@ -13,8 +13,8 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ROADMAP = os.path.join(REPO_ROOT, "docs", "product", "roadmap.md")
-ADR_README = os.path.join(REPO_ROOT, "docs", "adr", "README.md")
-ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_README = os.path.join(REPO_ROOT, "docs", "architecture", "adr", "README.md")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "adr")
 ACS_README = os.path.join(REPO_ROOT, "plugins", "acs", "README.md")
 SKILLS_DIR = os.path.join(REPO_ROOT, "plugins", "acs", "skills")
 SKILLS_REQUIREMENTS = os.path.join(REPO_ROOT, "docs", "requirements", "functional", "skills.md")
@@ -65,9 +65,10 @@ class ReadmeSkillCountPinTest(unittest.TestCase):
 
     The design-phase entry-point fold moved the row half of this pin with the
     fact it pins. Before the fold every skill on disk was a `/acs:<name>`
-    command, so one `| `/acs:` row per directory was the whole truth. Six
-    skills are now INTERNAL LEGS (`acs_lib.skills.SKILL_LEGS`):
-    they keep their SKILL.md, agents, hooks and gate and stay Skill-invocable,
+    command, so one `| `/acs:` row per directory was the whole truth. Four
+    skills are now INTERNAL LEGS (`acs_lib.skills.SKILL_LEGS`; six until
+    ADR-0118 removed the two project legs):
+    they keep their SKILL.md and gate and stay Skill-invocable,
     but they are not commands a user runs, so the table renders them as legs
     (`| `<leg>` | `/acs:<entry point>` | …`) and not as commands. The pin is
     therefore: command rows == the on-disk set MINUS the legs, leg rows ==
@@ -187,42 +188,8 @@ class TestingStrategyInvocationClassPinTest(unittest.TestCase):
             "because its entry point is the front door for descriptions")
 
 
-class LegResumeFormPinTest(unittest.TestCase):
-    """The fold's docs say a leg's own command survives for RESUME. Two of them
-    spelled that as a single universal template, `/acs:<leg> <ticket-id>` --
-    which is false for a leg whose own frontmatter takes no argument at all
-    (`create-project`, argument-hint `(no arguments)`, resumes by finding its
-    own unfinished scaffold ticket in `tickets-index.json`). The legs and their
-    argument-hints come from disk; only the claim is pinned here.
-    """
-
-    ADR = os.path.join(ADR_DIR, "0091-design-phase-entry-point-fold.md")
-    TEMPLATE = "`/acs:<leg> <ticket-id>`"
-
-    def _argumentless_legs(self):
-        found = set()
-        for leg in lib.skill_legs():
-            fm = _read(os.path.join(SKILLS_DIR, leg, "SKILL.md")).split("---")[1]
-            if re.search(r'(?m)^argument-hint: "\(no arguments\)"$', fm):
-                found.add(leg)
-        return found
-
-    def test_a_leg_that_takes_no_argument_exists(self):
-        """Ground truth: without one, the pin below would be vacuous."""
-        self.assertIn("create-project", self._argumentless_legs())
-
-    def test_no_doc_claims_one_universal_ticket_id_resume_form(self):
-        for path in (ACS_README, self.ADR):
-            with self.subTest(doc=os.path.basename(path)):
-                self.assertNotIn(self.TEMPLATE, _read(path),
-                                 "%s presents %s as every leg's resume form, but "
-                                 "%s take no argument"
-                                 % (os.path.basename(path), self.TEMPLATE,
-                                    ", ".join(sorted(self._argumentless_legs()))))
-
-
 class AdrIndexCompletenessTest(unittest.TestCase):
-    """AC-3/AC-4: docs/adr/README.md's index table stays complete against the
+    """AC-3/AC-4: docs/architecture/adr/README.md's index table stays complete against the
     on-disk ADR files, bidirectionally, so the gap cannot silently reopen."""
 
     NAMED_SEVENTEEN = [
@@ -374,21 +341,21 @@ class ScriptPathReferencesResolveTest(unittest.TestCase):
         ("plugins/acs/docs/REDESIGN-IMPLEMENTATION-PIPELINE.md", "acs_lib/state.py"):
             "the same doc naming the module the redesign split; the problem statement cannot "
             "be written without the name of the module that had the problem",
-        ("docs/adr/0030-four-lane-hybrid-routing-from-size-stakes-axes.md", "acs_lib/lanes.py"):
+        ("docs/architecture/adr/0030-four-lane-hybrid-routing-from-size-stakes-axes.md", "acs_lib/lanes.py"):
             "a superseded ADR records what was decided and where it lived AT THE TIME; "
             "ADR-0095 retired the routing and renamed the module to planrules.py, and "
             "rewriting the record would falsify the decision it documents",
-        ("docs/adr/0034-light-verify-one-iteration-cap.md", "acs_lib/lanes.py"):
+        ("docs/architecture/adr/0034-light-verify-one-iteration-cap.md", "acs_lib/lanes.py"):
             "same: superseded by ADR-0095, kept verbatim as the record of the "
             "verify-depth decision it made",
         ("plugins/acs/CHANGELOG.md", "acs_lib/metrics.py"):
             "records metrics.py's removal with the usage dashboards (ADR-0104); the "
             "retired path is the fact being reported",
-        ("docs/adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md",
+        ("docs/architecture/adr/0082-session-anchored-transcript-measurement-statusline-cost-apportionment.md",
          "acs_lib/metrics.py"):
             "a superseded ADR records where its decision lived AT THE TIME; ADR-0104 "
             "removed the module, and rewriting the record would falsify it",
-        ("docs/adr/0104-no-usage-dashboards-no-usage-recording.md", "acs_lib/metrics.py"):
+        ("docs/architecture/adr/0104-no-usage-dashboards-no-usage-recording.md", "acs_lib/metrics.py"):
             "the ADR that removes metrics.py has to name what it removes",
         ("tests/acs/test_doc_fact_pins.py", "acs_lib/metrics.py"):
             "self-exemption for the metrics.py entries above, same recursion as lanes.py",
@@ -475,7 +442,7 @@ class AdjudicationIsPerFindingTest(unittest.TestCase):
     the docs must describe per-finding adjudication -- and the invented
     mechanism cannot come back under either name.
 
-    docs/adr/0067-*.md is deliberately NOT pinned here. Its Context quotes
+    docs/architecture/adr/0067-*.md is deliberately NOT pinned here. Its Context quotes
     epic MAR-155's design D4, whose partition is no longer on disk, so the
     quotation cannot be re-verified and rewriting it would falsify the record
     -- the same reason ScriptPathReferencesResolveTest above exempts

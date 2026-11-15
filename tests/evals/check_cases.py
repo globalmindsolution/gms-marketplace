@@ -135,6 +135,12 @@ class ShapeTest(unittest.TestCase):
                     continue
                 with self.subTest(case=c.name, grader=g.name):
                     re.compile(pattern)
+                    # Python-only inline flags -- `(?i)`, `(?s)`, `(?i:...)` --
+                    # are a SyntaxError in a JavaScript RegExp: the CLI throws
+                    # and the grader can never pass. Use the `flags` key.
+                    self.assertIsNone(
+                        re.search(r"\(\?[aiLmsux-]+[):]", pattern),
+                        "inline regex flags are Python-only; use `flags:`")
 
 
 class RoutingShapeTest(unittest.TestCase):
@@ -303,8 +309,9 @@ class CoverageTest(unittest.TestCase):
     """Every shipped skill is probed, and the probes stay honest."""
 
     #: Skills added by the docs-set fold, which must expect themselves rather
-    #: than the entry point that used to answer for them.
-    NEW_CASES = {"create-docs", "create-requirements", "docs-sync"}
+    #: than the entry point that used to answer for them. The fold's other
+    #: skill, create-docs, was removed by ADR-0124.
+    NEW_CASES = {"docs-sync", "breakdown-ticket", "manage-roadmap"}
 
     #: Shipped skills with no routing case, each for a stated reason. Empty,
     #: and it should stay empty.
@@ -334,10 +341,10 @@ class CoverageTest(unittest.TestCase):
 
     def test_only_directly_typed_skills_are_probed_explicitly(self):
         """Two kinds earn an explicit case: the internal legs, which a user types
-        to resume a run already judged onto that path, and the two user actions
-        (`install-hooks`, `update`) that are commands rather than pipeline steps."""
+        to resume a run already judged onto that path, and the user action
+        (`update`) that is a command rather than a pipeline step."""
         explicit = {c.skill for c in ec.probe_cases() if c.kind == "explicit"}
-        self.assertEqual(explicit, _internal_legs() | {"install-hooks", "update"})
+        self.assertEqual(explicit, _internal_legs() | {"update"})
 
     #: Phrasings per skill with a description positive. One prompt per skill
     #: measures one sentence; ten measure the description. The release gate

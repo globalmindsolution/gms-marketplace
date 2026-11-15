@@ -131,9 +131,34 @@ def append_invocation(rdir, step, run_id, gate=None):
     if not (isinstance(open_entry, dict) and open_entry.get("status") == "in_progress"):
         open_entry = {"started_at": now_iso(), "status": "in_progress"}
         invocations.append(open_entry)
+    # Starting the step is working it here, whoever handed it over.
+    open_entry.pop("handed_off", None)
     if gate:
         open_entry["gate_enforcement"] = gate
     return save_state(rdir, step, doc)
+
+
+def mark_handed_off(rdir, step, run_id, direction):
+    """Note on the open invocation that a team handoff (ADR-0131) sent it
+    (`sent`) or restored it here (`received`). The step stays `in_progress` --
+    a handoff is a copy, not a pause -- but no session in this checkout is
+    working it until one starts it again (`append_invocation` clears the note),
+    so the Stop hook and the SessionEnd net leave it alone. Returns whether an
+    open invocation was marked."""
+    doc = load_state(rdir, step, run_id)
+    entry = last_invocation(doc)
+    if not (isinstance(entry, dict) and entry.get("status") == "in_progress"):
+        return False
+    entry["handed_off"] = {"direction": direction, "at": now_iso()}
+    save_state(rdir, step, doc)
+    return True
+
+
+def handed_off(rdir, step):
+    """True when the step's open invocation carries a handoff note."""
+    entry = last_invocation(load_state(rdir, step))
+    return bool(isinstance(entry, dict) and entry.get("status") == "in_progress"
+                and entry.get("handed_off"))
 
 
 def finalize_invocation(rdir, step, run_id, result):

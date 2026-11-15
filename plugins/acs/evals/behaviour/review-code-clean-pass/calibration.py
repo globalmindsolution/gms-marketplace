@@ -29,6 +29,16 @@ GATE = {"build": {"command": "python3 -m compileall -q src", "exit": 0},
         "coverage": {"command": "python3 -m pytest -q --cov=src", "percent": 100, "target": 90}}
 
 
+def _snapshot(ws):
+    """`reviewed_sha` is the working-tree snapshot the review judged
+    (`acs.py changes snapshot`, ADR-0127) -- not a commit: inside a pipeline
+    the reviewed change is uncommitted."""
+    done = ws.acs("changes", "snapshot")
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)["tree"]
+
+
+
 def _review(ws, findings, gate=True, post=True, passed=None, fix=False):
     ws.skill("review-code")
     start = ws.acs("step", "start", "--step", "review-code")
@@ -48,7 +58,7 @@ def _review(ws, findings, gate=True, post=True, passed=None, fix=False):
         ws.write(REVIEW + "/iter-1/gate.json", json.dumps(GATE))
     verdict = json.dumps({
         "skill": "review-code", "run_id": "EVAL-1", "iteration": 1,
-        "reviewed_sha": ws.sh("git rev-parse main").strip(),
+        "reviewed_sha": _snapshot(ws),
         "passed": passed, "findings": findings,
         "tests": {"passed": 3, "failed": 0}, "coverage": {"percent": 100}}, indent=2)
     ws.write(REVIEW + "/verdict.json", verdict)

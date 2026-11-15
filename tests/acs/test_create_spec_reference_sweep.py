@@ -21,7 +21,11 @@ Stdlib-only (os, re, sys, unittest). Run:
 
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import skill_text  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PLUGIN = os.path.join(REPO_ROOT, "plugins", "acs")
@@ -37,22 +41,28 @@ SCHEMAS_DIR = os.path.join(PLUGIN, "schemas")
 # code-verifier.md, went with the verifier itself when v0.5.0 replaced the
 # per-skill verifier pass with /acs:review-code's lens set.
 IMPL_PLAN_SKILL = os.path.join(SKILLS_DIR, "create-impl-plan", "SKILL.md")
+#: Progressive disclosure then moved the plan's shape -- the provenance
+#: sentence with it -- out of SKILL.md into this reference, behind a pointer:
+#: the survivor is the same line, in the file the skill now reads it from.
+IMPL_PLAN_SHAPE_REF = os.path.join(SKILLS_DIR, "create-impl-plan", "references",
+                                   "plan-shape.md")
 IMPL_PLAN_PLANNER = os.path.join(AGENTS_DIR, "create-impl-plan-planner.md")  # the plan charter lives in the planner's survey
 
 # --- This spec's sweep-set files ---
-CREATE_DESIGN_SKILL = os.path.join(SKILLS_DIR, "create-design", "SKILL.md")
+CREATE_DESIGN_SKILL = "create-tech-design"  # ADR-0135; read via skill_text (references/)
 CREATE_TICKET_SKILL = os.path.join(SKILLS_DIR, "create-ticket", "SKILL.md")
 SETUP_SKILL = os.path.join(SKILLS_DIR, "setup", "SKILL.md")
 HANDOFF_SKILL = os.path.join(SKILLS_DIR, "handoff", "SKILL.md")
 CREATE_ARCHITECTURE_SKILL = os.path.join(SKILLS_DIR, "create-architecture", "SKILL.md")
-CREATE_DOCS_SKILL = os.path.join(SKILLS_DIR, "create-docs", "SKILL.md")
-CREATE_DESIGN_DESIGNER = os.path.join(AGENTS_DIR, "create-design-designer.md")
+CREATE_DESIGN_DESIGNER = os.path.join(AGENTS_DIR, "create-tech-design-designer.md")
 # create-ticket spawns no subagent: its former executor charter is the
 # materialization reference the coordinator follows inline.
 CREATE_TICKET_MATERIALIZE = os.path.join(SKILLS_DIR, "create-ticket", "references",
                                          "materialize.md")
+BREAKDOWN_TICKET_SKILL = os.path.join(SKILLS_DIR, "breakdown-ticket", "SKILL.md")
 
-RULE2_IDENTICAL_FILES = [CREATE_ARCHITECTURE_SKILL, CREATE_DOCS_SKILL]
+# create-docs/SKILL.md was the second identical file until ADR-0124 removed it.
+RULE2_IDENTICAL_FILES = [CREATE_ARCHITECTURE_SKILL]
 # Every file a Rule-2 rewrite touches (the 5 identical ones, plus init and
 # handoff whose Rule-2 rewrites are each shaped differently).
 RULE2_AFFECTED_FILES = [SETUP_SKILL, HANDOFF_SKILL] + RULE2_IDENTICAL_FILES
@@ -71,21 +81,26 @@ CLARIFICATIONS_SCHEMA = os.path.join(SCHEMAS_DIR, "clarifications.schema.json")
 # template. What survives is the provenance sentence, which says where the
 # spec content went rather than demanding a plan recite it.
 PROVENANCE_SUBSTRINGS = [
-    (IMPL_PLAN_SKILL,
+    (IMPL_PLAN_SHAPE_REF,
      "what a standalone create-spec planner would once have written"),
     (IMPL_PLAN_PLANNER, "migrated from the deleted create-spec-planner.md"),
 ]
 
 # The 7 Rule-1 lines assertion 4 covers (create-design's 7 sites plus the
 # create-ticket "Next" line's two occurrences, tested separately below).
+# ADR-0135 renamed the skill create-tech-design and put the team's approval
+# and the plan between it and /acs:code, so the sites that route a non-epic
+# ticket onward now name /acs:create-impl-plan (then /acs:code) -- still
+# never create-spec. ADR-0139 took the design flag off tickets: the
+# description's first site now routes work built without a design.
 CREATE_DESIGN_ROUTING_PHRASES = [
-    "tickets without the flag skip straight to /acs:code.",
-    "design reviewer before it gates `/acs:code`.",
+    "work the user wants built without one goes straight to /acs:code.",
+    "approved by the team with `/acs:set-doc-status` (ADR-0130) before `/acs:create-impl-plan` plans it.",
     "INHERIT this design via cross-partition read in their /acs:code; never",
     "the /acs:code gate stays closed until it succeeds.",
-    "the next step: for a non-epic ticket, `/acs:code <id>`; for an epic,",
-    "exactly one `<next-step>`: `/acs:code <id>`",
-    "**Next**: `/acs:code <ticket-id>` for a non-epic ticket",
+    "for a non-epic ticket, `/acs:create-impl-plan <id>` and `/acs:code <id>`; for an epic,",
+    "exactly one `<next-step>`: `/acs:create-impl-plan <id>` for a non-epic ticket",
+    "**Next**: approve it with `/acs:set-doc-status approved <feature>`, then `/acs:create-impl-plan <ticket-id>` for a non-epic ticket",
 ]
 
 
@@ -169,7 +184,8 @@ def changelog_entry_section(body):
 class Ac2ExactSetPredicateTest(unittest.TestCase):
     """Assertion 1 (load-bearing): after the sweep, the set of files under
     plugins/acs/{skills,agents}/** containing "create-spec" is exactly
-    {create-impl-plan/SKILL.md, create-impl-plan-planner.md} with per-file
+    {create-impl-plan/references/plan-shape.md, create-impl-plan-planner.md}
+    (the plan skill's survivor moved there with the plan's shape) with per-file
     line-hit counts {1, 1}. Requires spec 01 already landed (see the
     spec's "Why this spec is last")."""
 
@@ -178,16 +194,16 @@ class Ac2ExactSetPredicateTest(unittest.TestCase):
         cls.counts = line_hit_counts([SKILLS_DIR, AGENTS_DIR])
 
     def test_exact_file_set(self):
-        expected_files = {IMPL_PLAN_SKILL, IMPL_PLAN_PLANNER}
+        expected_files = {IMPL_PLAN_SHAPE_REF, IMPL_PLAN_PLANNER}
         self.assertEqual(
             set(self.counts.keys()), expected_files,
             "plugins/acs/{skills,agents}/** must contain \"create-spec\" in "
-            "exactly {create-impl-plan/SKILL.md, "
+            "exactly {create-impl-plan/references/plan-shape.md, "
             "create-impl-plan-planner.md} after the sweep, got: %r"
             % (sorted(self.counts.keys()),))
 
     def test_per_file_line_hit_counts(self):
-        expected = {IMPL_PLAN_SKILL: 1, IMPL_PLAN_PLANNER: 1}
+        expected = {IMPL_PLAN_SHAPE_REF: 1, IMPL_PLAN_PLANNER: 1}
         for path, n in expected.items():
             with self.subTest(path=path):
                 self.assertEqual(
@@ -236,13 +252,13 @@ class Rule2HygieneTest(unittest.TestCase):
 
 
 class Rule1CreateDesignRoutingTest(unittest.TestCase):
-    """Assertion 4 (part 1): create-design/SKILL.md's 7 Rule-1 lines each
+    """Assertion 4 (part 1): create-tech-design/SKILL.md's 7 Rule-1 lines each
     now name /acs:code — a positive replacement check, not merely an
     absence-of-create-spec check (a silent deletion would also pass an
     absence check while dropping the routing target)."""
 
     def test_all_seven_lines_route_to_code(self):
-        body_norm = norm(read(CREATE_DESIGN_SKILL))
+        body_norm = norm(skill_text.skill_contract(CREATE_DESIGN_SKILL))
         for phrase in CREATE_DESIGN_ROUTING_PHRASES:
             with self.subTest(phrase=phrase):
                 self.assertRegex(body_norm, phrase_re(phrase))
@@ -254,30 +270,39 @@ class Rule1CreateTicketNextLineBothOccurrencesTest(unittest.TestCase):
     corrects only one occurrence must fail this assertion."""
 
     def test_next_line_both_occurrences_route_to_code(self):
+        """ADR-0138 rewrote the line: an epic goes through
+        /acs:breakdown-ticket (its design first, when the user wants one --
+        ADR-0139), every other type straight to /acs:code -- still never
+        create-spec."""
         body_norm = norm(read(CREATE_TICKET_SKILL))
         self.assertRegex(body_norm, phrase_re(
-            "**Next**: `/acs:create-design <id>` when `needs_design` is "
-            "true, else `/acs:code <id>`; for an epic, each child continues "
-            "with `/acs:code <child-id>` after the epic's design"))
+            "**Next**: an epic: /acs:create-tech-design <id> (when you want a "
+            "design) → /acs:breakdown-ticket <id>, then each child "
+            "continues with `/acs:ship <child-id>`; a story, task or bug: "
+            "`/acs:code <id>`"))
 
 
 class Rule1RemainingSitesTest(unittest.TestCase):
     """Assertion 8: the 5 Rule-1 sites assertion 4 does not reach —
-    create-ticket/SKILL.md's other 3 lines, create-design-designer.md, and
+    create-ticket/SKILL.md's other 3 lines, create-tech-design-designer.md, and
     create-ticket's references/materialize.md (its executor charter until the
     skill went inline) — each proven REPLACED, not merely absent."""
 
     def test_create_ticket_pipeline_starts_at_code(self):
-        body_norm = norm(read(CREATE_TICKET_SKILL))
-        self.assertRegex(
-            body_norm, phrase_re("their pipeline starts at /acs:code"))
+        """The children's pipeline sentence moved with the breakdown
+        (ADR-0138); it names the Build steps, never create-spec."""
+        body_norm = norm(read(BREAKDOWN_TICKET_SKILL))
+        self.assertRegex(body_norm, phrase_re(
+            "Children never run `/acs:create-ticket`: their pipeline starts at "
+            "`/acs:analyze-requirements <child-id>` (or `/acs:ship <child-id>`)"))
+        self.assertNotIn("create-spec", body_norm)
 
     def test_create_ticket_epic_children_next_step_pair(self):
         body_norm = norm(read(CREATE_TICKET_SKILL))
         self.assertRegex(body_norm, phrase_re(
             "`/acs:code <id>` (epic children each continue with"))
         self.assertRegex(body_norm, phrase_re(
-            "`/acs:code <child-id>` after the epic's design). "
+            "`/acs:code <child-id>`). "
             "Under /acs:ship: return"))
 
     def test_create_design_designer_inherit_phrase(self):
@@ -286,10 +311,11 @@ class Rule1RemainingSitesTest(unittest.TestCase):
             "child tickets inherit this design in their /acs:code"))
 
     def test_create_ticket_materialize_capture_phrase(self):
-        body_norm = norm(read(CREATE_TICKET_MATERIALIZE))
-        self.assertRegex(
-            body_norm,
-            phrase_re("/acs:code. Capture each printed `ticket_id`"))
+        """Minting moved to /acs:breakdown-ticket (ADR-0138); materialize.md
+        mints nothing now, and neither names create-spec."""
+        self.assertRegex(norm(read(BREAKDOWN_TICKET_SKILL)),
+                         phrase_re("Capture each printed `ticket_id`"))
+        self.assertNotIn("create-spec", read(CREATE_TICKET_MATERIALIZE))
 
 
 class Rule2OutcomeTextTest(unittest.TestCase):
@@ -301,60 +327,53 @@ class Rule2OutcomeTextTest(unittest.TestCase):
         for path in RULE2_IDENTICAL_FILES:
             with self.subTest(path=path):
                 self.assertIn(
-                    "/acs:create-design and /acs:code are not involved):",
+                    "/acs:create-tech-design and /acs:code are not involved):",
                     read(path))
 
     def test_setup_pipeline_recital_adjacency(self):
         body = read(SETUP_SKILL)
         self.assertRegex(
-            norm(body), phrase_re("`/acs:create-design` → `/acs:code`"))
+            norm(body), phrase_re("`/acs:create-tech-design` → `/acs:code`"))
         self.assertNotIn("create-spec", body)
 
 
-class Dr1HandoffInFlightStepTest(unittest.TestCase):
-    """Assertion 5: handoff/SKILL.md Step 2 carries no create-spec token and
-    still restates no skill list.
+class Dr1HandoffRestatesNoSkillListTest(unittest.TestCase):
+    """Assertion 5: handoff/SKILL.md carries no create-spec token and restates
+    no skill list.
 
     DR-1's original subject was a hand-copied HOOKED_SKILLS enumeration in a
-    "scan the skills in order" bullet. v0.5.0 removed the scan itself: I1
-    allows one in_progress step per run and the run ledger names it, so
-    `acs_lib.in_flight_step` reads it rather than walking a list. The drift
-    guard survives as the shape it was protecting against — a restated list
-    must not come back, in any form.
+    "scan the skills in order" bullet. v0.5.0 removed the scan (the run ledger
+    names the in-flight step), and ADR-0131 removed the session handoff
+    itself: the team handoff names no step at all -- the command to continue
+    is `continue_with`, which `acs.py handoff receive` derives from the
+    restored ledger. The drift guard survives as the shape it was protecting
+    against: a restated list must not come back, in any form.
     """
 
     @classmethod
     def setUpClass(cls):
-        body = read(HANDOFF_SKILL)
-        start = body.index("## Step 2")
-        end = body.index("## Step 3")
-        cls.bullet = body[start:end]
-        cls.bullet_norm = norm(cls.bullet)
-
-    def test_resolves_the_step_from_the_run_ledger(self):
-        self.assertIn("acs_lib.in_flight_step", self.bullet)
-        self.assertRegex(self.bullet_norm, r"(?i)run\.json")
+        cls.body = read(HANDOFF_SKILL)
+        cls.body_norm = norm(cls.body)
 
     def test_no_create_spec_token(self):
-        self.assertNotIn("create-spec", self.bullet)
+        self.assertNotIn("create-spec", self.body)
 
     def test_no_restated_skill_list(self):
         # A restated enumeration looks like `name`, `name`, `name` (3+ in a
-        # row) — the exact shape DR-1 says drifted; must not reappear.
-        self.assertIsNone(
-            re.search(r"(`[a-z][a-z-]*`,\s*){3,}", self.bullet),
-            "handoff/SKILL.md must not restate the skill list — the run "
-            "ledger names the in-flight step (DR-1)")
+        # row) — the exact shape DR-1 says drifted; must not reappear. The
+        # whole file is scanned now, so a list counts only when three of its
+        # names are shipped skills: the CLI's JSON keys (`commit`, `pushed`,
+        # …) are not a skill list.
+        skills = set(os.listdir(SKILLS_DIR))
+        for run in re.finditer(r"(?:`[a-z][a-z_-]*`,\s*){2,}`[a-z][a-z_-]*`", self.body):
+            names = re.findall(r"`([a-z][a-z_-]*)`", run.group(0))
+            self.assertLess(
+                len([n for n in names if n in skills]), 3,
+                "handoff/SKILL.md must not restate the skill list (DR-1): %r"
+                % run.group(0))
 
-    def test_do_not_re_derive_rationale_present(self):
-        self.assertRegex(self.bullet_norm, r"(?i)do not re-derive")
-
-    def test_same_resolution_as_handoff_py_claim_still_present(self):
-        self.assertRegex(
-            self.bullet_norm, r"(?i)handoff\.py.{0,40}(performs|resolution)")
-
-    def test_names_the_invariant_that_replaced_the_scan(self):
-        self.assertIn("I1", self.bullet)
+    def test_the_continue_command_is_the_clis(self):
+        self.assertRegex(self.body_norm, r"`continue_with` VERBATIM")
 
 
 class ChangelogUnreleasedEntryTest(unittest.TestCase):

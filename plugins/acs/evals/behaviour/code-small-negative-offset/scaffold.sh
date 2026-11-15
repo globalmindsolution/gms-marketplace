@@ -9,7 +9,7 @@
 #     plan-approval.py and /acs:code read; the planner subagent writes it with
 #     the Write tool, so there is no CLI writer for its bytes
 #   acs.py filemap set --skill code --iteration 1 (the map the guard enforces)
-#   the published copy in docs/tickets/EVAL-1/, committed on the ticket branch
+#   the published copy in docs/development/<feature>/EVAL-1/, left uncommitted on main
 #   post-create-impl-plan.py (finishes the step, releases the lock)
 # `small` needs no approval: plan-approval.py records nothing on this path.
 set -euo pipefail
@@ -17,14 +17,14 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Reject a negative page offset" task false \
+ACS_FEATURES=customer-listing
+acs_ticket "Reject a negative page offset" task \
   "list_customers(offset=-3) silently returns a page instead of refusing the offset."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["list_customers(offset=-1) raises ValueError", "list_customers(offset=0) still returns the first page"]}' \
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "task/EVAL-1-reject-a-negative-page-offset"
 draft="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Reject a negative page offset
@@ -57,7 +57,6 @@ validation.
 ## Contract
 delivery_path: small
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "one local guard in a library function; no HTTP surface change and no browser flow"
@@ -67,14 +66,12 @@ owes:
 MD
 acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/__init__.py --file tests/test_list_customers.py > /dev/null
-mkdir -p docs/tickets/EVAL-1
-cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
+mkdir -p docs/development/customer-listing/EVAL-1
+cp "$draft" docs/development/customer-listing/EVAL-1/plan.md
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; one executor task",
- "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
+ "states": {"plan_path": "docs/development/customer-listing/EVAL-1/plan.md", "plan_approved": false,
             "file_map": {"1": ["src/shop/__init__.py", "tests/test_list_customers.py"]}},
  "findings": [], "errors": []}
 JSON

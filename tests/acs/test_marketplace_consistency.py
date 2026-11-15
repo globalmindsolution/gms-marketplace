@@ -483,11 +483,10 @@ class MarketplaceConsistencyTest(unittest.TestCase):
         self.assertIsNotNone(acs_entry, "No 'acs' entry found in .claude-plugin/marketplace.json")
 
         source = acs_entry.get("source")
-        self.assertIsInstance(
-            source, str,
-            "the acs entry is a relative string source; an object source is "
-            "judged at its ref instead — see tests/acs/test_marketplace_ref_resolves.py")
-        pj_path = os.path.join(os.path.normpath(os.path.join(REPO_ROOT, source)),
+        # A relative string, or a git-subdir object whose path is in this tree.
+        rel = source if isinstance(source, str) else source.get("path")
+        self.assertTrue(rel, "the acs entry names no source directory")
+        pj_path = os.path.join(os.path.normpath(os.path.join(REPO_ROOT, rel)),
                                ".claude-plugin", "plugin.json")
         self.assertTrue(os.path.exists(pj_path),
                         f"acs source '{source}' resolves to {pj_path}, which does not exist")

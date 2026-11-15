@@ -228,18 +228,18 @@ class DocsSyncVerifierRequirementsRoutingTest(unittest.TestCase):
 
 
 class Adr0060ExistsAndOnTopicTest(unittest.TestCase):
-    """T1.3 (AC-7): `docs/adr/0060-*.md` exists (glob, not a hardcoded slug)
+    """T1.3 (AC-7): `docs/architecture/adr/0060-*.md` exists (glob, not a hardcoded slug)
     and its body mentions `requirements_layout`, the functional/
     non-functional split, and Decision E-i's rubric."""
 
     def test_adr_0060_file_exists(self):
-        matches = glob.glob(os.path.join(REPO_ROOT, "docs", "adr", "0060-*.md"))
-        self.assertEqual(len(matches), 1, "expected exactly one docs/adr/0060-*.md file")
+        matches = glob.glob(os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0060-*.md"))
+        self.assertEqual(len(matches), 1, "expected exactly one docs/architecture/adr/0060-*.md file")
         self._path = matches[0]
 
     def test_adr_0060_is_on_topic(self):
-        matches = glob.glob(os.path.join(REPO_ROOT, "docs", "adr", "0060-*.md"))
-        self.assertTrue(matches, "docs/adr/0060-*.md must exist")
+        matches = glob.glob(os.path.join(REPO_ROOT, "docs", "architecture", "adr", "0060-*.md"))
+        self.assertTrue(matches, "docs/architecture/adr/0060-*.md must exist")
         body = read(matches[0])
         self.assertIn("requirements_layout", body)
         self.assertRegex(body, r"functional.*non-functional|non-functional.*functional", )
@@ -285,11 +285,18 @@ class ContractsMdSettingsNoteTest(unittest.TestCase):
     conformance-chain line is UNCHANGED (D1 — no chain rewrite in this spec;
     that clarifying note is MAR-144's)."""
 
-    CONTRACTS_MD = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "contracts.md")
+    # contracts.md is one file per interface under lld/acs/api/ now; the
+    # Settings section these pins read is api/settings.md.
+    API_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "lld", "acs", "api")
+    CONTRACTS_MD = os.path.join(API_DIR, "settings.md")
+
+    def _all_api(self):
+        return "\n".join(read(os.path.join(self.API_DIR, n)) for n in sorted(os.listdir(self.API_DIR))
+                         if n.endswith(".md") and not n.endswith(".evidence.md"))
 
     def test_settings_keys_list_drops_requirements_layout(self):
         body = read(self.CONTRACTS_MD)
-        self.assertNotIn("requirements_layout", body)
+        self.assertNotIn("requirements_layout", self._all_api())
         self.assertIn("No key locates the workspace or a document", flat(body))
 
     def test_functional_non_functional_resolution_documented(self):

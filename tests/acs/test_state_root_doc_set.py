@@ -23,16 +23,21 @@ def _p(*parts):
     return os.path.join(REPO_ROOT, *parts)
 
 
-ADR_0003 = _p("docs", "adr", "0003-file-based-state-outside-repo.md")
-ADR_0086 = _p("docs", "adr", "0086-in-repo-anchored-state-machine.md")
-ADR_README = _p("docs", "adr", "README.md")
+ADR_0003 = _p("docs", "architecture", "adr", "0003-file-based-state-outside-repo.md")
+ADR_0086 = _p("docs", "architecture", "adr", "0086-in-repo-anchored-state-machine.md")
+ADR_README = _p("docs", "architecture", "adr", "README.md")
 
 OVERVIEW = _p("docs", "architecture", "hld", "overview.md")
 DEPLOYMENT = _p("docs", "architecture", "hld", "deployment.md")
 C4_CONTEXT = _p("docs", "architecture", "hld", "c4-context.md")
 C4_CONTAINER = _p("docs", "architecture", "hld", "c4-container.md")
 DATA_MODEL = _p("docs", "architecture", "hld", "data-model.md")
-CONTRACTS = _p("docs", "architecture", "lld", "contracts.md")
+#: lld/contracts.md is one file per interface under lld/acs/api/ now. The
+#: workspace default it described is the settings interface's; every negative
+#: check below still covers the whole of what the old file held (API_DOCS).
+CONTRACTS = _p("docs", "architecture", "lld", "acs", "api", "settings.md")
+API_DOCS = tuple(_p("docs", "architecture", "lld", "acs", "api", name + ".md") for name in (
+    "coordinator-subagent", "cli", "delivery-path", "guard-audit", "state-files", "settings"))
 
 WORKSPACE_AND_STATE = _p("docs", "requirements", "functional", "workspace-and-state.md")
 CONFIGURATION = _p("docs", "requirements", "functional", "configuration.md")
@@ -43,11 +48,11 @@ USAGE = _p("docs", "requirements", "functional", "usage.md")
 REQUIREMENTS_README = _p("docs", "requirements", "README.md")
 PORTABILITY = _p("docs", "requirements", "non-functional", "portability.md")
 
-# The 17 files this ticket's file map touches (3 ADR, 6 architecture, 8
-# requirements).
+# The 17 files this ticket's file map touched (3 ADR, 6 architecture, 8
+# requirements); contracts.md stands as its six lld/acs/api/ successors.
 TOUCHED_FILES = (
     ADR_0003, ADR_0086, ADR_README,
-    OVERVIEW, DEPLOYMENT, C4_CONTEXT, C4_CONTAINER, DATA_MODEL, CONTRACTS,
+    OVERVIEW, DEPLOYMENT, C4_CONTEXT, C4_CONTAINER, DATA_MODEL) + API_DOCS + (
     WORKSPACE_AND_STATE, CONFIGURATION, SKILLS, HOOKS, WORKFLOW, USAGE,
     REQUIREMENTS_README, PORTABILITY,
 )
@@ -72,16 +77,14 @@ MAR1_TOKEN_RE = re.compile(r"\bMAR-1\b")
 #: metering citations went with it: C4_CONTAINER 3 -> 0, DATA_MODEL 13 -> 5
 #: (the amendments that record the history), CONTRACTS 4 -> 1,
 #: WORKSPACE_AND_STATE 4 -> 0, HOOKS 2 -> 0, USAGE 1 -> 0, PORTABILITY 1 -> 0.
+#: ADR-0124 removed /acs:create-docs and the doc-bootstrap fan-out contract
+#: paragraph that held CONTRACTS' last MAR-1 citation: CONTRACTS 1 -> 0.
 MAR1_BASELINE = {
     # DATA_MODEL: was 27 until the tabp plugin was removed. The 27th token was
     # the deleted "## tabp plugin data model" section's own source line
     # (`MAR-1/design.md:652-722`) -- a citation that went with the section it
     # cited, not a count this repo's edits shifted underneath live content.
     DATA_MODEL: 5,
-    # CONTRACTS: 1 from a separately-numbered MAR-1 (doc-bootstrap parallel
-    # fan-out, merged to main after this ticket branched) -- a pre-existing,
-    # unrelated MAR-1 token this ticket's own edits must not shift.
-    CONTRACTS: 1,
     # REQUIREMENTS_README: 1 legitimate citation from a separately-numbered
     # MAR-1 (the acs:initialize -> acs:setup bootstrap-skill rename,
     # merged to main after this ticket branched) -- its own dated ledger
@@ -92,7 +95,7 @@ MAR1_BASELINE = {
 # Stale "workspace lives outside the repo" claims each file must no longer
 # carry once rewritten. Checked against whitespace-normalized text so a
 # prose rewrap that moves a phrase across a line break doesn't defeat the
-# check. docs/adr/0003's historical Context/Decision/Consequences body is
+# check. docs/architecture/adr/0003's historical Context/Decision/Consequences body is
 # deliberately excluded -- it correctly records what ADR-0003 decided at
 # the time; only its Status line changes (see AdrCitationTest).
 STALE_CLAIMS = {
@@ -170,7 +173,7 @@ class AdrCitationTest(unittest.TestCase):
         self.assertRegex(
             body,
             r"\|\s*\[0086\]\(0086-in-repo-anchored-state-machine\.md\)\s*\|",
-            "docs/adr/README.md is missing the 0086 index row",
+            "docs/architecture/adr/README.md is missing the 0086 index row",
         )
         row_0003 = next((line for line in body.splitlines() if "[0003]" in line), "")
         self.assertIn("Superseded", row_0003, "0003's README row must flip to Superseded")
@@ -185,7 +188,7 @@ class AdrCitationTest(unittest.TestCase):
 class No0084MisattributionTest(unittest.TestCase):
     """Guards the ticket-text 0084/0086 numbering confusion: every touched
     file must say '0086', never the ticket's own literal '0084' typo --
-    except docs/adr/README.md, which keeps its one pre-existing, unrelated,
+    except docs/architecture/adr/README.md, which keeps its one pre-existing, unrelated,
     real ADR-0084 row (baseline count 2: link text + display text)."""
 
     def test_no_0084_outside_adr_readme(self):

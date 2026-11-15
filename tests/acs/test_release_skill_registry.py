@@ -89,17 +89,24 @@ class Mar129ReleaseSkillRegistryCase(unittest.TestCase):
         # `project` umbrella, 11 -> 12. v0.5.0 retired the `test` alias and
         # promoted run-e2e-tests to a hooked step of its own, and create-docs
         # moved to PRODUCT_SKILLS, 12 -> 9. ADR-0104 removed metrics and
-        # usage, 9 -> 7.
-        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 7)
+        # usage, 9 -> 7. /acs:install-hooks went with the local hooks, 7 -> 6.
+        # ADR-0118 removed the `project` umbrella, 6 -> 5. ADR-0130 added the
+        # /acs:set-doc-status utility, 5 -> 6.
+        self.assertEqual(len(acs_lib.UNHOOKED_SKILLS), 6)
 
     def test_hooked_skills_count(self):
         # Literal advances as later producer children register (MAR-143:
         # create-requirements, 14 -> 15; MAR-156: create-spec deleted, 15 -> 14;
         # MAR-160: docs-sync registered, 14 -> 15; the skills-independence
         # refactor hooks the five Build/Test skills, 15 -> 17; v0.5.0 adds
-        # review-code and run-e2e-tests, 17 -> 19) — /acs:release itself adds
-        # none.
-        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 19)
+        # review-code and run-e2e-tests, 17 -> 19; ADR-0118 removes
+        # create-project, standardize-project and create-requirements, 19 -> 16;
+        # ADR-0122 adds audit-design, 16 -> 17; ADR-0123 adds audit-security,
+        # 17 -> 18; ADR-0124 removes create-docs, 18 -> 17; ADR-0126 adds
+        # create-data-design and create-flows, 17 -> 19; ADR-0138 adds
+        # breakdown-ticket, 19 -> 20; ADR-0145 adds manage-roadmap, 20 -> 21)
+        # — /acs:release itself adds none.
+        self.assertEqual(len(acs_lib.HOOKED_SKILLS), 21)
 
     def test_no_pre_or_post_release_script_on_disk(self):
         self.assertFalse(
@@ -229,10 +236,13 @@ class Mar129ReleaseSafetyProseCase(unittest.TestCase):
 
     def test_pr_open_step_labeled_and_branched(self):
         fences = self._bash_fences()
-        pr_create_fences = [f for f in fences if "gh pr create" in f]
-        self.assertTrue(pr_create_fences, "no ```bash fence contains 'gh pr create'")
+        # REST (ADR-0149): `gh pr create` runs on GraphQL, which a Claude Code
+        # session refuses, so the PR is opened through `gh api …/pulls`.
+        pr_create_fences = [f for f in fences if "/pulls -X POST" in f]
+        self.assertTrue(pr_create_fences, "no ```bash fence opens the PR via `gh api …/pulls`")
         for fence in pr_create_fences:
-            self.assertIn("--label ACS", fence)
+            self.assertNotIn("gh pr create", fence)
+            self.assertIn("labels[]=ACS", fence)
             self.assertRegex(
                 fence, r"(?i)release[_-]?branch",
                 msg="the gh pr create fence must reference the "
@@ -243,9 +253,9 @@ class Mar129ReleaseSafetyProseCase(unittest.TestCase):
         self.assertNotIn("--force", self.body)
         self.assertNotIn("push origin main", self.body)
         for fence in self._bash_fences():
-            if "gh pr create" in fence:
+            if "/pulls -X POST" in fence:
                 self.assertNotRegex(
-                    fence, r"--base main\b",
+                    fence, r"base=main\b",
                     msg="main must never be hardcoded as the PR base — only "
                         "reachable via the <base_branch> placeholder",
                 )

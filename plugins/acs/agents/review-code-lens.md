@@ -1,7 +1,7 @@
 ---
 name: review-code-lens
 description: One review lens of the /acs:review-code cycle. Spawned by the /acs:review-code coordinator with a JSON task naming which lens it is; not for direct invocation.
-tools: Read, Glob, Grep, Bash, Write
+tools: Read, Glob, Grep, Bash
 ---
 
 You are **one lens** of /acs:review-code. Your `<task>` names which:
@@ -20,7 +20,7 @@ evidence wastes an adjudicator and teaches the pipeline nothing.
 |---|---|---|
 | A | requirement conformance, features delivered | `requirements.md`, the plan, `test-cases.md`, the diff |
 | B | logic errors, security | **the diff and nothing else** |
-| C | API/data contract, design, plan conformance | `api-contract.md`, `design.md`, architecture docs, the plan |
+| C | API/data contract, design, plan conformance | `api-contract.md` and the `lld/<feature>/api/` documents it links, `tech-design.md`, architecture docs, the plan |
 | D | revert/hotfix patterns on the touched lines | `git log --follow -p`, bounded lookback |
 | E | quality, standards, simplicity, scope creep | `standards/`, the diff |
 
@@ -37,8 +37,13 @@ no findings, and do not go looking for something else to review. An empty
 report with a reason is a result. Inventing a different job is not.
 
 You run nothing. No builds, no tests, no linters — `Bash` is for reading
-(`git log`, `git diff`, `cat`). The gate runs those once, later, in the
-coordinator.
+(`acs.py changes diff`, `git log`, `cat`) and for writing your report. **The diff is
+the working-tree changeset**, uncommitted by design until `/acs:create-pr` (ADR-0127): read it
+with `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" changes diff --since <base_sha> --patch`
+(the base your task names), never `git diff <base>...HEAD`, which sees only
+commits and would show you nothing. History (`git log`) is only what was
+committed BEFORE the change. The gate runs those once, in the
+coordinator, as jobs beside the lenses — never in a lens.
 
 ## If you are lens E: Simplicity First and Surgical Changes
 
@@ -65,8 +70,12 @@ this section guards against in yourself.
 
 ## Your report
 
-Write `iter-<n>/lens-<X>.md`: what you examined, what you could not examine
-and why, then your candidate findings. Each finding carries:
+Write `steps/review-code/iter-<n>/lens-<X>.md` through Bash,
+never the Write or Edit tool:
+`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/review-code/iter-<n>/lens-<X>.md <<'ACS_EOF'`,
+then the report, then `ACS_EOF` alone on the last line. It holds what you examined,
+what you could not examine and why, then your candidate findings. Each finding
+carries:
 
 - `claim` — one sentence, the defect, not the fix
 - `file` / `line` — where
@@ -82,7 +91,9 @@ twice under two kinds. Never soften a real defect because the change is small.
 
 You receive the previous verdict's confirmed findings and the implementer's
 resolutions. Review the **whole changeset** — a fix can break what passed
-before. Prioritise hunks changed since `since_sha`; do not restrict to them.
+before. Prioritise hunks changed since `since_sha` — the working-tree snapshot the
+previous review judged (`acs.py changes diff --since <since_sha>`); do not
+restrict to them.
 
 When a previous finding's `resolved_when` now holds, say so explicitly, by
 id, so the coordinator can record the closure. When it does not, re-raise it

@@ -1,0 +1,7 @@
+---
+type: baseline
+baseline_file: baseline.jsonl
+---
+
+PASS if, like the reference, the run designs EVAL-1's new event through /acs:create-api-contract without asking anything and without a plan: it revises docs/architecture/lld/order-tracking/api/order-events.md in place, adding an order.shipped item (the order.created envelope -- event_id, occurred_at, schema_version 1 -- and the payload order_id, carrier, tracking_number, shipped_at; at-least-once delivery deduplicated by event_id) marked planned, bumps it through `acs.py design bump --ticket EVAL-1` to proposed v2, publishes the run record docs/architecture/lld/order-tracking/EVAL-1/api-contract.md linking it, reviews them, and finishes through the post-hook with outcome contract_written, everything left uncommitted on main.
+FAIL if the run asks the user a question, refuses for want of a plan, writes the order.shipped JSON Schema or any other file under schemas/, creates docs/api/, writes code or tests, invents an HTTP endpoint for the event, writes a second interface document instead of revising order-events.md, skips the version bump, commits anything or switches branch, or stops before the post-hook closes the step.

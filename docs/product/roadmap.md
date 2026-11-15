@@ -21,7 +21,7 @@ Additive index sitting above the milestone narrative below (C-8): no existing
 milestone/version label or wave text in this file is removed, moved, or
 renamed by adding this table — it maps each release version to the
 milestone/wave it is the version-home of, plus the epic(s) it delivers, per
-[ADR 0053](../adr/0053-release-versions-roadmap-mapping-table.md).
+[ADR 0053](../architecture/adr/0053-release-versions-roadmap-mapping-table.md).
 **Decoupled from the cut skill:** `/acs:release`/`release_notes.py` never read
 this table for ticket→version resolution — they resolve via the merged-ticket
 archive/`git log` instead; a gap in this table can never break a release cut.
@@ -43,10 +43,10 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 | v0.4.4 | M3 Wave 4 — requirements extraction | brownfield requirements extraction / `/acs:create-requirements` (G37) — {MAR-142} | shipped |
 | v0.4.5 | M3 Wave 4 — readable docs + doc templates | readable audience-aware docs + configurable design/spec templates (G38, G39) — {MAR-149} | shipped |
 | v0.4.6+ | M3 Wave 4 | org-level enforcement/scale (G12, G24) + remaining polish epics | planned |
-| v0.5.0 | M3 Wave 4 — skills independence | declarative pipeline order (`workflows/ship.yaml` + `workflows/phases.yaml`, `acs.py workflow show/validate/next`); hooks keep input checks and safety brakes only, so every skill is runnable on its own (ADR-0089); ticket documents move to `docs/tickets/<ID>/` with a derived status (ADR-0090); six new Build/Test skills (`analyze-requirements`, `create-impl-plan`, `create-api-contract`, `create-test-docs`, `create-e2e-tests`, `run-e2e-tests`); `/acs:ship` becomes a ticket-id loop that fans independent steps out in parallel | in progress |
+| v0.5.0 | M3 Wave 4 — skills independence | declarative pipeline order (`workflows/ship.yaml` + `workflows/phases.yaml`, `acs.py workflow show/validate/next`); hooks keep input checks and safety brakes only, so every skill is runnable on its own (ADR-0089); ticket documents move to `docs/tickets/<ID>/` with a derived status (ADR-0090; no longer written since ADR-0128 — a run's documents live one folder per phase); six new Build/Test skills (`analyze-requirements`, `create-impl-plan`, `create-api-contract`, `create-test-docs`, `create-e2e-tests`, `run-e2e-tests`); `/acs:ship` becomes a ticket-id loop that fans independent steps out in parallel; the Design phase's low-level design lands per feature — `/acs:create-data-design` and `/acs:create-flows` ([ADR-0126](../architecture/adr/0126-lld-data-design-and-flows.md)), then `/acs:create-api-contract` moved out of `ship.yaml` into Design, writing the living `lld/<feature>/api/` documents only, with `/acs:code` making any machine-readable contract files from the plan (P5 delivered, [ADR-0134](../architecture/adr/0134-api-contract-is-a-design-document.md)); `create-tech-design` (P6 delivered, [ADR-0135](../architecture/adr/0135-create-tech-design.md)) and `docs-sync` keeping each feature's `lld/` current and moving a matching design to `implemented` (P7 delivered, [ADR-0137](../architecture/adr/0137-docs-sync-keeps-the-feature-lld-current.md)); `breakdown-ticket` replacing `create-ticket --fan-out` and `split`, with `create-ticket` drafting through a type author and a reviewer and `bug` as a ticket type (P8 delivered, [ADR-0138](../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md)) | in progress |
 | v0.6.0 | M4 | headless unattended runner (G34); Codex CLI trigger + light authoring (G6) | tentative |
 | v0.7.0 | M5 | Notion/remote-docs backend (G6) | tentative |
-| v0.8.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) | tentative |
+| v0.8.0 | M6 | non-GitHub forges; scheduled tracker-sync; cross-machine handoff (G6/G2) — ticket handoff between members delivered early ([ADR-0131](../architecture/adr/0131-ticket-handoff-between-members.md)); a shared workspace remains | tentative |
 | v1.0 | M7 — GA | no committed epics yet | future |
 | post-GA (v1.x) | M8 — post-GA | team-shared delivery state (G23) | future |
 
@@ -57,18 +57,23 @@ archive/`git log` instead; a gap in this table can never break a release cut.
 Epic-level scope (retrofit; built before dogfooding began):
 
 - Marketplace + plugin skeleton (manifests, CI, release automation).
-- Deterministic layer: hooks, gates, workspace/state, locks, metrics *(removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md))*, helper CLIs.
-- 30 skills + 33 agent files on disk (verified `ls plugins/acs/skills` = 30,
-  `ls plugins/acs/agents` = 33; ADR-0095 added `/acs:code`'s four delivery-path
+- Deterministic layer: hooks, gates, workspace/state, locks, metrics *(removed by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md))*, helper CLIs.
+- 31 skills + 43 agent files on disk (verified `ls plugins/acs/skills` = 31,
+  `ls plugins/acs/agents` = 43; ADR-0095 added `/acs:code`'s four delivery-path
   legs, which own no agents of their own and spawn `code`'s implementer); the
-  reflection (write → judge) protocol is active on the twelve authoring skills
-  and `/acs:create-docs`, each over subagents named for its own work
-  (ADR-0109: e.g. `create-prd`'s surveyor, author and reviewer,
+  reflection (write → judge) protocol is active on the thirteen authoring skills,
+  each over subagents named for its own work
+  (ADR-0109: e.g. `create-prd`'s and `manage-roadmap`'s surveyor, author and reviewer,
   `create-impl-plan`'s planner and plan-reviewer); no skill has a planning
   pass before its writer since ADR 0092; `/acs:code` spawns implementers and
-  is judged by `/acs:review-code`; the three apply-work skills
-  (`/acs:create-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline with no
-  subagent. Task/result messaging, phase artifacts.
+  is judged by `/acs:review-code`; `/acs:create-ticket` drafts through one
+  author per ticket type and a reviewer (ADR-0138); the three apply-work skills
+  (`/acs:breakdown-ticket`, `/acs:create-pr`, `/acs:merge-pr`) run inline with no
+  subagent; the read-only `/acs:audit-design` spawns gap analysts and reports
+  design ↔ code gaps (ADR-0122); the read-only `/acs:audit-security` spawns
+  auditors per security category and one refute-by-default adjudicator per
+  candidate finding, and reports only (ADR-0123). Task/result messaging, phase
+  artifacts.
 - Quality systems: grounding rules, clarification ledger, completion reports,
   size control, `docs_only`, e2e layer, living-architecture enforcement.
 - Test suites: deterministic-layer integration tests + prose contract tests; CI green.
@@ -117,16 +122,16 @@ configured and have not yet been validated against a live remote.
   seed scenarios `install_gate_smoke` (free, G1) and `create_ticket_artifacts`
   (paid, G1).
 - **E1.2 (done)** — `skill_triggers` (paid): one un-named request per skill
-  routes to the right skill — target all 30 green across 38 probes (matches
-  `s04_skill_triggers.py`'s 30-skill routing coverage, up from the original 12,
-  which is every one of the 30 shipped skill directories: the `test` alias, once
+  routes to the right skill — target all 31 green across 38 probes (matches
+  `s04_skill_triggers.py`'s 31-skill routing coverage, up from the original 12,
+  which is every one of the 31 shipped skill directories: the `test` alias, once
   the one unprobed directory, is gone, and `/acs:metrics` and `/acs:usage` left
-  with their probes by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md). The six internal legs —
-  `/acs:project`'s two (ADR 0091) and `/acs:code`'s four delivery-path legs
-  (ADR-0095) — are probed by explicit invocation plus a negative saying a
+  with their probes by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md), and `/acs:project`, its two legs and
+  `/acs:create-requirements` with theirs by [ADR 0118](../architecture/adr/0118-discovery-design-development-phases.md), while `/acs:audit-design` arrived with its own by [ADR-0122](../architecture/adr/0122-design-versions-and-gap-detection.md) and `/acs:audit-security` with its own by [ADR-0123](../architecture/adr/0123-audit-phase-and-audit-security.md), and `/acs:create-docs` left with its own by [ADR-0124](../architecture/adr/0124-remove-create-docs.md), while `/acs:create-data-design` and `/acs:create-flows` arrived with theirs by [ADR-0126](../architecture/adr/0126-lld-data-design-and-flows.md), and `/acs:set-doc-status` with its own by [ADR-0130](../architecture/adr/0130-prd-versions-and-set-doc-status.md), and `/acs:breakdown-ticket` with its own by [ADR-0138](../architecture/adr/0138-breakdown-ticket-and-typed-ticket-authors.md), and `/acs:manage-roadmap` with its own by [ADR-0145](../architecture/adr/0145-roadmap-is-its-own-skill.md)). The four internal
+  legs — `/acs:code`'s delivery-path legs (ADR-0095) — are probed by explicit invocation plus a negative saying a
   description of the leg's subject must reach its entry point; the four doc-set
-  legs were folded into `/acs:create-docs` by ADR 0094 and its description probe
-  covers them). The 20
+  legs were folded into `/acs:create-docs` by ADR 0094, which ADR 0124 then
+  removed with its probes). The 20
   description probes measured before the refactor are green; everything added
   since — the 3 MAR-575 probes, the 6 new Build/Test and umbrella probes, and
   the 6 legs' explicit + negative pairs — is authored and first measured by the
@@ -149,7 +154,7 @@ configured and have not yet been validated against a live remote.
   dedicated eval CI workflow. (A 2026-06-14 CI dispatch had confirmed the full
   paid path runs green in CI before paid was moved local-only.) Since **MAR-579**
   it is no longer this repo's per-ticket gate either: `.acs/settings.json` carries
-  no `e2e`/`suites.e2e`, so `/acs:ship`'s post-code test step resolves off. PRs
+  no `tests.e2e`, so `/acs:ship`'s post-code test step resolves off. PRs
   here are gated by the plugin's unit suite, the coverage hard-fail and the free
   pre-commit eval tier; acs-evals' tier-1 golden suite (deterministic) becomes
   this repo's per-PR CI brake once a workflow is wired to run it. The suite
@@ -164,7 +169,7 @@ configured and have not yet been validated against a live remote.
 Traces the "team on a shared repo" persona. Independent of E1/E3 — slot in once
 dogfooding is rolling.
 
-- Conflict-resolution UX, bulk import, epic-link fidelity on Jira / GitHub
+- Conflict-resolution UX, bulk import, epic-link fidelity on GitHub
   Projects.
 
 #### Epic E6 — Tracker-first delivery (PRD-optional mode) *(Must-have — urgent; builds on E2)*
@@ -240,7 +245,7 @@ features.
   legitimate non-ticket `acs-exempt` PR — same four readiness dimensions and
   branch/worktree cleanup as the ticket path, but resolving no ticket, writing no
   partition/state, and skipping tracker sync and archiving (it once bumped a repo
-  `pr_merged` metric, removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md)); it refuses and redirects when the PR is actually ticket-backed.
+  `pr_merged` metric, removed by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md)); it refuses and redirects when the PR is actually ticket-backed.
   `/acs:setup` Step 3 (opt-in, default-on) writes an idempotent, marker-delimited
   `CLAUDE.md` acs-managed block (from `templates/CLAUDE.acs.md`) steering in-repo
   Claude sessions to `/acs:ship` rather than a raw `gh pr create`. Pending merge in
@@ -257,8 +262,8 @@ safety net.
   `/acs:create-ticket` (the plan defines the epics; acs assigns the ids).
 - **E3.2** — Every change to this repo ships via `/acs:ship`; PRD/architecture
   amendments via skill re-runs.
-- **E3.3** *(the skill it delivered was removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md))* — `acs:metrics` skill delivery: implement the dashboard skill reading workspace artifacts; render the six panels (throughput, funnel, cost/time per step, coverage vs target, review iterations, token burn by role); ship as a new skill in the `acs` plugin. Traces G5, G7. *(The cost half of cost/time per step was removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md).)*
-- **E3.4** *(removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md) — acs no longer ships a status line)* — Status-line refinement (dogfood-driven): both the prompt line and the reflection agent-panel compose with Claude Code's default status line and add acs state on top (default context + acs pipeline/subagent state) instead of replacing it; ships as a maturing refinement to the v0.1 Should-have status-line feature. Traces G7.
+- **E3.3** *(the skill it delivered was removed by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md))* — `acs:metrics` skill delivery: implement the dashboard skill reading workspace artifacts; render the six panels (throughput, funnel, cost/time per step, coverage vs target, review iterations, token burn by role); ship as a new skill in the `acs` plugin. Traces G5, G7. *(The cost half of cost/time per step was removed by [ADR 0103](../architecture/adr/0103-no-status-line-no-cost-metering.md).)*
+- **E3.4** *(removed by [ADR 0103](../architecture/adr/0103-no-status-line-no-cost-metering.md) — acs no longer ships a status line)* — Status-line refinement (dogfood-driven): both the prompt line and the reflection agent-panel compose with Claude Code's default status line and add acs state on top (default context + acs pipeline/subagent state) instead of replacing it; ships as a maturing refinement to the v0.1 Should-have status-line feature. Traces G7.
 
 #### Epic E4 — `acs:metrics` dashboard *(gates on E1)*
 
@@ -266,10 +271,10 @@ Traces G5, G7. Starts once E1 (eval harness) is green — behavioral evals for
 the `acs:metrics` skill land in E1 before the skill ships. **Note (delivered):**
 `acs:metrics` (delivery KPIs — throughput, funnel, coverage, review iterations)
 shipped alongside a separate `acs:usage` skill (AI spend/tokens/time — its dollar
-figures since removed by [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md)), splitting
+figures since removed by [ADR 0103](../architecture/adr/0103-no-status-line-no-cost-metering.md)), splitting
 delivery-metrics from AI-spend tracking; both verified on disk
 (`plugins/acs/skills/metrics/SKILL.md`, `plugins/acs/skills/usage/SKILL.md`).
-**Removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md):** both skills were deleted, together with the usage
+**Removed by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md):** both skills were deleted, together with the usage
 recording that fed them (`metrics.json`, per-invocation token counts, the
 transcript read); acs records no usage, and tokens, spend and time are Claude
 Code's to report.
@@ -347,7 +352,7 @@ M3 is no longer one release — it is a **committed sequence of four delivery
 waves**, each with its own version home, so a Wave-3+ epic is never implied to
 ship in v0.4.0. **Wave 1 SHIPPED as v0.3.8** (full-SDLC verify & operate, G8) —
 its design was already settled by [ADR
-0011](../adr/0011-sdlc-doc-sets-quality-and-operations.md), so it needed no
+0011](../architecture/adr/0011-sdlc-doc-sets-quality-and-operations.md), so it needed no
 design phase and shipped on the v0.3.x patch line rather than a minor. **Wave 2
 SHIPPED as v0.4.0** (principles & standards, G10), and **v0.4.1 SHIPPED the
 enforceable-e2e-integrity epic (G13)** (E2E-1/E2E-2/E2E-3), and **v0.4.2 SHIPPED Wave 3's release-versions half** (first-class release versions + one-command release cut, G17, plus the consumer-general program — C-20 + the Consumer-repo-generality principle). **v0.4.3 SHIPPED the generated-doc-quality epic (G36).** **v0.4.4 SHIPPED the brownfield requirements-extraction epic (G37)** — the new `/acs:create-requirements` skill. **v0.4.5 SHIPPED the readable audience-aware docs + configurable design/spec templates epic (G38, G39).** Team-shared delivery state (G23) is deferred to a post-GA milestone (**M8 — post-GA**), after GA v1.0 — it is no longer part of the road to v1.0.
@@ -379,7 +384,7 @@ and the e2e CI merge gate — see Wave 4 below.)*
 (**G17**, shipped), and Wave 4 (v0.4.6+) closes the remaining observability item
 (**G19**). No version reshuffle: this is a mapping note over the four waves
 already committed above, plus the deliberate **no-deploy-skill position** they
-collectively encode (`/acs:create-project` scaffolds CI/CD,
+collectively encode (`/acs:setup` installs the CI gates,
 `/acs:create-operations` documents runbooks, the release tag triggers the
 consumer repo's own CD — no acs deploy skill). **G35 (operating-model role
 accountability)** is a documentation artifact **satisfied at this amendment's
@@ -400,6 +405,16 @@ and no phase lost its operating skill. Read the `/acs:create-quality`-style
 spellings in the wave notes below as the doc set `/acs:create-docs` delivers,
 not as commands. `/acs:test` likewise reads as `/acs:run-e2e-tests` since the
 skills-independence refactor left `test` behind as a one-release alias.
+[ADR 0118](../architecture/adr/0118-discovery-design-development-phases.md) (2026-10-04) later removed `/acs:project`, both of its legs and
+`/acs:create-requirements`: a greenfield scaffold is ordinary ticket work
+(`/acs:create-ticket "Scaffold the repository per the architecture docs"`,
+then `/acs:ship`), the CI gates and the e2e workflow/runner templates come from
+`/acs:setup`, and the principles and standards from `/acs:create-docs`.
+[ADR 0124](../architecture/adr/0124-remove-create-docs.md) (2026-10-04) then
+removed `/acs:create-docs` itself: the quality, operations, principles and
+standards docs are hand-written by the role that owns each, and the skills
+that read them find them where the repo keeps them. The wave notes below that
+name those skills record what shipped then.
 
 #### Wave 1 — v0.3.8 (shipped)
 
@@ -415,11 +430,11 @@ order — `/acs:test` is last because it needs the `suites` generalization of
   templates), and adds **`/acs:test`** — a standing, schedulable skill that runs
   the product's suites, triages regressions, and opens a ticket per failure
   (closed loop). `settings.schema.json` gains a path key per set (removed
-  again by [ADR-0102](../adr/0102-documents-are-found-not-configured.md)) and a `suites` map; `/acs:setup` defaults them. Skill count 16 → 19. Traces
-  **G8**. Design: [ADR 0011](../adr/0011-sdlc-doc-sets-quality-and-operations.md).
+  again by [ADR-0102](../architecture/adr/0102-documents-are-found-not-configured.md)) and a `suites` map; `/acs:setup` defaults them. Skill count 16 → 19. Traces
+  **G8**. Design: [ADR 0011](../architecture/adr/0011-sdlc-doc-sets-quality-and-operations.md).
   All design skills also gain a shared **design-time consistency step** — detect
   doc gaps/staleness across the graph and recommend adjustments in-session, no
-  separate tooling ([ADR 0012](../adr/0012-design-time-doc-consistency.md)).
+  separate tooling ([ADR 0012](../architecture/adr/0012-design-time-doc-consistency.md)).
 
 **Cross-wave dependency:** whichever of Wave 1's `/acs:test` (this epic) and
 the e2e-integrity epic (v0.4.1) lands second rebases on the first's
@@ -460,7 +475,7 @@ required e2e merge gate) may start independently.
   - **E2E-1 — Optional required e2e merge gate.** `/acs:setup` scaffolds a repo-side e2e CI workflow + runner from `settings.e2e` and, opt-in, wires it as a REQUIRED status check on the protected default branch — a red e2e becomes a fail-closed merge brake (symmetric to E5's convention gate and the coverage hard-fail), making `/acs:merge-pr`'s report-only CI read enforceable via branch protection. The fresh-init EXPLICIT e2e OFFER (raising e2e from silently-defaultable to explicitly-offered at init, G21) ships in **v0.3.4** (M2.5); E2E-1 here adds only the CI workflow + required-status-check gate on top of an already-offered e2e config. Maps to PRD acs Should-have (e2e bullet). Traces **G13**, **G9**.
   - **E2E-2 — Brownfield e2e scaffolding via `/acs:standardize-project`.** The greenfield-only `/acs:create-project` e2e scaffolding gains a brownfield counterpart: `/acs:standardize-project` additively scaffolds the e2e CI workflow + runner for an EXISTING repo that lacks one, as part of its one reviewed PR — never moving or renaming source (C-2). Maps to PRD acs Could-have (`/acs:standardize-project`). Traces **G13**, **G10**.
   - **E2E-3 — Measured e2e integrity (G13).** Validate the metric on the dogfood repo: 0 PRs merged with a red e2e suite (gate enabled) and 100% of user-facing-surface specs declare e2e impact, per release. Maps to PRD **G13**. **Validated 2026-07-12 (MAR-127)** — see the `prd.md` G13 annotation for the recorded result (sub-metric (a) vacuous-0, gate not yet wired; sub-metric (b) 2/2 = 100%).
-  The opt-in invariant holds throughout: `settings.e2e` unset = no e2e suite, no gate.
+  The opt-in invariant holds throughout: `tests.e2e` unset = no e2e suite, no gate.
 
 **Cross-wave dependency:** see Wave 1 above for the `/acs:test`/e2e schema-rebase note.
 
@@ -518,11 +533,11 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   context lifecycle" feature. **Traces G28 (+ the Org/Platform-admin persona).** The
   MECHANISM (versioning/pinning format, drift-detection transport) is settled in this
   epic's design phase.
-- **Epic: department metrics rollups** *(retired by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md) — acs records no
+- **Epic: department metrics rollups** *(retired by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md) — acs records no
   usage and ships no dashboard to roll up)* — extends the `acs:metrics`/`acs:usage`
   dashboard surface with project → department → org rollups of delivery
   throughput/cost metrics (token and time figures — acs records no dollar figure
-  since [ADR 0103](../adr/0103-no-status-line-no-cost-metering.md)), read-only from existing workspace artifacts (same
+  since [ADR 0103](../architecture/adr/0103-no-status-line-no-cost-metering.md)), read-only from existing workspace artifacts (same
   no-new-config discipline as G7). Maps to PRD **G24**/**G19** and the acs Could-have
   "Department metrics rollups" feature. **Traces the Org/Platform-admin persona +
   G24 (relates to G19).** The MECHANISM (rollup source, org/dept grouping key) is
@@ -618,10 +633,9 @@ inside Wave 4 is uncommitted, its version home is left open-ended
 - **Epic: brownfield-adaptive coverage policy (G27)** — a configurable coverage
   policy — baseline ratchet (no regression + a new-code coverage target) or
   per-path targets — instead of only today's single repo-wide
-  `test_coverage_percent` hard-fail; additive (no coverage-policy config set =
-  today's single hard-fail, byte-identical). Natural companion to the M3
-  brownfield standardize-project epic (above) and its E2E-2 brownfield e2e
-  scaffolding — a coverage baseline pairs naturally with brownfield readiness
+  `tests.coverage` hard-fail; additive (no coverage-policy config set =
+  today's single hard-fail, byte-identical). Natural companion to brownfield
+  onboarding — a coverage baseline pairs naturally with brownfield readiness
   setup. Maps to PRD **G27** (extends G3, G6) and the acs Could-have
   "Brownfield-adaptive coverage policy" feature. **Traces G27** (+ the
   Tech-lead / brownfield-onboarding story). The MECHANISM (ratchet vs per-path,
@@ -647,7 +661,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   "Brownfield requirements extraction" feature. **Traces G37** (+ the
   Solo-developer / Tech-lead brownfield-onboarding personas). The MECHANISM
   (exact CLI flags, extraction algorithm, per-file section structure) is settled
-  in this epic's design phase. **(Shipped in v0.4.4 — G37 epic MAR-142: MAR-143 #273, MAR-144 #274, MAR-145 #272.)**
+  in this epic's design phase. **(Shipped in v0.4.4 — G37 epic MAR-142: MAR-143 #273, MAR-144 #274, MAR-145 #272.)** *(`/acs:create-requirements` was removed by [ADR 0118](../architecture/adr/0118-discovery-design-development-phases.md): a repo's requirements set, when present, stays optional context, but acs no longer produces it.)*
 - Semver stability promise for state-file schemas (migration notes per minor).
 - **Epic: per-role model + effort configuration polish (up-front validation + docs)** — matures the already-shipped per-role model/effort capability (all four roles at the time — `planner`, `executor`, `verifier`, `coordinator` — plus `models.overrides.<skill>.<role>` in `.acs/settings.json`; `coordinator` was since retired from the contract and `planner` is inert since ADR 0092). (i) the init prompt itself — actively offering specific-version per-role model + per-role effort on a fresh init — ships in **v0.3.4** (see M2.5); this epic adds only the up-front validation and docs on top of it. (ii) Add up-front, fail-closed validation of supported model ids + effort values with a helpful error, replacing today's late spawn-time failure (effort values are validated fail-closed by the runtime gate as of MAR-516; model-id validation is still absent). (iii) Documentation: the settings reference + init walkthrough cover per-role model+effort and version pinning. Maps to PRD acs Should-have (per-role model + effort configuration bullet). Traces G7 (config surface) — the init-prompt completeness metric (G21) is delivered in v0.3.4. The MECHANISM (the supported-model/effort source-of-truth and the exact init UX) is settled in the implementing ticket's design/spec phase, mirroring this milestone's other epics.
 - **Epic: guided architecture selection (curated catalog, select-not-author)** — a curated acs-shipped catalog of tech stacks, NFR templates, and architecture/design patterns — all FOUR categories — **pre-filtered/ranked** by the PRD + codebase, so `/acs:create-architecture` lets the user **select/refine** rather than author from scratch. Enhances the existing skill; **adds no new doc set**. Maps to PRD **G18** and the acs Should-have "Guided architecture selection" feature. **Traces G18 (+ the Tech-lead persona).** The MECHANISM (catalog source-of-truth, ranking heuristics, selection UX) is settled in this epic's design phase, mirroring this milestone's other deferrals.
@@ -655,7 +669,7 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   verifier cap-hits, gate-block counts, coverage hard-fail incidents, stale locks,
   and abandoned/handed-off tickets — read-only from existing workspace artifacts.
   It was to extend the `acs:metrics`/`acs:usage` dashboard surfaces; those were
-  removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md), so the MECHANISM — including whether acs renders
+  removed by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md), so the MECHANISM — including whether acs renders
   anything at all — is open, settled in this epic's design/spec phase. Alongside
   the verify-&-operate epic (Wave 1). Maps to PRD **G19** and the acs Should-have
   "Failure-mode / pipeline-health observability" feature. **Traces G19.**
@@ -664,18 +678,18 @@ inside Wave 4 is uncommitted, its version home is left open-ended
   coverage" claim: (i) extends the eval harness (E1) with **behavioral
   (artifact-level)** evals for `handoff`, which today has only trigger-level
   coverage (`s04_skill_triggers.py` / E1.2) — the `metrics` and `usage`
-  dashboard skills it also named were removed by [ADR 0104](../adr/0104-no-usage-dashboards-no-usage-recording.md); (ii) retires
+  dashboard skills it also named were removed by [ADR 0104](../architecture/adr/0104-no-usage-dashboards-no-usage-recording.md); (ii) retires
   the 6 orphaned apply-work planner/verifier agent files (`create-pr-planner.md`,
   `create-pr-verifier.md`, `create-ticket-planner.md`, `create-ticket-verifier.md`,
   `merge-pr-planner.md`, `merge-pr-verifier.md` — MAR-62) so agent-file count on
-  disk equals reachable-agent count (today 33 vs 33 reachable). **(ii) is
+  disk equals reachable-agent count (today 43 vs 43 reachable). **(ii) is
   DONE** — ADR-0092 deleted those six and made each skill declare the roles
   it owns. Maps to PRD **G8**
   (both metric clauses). **Traces G8.** **Broadened scope (G31):** the same epic
   extends the eval harness to **all** currently-uncovered acs skills — not only
   `handoff` — adding behavioral (artifact-level) scenarios for the
-  four product-producer skills (`create-prd`, `create-architecture`,
-  `create-project`, `create-design`) and for `create-pr`, `merge-pr`, `ship`,
+  three product-producer skills (`create-prd`, `create-architecture`,
+  `create-tech-design`) and for `create-pr`, `merge-pr`, `ship`,
   and reports a **per-plugin behavioral-coverage ratio** (skills-with-a-runnable-
   behavioral-scenario / total-skills), tracked release over release toward the
   100%-within-2-releases target. Maps to PRD **G31** (extends G8). **Traces G31.**
@@ -708,10 +722,13 @@ inside Wave 4 is uncommitted, its version home is left open-ended
      axis; where the path list comes from is settled in the design phase. Maps to
      PRD **G12, G24**. The MECHANISM (CODEOWNERS template, path-to-owner
      mapping) is settled in this epic's design phase.
-  3. **Design sign-off surface** — publish approved `design.md` (for
-     `needs_design` tickets) to a shared reviewable surface (tracker issue or
+  3. **Design sign-off surface** — publish approved `design.md` (for a
+     change the user designs with `/acs:create-tech-design`; no ticket flag
+     since ADR-0139) to a shared reviewable surface (tracker issue or
      docs PR) for Principal AI Platform sign-off, closing today's
-     machine-local role-separation gap. Maps to PRD's workflow-gap-promotions
+     machine-local role-separation gap. *(Partly delivered by ADR-0135: the
+     design is `tech-design.md` in the Design folder, and its sign-off is
+     recorded in it with `/acs:set-doc-status approved`.)* Maps to PRD's workflow-gap-promotions
      Should-have + **G10**. The MECHANISM (which surface, transport) is
      settled in this epic's design phase.
   4. **code-planner user-confirmed stakes-bump** *(RETIRED — ADR-0095)* —
@@ -756,7 +773,7 @@ permitted as dogfooding outside this committed scope** (does not pull the epic
 forward). A first prior Codex attempt (PR #134, MAR-5) was rejected for not
 matching the official Codex platform; the eventual epic must be re-scoped from
 scratch against the documented Codex primitives (see the Correction note in
-[`runtime-coupling-inventory.md`](../architecture/lld/runtime-coupling-inventory.md)).
+[`runtime-coupling-inventory.md`](../architecture/lld/acs/MAR-4/runtime-coupling-inventory.md)).
 
 - **Epic: headless unattended runner (LEAD, G34).** Deliver the canonical
   **unattended execution mode** — mechanically an **autonomous `/acs:ship`**
@@ -779,7 +796,7 @@ scratch against the documented Codex primitives (see the Correction note in
   complete enforcement boundary**, and its subagent model (explicit-spawn,
   custom-agent TOML format) differs from the coordinator-driven reflection
   cycle — so a genuine runtime divergence, not a thin shim (see
-  [`runtime-coupling-inventory.md`](../architecture/lld/runtime-coupling-inventory.md)
+  [`runtime-coupling-inventory.md`](../architecture/lld/acs/MAR-4/runtime-coupling-inventory.md)
   lines 13-14, 53-54, 128-131). Preserve the **full audit trail**; gate
   integrity stays **best-effort by default, non-bypassable only via
   org-managed (`requirements.toml`) hooks**. **Validation (extended G6):**
@@ -791,7 +808,7 @@ scratch against the documented Codex primitives (see the Correction note in
 **Deferral:** the MECHANISM for both epics (the hook-gating / subagent-protocol /
 dispatch mapping, which gates are native vs shimmed on Codex CLI, the runner's
 trigger transport and host) is deferred to each epic's own dedicated design
-phase / an ADR; each requires its own `/acs:create-design` run before
+phase / an ADR; each requires its own `/acs:create-tech-design` run before
 implementation. Mirrors the Notion/remote-docs and org-policy deferrals.
 
 **Implementation note:** this is a future epic pending design — this entry defines what
@@ -816,7 +833,7 @@ Deliver a pluggable docs backend for acs, mirroring the `tracker.provider` prece
 
 **Deferral:** the MECHANISM — Notion API/auth, markdown→Notion-blocks mapping, PR-less
 vs sync delivery, per-mode review/audit implementation — is deferred to this epic's
-dedicated design phase. This epic requires its own `/acs:create-design` run before
+dedicated design phase. This epic requires its own `/acs:create-tech-design` run before
 implementation begins. Non-Notion remote providers (Confluence, Google Docs, SharePoint)
 are Won't-have now; they may be considered as future extensions after this epic ships.
 

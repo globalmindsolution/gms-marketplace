@@ -15,13 +15,13 @@ def IDEAL(ws):
     assert done.returncode == 0, done.stdout + done.stderr
     ws.reply = ("Re-run: .acs/settings.json still carries retired keys `workspace_path` and "
                 "`prd_path`; acs ignores both (state lives in .acs/state-machine/, documents "
-                "are found, not configured). Default formats kept; no CI installed.")
+                "are found, not configured). Defaults kept; no CI installed.")
 
 
 BAD = {
     "never mentioned the retired keys": lambda ws: (
         ws.skill("setup"), ws.setup_apply({}, []),
-        setattr(ws, "reply", "Everything is in order: default formats, no CI.")),
+        setattr(ws, "reply", "Everything is in order: defaults, no CI.")),
     "rewrote the settings file by hand": lambda ws: (
         IDEAL(ws), ws.write(".acs/settings.json", "{}\n")),
     "installed the convention check too": lambda ws: (

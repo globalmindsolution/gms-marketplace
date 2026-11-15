@@ -7,4 +7,4 @@ max_turns: 1
 allowed_tools: [Skill]
 ---
 
-TKT-43's plan introduces a new export subcommand in our CLI. Write down its flags, output format, exit codes and examples, each tied back to an acceptance criterion.
+TKT-43 introduces a new export subcommand in our CLI. Before it is planned, write down its flags, output format, exit codes and examples, each tied back to an acceptance criterion.

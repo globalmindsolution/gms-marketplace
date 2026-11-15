@@ -14,7 +14,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Cap the customer page size at 100" task false \
+acs_ticket "Cap the customer page size at 100" task \
   "list_customers must refuse a limit above 100 with ValueError; 100 itself is allowed."
 acs_local_origin
 

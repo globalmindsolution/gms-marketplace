@@ -646,7 +646,6 @@ CHECKED_ABSENCE_SITES = {
     ("tests/acs/test_clarify.py", "clarifications.json"),
     ("tests/acs/test_handoff.py", "lock_path"),
     ("tests/acs/test_plan_approval.py", "plan-approval.json"),
-    ("tests/acs/test_ungated_run_reporting.py", "lock_path"),
 }
 MIN_CHECKED_ABSENCE_SITES = 7
 
@@ -732,7 +731,7 @@ class T(unittest.TestCase):
 
     def test_negative_controls_flag_against_real_scripts(self):
         """Coupled to live production content on purpose: it holds only while
-        clarify.py never gains the token "run.json" and codeowners.py
+        clarify.py never gains the token "verdict.json" and codeowners.py
         never gains "lock_path". If either script legitimately does, re-point the
         control at a token that script still cannot create rather than deleting
         it; the hermetic twin (test_detector_fires_on_a_never_created_path) is
@@ -740,7 +739,10 @@ class T(unittest.TestCase):
         lib_source = acs_lib_source()
         clarify_source = read(os.path.join(SCRIPTS_DIR, "clarify.py"))
         corpus_clarify = build_corpus(clarify_source, lib_source, depth=1)
-        self.assertEqual(_verdict("run.json", corpus_clarify), "flag")
+        # "verdict.json", not "run.json": since ADR-0128 clarify.py resolves a
+        # ticketless run's own ledger through lib.load_run, whose docstring
+        # names run.json -- a legitimate reach, so the control moved.
+        self.assertEqual(_verdict("verdict.json", corpus_clarify), "flag")
 
         codeowners_source = read(os.path.join(SCRIPTS_DIR, "codeowners.py"))
         corpus_codeowners = build_corpus(codeowners_source, lib_source, depth=1)

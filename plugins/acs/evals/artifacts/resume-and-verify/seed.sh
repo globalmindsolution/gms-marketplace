@@ -36,7 +36,7 @@ mkdir -p .acs
 cat > .acs/settings.json <<'JSON'
 {
   "ticket_prefix": "EVAL",
-  "test_coverage_percent": 90,
+  "tests": { "coverage": 90 },
   "merge_strategy": "squash",
   "tracker": { "provider": "none" }
 }
@@ -57,7 +57,7 @@ printf '{"next": 1, "reconciled": true, "seed_source": "explicit-user", "seeded_
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .acs/state-machine/example-shop/counters.json
 
 python3 "$SCRIPTS/new-ticket.py" --title "Add a /health endpoint returning ok" \
-  --type task --needs-design false > /dev/null
+  --type task > /dev/null
 
 T=.acs/state-machine/example-shop/EVAL-1
 mkdir -p "$T/specs"

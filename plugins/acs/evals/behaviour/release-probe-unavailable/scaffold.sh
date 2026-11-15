@@ -6,7 +6,7 @@
 # committed check script that leaves build/pre-release.ok when it runs.
 #
 # /acs:release's MANDATORY first CLI call is `release_notes.py status`, whose
-# open-PR probe is `gh pr list` -- critical: a probe that cannot answer is a
+# open-PR probe is a `gh api` REST read -- critical: a probe that cannot answer is a
 # STOP, never a fresh cut. gh has no forge here (and the remote resolves to
 # the local bare repository, so even an authenticated gh finds no GitHub
 # remote), so the correct run stops before the gate, before any draft, bump,
@@ -21,9 +21,9 @@ git add -A
 git commit -qm "Add package manifest"
 git tag v2.4.0
 
-acs_ticket "Cap the customer page size at 100" task false \
+acs_ticket "Cap the customer page size at 100" task \
   "list_customers must refuse a limit above 100 with ValueError."
-acs_ticket "Fix health check casing" task false "health() must return lowercase ok."
+acs_ticket "Fix health check casing" task "health() must return lowercase ok."
 
 cat > src/shop/__init__.py <<'PY'
 PAGE_SIZE = 20

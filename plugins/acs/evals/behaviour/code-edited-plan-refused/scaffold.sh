@@ -13,7 +13,7 @@
 #     plan-approval.py and /acs:code read; the planner subagent writes it with
 #     the Write tool, so there is no CLI writer for its bytes
 #   acs.py filemap set --skill code --iteration 1 (the map the guard enforces)
-#   the published copy in docs/tickets/EVAL-1/, committed on the ticket branch
+#   the published copy in docs/development/<feature>/EVAL-1/, left uncommitted on main
 #   post-create-impl-plan.py (finishes the step, releases the lock)
 # then APPROVED through the sole writer of plan-approval.json, `acs.py plan
 # check`, and only then edited -- the way a human edits a plan file.
@@ -22,14 +22,14 @@ here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/../_fixtures/repo.sh"
 
 acs_repo
-acs_ticket "Search customers by name" story false \
+ACS_FEATURES=customer-listing
+acs_ticket "Search customers by name" story \
   "Merchants with hundreds of customers need to find one by name without paging."
 acs() { python3 "$ACS_SCRIPTS/acs.py" "$@"; }
 printf '%s\n' '{"acceptance_criteria": ["search_customers(customers, \"ali\") returns every customer whose name contains ali, case-insensitively", "a blank query raises ValueError", "the README documents GET /customers/search?q="]}' \
   | acs ticket save --ticket EVAL-1 --from - > /dev/null
 
 acs step start --step create-impl-plan --ticket EVAL-1 > /dev/null 2>&1
-acs_branch "story/EVAL-1-search-customers-by-name"
 draft="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan.md"
 cat > "$draft" <<'MD'
 # Plan — EVAL-1 Search customers by name
@@ -64,7 +64,6 @@ Task 2 is documentation (AC-3); no test.
 ## Contract
 delivery_path: standard
 owes:
-  api_contract: false
   test_cases: false
   e2e: false
   reason: "a library function and its documentation; the HTTP layer is out of scope and there is no browser flow"
@@ -77,14 +76,12 @@ acs filemap set --skill code --iteration 1 --task 1 \
   --file src/shop/search.py --file tests/test_search.py > /dev/null
 acs filemap set --skill code --iteration 1 --task 2 \
   --file README.md --file CHANGELOG.md > /dev/null
-mkdir -p docs/tickets/EVAL-1
-cp "$draft" docs/tickets/EVAL-1/plan.md
-git add docs/tickets/EVAL-1/plan.md
-git commit -qm "EVAL-1 Add the implementation plan"
+mkdir -p docs/development/customer-listing/EVAL-1
+cp "$draft" docs/development/customer-listing/EVAL-1/plan.md
 result="$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/result.json"
 cat > "$result" <<'JSON'
 {"status": "completed", "summary": "plan published; two disjoint executor tasks",
- "states": {"plan_path": "docs/tickets/EVAL-1/plan.md", "plan_approved": false,
+ "states": {"plan_path": "docs/development/customer-listing/EVAL-1/plan.md", "plan_approved": false,
             "file_map": {"1": ["src/shop/search.py", "tests/test_search.py"],
                          "2": ["README.md", "CHANGELOG.md"]}},
  "findings": [], "errors": []}
@@ -95,7 +92,7 @@ python3 "$ACS_SCRIPTS/post-create-impl-plan.py" --result-file "$result" > /dev/n
 # (Captured first: `| grep -q` under pipefail can SIGPIPE the writer.)
 approval="$(acs plan check --run EVAL-1)"
 grep -q '"plan_approved": true' <<<"$approval"
-grep -q '"plan_sha256": "8e1495b68a253b3ba0390f433efee5c2e96f1ca654af963faf4f9454e7ebac22"' \
+grep -q '"plan_sha256": "ff9781e58f6ae59b80fc31dac5fe772f1a15a1e5d457299b4e3ae5e96bb98ad7"' \
   "$ACS_PARTITION/runs/EVAL-1/steps/create-impl-plan/plan-approval.json"
 
 # ...and then the plan is edited after approval.

@@ -1,501 +1,213 @@
 ---
 name: create-pr
-description: Push the ticket's implementation branch and open (or update) the pull request — title and body composed entirely from workspace state, targeting the repo's default branch with the ACS label, ready for review. Use when a ticket's implementation branch is ready to ship for human review; the gate is a safety brake, not an order check — it refuses only a ticket whose recorded /acs:code run left the verifier failing. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
-argument-hint: "[ticket-id]"
+description: Commit, push and open (or update) the pull request — the one acs skill that branches, commits and pushes. Whatever state the work is in — uncommitted, committed, unpushed or already pushed — it gets the changes onto a branch (splitting uncommitted ones into small reviewable commits the user confirms), pushes, and opens the PR against the default branch with the ACS label, title and body composed from workspace state. Takes a ticket id, documents, a prompt, a mix of them, or nothing (this checkout's current run); no ticket is needed — a PRD, architecture, LLD or ADR change or a prompt-driven fix ships the same way. Use whenever work in the working tree is ready for human review; the gate is a safety brake, not an order check — it refuses only a run whose recorded review left the verifier failing. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell or run git yourself: it locates all of them itself.
+argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
 
-You are the coordinator of /acs:create-pr. Your job: ship the ticket's
-implementation as a pull request. Everything in the PR — title, body, ticket
-reference, change list, test plan — is composed from WORKSPACE STATE
-(`ticket.json`, `specs/`, `design.md`, `steps/code/state.json` including its review
-summary), never from conversation history. You perform all of the apply-work
-yourself, inline, following `references/publish.md`, and **spawn no subagent** —
-no planner, no executor, no verifier: pushing a branch and opening a PR is a
-fixed sequence of commands with nothing for a separate agent to judge. You
-persist every phase artifact to the ticket partition, and finish by writing the
-result document and running the post-hook — always, even on failure.
+You are the coordinator of /acs:create-pr. Your job: get the changes we made
+into a pull request, whatever state they are in — uncommitted, committed,
+committed but unpushed, or already pushed. This is the ONLY acs skill that
+creates a branch, stages, commits or pushes (ADR-0127). You spawn no subagent:
+run the work inline, following `references/publish.md` for the details that are
+easy to get wrong, and use your judgment on the mechanics: the goal and
+the few rules below are fixed, the commands are yours to choose.
+
+Compose the title and body from workspace state (the run's requirements, the
+ticket when there is one, `specs/`, `tech-design.md`, `steps/code/state.json`
+`invocations[-1].states` — `tests`, `review`, `specs_implemented`,
+`docs_updated` — and the commits on the branch) — never from conversation
+history, and never invent content a section has no source for.
 
 ## Start
 
 MANDATORY first action — run exactly:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-pr
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" step start --step create-pr --args "$ARGUMENTS"
 ```
 
-If it exits non-zero: STOP and surface its stderr verbatim to the user. Do not
-improvise a workaround.
+If it exits non-zero: STOP and surface its stderr verbatim. Do not improvise a
+workaround. If it prints `DEGRADED ENFORCEMENT` (the hooks did not fire), the run
+continues ungated: put that in the report's Findings. The pre-hook is a safety brake, not an order check (order lives in
+`workflows/ship.yaml`): it refuses only a run whose recorded review left
+`states.verifier_passed` false; it does not require `/acs:code` or `/acs:docs-sync` to have
+run, so treat a missing `steps/code/state.json` as "no recorded implementation".
 
-The pre-hook is a SAFETY BRAKE, not an order check. It refuses when the ticket
-HAS a `/acs:code` run whose verifier did not pass
-(`steps/code/state.json` `states.verifier_passed != true`) — a failed review loop must
-never reach a reviewer. It does NOT require that `/acs:code` or
-`/acs:docs-sync` completed: order lives in `workflows/ship.yaml`, so a ticket
-with no code run at all passes the gate (running out of that declared order
-just earns ONE advisory line on stderr). So do not assume a code run exists:
-read `steps/code/state.json` and treat a missing file as "no recorded implementation"
-— see "State inputs" below.
+Read the printed context JSON: `run_id`, `subject`, `requirements.path` (the
+run's requirements — `acs.py requirements show`; never read `ticket.json` for
+acceptance criteria),
+`ticket_id` / `ticket` (absent when there is no ticket), `partition`,
+`settings.tracker`, `settings.ticket_prefix`, `design`, `checkout_root`, and
+`reconcile` / `handoff_summary` (when set, read `references/resume.md` first).
+`/acs:create-pr` works with a ticket id, a prompt, documents or nothing (the
+checkout's current run); a ticketless run has no ticket id in commit subjects,
+no ticket reference or tracker sync in the PR, and lands with
+`/acs:merge-pr --pr <number>`.
 
-Parse the printed context JSON. Fields you will use:
+## Resume & reconcile
 
-- `ticket_id`, `ticket` — id, title, type, and `external` (the
-  `{provider, key}` remote-tracker mapping, when synced).
-- `partition` — absolute path of `<workspace>/<repo-id>/<ticket-id>/`. Phase
-  artifacts go in `steps/create-pr/`.
-- `settings.formats` — `pr_title` (default `{title}`, so the title carries no
-  ticket id: the body's Ticket section links the ticket; vocabulary
-  `{ticket_id}` `{type}` `{title}` `{summary}` `{external_key}` `{ticket_ref}`
-  for a repo that wants the id in its titles) and
-  `pr_description_template` (default `pr-default`).
-- `settings.tracker` — `provider` is `local` (no sync), `github`, or `jira`.
-- `checkout_root`, `plugin_root` — for template resolution.
-- `reconcile`, `handoff_summary`, `prior_status` — see
-  `references/resume.md`.
-- `design` — `{required, dir, source}`; `design.dir` is the PARTITION of the
-  ticket whose design applies and its basename is that ticket's id. When
-  required, the design document — `artifacts["design.md"]` from
-  `acs.py artifacts show --ticket <that id>`, i.e. its docs folder, or
-  `<design.dir>/design.md` when the tree is opted out — feeds the
-  Summary/Changes content. Call it `<design_doc>`.
+When `context.reconcile` is true (the previous invocation ended `interrupted` or
+`failed`) or `context.handoff_summary` exists, read `references/resume.md` first
+and verify recorded state against git and origin before committing or creating
+anything. A fresh run skips it.
 
-State inputs (read these; conversation history is NOT an input):
+## What to do
 
-- `<partition>/ticket.json` — title, type, description, acceptance criteria,
-  `external` mapping.
-- `steps/code/state.json` — `invocations[-1].states`: `branch` (the ticket
-  branch /acs:code created per `formats.branch_name`), `specs_implemented`,
-  `tests` `{passed, failed, coverage_percent, coverage_target}`,
-  `docs_updated`, `review` `{iterations, findings_open}` (plus `guard_denials`,
-  derived, only when the file-map guard denied a write during the /acs:code
-  run — read it if you report it, never write or gate on it: this skill's
-  gate stays `verifier_passed` and the body's review tick stays
-  `review.findings_open == 0`).
-- `<partition>/specs/*.md` — scope and API/data changes per spec.
-- `<design_doc>` — the decision, when `design.required`.
-
-## The two references, and when to open each
-
-Nearly all of this skill is one flow: check nothing is already open, push the
-branch, render the title and body, open the PR, record it. Two parts are not,
-and each row below is read by exactly one kind of run:
-
-| Open | When |
-|---|---|
-| `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/resume.md` | `context.reconcile` or `context.handoff_summary` is set. It carries the reconcile procedure, whose first job is to find out whether a PR already exists for this branch. A fresh run skips it. |
-| `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md` | The "Branch / PR / commit conventions" check reports failing after the PR is open. It carries the frozen-payload rule: a red run may be stale, a rerun replays the same stale payload, and an unverified check is never assumed green. |
-| `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md` | Step 1's stacked-base pre-flight exits 1. The same file read at a different moment: it carries the replay remedy for a branch stacked on a squash-merged base — the `git rebase --onto origin/<base> <old-base>` form, the warning that every commit SHA changes, and why `git log --cherry-pick` cannot detect the condition. |
-
-## Inline apply flow
-
-No planner-executor-verifier triad. No planner or verifier subagents are
-spawned for this skill. This inline flow holds on every delivery path —
-`trivial`, `small`, `standard`, `complex`, and a ticket with none recorded —
-because create-pr runs after `/acs:code` has finished and the path it took is
-not an input here. No path re-introduces a planner or verifier for create-pr.
-
-**Verifier-gated upstream (AC-5).** Correctness is gated by the upstream
-code-verifier (/acs:code's verifier subagent). The pre-hook enforces that as a
-brake — a recorded code run with `steps/code/state.json`
-`states.verifier_passed != true` is refused — rather than as a precondition
-that a code run exist at all. The human checkpoint is the PR review.
-/acs:create-pr carries no in-skill verifier; invariant (d) lives in the
-upstream code/spec lanes, not in apply-work.
-
-**No subagent is spawned — you run the numbered steps inline.** The
-coordinator performs every step below itself, in order; it never delegates
-them to any subagent, on any delivery path or iteration. Open
-`${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/publish.md` before step 1
-and follow it alongside these steps: it carries the ordering and safety rules
-that bind them (what may be mutated, no force-push, no fabricated body
-content), how each outcome ends the run, and the publish report's shape. There
-is no `<task>`/`<result>` exchange and no model tier to apply.
-
-1. **Branch, base, and the stacked-base pre-flight.** Verify the ticket branch
-   from `steps/code/state.json` `states.branch` exists locally
-   (`git rev-parse --verify <branch>`) or on origin
-   (`git ls-remote origin <branch>`). Detect the base branch here, BEFORE
-   anything is pushed:
-   `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. That call
-   is **critical**, so its failure now stops the run before the push instead of
-   after it; step 2 reuses the `<base>` it yields rather than detecting it
-   again. Then refresh the base and run the pre-flight — the helper is
-   read-only and network-free, so the fetch is the caller's job:
-
-   ```bash
-   git fetch origin <base>
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/stacked-base.py" check \
-     --base <base> --commit-message-format "<settings.formats.commit_message>" \
-     --ticket-prefix <settings.ticket_prefix>
-   ```
-
-   Exit codes 0 and 1 print one compact JSON object on stdout; exit code 2
-   prints nothing on stdout and reports its reason on stderr instead:
-
-   - **Exit 0** (`verdict` `clean` or `own_violations`): nothing is stacked —
-     continue. With `notes` empty, a non-conforming subject here is this
-     branch's own and gets the ordinary gate failure, never replay advice. With
-     `notes` NON-empty the run qualified its own report — a commit it could not
-     test, an index it could not build, or absorbed-looking content with no safe
-     replay point — so do not conclude ownership from it: surface the report's
-     `message` VERBATIM as one `info` finding, record it, and CONTINUE, the same
-     shape as exit 2.
-   - **Exit 1** (`verdict` `stacked_base`): the branch is stacked on a base that
-     was squash-merged and still carries that PR's commits, whose
-     non-conforming subjects the author cannot fix by renaming them. CI no
-     longer reads commit subjects (ADR-0106), so whether this stops the run
-     turns on `settings.enforcement.checks.commit_message`. **On**, the local
-     pre-push hook refuses those subjects: do NOT push, and do NOT run
-     `gh pr create` / `gh pr edit`. Surface the report's `message` VERBATIM as
-     a blocking problem — it names the offending subjects and carries the
-     replay command with real SHAs, which a paraphrase would drop — write it
-     into the phase artifact and follow the Finish failure path (`states.pr`
-     omitted when no PR exists). **Off** (the default), nothing refuses the PR,
-     which would only carry the merged base's commits into review: surface the
-     `message` VERBATIM as one `warning` finding, record it, and CONTINUE. The
-     author runs the replay; this skill never rewrites their branch. The remedy
-     in full, with the rejected `--cherry-pick` record:
-     `${CLAUDE_PLUGIN_ROOT}/skills/create-pr/references/ci-convention-check.md`.
-   - **Exit 2** (unevaluable — `acs stacked-base: <reason>` on stderr: the base
-     ref does not resolve, or the histories share no merge base): one `info`
-     finding, then CONTINUE. Treat a failed `git fetch` the same way — an
-     advisory pre-flight must never become a new way to fail a good PR.
-
-   Only then push: `git push -u origin <branch>`. If the branch only exists on
-   origin and is already current, skip the push. Never commit new work — if
-   uncommitted implementation changes exist, that is /acs:code's job: surface it
-   as a problem and stop.
-
-2. **Body.** Resolve the body template: a built-in name (`pr-default`) maps to
-   `${CLAUDE_PLUGIN_ROOT}/templates/pr-default.md`; otherwise
-   `<checkout_root>/.acs/templates/<name>.md`; otherwise an absolute path.
-   Unresolvable template = blocking problem, surface it. Fill the resolved
-   template into `steps/create-pr/pr-body.md`: replace every
-   placeholder (`{ticket_id}`, `{type}`, `{title}`, `{summary}`,
-   `{external_key}`; `{external_key_line}` renders as
-   ` — tracker: <provider> <key>` when `ticket.external` is set, empty
-   otherwise), replace HTML comments with real content and DELETE the comments,
-   fill every section strictly from the state files (`ticket.json`,
-   `steps/code/state.json`, `specs/*.md`, `design.md` when required). The base
-   branch is the repo's default — the `<base>` step 1 already detected; reuse
-   that value rather than running the detect a second time.
-   Render the PR title via the helper — NOT LLM prose composition — capturing
-   its stdout as `<rendered title>`:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" render-title \
-     --template "<settings.formats.pr_title>" --ticket-id <ticket_id> --type <ticket.type> \
-     --title "<title-value>" --summary "<summary>" --external-key "<ticket.external.key or empty>" \
-     --provider "<ticket.external.provider or empty>"
-   ```
-
-   `<title-value>` and `<summary>` are derived exactly as before (from
-   `ticket.json` / `steps/code/state.json` / specs), only the render mechanism
-   changes. This is the exact value passed **verbatim** to `gh pr create
-   --title` / `gh pr edit --title` in step 5 — no further transformation.
-   Body: Summary (from specs scope + design decision), Ticket (id, title,
-   type, external key), Changes (from `specs_implemented`, `docs_updated`,
-   and `git diff <base>...<branch> --stat`), Test plan (from
-   `tests.passed/failed/coverage_percent/coverage_target` and the specs' test
-   plans), Checklist (tick exactly what code-state evidences — e.g. `[x]`
-   only when `review.findings_open == 0`).
-
-   **GitHub-native issue link (AC-2, AC-7).** When
-   `ticket.external.provider == "github"` AND `ticket.external.key` is set,
-   `pr-default.md`'s `## Ticket` section renders a `Closes #{external_key}`
-   bullet — a distinct bullet from the existing `{external_key_line}`
-   (` — tracker: <provider> <key>`) — so GitHub's issue-closing keyword parser
-   recognizes it as its own line/bullet. When `ticket.external` is null/local
-   or the provider is not `github` (the unsynced case), the bullet is omitted
-   entirely, not rendered blank — the rest of the body renders byte-identical
-   to today (AC-4, no regression for `local`/unsynced tickets).
-
-3. **Label.** `gh label create ACS --description "Created by the acs pipeline" 2>/dev/null || true`
-   — this label plus the `Closes #{external_key}` linking line together make
-   the PR independently identifiable and traceable without depending on the
-   local acs ticket id being unique across contributors (AC-7).
-
-4. **Pre-open self-check.** Before either branch of step 5 runs `gh pr
-   create`/`gh pr edit`, self-check the filled body against exactly what CI
-   will check, with the helper's `check` subcommand — a deterministic CLI
-   call, never a spawned subagent and never a plan/execute/verify triad — no
-   new subagent role is introduced by this step:
+1. **Find where the work is.** Run
+   `acs.py pr plan-commits --out <partition>/steps/create-pr/iter-<n>/commit-plan.json`.
+   It prints the branch to use, the `base`, `groups` (the uncommitted changes
+   split into reviewable commits: documents by doc set, then each slice's tests
+   then code, then doc updates and e2e suites), `left_out` and `excluded`
+   paths, `ahead` (commits already on HEAD past the default branch) and
+   `pushed` (origin has the branch at HEAD). Use it; do not hand-build a plan.
+   Nothing to commit and nothing `ahead` means nothing to ship: say so and stop
+   failed.
+2. **Commit what is uncommitted — with the user's say-so.** Show the plan in
+   ONE question (branch, each group's subject and paths, `left_out`, `excluded`)
+   with confirm / edit / cancel; apply only the edits the user names and never
+   add an `excluded` path. Record the answer with `clarify.py add --skill
+   create-pr --question "Commit plan" --answer ... --source user` (the plan is
+   never an assumption), write the confirmed plan back to `commit-plan.json`
+   (`acs.py write`), then `acs.py pr commit --plan <file>`. Commits are the
+   user's history: no commit without their confirm, given at the preview or in
+   the request itself ("commit it the way you split it"). Cancel commits and
+   pushes nothing and finishes `interrupted`. With no groups but `ahead`
+   commits, `pr commit` just cuts the branch at HEAD (detached HEAD, or the
+   default branch with commits ahead).
+3. **Push** the branch unless `pushed` — but first (after step 2: the branch
+   is cut and recorded either way) read the default branch from GitHub (e.g.
+   `gh api repos/{owner}/{repo} --jq .default_branch`). It is a critical call
+   (below): with no working route, stop failed BEFORE anything is pushed, so a
+   session that cannot reach GitHub never leaves a pushed branch with no PR.
+   Never force-push; never push the default branch.
+4. **Open or update the PR** against the default branch, ready for review
+   (never a draft): a concise title (normally the ticket's title), and a body
+   from the `pr-default` template (a repo's `.acs/templates/pr-default.md`
+   replaces it), written to `steps/create-pr/pr-body.md` through `acs.py write` — Summary, Ticket, Changes (every commit on the branch past the
+   default branch), Test plan, Checklist ticked only where state evidences it
+   (`review.findings_open == 0` for the review tick). The Ticket section carries
+   the GitHub-native issue link `Closes #{external_key}` when the ticket's
+   `external.provider` is `github`. For a local or unsynced ticket the bullet is omitted. Label it `ACS` (create the label if missing); a run with no
+   ticket also gets `acs-exempt`, because CI fails any PR that names no ticket
+   unless that label exempts it. If an open PR already exists for the branch,
+   update it instead of opening a second one. Before opening, self-check the
+   body against what CI checks:
 
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pr-conventions.py" check \
-     --body-file steps/create-pr/pr-body.md --ticket-prefix <settings.ticket_prefix>
+     --body-file <body> --ticket-prefix <settings.ticket_prefix>
    ```
 
-   CI checks one thing (ADR-0106): the description names its ticket — the id
-   (`<prefix>-<n>`), a `#<n>` reference or an issue link. `check` runs
-   `check-conventions.py`'s own rule rather than a copy of it, which is what
-   keeps the self-check and CI enforcement from drifting, and adds two
-   hygiene scans: an unrendered `{placeholder}` and a leftover `<!-- -->`
-   comment. The title and the `ACS` label are how acs writes the PR, not
-   rules CI checks, so neither is self-checked.
+   A failing check blocks the PR: fix the body and re-check, at most twice, then
+   stop failed rather than open a non-conforming PR (a missing ticket link is
+   expected with no ticket; only the placeholder and leftover-comment scans must
+   pass).
+5. **Record** `{number, url, branch, base}` for the result, and write the
+   publish report (mode, plan path, commits made, what was pushed, the PR,
+   sync results, problems, which GitHub access you used) to
+   `steps/create-pr/iter-<n>/publish.json` through `acs.py write`. State lives
+   on disk, not in the conversation: a fresh session must be able to resume
+   from these files alone. Write every state file with `acs.py write`, never
+   the Write tool.
+6. **Fill the metadata and sync the tracker (github tracker, ticket only).**
+   Once the PR number is known, run `acs.py pr metadata fill --pr <number>` and
+   comment on the remote issue (`references/publish.md`). Skipped with no ticket or an unsynced ticket;
+   best-effort otherwise: a failure is a finding with its command, never a stop.
 
-   - **On pass** (exit 0 / `passed: true`): proceed to step 5 unchanged.
-   - **On failure** (exit 1 / `passed: false`): this reports structured
-     findings from a deterministic call. Perform a bounded local retry: if
-     the failing heading is `ticket_link`, re-fill the Ticket section so the
-     body names the ticket id; if it is `unrendered_placeholder` or
-     `leftover_template_comment`, delete the surviving placeholder/HTML
-     comment in `pr-body.md`, then re-run `check`. Cap the retry at a small
-     bounded number of attempts (up to 2 re-fills) — this is a tight
-     fix-and-recheck loop around one deterministic call, NOT a new
-     plan/execute/verify iteration. If `check` still fails after the bounded
-     retries, STOP: do NOT call `gh pr create`/`gh pr edit`; surface a
-     blocking problem naming the exact failing heading(s)/detail(s) from the
-     helper's `errors`, write it into the phase artifact, and follow the
-     Finish failure path — `states.pr` is omitted if no PR exists yet, or kept
-     as the last-known-good object if updating an existing PR that could not
-     be re-validated. Never open or leave in place a PR known to be
-     non-conforming as a result of this run.
-   - Apply this identical self-check on BOTH the create path and the edit
-     path below — one `check` call before whichever `gh pr` command ends up
-     running.
-
-5. **Create or update PR.** Detect existing open PR:
-   `gh pr list --head <branch> --state open --json number,url,baseRefName,isDraft`.
-   If no open PR exists for the branch:
-
-   ```bash
-   gh pr create --base <default-branch> --head <branch> --title "<rendered title>" --body-file steps/create-pr/pr-body.md --label ACS
-   ```
-
-   No `--draft` — PRs are created ready-for-review. If an open PR already
-   exists for the branch: update it instead —
-   `gh pr edit <number> --title "<rendered title>" --body-file <body> --add-label ACS`,
-   plus `gh pr edit <number> --base <default-branch>` when its base is wrong
-   and `gh pr ready <number>` when it is a draft.
-
-   When a milestone is known (mirrors create-ticket's conditional milestone
-   fill — the repo defines at least one, or the ticket/settings names one
-   explicitly), both `gh pr create` and `gh pr edit` above additionally pass
-   `--milestone <name>`; omit the flag entirely when none is configured (this
-   repo defines none today) — never an unconditional call that would error.
-
-6. **Record.** `gh pr view <branch> --json number,url,baseRefName,headRefName,isDraft,labels`
-   → capture `{number, url, branch, base}` for `states.pr`.
-
-6a. **Tracker-metadata fill (github-tracker only).** When
-   `settings.tracker.provider == "github"` AND `ticket.external.key` is set
-   (the same guard step 7 below uses), one command performs every metadata
-   write, now that the PR number is known from step 6:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" pr metadata fill \
-     --pr <number> [--author <login>]
-   ```
-
-   `--author` is optional; it only tells the command whom to drop from the
-   reviewer set, and omitting it makes the command resolve that login itself
-   with `gh api user`. `alice`, `@alice`, `@me` and `Alice` are all the same
-   login — the match strips a leading `@` and folds case on both sides,
-   because CODEOWNERS writes owners `@`-prefixed while a login is passed bare.
-
-   It assigns the PR to the authenticated user, ensures and applies the
-   ticket-type label alongside the `ACS` label from step 3, requests the
-   CODEOWNERS-derived reviewers (author excluded — self-review is impossible),
-   adds the PR to the configured Project, and sets Status plus Priority, Story
-   Points and Parent from the board's own field list. When the guard does NOT
-   hold the command reports `skipped: true` and writes nothing, so the PR is
-   byte-identical to an unsynced repo's output.
-
-   **This is non-critical throughout.** Exit 0 means the pass ran, not that
-   every field landed: read the printed `findings`. Each failure — a `gh` call
-   that errored, a Project that defines no Status option, a field whose
-   `dataType` the value cannot be written to — is one `info` finding carrying
-   the exact command, ready to re-run. Carry them into the result document's
-   `findings`; none of them fails the PR that steps 5–6 already completed.
-   Single-select options cannot be created through the `gh` CLI, so a board
-   missing an **In Review** (or **Review**) option leaves Status unchanged and
-   says so rather than guessing.
-
-
-7. **Tracker sync.** When `settings.tracker.provider` is `github` or `jira`
-   AND `ticket.external.key` is set, comment on the remote issue with the PR
-   URL:
-   - `github`: `gh issue comment <external.key> --body "ACS: PR #<number> opened for <ticket-id> — <url>"`
-   - `jira`: `acli jira workitem comment --key <external.key> --body "ACS: PR opened for <ticket-id> — <url>"`
-   Skip for `local`; report an info finding when the provider is configured but
-   the ticket was never synced.
-
-   This comment plus the `Closes #<key>` body line together are what make the
-   PR discoverable from the issue and vice versa — the bidirectional
-   cross-reference (AC-3) holds from both directions.
-
-Write the publish report `steps/create-pr/iter-<n>/publish.json`
-(`references/publish.md` shows its shape: commands run with outcomes, pushed SHA, PR number/url/base, sync result,
-problems hit, the pre-open self-check's pass/fail result and, on retry, how
-many attempts were used, plus the tracker-metadata-fill result — assignee/
-label/Project outcomes and any findings — additive, alongside the existing
-fields, plus the additive `reviewers{requested, skipped_reason, findings}`
-and `project_fields{priority, story_points, parent, findings}` keys).
-
-### GitHub call failure policy (gh is acs's only transport)
-
-`gh` is acs's only GitHub transport in this skill — there is no MCP-based
-transport and no second credential path (ADR-0088). Every `gh` call below is one of
-exactly two classes:
-
-- **Critical** — a gate input, or a call this step cannot proceed without.
-  On non-zero exit: surface gh's verbatim stderr plus ONE canonical hint from
-  `acs_lib.gh_failure_hint(stderr)` (`acs_lib.GH_ACCESS_HINT` when the
-  stderr names a session-access restriction, else `acs_lib.GH_GENERIC_HINT`),
-  then STOP — no retry, no fallback to any other transport. Canon hint text
-  (`acs_lib.GH_ACCESS_HINT`):
-
-  > This looks like a session-level access restriction — a Claude Code
-  > cloud/managed session must have the Claude GitHub App connected for this
-  > organization by an org admin. A local Claude Code session uses your own
-  > `gh` authentication and should not see this.
-
-- **Non-critical** — metadata/best-effort. On non-zero exit: one `info`
-  finding plus a replayable block (the exact failed command, ready to
-  re-run), then continue — never abort the run for this class. Finding
-  shape: `{severity, area, message, command, error, hint, replayable}`
-  (`info` / `replayable: true` here).
-
-Per-call classification in this skill:
-
-- **Critical**: `gh pr list` (step 1, resume/create-vs-update detect);
-  `gh repo view --json defaultBranchRef` (step 1, base detect); `gh pr
-  create` / `gh pr edit` (step 5).
-- **Non-critical**: `gh pr ready` (step 5, un-draft); `gh pr view` (step 6,
-  Record — a confirming re-read); the labels/assignee/milestone/type-label
-  fill and its `gh label list` / `gh api …/milestones` reads (step 6a);
-  Projects v2 `gh project item-add` / `field-list` / `item-edit` and the
-  `gh pr diff` CODEOWNERS reviewer request (step 6a); `gh issue comment`
-  (step 7, PR back-reference); the `gh run list` CI-run diagnostic read
-  below.
-
-See `references/ci-convention-check.md` for that last read's one extra rule
-(an unverified check is never assumed green).
+Every GitHub call is `gh api` REST (`gh api repos/{owner}/{repo}/...`,
+ADR-0149): `gh pr …`, `gh issue …`, `gh label …` and `gh repo view` run on
+GraphQL, which a Claude Code session refuses (HTTP 403), so never use them. If
+`gh` is blocked altogether, use the GitHub tools the session provides
+(ADR-0141). A failed critical call (default branch, finding the open
+PR, create/update) means: surface the verbatim error plus
+`acs_lib.gh_failure_hint(stderr)`, try another working route once, and stop if
+there is none. Everything else (labels, assignee, reviewers, Project, tracker
+comment) is best-effort. Never report a PR, label or comment that was not
+actually made, and say which access you used. A red "Branch / PR / commit
+conventions" check after opening: read `references/ci-convention-check.md`
+before believing it.
 
 ## User interaction
 
-**Clarification ledger first.** Before asking the user anything, run
-`python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/clarify.py" list --ticket <ticket-id>`
-and reuse any recorded answer — re-asking an answered question is a defect.
-When ≥2 clarifications are open, present them to the user in ONE grouped
-interaction (e.g. a single AskUserQuestion containing all open questions as a
-numbered list), not serial round-trips — one interaction per question wastes
-user time. Record each answer as its own `clarify.py add` entry (one `C-<n>`
-per question, `--source` preserved). Never skip a question, merge two questions
-into one entry, or auto-answer a question outside the existing
-`--source assumption --rationale "..."` rule.
-Record every Q&A — obtained interactively or relayed in a /ship brief — with
-`clarify.py add --skill create-pr --question "..." --answer "..." --ticket <ticket-id>`
-BEFORE acting on it, and apply the relevant `C-n` entries yourself as you
-publish (no subagent receives them). If the user is unavailable or says "you decide": record the
-decision with `--source assumption --rationale "..."` — assumptions surface
-in the completion report's Findings and the PR body until a user confirms.
-Before a needs_input handoff, record the outgoing questions as `open`
-(`clarify.py add` without `--answer`).
+Clarification ledger first. Run `clarify.py list` and reuse recorded answers; record every Q&A with
+`clarify.py add --skill create-pr --question "..." --answer "..."` before acting
+on it, ask several open questions in one grouped interaction, and never skip a
+question, merge two into one entry, or auto-answer one outside the
+`--source assumption --rationale` rule. The commit
+preview is the only routine question. Ask something else only when reality
+diverges from state (the branch carries commits the plan does not account for,
+or an open PR for the branch was authored outside ACS with a conflicting base).
+When you cannot reach the user (under /acs:ship, or told not to ask) and the
+request holds no approval of the plan ("commit it the way you split it" is
+one: record it `--source user`), commit nothing: record the question as `open`, finish
+`interrupted` with `stop_reason: needs_input`, and return a `<handoff
+skill="create-pr" status="needs_input">` carrying the plan in a `<question>`.
 
-Most runs need no questions — the state files answer everything. Ask
-(AskUserQuestion or plain questions) only when reality genuinely diverges from
-state: the ticket branch has uncommitted or unpushed work not recorded by
-/acs:code (include by re-running /acs:code, or proceed without?), the recorded
-branch no longer exists, or an open PR for the branch was authored outside ACS
-with a conflicting base. Do not guess.
+## Failure paths
 
-If you genuinely cannot reach the user (e.g. a non-interactive run): do not
-guess. Write the result document with `"status": "interrupted"` and
-`"stop_reason": "needs_input"` (the question in `summary`), run the Finish
-steps, and return as your final message a handoff like:
-
-```xml
-<handoff skill="create-pr" ticket-id="SHOP-123" status="needs_input">
-  <summary>Branch task/SHOP-123-bulk-import has uncommitted changes not recorded in steps/code/state.json.</summary>
-  <questions>
-    <question>Re-run /acs:code SHOP-123 to land the uncommitted changes, or open the PR from the last recorded commit?</question>
-  </questions>
-  <next-step>Answer, then re-run /acs:ship SHOP-123.</next-step>
-</handoff>
-```
+Every outcome ends in Finish. `failed`: the plan or `pr commit` is refused, a
+critical GitHub call has no working route, the body still fails
+`pr-conventions.py check` after fixing it, or there is nothing to ship — put the
+reason in `summary` and `errors`, keep whatever is true (commits made, a PR that
+was created), and omit `states.pr` if no PR exists. `interrupted`: the user
+cancelled at the preview (`stop_reason` says so), or input is needed (above).
+Never undo a commit already made, and never retry destructively.
 
 ## Context pressure
 
-If your context window is running low mid-run: do NOT burn the remainder on
-work that would be lost. Flush in-flight work plus soft context (rendered
-title, body status, push/PR/sync progress, decisions, gotchas) to
-`steps/create-pr/handoff-context.md`, then run:
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/handoff.py" --ticket <ticket-id> --summary "<done / in-flight / next / decisions>"
-```
-
-Tell the user the `continue_with` command it prints, and stop.
+If your context runs low, flush progress to `steps/create-pr/handoff-context.md`,
+run `handoff.py --run <run_id> --summary "<done / in-flight / next / decisions>"`,
+tell the user the `continue_with` command it prints, and stop.
 
 ## Finish
 
-MANDATORY final step — never skipped, also on failure:
+MANDATORY final step, also on failure:
 
-1. Write `steps/create-pr/result.json` per the result-document
-   contract in INTERNALS.md:
+1. Write `steps/create-pr/result.json` through `acs.py write` (never the Write
+   tool):
 
-   ```json
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write steps/create-pr/result.json <<'ACS_EOF'
    {
      "status": "completed",
-     "summary": "verifier passed on iteration 1 with 0 findings; PR #42 ready for review",
+     "summary": "3 commits on task/SHOP-123-bulk-import; PR #42 ready for review",
      "states": {
-       "pr": {
-         "number": 42,
-         "url": "https://github.com/acme/shop/pull/42",
-         "branch": "task/SHOP-123-bulk-import",
-         "base": "main"
-       }
+       "pr": {"number": 42, "url": "https://github.com/acme/shop/pull/42",
+              "branch": "task/SHOP-123-bulk-import", "base": "main"},
+       "branch": "task/SHOP-123-bulk-import",
+       "commits": [{"id": "code", "sha": "9a8b7c6d", "subject": "SHOP-123 Implement bulk import"}]
      },
      "findings": [],
      "errors": []
    }
+   ACS_EOF
    ```
 
-   Canonical `states` key — EXACT name and shape, the /acs:merge-pr gate reads
-   it: `pr` `{number, url, branch, base}` (`base` is the default branch the PR
-   targets). On failure keep whatever is true: if the PR was created or
-   updated but a later step failed, still record the real `pr` object; if no
-   PR exists, omit `pr` entirely (never a stub) — the /acs:merge-pr gate stays
-   closed. Put the run's findings in `findings`, errors in `errors`, the reason
-   in `summary`.
-
-2. Run the post-hook:
-
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-pr.py" --result-file "<the result.json you just wrote>"
-   ```
-
-   If it exits non-zero, surface its stderr verbatim — the pipeline gate stays
-   closed until it succeeds. On success it finalizes the run and moves the
+   `states.pr` has exactly `{number, url, branch, base}` — the /acs:merge-pr gate
+   reads it; omit it entirely when no PR exists (never a stub). `branch` and
+   `commits` are what `acs.py pr commit` printed, whenever it made any, even if
+   a later step failed. Keep whatever is true on failure.
+2. Run `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-create-pr.py" --result-file <that file>`.
+   If it exits non-zero, surface its stderr verbatim; the pipeline gate stays
+   closed until it succeeds. On success it finalizes the run and moves a
    ticket to `in_review`.
-
-3. Report a compact summary to the user: PR number + URL, branch -> base, ACS
-   label confirmed, tracker sync result (or n/a), created vs updated,
-   iterations used, and the next step — review the PR yourself, then run
-   `/acs:merge-pr <ticket-id>` (a user action; the pipeline never triggers
-   it). Under /acs:ship, instead return ONLY the `<handoff>` XML as your final
-   message — status, summary (<=1KB) naming the PR number/URL, `<artifacts>`
-   referencing `steps/create-pr/result.json`, and `<next-step>` pointing at
-   /acs:merge-pr as the user's review-and-merge action.
+3. Under /acs:ship return ONLY a `<handoff>` XML (status, summary <=1KB naming
+   the commits and PR, `<artifacts>`, `<next-step>` pointing at /acs:merge-pr).
 
 ## Completion report (normative)
 
-Every terminal outcome of a direct invocation — completed, failed,
-interrupted, or handed off — ends your final message with the standard block
-(INTERNALS.md "Completion report"), rendered only AFTER the post-hook
-succeeded. Same labels, same order, `none` where empty; under /acs:ship your final message is the `<handoff>` XML instead — this report is for direct invocations:
+Otherwise end with this block, rendered after the post-hook succeeded, `none`
+where empty:
 
 ```markdown
-## /acs:create-pr · <ticket-id> · <status>
+## /acs:create-pr · <ticket-id | run-id> · <status>
 
-- **Ticket**: <id> — <title> (<type>)
+- **Ticket**: <id> — <title> (<type>), or "none — <the run's prompt>"
 - **Status**: <status> — <summary; `stop_reason` when interrupted>
-- **Results**: PR number and URL; base branch; head branch; `ACS` label applied
+- **Results**: commits made (short sha + subject, in order) and the paths left uncommitted; PR number and URL; base branch; head branch; `ACS` label applied
 - **Findings**: <open findings / clarifications, or "none">
-- **Artifacts**: <partition files, repo paths, branch, PR URL>
+- **Artifacts**: <partition files incl. `steps/create-pr/iter-<n>/commit-plan.json`, repo paths, branch, PR URL>
 - **Metrics**: <wall time>
-- **Next**: review the PR, then `/acs:merge-pr <ticket-id>` — a separate, reviewed step
+- **Next**: review the PR, then `/acs:merge-pr <ticket-id>` (no ticket: `/acs:merge-pr --pr <number>`) — a separate, reviewed step
 ```
-</content>

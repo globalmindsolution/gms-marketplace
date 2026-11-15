@@ -70,7 +70,7 @@ THIS_FILE = os.path.realpath(__file__)
 # C-2's two frozen historical records, plus the m2-0 validation spike (ledger
 # C-7: a dated runbook/result-log of commands literally typed at the time,
 # structurally the same class of artifact as an ADR) -- never rewritten.
-ADR_DIR = os.path.join(REPO_ROOT, "docs", "adr")
+ADR_DIR = os.path.join(REPO_ROOT, "docs", "architecture", "adr")
 CHANGELOG = os.path.join(PLUGIN, "CHANGELOG.md")
 SPIKE_DOC = os.path.join(REPO_ROOT, "docs", "product", "spikes", "m2-0-validation-spike.md")
 ADR_0047 = os.path.join(ADR_DIR, "0047-init-auto-wires-e2e-required-check-report-once.md")
@@ -301,7 +301,7 @@ class NoLiveReferenceOutsideHistoryTest(unittest.TestCase):
         self.assertEqual(
             hits, [],
             "live /acs:init or /init reference(s) found outside the historical "
-            "allowlist (docs/adr/**, plugins/acs/CHANGELOG.md, "
+            "allowlist (docs/architecture/adr/**, plugins/acs/CHANGELOG.md, "
             "docs/product/spikes/m2-0-validation-spike.md):\n" + "\n".join(hits))
 
     def test_no_live_acs_initialize_reference_outside_history(self):
@@ -328,7 +328,7 @@ class NoLiveReferenceOutsideHistoryTest(unittest.TestCase):
         self.assertEqual(
             hits, [],
             "live /acs:initialize or /initialize reference(s) found outside "
-            "the historical allowlist (docs/adr/**, plugins/acs/CHANGELOG.md, "
+            "the historical allowlist (docs/architecture/adr/**, plugins/acs/CHANGELOG.md, "
             "docs/product/spikes/m2-0-validation-spike.md, and the "
             "2026-08-13 docs/requirements/README.md ledger row):\n" + "\n".join(hits))
 
@@ -389,8 +389,8 @@ class StaleInitializeLiteralTest(unittest.TestCase):
             with self.subTest(path=rel):
                 body = read(path)
                 self.assertIn(
-                    _SETUP_TURNS_IT_ON_NEEDLE, body,
-                    "%s must say 'setup turns it on'" % rel)
+                    "/acs:setup copies this file", body,
+                    "%s must name /acs:setup as what installs it" % rel)
                 self.assertNotIn(
                     _INITIALIZE_TURNS_IT_ON_NEEDLE, body,
                     "%s must not say 'initialize turns it on'" % rel)
@@ -402,14 +402,9 @@ class StaleInitializeLiteralTest(unittest.TestCase):
 # vacuously), so this positively asserts the replacement landed.
 T2_T3_SETUP_PATHS = (
     "plugins/acs/skills/handoff/SKILL.md",
-    "plugins/acs/skills/install-hooks/SKILL.md",
     "plugins/acs/skills/merge-pr/SKILL.md",
     "plugins/acs/skills/ship/SKILL.md",
-    "plugins/acs/skills/standardize-project/SKILL.md",
     "plugins/acs/skills/update/SKILL.md",
-    "plugins/acs/agents/standardize-project-auditor.md",
-    "plugins/acs/agents/standardize-project-scaffolder.md",
-    "plugins/acs/agents/standardize-project-additive-checker.md",
     "plugins/acs/README.md",
     "plugins/acs/docs/INTERNALS.md",
     "plugins/acs/docs/AUTHORING.md",
@@ -417,15 +412,9 @@ T2_T3_SETUP_PATHS = (
     "plugins/acs/templates/ci/acs-tests.yml",
     "plugins/acs/templates/ci/acs-e2e.yml",
     "plugins/acs/templates/ci/check-conventions.py",
-    "plugins/acs/templates/ci/commit-msg",
-    "plugins/acs/templates/ci/install-hooks.sh",
-    "plugins/acs/templates/ci/pre-push",
     "plugins/acs/templates/ci/run-tests.py",
     "plugins/acs/templates/ci/run-e2e.py",
     ".acs/ci/check-conventions.py",
-    ".acs/ci/commit-msg",
-    ".acs/ci/install-hooks.sh",
-    ".acs/ci/pre-push",
     ".acs/ci/run-tests.py",
     ".github/workflows/acs-conventions.yml",
     ".github/workflows/acs-tests.yml",
@@ -436,10 +425,9 @@ T2_T3_SETUP_PATHS = (
     "docs/product/spikes/m2-0-validation-spike.md",
     "docs/quality/testing-strategy.md",
     "docs/architecture/hld/deployment.md",
-    "docs/architecture/lld/contracts.md",
-    "docs/architecture/lld/runtime-coupling-inventory.md",
-    "docs/architecture/lld/flows/standardize-project.md",
-    "docs/architecture/lld/flows/tests-coverage-gate.md",
+    "docs/architecture/lld/acs/api/settings.md",
+    "docs/architecture/lld/acs/MAR-4/runtime-coupling-inventory.md",
+    "docs/architecture/lld/acs/flows/tests-coverage-gate.md",
     "docs/requirements/README.md",
     "docs/requirements/functional/configuration.md",
     "docs/requirements/functional/skills.md",
@@ -716,7 +704,7 @@ class GitignoredPathsNotSweptTest(unittest.TestCase):
         swept = {os.path.realpath(p) for p in iter_repo_files()}
         for rel in ("plugins/acs/hooks/scripts/acs_lib/_common.py",
                     "plugins/acs/hooks/scripts/acs.py",
-                    "docs/adr/README.md"):
+                    "docs/architecture/adr/README.md"):
             path = os.path.realpath(os.path.join(REPO_ROOT, rel))
             self.assertTrue(os.path.isfile(path),
                             "%s must exist for this test to mean anything" % rel)

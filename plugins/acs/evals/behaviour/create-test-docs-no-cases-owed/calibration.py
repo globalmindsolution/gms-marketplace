@@ -12,7 +12,13 @@ PLUGIN = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(PLUGIN, "hooks", "scripts")
 
 STEP = ".acs/state-machine/example-shop/runs/EVAL-1/steps/create-test-docs"
-PUBLISHED = "docs/tickets/EVAL-1/test-cases.md"
+PUBLISHED = "docs/development/developer-docs/EVAL-1/test-cases.md"
+
+
+def _written(ws):
+    """What the run records in `states.files`: the repo paths it wrote and
+    left uncommitted for /acs:create-pr (ADR-0127)."""
+    return [p for p in ws.created() if not p.startswith(".acs/")]
 
 
 def _start(ws):
@@ -23,8 +29,7 @@ def _start(ws):
 
 def _publish(ws, text):
     ws.write(STEP + "/test-cases.md", text)
-    ws.sh('cp "%s/test-cases.md" "%s" && git add "%s" && git commit -qm "EVAL-1 Test cases"'
-          % (STEP, PUBLISHED, PUBLISHED))
+    ws.sh('mkdir -p "%s" && cp "%s/test-cases.md" "%s"' % (os.path.dirname(PUBLISHED), STEP, PUBLISHED))
 
 
 def _finish(ws, cases, e2e, status="completed", untraced=(), stop_reason=None):
@@ -35,6 +40,7 @@ def _finish(ws, cases, e2e, status="completed", untraced=(), stop_reason=None):
         result["outcome"] = "cases_written"
     if stop_reason:
         result["stop_reason"] = stop_reason
+    result["states"]["files"] = _written(ws)
     ws.write(STEP + "/result.json", json.dumps(result))
     ws.sh('python3 "%s/post-create-test-docs.py" --result-file "%s/result.json"' % (SCRIPTS, STEP))
 

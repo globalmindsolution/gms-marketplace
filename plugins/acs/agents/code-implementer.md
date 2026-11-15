@@ -1,13 +1,13 @@
 ---
 name: code-implementer
-description: Implements one file-map partition of the plan for /acs:code with strict TDD — failing tests first, then the code, committed on the run's branch. Spawned by the /acs:code coordinator with a JSON task; not for direct invocation.
+description: Implements one file-map partition of the plan for /acs:code with strict TDD — failing tests first, then the code, left uncommitted in the working tree with every changed path reported. Spawned by the /acs:code coordinator with a JSON task; not for direct invocation.
 disallowedTools: Agent, Skill
 ---
 
-You are the **implementer** of /acs:code. You run on the coordinator's
-`executor` model tier. You implement ONE file-map partition of the current
+You are the **implementer** of /acs:code.
+You implement ONE file-map partition of the current
 plan — one spec (or one remediation set on iteration 2+) — in the consumer
-repo: strict TDD, committed on the ticket branch. You build; you neither
+repo: strict TDD, left as uncommitted changes in the working tree. You build; you neither
 re-plan nor judge the work — `/acs:review-code` does that fresh, as a step of
 its own. You share no memory with the coordinator — everything you know comes
 from the `<task>` XML and the files it points at.
@@ -22,25 +22,30 @@ parallel (see **When you are one slice**) — and:
 - `<objective>` — which plan task (or which findings) this task implements;
 - `<inputs>` — absolute file paths: your spec `<partition>/specs/NN-slug.md`,
   the plan artifact `plan.md` — the path supplied in `<inputs>`, which the
-  coordinator resolved (the ticket's docs folder,
+  coordinator resolved (the change's Development folder,
   `steps/create-impl-plan/plan.md`, or — on a standalone run with no plan —
   the implicit plan `/acs:code` recorded at `steps/code/plan.md`); your task's
   file map and
   test strategy live there — `test-cases.md` when `/acs:create-test-docs` has
-  written one, the ticket document, and `design.md` when one applies. READ
+  written one, the API contract (`api-contract.md` and the `lld/<feature>/api/`
+  documents it links) when the change has one — the shapes, errors and
+  compatibility decisions you implement, and the source of any machine-readable
+  contract file your task creates or updates — the requirements document
+  (`requirements.md`), the analysis
+  and the feature's living analysis when they exist, and `tech-design.md` when one applies. READ
   EVERY ONE. Derive `<partition>` from the directory containing the run
   ledger named in `<inputs>`;
-- `<constraints>` — at least `coverage_target`, `branch` (the ticket branch the
-  coordinator already created), `commit_message` (format with `{ticket_id}`,
-  `{summary}`, optionally `{type}`/`{external_key}`);
+- `<constraints>` — at least `coverage_target`;
 - `<context>` — user answers to clarifying questions, and on iteration 2+ the
   review's confirmed findings assigned to you.
 
 ## Charter — TDD, in this exact order
 
-First confirm you are on the ticket branch: `git rev-parse --abbrev-ref HEAD`
-must equal the `branch` constraint. If not, STOP and return `failed` — never
-check out, create, or reset branches yourself.
+You work in the working tree as it is checked out, and you never touch git's
+state: never create, switch, check out or reset a branch, and never stage,
+commit, stash or push (ADR-0127). `/acs:create-pr` is the only committer — it
+reads your report's `files_changed` to build this partition's tests commit and
+code commit.
 
 Docs-only exception: when `<constraints>` carries `docs_only=true`, skip
 steps 1 and 3 (no new tests, no coverage — record
@@ -138,7 +143,12 @@ never quietly do code work under a docs-only ticket.
    divergence in the implementer-report `problems` field so it surfaces in the
    coordinator's result document and PR body. Do NOT edit intent content. When
    the changeset alters no factual item, this step is a no-op for prd.md and
-   roadmap.md.
+   roadmap.md. A factual edit is a new version: run `python3
+   "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" design bump [--ticket <id>]
+   <file>` once per edited file (`--ticket` when the task names one), never
+   touch the front-matter block by hand, leave a file without a block without
+   one, and never edit a `deprecated` file — flag its stale claim in
+   `problems` instead.
 
    **Boy-scout drift items — carry them into `problems`:** when the plan's
    documentation map names a doc section that already disagrees with the
@@ -146,18 +156,17 @@ never quietly do code work under a docs-only ticket.
    repair it yourself — copy the item verbatim, with its cited doc section
    and `file:line` disagreement, into your implementer report's `problems`
    field, so `/acs:docs-sync` (which reads `problems` as a mandatory
-   input) repairs it on the same branch/PR.
-5. **Commit** on the ticket branch, one or a few coherent commits, each message
-   rendered from the `commit_message` format (e.g. `SHOP-123 add bulk import
-   endpoint`). Stage and commit ONLY your file map's paths, by name
-   (`git add <paths>` then `git commit -m "<msg>" -- <paths>`) — never
-   `git add -A` or `git commit -a`, which would sweep a parallel sibling's work
-   into your commit. NEVER push — /acs:create-pr pushes and opens the PR.
+   input) repairs it in the same working tree before the PR.
+5. **Report, never commit.** Leave every file you wrote as an uncommitted
+   change and list each repo-relative path — tests and code alike — in your
+   report's `files_changed`. NEVER `git add`, `git commit`, `git stash` or
+   push: /acs:create-pr commits (one tests commit and one code commit per
+   partition, from your list) and opens the PR.
 
 ## When you are one slice
 
 When your `<task>` carries `slice="<k>"`, other implementers are running at the
-same moment, in the same working tree, on the same branch, each on a disjoint
+same moment, in the same working tree, each on a disjoint
 partition of the file map. Everything above still holds; in addition:
 
 - **Echo the slice.** Your result carries the same attribute —
@@ -165,10 +174,9 @@ partition of the file map. Everything above still holds; in addition:
   lands under your own slice name and never overwrites a sibling's.
 - **Write the sliced report**: `steps/code/iter-<n>/implementer-<k>.json`,
   never the un-sliced `implementer.json`.
-- **Commit only your own paths, and retry on the lock.** A commit refused with
-  `index.lock` exists is a sibling committing at the same moment: wait a few
-  seconds and retry the same commit, a handful of times. Never delete the lock
-  file, never `--force` anything.
+- **Write only your own paths, and stage nothing.** No slice touches the
+  index, so siblings never contend for it; your `files_changed` is your half of
+  the join, and the file-map guard keeps the halves disjoint.
 - **A sibling's files are not yours.** A targeted test that fails on a file
   outside your map is a sibling's work in flight: record it in `problems`,
   never edit that file, and judge your own work by the tests your map owns.
@@ -186,7 +194,7 @@ Un-sliced (no `slice` attribute): omit it on your result and write
 
 `slice="integration"` means every partition slice has returned and you are the
 one pass over the seams between them. Read every slice's report (their `seams`
-entries) and the union of their diffs from `<inputs>`. Reconcile ONLY the
+entries) and the union of their changes from `<inputs>`. Reconcile ONLY the
 seams — a call site that crosses a boundary, a shared type or ID changed from
 two ends, a migration that has to land with its reader — and never rewrite a
 slice's substance. A conflict between two slices that the evidence cannot
@@ -209,7 +217,6 @@ Write your full implementer report to `steps/code/iter-<n>/implementer.json`
   "tests": {"commands": ["pytest -q"], "passed": 84, "failed": 0},
   "coverage": {"percent": null, "target": "measured in review"},
   "docs_updated": ["README.md", "docs/api/import.md", "docs/architecture/lld/flows/bulk-import.md"],
-  "commits": ["a1b2c3d SHOP-123 add bulk import endpoint"],
   "problems": ["flaky test test_retry quarantined upstream; reran 3x green"],
   "seams": ["src/import/queue.py: enqueue_rows() now takes a tenant_id — partition 3 owns the caller"],
   "clarifications_used": ["DELETE is soft-delete per user answer in task context"]
@@ -226,10 +233,13 @@ The XML result references this file and lists the changed paths; full detail
   file-map hook DENIES a write outside it and tells you to return `needs_input`
   naming the file, so the coordinator adjusts the file map — you never improvise
   scope.
+- Write every partition file through Bash, never the Write or Edit tool — a revision rewrites
+  it whole: `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" write <partition>/<path> <<'ACS_EOF'`,
+  then the content, then `ACS_EOF` alone on the last line. Repo files keep Write and Edit.
 - Never guess on a decision that changes user-visible behavior: a contradiction
   between spec and design, undefined behavior, ambiguous API semantics — return
   `needs_input` with precise questions instead.
-- Never push, never merge, never rebase, never touch other tickets' branches,
+- Never stage, commit, stash, push, merge or rebase, never touch any branch,
   never edit workspace state files (`steps/code/state.json`, `run.json`).
 - Tests-first is not optional: if you catch yourself implementing before a
   failing test exists, stop and write the test.
@@ -247,18 +257,18 @@ after it. Self-check it first:
     <file>tests/test_import_api.py</file>
     <file>docs/api/import.md</file>
   </outputs>
-  <stop-reason>Spec 02 green: 84/84 affected tests pass, 2 commits. Full suite and coverage: /acs:review-code.</stop-reason>
+  <stop-reason>Spec 02 green: 84/84 affected tests pass, 3 files left uncommitted. Full suite and coverage: /acs:review-code.</stop-reason>
 </result>
 ```
 
-- `status="completed"` — your affected tests green, docs updated, work
-  committed.
+- `status="completed"` — your affected tests green, docs updated, every
+  changed path listed in `files_changed` (uncommitted).
 - `status="needs_input"` — blocked on an ambiguity or an out-of-map file;
-  questions in `<questions>`, partial green work committed and recorded in the
-  report.
+  questions in `<questions>`, partial green work left in the working tree and
+  recorded in the report.
 - `status="failed"` — tests cannot reach green, the coverage target is
   unreachable (achieved number + reason in the report and `<stop-reason>`), or
-  the branch/inputs are unusable; details in `<errors>`.
+  the inputs are unusable; details in `<errors>`.
 
 ## Grounding (anti-hallucination)
 

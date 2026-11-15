@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # /acs:create-e2e-tests with no e2e harness at all: EVAL-1 added GET /customers
-# to the shop's WSGI front (done and committed on its branch), and its
-# committed test-cases.md types two cases e2e -- but .acs/settings.json
-# configures no suite (no `suites`, no `e2e`), and the repo has no e2e tests, no
+# to the shop's WSGI front (done, uncommitted on main -- ADR-0127), and its
+# test-cases.md types two cases e2e -- but .acs/settings.json
+# configures no suite (no suite under `tests`), and the repo has no e2e tests, no
 # runner config and no declared layout. The skill's own check: "if it has none,
 # finish needs_input with that question -- a harness is a repo-structure
 # decision, not this skill's". What the run must produce: no suite, no runner,
@@ -37,9 +37,9 @@ printf '__pycache__/\n' >> .gitignore
 git add -A
 git commit -qm "HTTP front with /health"
 
-acs_ticket "Serve the customer listing over HTTP" task false \
+ACS_FEATURES=customer-listing
+acs_ticket "Serve the customer listing over HTTP" task \
   "Expose list_customers as GET /customers on the WSGI front, honouring offset and limit."
-acs_branch task/EVAL-1-serve-the-customer-listing-over-http
 
 python3 - <<'PY'
 path = "src/shop/web.py"
@@ -59,10 +59,9 @@ src = src.replace(
     '    return _send(start_response, "404 Not Found"', 1)
 open(path, "w").write(src)
 PY
-git commit -qam "EVAL-1 serve the customer listing over HTTP"
 
-mkdir -p docs/tickets/EVAL-1
-cat > docs/tickets/EVAL-1/test-cases.md <<'MD'
+mkdir -p docs/development/customer-listing/EVAL-1
+cat > docs/development/customer-listing/EVAL-1/test-cases.md <<'MD'
 ---
 ticket: EVAL-1
 cases: 2
@@ -89,5 +88,3 @@ e2e_cases: 2
 | AC-1 GET /customers lists customers, 20 per page by default | TC-1 |
 | AC-2 offset and limit are honoured | TC-2 |
 MD
-git add -A
-git commit -qm "EVAL-1 test cases"

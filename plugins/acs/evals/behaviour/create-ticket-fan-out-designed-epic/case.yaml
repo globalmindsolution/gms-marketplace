@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: create-ticket-fan-out-designed-epic
-context:
-  scaffold_script: scaffold.sh

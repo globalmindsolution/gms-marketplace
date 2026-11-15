@@ -10,11 +10,22 @@
 > upstream artifact is absent. ADR-0109 also replaced the generic
 > executor/verifier subagents this document assumes with roles named for each
 > skill's own work. Current behaviour is in `INTERNALS.md`.
+>
+> **Note (2026-10-05).** ADR-0134 took `/acs:create-api-contract` out of the
+> pipeline this document specifies: it is a Design skill that writes documents
+> only, `ship.yaml` has no `create-api-contract` step, the plan owes no
+> `api_contract`, and the analysis records no `api_surface`. Every mention of
+> those below describes the v0.5.0 design, not the current one.
+>
+> **Note (2026-10-06).** Since ADR-0136, state files are written through
+> `acs.py write`, never the `Write` tool; where this document has an agent
+> `Write` a state file, read it as that command. The workspace stays at
+> `.acs/state-machine/<repo-id>/`.
 
 This document specifies a from-scratch redesign of acs's **implementation**
 half — the skills `/acs:ship` orchestrates between a settled requirement and an
 open PR. The **design** skills (`create-prd`, `create-requirements`,
-`create-architecture`, `create-docs`, `project`, `create-ticket`,
+`create-architecture`, `create-docs` (since removed, ADR-0124), `project`, `create-ticket`,
 `create-design`) are out of scope and keep their current shape.
 
 It is a **breaking redesign with no backward-compatibility layer**. State
@@ -677,7 +688,8 @@ Corroboration is **not** a filter. On MAR-583 iteration 1 all three blocking
 findings were single-lens; counting agreement would have shipped a broken
 changeset. Per-finding re-derivation is the filter.
 
-**Stage 3 — the final gate.** Runs only when stage 2 leaves nothing blocking:
+**Stage 3 — the final gate.** Its result counts only when stage 2 leaves
+nothing blocking:
 
 - **build** succeeds
 - **lint** clean
@@ -685,7 +697,10 @@ changeset. Per-finding re-derivation is the filter.
 - **coverage ≥ 80%** (`settings.test_coverage_percent`, default 80)
 
 The gate is the only place the full suite runs in the whole pipeline. It runs
-last, exactly once per iteration that survives review, and a failure re-enters
+once per iteration — started as `acs.py job` jobs in the same turn as the lens
+spawn, since read-only lenses and adjudicators freeze the tree (ADR-0125) — and
+its result is read last, only by an iteration that survives review; a blocked
+iteration stops the jobs and records the gate as not run. A failure re-enters
 the loop as a blocking finding. This is what makes `/acs:code`'s targeted-test
 discipline safe: the guarantee is unconditional and terminal rather than buried
 inside an iteration that may be discarded.
