@@ -70,13 +70,12 @@ def _unreleased(heading):
     text = _read(CHANGELOG)
     start = text.index("## [Unreleased]")
     end = text.index("\n## [", start + 1)
-    if not text[start + len("## [Unreleased]"):end].strip():
-        # right after a cut [Unreleased] is empty and the notes sit in the newest dated section
-        # these notes sit in the 0.6.0 section; later releases stack above it
-        anchor = text.index("\n## [0.6.0]", start)
-        start = anchor
-        end = text.find("\n## [", anchor + 1)
-        end = len(text) if end == -1 else end
+    # These notes shipped in 0.6.0: read that section whatever [Unreleased]
+    # holds, so a later unreleased entry cannot hide them.
+    anchor = text.index("\n## [0.6.0]", start)
+    start = anchor
+    end = text.find("\n## [", anchor + 1)
+    end = len(text) if end == -1 else end
     section = text[start:end]
     at = section.index(heading)
     nxt = section.find("\n### ", at + 1)

@@ -488,18 +488,17 @@ closing the loop on failures with a regression ticket.
 - **Scheduling is the caller's job** — Claude Code routines/cron invoke
   `/acs:run-e2e-tests` headless; the concrete recipe lives in the skill's
   `references/test-scheduling.md`, not duplicated here.
-- **Ticket-scoped mode (`--for-ticket <id>`):** reuses the same
-  suite-execution core (Steps 1-3: setup→command→teardown, the
-  results-artifact write) scoped to the reserved `e2e` suite plus the
-  ticket's own suites — read from `test-cases.md` when the ticket has one,
-  falling back to the folded Test-plan section — but skips the
-  regression-ticket triage/mint-or-bump loop entirely and instead returns a
-  `{status, failure_output}` verdict. It is the `run-e2e-tests` step of
-  `ship.yaml`. A failure ends the step `failed` and stops the run for a
-  human: `on_fail` and its `relay_to`/`max_loops` bound are removed with the
-  rest of the workflow language (ADR-0096), and the one loop the workflow
-  declares is `review-code` → `code`. See
-  `docs/architecture/adr/0068-acs-test-ticket-scoped-fix-and-retest-mode.md`.
+- **One mode, narrowed by the run's subject.** The retired `--for-ticket <id>`
+  mode is gone: a standing invocation and the `run-e2e-tests` step of
+  `ship.yaml` resolve the same way. The run set is the suites the run's own
+  `test-cases.md` names (its `Suite` column), else the suites the plan's
+  Test-strategy section names, plus the reserved `e2e` key when configured; a
+  run with neither document runs every configured suite. A failing suite goes
+  through the same triage and regression-ticket loop on either path, and ends
+  the step `failed`, which stops the run for a human: `on_fail` and its
+  `relay_to`/`max_loops` bound are removed with the rest of the workflow
+  language (ADR-0096), and the one loop the workflow declares is
+  `review-code` → `code`. ADR-0068 records the retired mode.
 
 ## /acs:release (utility)
 

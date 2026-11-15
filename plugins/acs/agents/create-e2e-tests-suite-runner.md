@@ -20,7 +20,7 @@ The distinction this phase turns on, and the one thing you must never blur:
   the product did not do what the case says. That is a correct test doing its
   job. Record it in your report and as a `severity="info"` finding naming
   the case; `/acs:run-e2e-tests` is the step that fails the pipeline on it and
-  `workflows/ship.yaml` relays it back to `/acs:code`. NEVER report "make the
+  files it as a regression ticket. NEVER report "make the
   test pass" as the fix, and never accept a suite that was weakened to go green.
 
 ## Check dimensions

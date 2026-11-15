@@ -10,10 +10,12 @@ them and the next steps read them:
   the partition when there is no checkout or feature to anchor it to).
   `/acs:code`'s gate resolves the file itself; this records which path
   this run chose.
-- `plan_approved`: always `false` here. Approval is judged per delivery
-  path, and the path does not exist yet when this skill runs — the
-  `code-standard` and `code-complex` legs establish it at their own Start
-  (ADR-0095). Recording `false` is the honest value, not a failure.
+- `plan_approved`: always `false` here. This skill publishes the plan and
+  never approves it: approval is a separate human act, `acs.py plan check`
+  (which runs `plan-approval.py`, the sole writer of `plan-approval.json`),
+  owed only on the `standard` and `complex` delivery paths (ADR-0095) and
+  required by `/acs:code`'s pre-hook before those paths run. Recording `false`
+  is the honest value, not a failure.
 - `file_map`: the declared executor file map as `acs.py filemap set`
   returned it (task id → repo paths), so a later run can see what scope the
   plan claimed.

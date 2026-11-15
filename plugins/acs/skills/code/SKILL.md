@@ -87,7 +87,8 @@ and a prompt are only where they came from), record it at
 > work `standard` or `complex`, stop with `stop_reason: needs_input` and say:
 > *this needs a plan and an approval — run `/acs:create-impl-plan`*. Plan
 > approval is a real brake, and a plan you wrote for yourself and then approved
-> by implementing is not an approval. `--plan <file>` supplies one instead.
+> by implementing is not an approval. Plan it with `/acs:create-impl-plan`,
+> then approve it with `acs.py plan check` before re-running `/acs:code`.
 
 **No recorded path but a plan exists** → the plan predates the `## Contract`
 block. Judge the path yourself with the rubric above, and say in your handoff

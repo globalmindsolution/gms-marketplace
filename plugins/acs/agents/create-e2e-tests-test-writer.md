@@ -122,8 +122,8 @@ finding to what you changed.
   never add a sleep-and-hope, a retry wrapper, or a conditional skip to make a
   test stable.
 - **Nothing is weakened to go green.** If the product does not do what the case
-  says, the test FAILS and you leave it failing: `/acs:run-e2e-tests` reports it
-  and `workflows/ship.yaml` relays it to `/acs:code`. Narrowing an assertion,
+  says, the test FAILS and you leave it failing: `/acs:run-e2e-tests` reports it,
+  fails its step and files it as a regression ticket. Narrowing an assertion,
   marking a test skipped/`xfail`/`.only`, or asserting the current wrong
   behaviour is the one thing this phase must never do — report it in `problems`
   instead.

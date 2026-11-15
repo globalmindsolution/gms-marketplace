@@ -452,10 +452,14 @@ class PlanRevocationTest(unittest.TestCase):
         self.assertRegex(section, r"(?i)never.{0,10}(?:a\s+)?(?:rename|move)")
 
     def test_revocation_preserves_citation_resolvability(self):
+        """The superseded plan is copied into the iteration folder it came
+        from: `iter-<n>/` replaced the retired `plan-superseded-<k>.md` prefix
+        (acs_lib.run.iteration_dir), and the step root holds the current plan."""
         section = self._section()
         self.assertIn("plan.md:", section)
         self.assertRegex(section, r"(?i)resolve[sd]?\s+unchanged")
-        self.assertIn("plan-superseded-", section)
+        self.assertIn("iter-<n>/plan.md", section)
+        self.assertNotIn("plan-superseded-", section)
 
     def test_revocation_is_boundary_gated_and_recorded(self):
         section = self._section()

@@ -251,8 +251,13 @@ class TestNeverWeakensATest(unittest.TestCase):
         self.assertRegex(self.body, r"currently red is a\s+correct deliverable")
 
     def test_the_relay_is_named_as_the_owner_of_a_product_failure(self):
+        """`/acs:run-e2e-tests` owns a product failure: a red suite fails that
+        step and is filed as a regression ticket. `ship.yaml` declares no relay
+        from it back to `/acs:code` (its one loop is review-code -> code)."""
         self.assertIn("/acs:run-e2e-tests", self.body)
-        self.assertRegex(self.body, r"relays its\s+failure back to `/acs:code")
+        self.assertRegex(self.body, r"red suite finishes that step `failed`")
+        self.assertRegex(self.body, r"filed as a regression\s+ticket")
+        self.assertNotRegex(self.body, r"relays its\s+failure back to `/acs:code")
 
     def test_the_test_writer_is_forbidden_the_shortcuts_by_name(self):
         body = agent(WRITER)
