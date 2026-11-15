@@ -97,7 +97,9 @@ review's lens C judges conformance to both.
 
 **Enforced.** `/acs:code`'s pre-hook refuses this path when
 `steps/create-impl-plan/plan-approval.json` is absent or its `plan_sha256` does
-not match the plan on disk. An edited plan is an unapproved plan.
+not match the plan on disk. An edited plan is an unapproved plan. Approval is
+a human act before `/acs:code` runs, with `acs.py plan check`. This leg never
+runs it.
 
 ## You do not review your own work
 

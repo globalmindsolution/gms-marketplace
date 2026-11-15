@@ -5,9 +5,19 @@ Read this when anyone asks this skill to approve the plan, or to run
 
 Approval binds on the `standard` and `complex` delivery paths only — and this
 skill runs before any path exists, because `plan.md` is the artifact the path
-is judged FROM. So `plan-approval.py` is not run here.
+is judged FROM. It must also approve the plan as published: this skill writes
+`plan.md`, so approving it here would be the skill blessing its own output. So
+`plan-approval.py` is not run here, and no `/acs:code` leg runs it either:
+`/acs:code`'s pre-hook refuses a deep path before any leg starts when the
+approval is missing.
 
-A human approves the plan with `plan-approval.py`, which is the **sole writer**
+A human approves the plan, after reading it and before running `/acs:code`, with
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/acs.py" plan check
+```
+
+which runs `plan-approval.py`. That script is the **sole writer**
 of `plan-approval.json` — never a coordinator, never a subagent, and never a
 Write-tool call, because a record a skill can write itself is not an approval.
 It hashes `steps/create-impl-plan/plan.md` into `plan_sha256`, and `/acs:code`'s
