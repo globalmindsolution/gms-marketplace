@@ -18,8 +18,10 @@ name: Release
 #      plugins/acs/CHANGELOG.md (move entries out of [Unreleased]).
 #   4. Merge to main. This workflow reads the plugin version, and if tag
 #      v<version> does not exist yet, creates an annotated tag, creates a
-#      GitHub release whose notes are that changelog section (capped below
-#      GitHub's 125000-character body limit, linking the full CHANGELOG), and
+#      GitHub release whose notes are that changelog section (written by
+#      .github/scripts/release_notes_body.py: past GitHub's 125000-character
+#      body limit it is cut at the last entry that fits and links the full
+#      CHANGELOG section), and
 #      fast-forwards (force-moves) branch `acs-stable` to the tagged commit. If
 #      the tag and the release both exist, it skips gracefully; a tag with no
 #      release (a previously failed publish) gets its release created. The
@@ -79,49 +81,11 @@ jobs:
 
       - name: Extract changelog section
         if: steps.tag.outputs.release_exists == 'false'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          python3 - <<'EOF'
-          import os
-          import re
-          import sys
-
-          version = os.environ["VERSION"]
-          with open("plugins/acs/CHANGELOG.md", encoding="utf-8") as fh:
-              text = fh.read()
-          pattern = rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)"
-          match = re.search(pattern, text, re.M | re.S)
-          if not match:
-              sys.exit(
-                  f"No '## [{version}]' section found in plugins/acs/CHANGELOG.md — "
-                  "add one before releasing (semver discipline: version bump + "
-                  "changelog section ship together)."
-              )
-          # Drop Keep-a-Changelog link-reference definitions from the notes.
-          lines = [
-              line for line in match.group(1).splitlines()
-              if not re.match(r"^\[[^\]]+\]:\s*\S", line)
-          ]
-          notes = "\n".join(lines).strip() + "\n"
-          # GitHub rejects a release body over 125000 characters. Cut at a
-          # line boundary and point at the full section instead.
-          limit = 120000
-          if len(notes) > limit:
-              tail = (
-                  f"\n\n---\n\n_Release notes truncated: the full "
-                  f"[{version}] section is in "
-                  f"[plugins/acs/CHANGELOG.md]"
-                  f"(https://github.com/{os.environ['GITHUB_REPOSITORY']}"
-                  f"/blob/v{version}/plugins/acs/CHANGELOG.md)._\n"
-              )
-              cut = notes.rfind("\n", 0, limit - len(tail))
-              notes = notes[:cut].rstrip() + tail
-          with open("release-notes.md", "w", encoding="utf-8") as fh:
-              fh.write(notes)
-          print(f"Release notes for v{version}:\n{notes}")
-          EOF
+          python3 .github/scripts/release_notes_body.py \
+            "${{ steps.version.outputs.version }}" \
+            "${{ github.server_url }}/${{ github.repository }}" \
+            release-notes.md
 
       - name: Create annotated tag
         if: steps.tag.outputs.exists == 'false'
