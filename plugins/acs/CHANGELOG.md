@@ -19,6 +19,25 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/acs:merge-pr --pr` lands ticketless and release PRs again.** It refused every PR carrying
+  the `ACS` label as ticket-backed before checking `acs-exempt`, so a ticketless PR from
+  `/acs:create-pr` (labelled `ACS` and `acs-exempt`) and an `/acs:release` PR (`ACS` on
+  `release/*`) could not land through the exempt path. A PR is now ticket-backed when its
+  branch embeds a ticket id, or when it carries `ACS` with neither exemption.
+- **`/acs:create-e2e-tests` names a next step that exists.** It pointed to
+  `/acs:run-e2e-tests --for-ticket <id>`, a flag that was retired, and said `ship.yaml` relays an
+  e2e failure back to `/acs:code`. The next step is `/acs:run-e2e-tests <id>`; a red suite ends
+  that step `failed`, which stops the run, and is filed as a regression ticket.
+- **Plan approval has one documented owner.** The `/acs:create-impl-plan` references said both
+  that a human approves the plan and that the standard and complex `/acs:code` legs run
+  `plan-approval.py` at their Start. `/acs:code`'s pre-hook refuses those paths before any leg
+  starts, so a human approves with `acs.py plan check` before running `/acs:code`. The
+  plan-revocation steps now keep the superseded plan at `steps/create-impl-plan/iter-<n>/plan.md`
+  instead of the retired `steps/code/plan-superseded-<k>.md`, and `/acs:code` no longer mentions
+  a `--plan` argument it does not have.
+
 ## [0.7.0] - 2026-11-06
 
 ### Added
