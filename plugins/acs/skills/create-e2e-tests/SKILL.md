@@ -27,8 +27,9 @@ to make the test pass": the implementation is `/acs:code`'s, and a suite that
 only passes because you changed the product is not an end-to-end test.
 
 You also never RUN the ticket's e2e suites as the pipeline's verdict —
-`/acs:run-e2e-tests` does that next, and `workflows/ship.yaml` relays its
-failure back to `/acs:code`. A suite that is correct and currently red is a
+`/acs:run-e2e-tests` does that next: a red suite finishes that step `failed`,
+which ends the run under `/acs:ship`, and the failure is filed as a regression
+ticket. A suite that is correct and currently red is a
 correct deliverable from this skill; a suite weakened until it is green is not.
 
 ## When nothing is owed
@@ -551,8 +552,7 @@ it reads the output with the distinction this skill turns on:
 - **A product failure is NOT a finding here** — the suite ran, drove the
   product, and the product did not do what the case says. Record it in the
   suite-runner report and in the coordinator's `findings`; `/acs:run-e2e-tests` is the
-  step that fails the pipeline on it, and `workflows/ship.yaml` relays that back
-  to `/acs:code`. NEVER weaken, skip, or narrow a case's assertion to turn one
+  step that fails the pipeline on it and files it as a regression ticket. NEVER weaken, skip, or narrow a case's assertion to turn one
   green — that is the one failure mode this pair exists to prevent.
 
 ALL blocking findings block — zero blocking findings = pass, across every
@@ -692,12 +692,12 @@ MANDATORY final step — never skipped, also on failure or handoff:
    - Direct invocation: a compact summary — the suites written and where, the
      cases covered, whether the suites currently pass or fail and why (naming a
      product failure as a product failure), the uncommitted files left in the
-     working tree, and the next step (`/acs:run-e2e-tests --for-ticket <id>`;
+     working tree, and the next step (`/acs:run-e2e-tests <id>`;
      `/acs:create-pr <id>` commits everything at the end).
    - Under `/acs:ship`: return ONLY the `<handoff>` XML as your final message —
      `status` matching result.json, `<summary>` ≤1 KB, `<artifacts>` naming the
      suite files, `<questions>` when `needs_input`, and
-     `<next-step>/acs:run-e2e-tests --for-ticket <id></next-step>`. Validate it
+     `<next-step>/acs:run-e2e-tests <id></next-step>`. Validate it
 
 ## Completion report (normative)
 
@@ -716,5 +716,5 @@ same order, `none` where empty; under `/acs:ship` your final message is the
 - **Findings**: <product failures, uncovered cases, open clarifications, or "none">
 - **Artifacts**: <uncommitted files written (suite paths, repo-relative), partition phase artifacts>
 - **Metrics**: iterations <n>/<cap> · <wall time>
-- **Next**: `/acs:run-e2e-tests --for-ticket <ticket-id>`; the files stay uncommitted until `/acs:create-pr <ticket-id>`
+- **Next**: `/acs:run-e2e-tests <ticket-id>`; the files stay uncommitted until `/acs:create-pr <ticket-id>`
 ```

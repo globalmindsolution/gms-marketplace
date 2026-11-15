@@ -64,7 +64,7 @@ def _commit(ws, path):
 
 REPLY = ("Wrote %s covering AC-1 and AC-2; it passes. No test-cases.md existed, so the "
          "flows were derived from the acceptance criteria. Next: /acs:run-e2e-tests "
-         "--for-ticket EVAL-1" % SUITE)
+         "EVAL-1" % SUITE)
 
 
 def IDEAL(ws):
