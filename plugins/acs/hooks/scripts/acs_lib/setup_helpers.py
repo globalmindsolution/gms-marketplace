@@ -82,7 +82,14 @@ def validate_exempt_pr(pr, settings):
     ok False means refuse, and `message` is the user-facing reason (already
     carrying the /acs:merge-pr <ticket> redirect when the PR looks ticket-backed).
     Mirrors templates/ci/check-conventions.py is_exempt (label first, then branch
-    glob) and the C-3 ticket-backed refusal."""
+    glob) and the C-3 ticket-backed refusal.
+
+    Ticket-backed means the head branch embeds a ticket id (the fixed
+    `<type>/<ticket_id>-<slug>` branch name every ticket PR has), or the PR
+    carries the `ACS` pipeline label with no exemption. The label alone is not
+    proof: `/acs:create-pr` labels a ticketless PR `ACS` and `acs-exempt`, and
+    `/acs:release` labels its `release/*` PR `ACS`; both are sanctioned exempt
+    PRs and land here."""
     branch = pr.get("headRefName") or ""
     labels = _pr_labels(pr)
     exempt_label = conventions.EXEMPT_LABEL
@@ -99,26 +106,31 @@ def validate_exempt_pr(pr, settings):
         return (False, "PR #%s is a draft — mark it ready for review before merging."
                 % pr.get("number"))
 
-    # Ticket-backed → refuse + redirect (C-3). Checked before the exempt grant so
-    # a PR that is BOTH ticket-labelled and exempt-labelled still routes to the
-    # ticket path.
+    # A ticket id in the branch → ticket-backed, refuse + redirect (C-3).
+    # Checked before the exempt grant so a ticket PR that also carries
+    # `acs-exempt` still routes to the ticket path.
     embedded = ticket_id_from_text(branch, prefix)
-    if require_label in labels or embedded:
-        target = embedded or "<TICKET-ID>"
+    if embedded:
         return (False,
-                "PR #%s looks ticket-backed (%s) — merge it through the ticket "
-                "path: /acs:merge-pr %s, not the exempt --pr path."
-                % (pr.get("number"),
-                   "carries the '%s' label" % require_label if require_label in labels
-                   else "branch '%s' embeds %s" % (branch, embedded),
-                   target))
+                "PR #%s looks ticket-backed (branch '%s' embeds %s) — merge it "
+                "through the ticket path: /acs:merge-pr %s, not the exempt --pr "
+                "path." % (pr.get("number"), branch, embedded, embedded))
 
-    # Exempt grant: label first, then branch glob.
+    # Exempt grant: label first, then branch glob. A ticketless `/acs:create-pr`
+    # PR (`ACS` + `acs-exempt`) and an `/acs:release` PR (`ACS` on `release/*`)
+    # are granted here.
     if exempt_label and exempt_label in labels:
         return (True, "label '%s' present" % exempt_label)
     for pattern in exempt_branches:
         if branch and fnmatch.fnmatch(branch, pattern):
             return (True, "branch matches exempt pattern '%s'" % pattern)
+
+    # The pipeline label with no exemption → ticket-backed, refuse + redirect.
+    if require_label in labels:
+        return (False,
+                "PR #%s looks ticket-backed (carries the '%s' label) — merge it "
+                "through the ticket path: /acs:merge-pr <TICKET-ID>, not the "
+                "exempt --pr path." % (pr.get("number"), require_label))
 
     return (False,
             "PR #%s is not a sanctioned exempt PR — label it '%s' (or use an "

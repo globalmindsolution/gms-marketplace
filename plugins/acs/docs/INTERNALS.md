@@ -2199,7 +2199,11 @@ not fix (a `!.acs/` negation is the user's configuration to decide); and
   ticket path but resolves no ticket, writes no partition/state, and skips
   tracker sync and archiving — `acs step start --pr` validates the PR carries
   the `acs-exempt` label (or an exempt head branch) and refuses + redirects to
-  `/acs:merge-pr <ticket-id>` when the PR looks ticket-backed. acs writes
+  `/acs:merge-pr <ticket-id>` when the PR looks ticket-backed: its head branch
+  embeds a ticket id, or it carries the `ACS` label with neither exemption. The
+  `ACS` label alone is not ticket-backed, because `/acs:create-pr` labels a
+  ticketless PR `ACS` and `acs-exempt`, and `/acs:release` labels its
+  `release/*` PR `ACS`; both land through `--pr`. acs writes
   nothing into a consumer's `CLAUDE.md`: that file is the repo's own project
   instructions, and the check above is what holds a hand-made PR to naming its
   ticket.
