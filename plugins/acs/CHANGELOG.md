@@ -19,6 +19,13 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ## [Unreleased]
 
+### Changed
+
+- **The release gate's paid routing run is five runs a case, not ten** (ADR-0150). At ten runs,
+  about 2,900 sessions, a gate run hit a subscription's five-hour usage limit partway through and
+  every later session failed, so it spent its budget and returned no verdict. Five runs is about
+  1,450 sessions (~$110); the 9/10 per-skill and 99/100 suite thresholds are unchanged.
+
 ### Fixed
 
 - **`/acs:merge-pr --pr` lands ticketless and release PRs again.** It refused every PR carrying

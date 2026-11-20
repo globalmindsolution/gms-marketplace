@@ -19,8 +19,8 @@ the step-by-step the maintainer follows.
    ```bash
    python3 -m unittest discover -s tests/evals -p 'check_*.py'   # free, local eval checks
    CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude plugin eval plugins/acs --tag description --tag negative --tag control \
-     --ablation none --runs 10 -j 8 --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
-     --trust-plugin --no-publish --max-cost-usd 250  # PAID: routing, 10 runs a case (~$190)
+     --ablation none --runs 5 -j 8 --threshold 0 --json plugins/acs/evals/results/release-gate-routing.json \
+     --trust-plugin --no-publish --max-cost-usd 250  # PAID: routing, 5 runs a case (~$110)
    python3 scripts/eval_gate.py plugins/acs/evals/results/release-gate-routing.json \
      --min-skill-rate 9/10 --min-suite-rate 99/100    # the judgement
    ```
@@ -35,6 +35,7 @@ the step-by-step the maintainer follows.
    and controls must pass every run; each skill, pooling its ten phrasings,
    must route at least 9/10 of its runs and the suite at least 99/100
    ([ADR-0111](../architecture/adr/0111-routing-gate-ten-phrasings-ten-runs.md),
+   [ADR-0150](../architecture/adr/0150-routing-gate-five-runs.md),
    [ADR-0112](../architecture/adr/0112-routing-suite-rate-99-percent.md)); `explicit`
    cases, which are not reliably observable, are not run. Read a red verdict
    before acting on it: the script names each failing skill or case. It refuses
