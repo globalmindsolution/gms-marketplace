@@ -129,8 +129,9 @@ first non-zero exit stops the cut ([ADR-0107](../../../docs/architecture/adr/010
    malformed case, or a grader that cannot fail, stops the cut before anything
    is spent.
 2. `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude plugin eval plugins/acs --tag
-   description --tag negative --tag control --ablation none --runs 10 -j 8 --threshold 0 --json …` — the paid
-   run, ten runs a case. `--threshold
+   description --tag negative --tag control --ablation none --runs 5 -j 8 --threshold 0 --json …` — the paid
+   run, five runs a case
+   ([ADR-0150](../../../docs/architecture/adr/0150-routing-gate-five-runs.md)). `--threshold
    0` stops the CLI from judging; the result goes to a file.
 3. `python3 scripts/eval_gate.py <that file> --min-skill-rate 9/10
    --min-suite-rate 99/100` — the judgement.
