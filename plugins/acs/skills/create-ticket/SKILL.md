@@ -1,6 +1,6 @@
 ---
 name: create-ticket
-description: Turn requirements — a raw request, a bug report, documents (specs, PDFs, images; in the repo or attached), a feature's analysis, a mix of them, or a remote tracker key to import — into one well-formed acs ticket (epic, story, task or bug) with PRD tracing, drafted by an author for its type and checked by a reviewer before you confirm it. Use when the user asks to create, file, log or import a ticket, reports a bug or describes new work that has no ticket yet. Not for breaking an existing ticket into children — that is /acs:breakdown-ticket. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Turn requirements — a raw request, a bug report, documents, a feature's analysis, a mix, or a remote tracker key to import — into one well-formed acs ticket (epic, story, task or bug) traced to the PRD, drafted and reviewed before the user confirms it. Use when the user asks to create, file, log or import a ticket, reports a bug, or describes new work that has no ticket yet. Not for splitting an existing ticket — that is /acs:breakdown-ticket. Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
 argument-hint: "[documents…] [request] | <remote-key>"
 disallowed-tools: Edit, NotebookEdit
 ---

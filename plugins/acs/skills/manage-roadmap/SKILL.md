@@ -1,6 +1,6 @@
 ---
 name: manage-roadmap
-description: Plan, re-plan and track the product roadmap — milestones each with its release version, the PRD features it delivers and the epics behind it, and each milestone's delivery status derived from its tickets — left as local changes for /acs:create-pr to commit and open as a PR. Use once a PRD exists and the team needs a roadmap, when a scope change (a feature cut, added or reprioritized in the PRD) moves milestones or versions, when a milestone is added, moved or re-scoped, or to see how far each milestone is delivered. Invoke it directly on such a request — it confirms the plan and gathers what it needs from the user itself, so there is nothing to ask before running it.
+description: Plan, re-plan and track the product roadmap — milestones each with its release version, the PRD features and epics it delivers, and delivery status derived from its tickets — left uncommitted for /acs:create-pr. Use once a PRD exists and the team needs a roadmap or a release plan (which features ship in which version), when a scope change moves milestones or versions, when a milestone is added, moved or re-scoped, or to see how far each milestone is delivered. Call it as your first action — it reads the PRD, the roadmap and the tickets itself and asks the user for what it needs; do not Glob, Grep or Read them first.
 argument-hint: "[status] [roadmap change | re-plan request]"
 disallowed-tools: Edit, NotebookEdit
 ---

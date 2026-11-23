@@ -1,6 +1,6 @@
 ---
 name: create-impl-plan
-description: Turn an analyzed ticket — or requirements given as a prompt or documents — into the implementation plan /acs:code executes — the file-by-file approach, the declared executor file map, the test strategy its implementers run, and the spec fold. Writes plan.md to the change's Development folder, and it is also the artifact /acs:ship judges the delivery path from. Use after /acs:analyze-requirements and before /acs:code, which requires the plan. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Turn an analyzed ticket — or requirements given as a prompt or documents — into the implementation plan /acs:code executes — the file-by-file approach, the executor file map and the test strategy. Use after /acs:analyze-requirements and before /acs:code, which requires the plan. Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
 argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
