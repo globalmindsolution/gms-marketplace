@@ -1,6 +1,6 @@
 ---
 name: code
-description: Implement an approved implementation plan with TDD, dispatching to the delivery-path leg the plan recorded; the review is the separate /acs:review-code. Use whenever a ticket's plan is approved and the user says to build, implement, execute, make the change, go ahead or start writing it — on any platform (web, mobile, backend, CLI) and however they name the test-first loop (TDD, red-green-refactor). Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
+description: Implement an approved implementation plan with TDD, targeted tests only, dispatching to the delivery-path leg the plan recorded; the review is the separate /acs:review-code. Use whenever a ticket's plan is approved and the user says to build, implement, execute, make the change, go ahead or start writing it, or to fix the blocking findings a review verdict recorded — on any platform (web, mobile, backend, CLI) and however they name the test-first loop (TDD, red-green-refactor). Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
 argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---
