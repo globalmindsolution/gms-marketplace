@@ -1,6 +1,6 @@
 ---
 name: review-code
-description: Review any branch, diff, PR or ticket's changes — with or without a ticket id, "this branch against main" or someone else's branch — whenever the user asks to review, audit, examine, scrutinize, critique or check them; prefer it over a generic code review. Read-only lenses, an adjudicator per finding, then build, lint, tests and coverage. It never edits the code, so "don't change anything" and "just tell me what's wrong" requests are what it is for. Use after /acs:code or against any base ref. Call it as your first action — it runs git itself and finds the changeset; do not Glob, Grep, Read, ToolSearch or look for a shell or git.
+description: Review any branch, diff, PR or ticket's changes — with or without a ticket id, "this branch against main" or someone else's branch — whenever the user asks to review, audit, examine, scrutinize, critique or check them; prefer it over a generic code review. Read-only lenses, an adjudicator per finding, then build, lint, tests and coverage. It never edits the code, so "don't change anything" and "just tell me what's wrong" requests are what it is for. On blocking findings /acs:code reads the verdict and fixes them. Use after /acs:code or against any base ref. Call it as your first action — it runs git itself and finds the changeset; do not Glob, Grep, Read, ToolSearch or look for a shell or git.
 argument-hint: "[ticket-id] [documents…] [prompt] [--base <ref>]"
 disallowed-tools: Edit, NotebookEdit
 ---

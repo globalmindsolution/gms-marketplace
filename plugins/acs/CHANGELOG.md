@@ -35,6 +35,10 @@ matching section here, and merge to `main` — the Release workflow tags
   a request like "add the CI coverage gate" or "which acs version am I on" routed nowhere. Every
   description is now its trigger clause (about 16,100 characters in all), and a unit test keeps
   the listing under 17,000.
+  The first gate run on the short text found four trigger phrases the cut had taken with it —
+  "fix the review's blocking findings" (`/acs:code`), "targeted tests only", the request, query and
+  message shapes `/acs:create-api-contract` designs, and the threat model's trust boundaries
+  (`/acs:audit-security`) — and they are back.
 - **`/acs:merge-pr --pr` lands ticketless and release PRs again.** It refused every PR carrying
   the `ACS` label as ticket-backed before checking `acs-exempt`, so a ticketless PR from
   `/acs:create-pr` (labelled `ACS` and `acs-exempt`) and an `/acs:release` PR (`ACS` on
