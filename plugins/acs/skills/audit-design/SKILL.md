@@ -1,6 +1,6 @@
 ---
 name: audit-design
-description: Audit the system design against the code — compare the architecture set (the HLD and every lld/<feature>/ document, or one feature's) with the implementation and report every gap, classified as unimplemented (designed, not built), undocumented (built, not designed) or drifted (both, disagreeing), each cited on both sides, with each document's design status and version. Read-only: it never edits a document or the code. Use when onboarding acs onto an existing repo, before a design review, after a run of tickets, or whenever the user asks whether the docs still match the code, what is designed but not built, or where the architecture has drifted. Call it as your first action on such a request — do not Glob, Grep or Read for the docs, ticket or repo files, and do not look for a shell: it locates all of them itself.
+description: Audit the design docs against the code — the HLD and each feature's LLD, or one feature's — and report every gap as unimplemented, undocumented or drifted, cited on both sides. Read-only. Use when onboarding acs onto an existing repo, before a design review, after a run of tickets, or whenever the user asks whether the docs still match the code, what is designed but not built, or where the architecture has drifted. Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
 argument-hint: "[feature-slug | hld | all] [focus notes]"
 disallowed-tools: Edit, NotebookEdit
 ---

@@ -1,6 +1,6 @@
 ---
 name: update
-description: Check for a newer acs plugin version, summarize the changelog between the installed and latest versions, refresh the marketplace, and run post-update migration checks (settings schema, leftover acs status line). Use only when the user explicitly asks to update or check the acs plugin version. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Check for a newer acs plugin version, show the installed version and what changed since, refresh the marketplace, upgrade, and run the post-update migration checks (settings schema, a stale acs status line). Use when the user asks to update or upgrade the acs plugin itself, which acs version they run or whether it is the latest, or what changed in it. Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
 ---
 
 You are the coordinator of `/acs:update`, the acs upgrade assistant. This is

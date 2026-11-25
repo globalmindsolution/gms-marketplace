@@ -1,6 +1,6 @@
 ---
 name: create-architecture
-description: Bootstrap or regenerate the product's high-level design (HLD) — the overview, tech stack and cross-cutting conventions plus the HLD views the repo enabled at /acs:setup (C4 context, container and component views, conceptual data model, API landscape, deployment, project structure, and opt-in data-flow and capability maps), all Mermaid — from the PRD and the codebase, left as local changes for /acs:create-pr to commit and open as a PR. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the HLD after a major architectural shift. Not for a ticket's low-level design. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Bootstrap or regenerate the product's high-level design (HLD) — overview, tech stack, conventions and the enabled C4, data, API, deployment and structure views, all Mermaid — from the PRD and the codebase, left uncommitted for /acs:create-pr. Use after /acs:create-prd when starting a product, when onboarding acs onto an existing repo, or to regenerate the HLD after a major architectural shift. Not for a ticket's low-level design. Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
 argument-hint: "[ticket-id] [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---

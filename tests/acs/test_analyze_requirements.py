@@ -169,8 +169,9 @@ class TestSkillFrontmatter(unittest.TestCase):
 
     def test_description_routes_on_what_it_produces(self):
         self.assertRegex(self.fm, r"(?m)^description: \S")
-        self.assertIn("a README.md readable on its own plus one file per bounded "
-                      "context", self.fm)
+        # ADR-0151: the folder layout lives in the body; the description says
+        # what the analysis is for, inside the skill-listing budget.
+        self.assertIn("publishing the analysis later skills start from", self.fm)
 
     def test_description_routes_a_prompt_a_prd_feature_and_an_attached_spec(self):
         description = re.search(r"(?m)^description: (.*)$", self.fm).group(1)

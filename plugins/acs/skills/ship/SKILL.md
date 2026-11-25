@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Umbrella command that drives the delivery pipeline declared in workflows/ship.yaml for one run — asking the run's cursor which step is due, invoking it, and asking again, always stopping before merge. Use when the user wants work shipped end-to-end with one command, or wants to resume a run from where it left off. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Drive one run through the whole delivery pipeline in workflows/ship.yaml — analysis, plan, code, review, docs and the PR — invoking each due step in turn and always stopping before merge. Use when the user wants work shipped end-to-end with one command, carried through every stage to an open pull request, or a stopped or interrupted run resumed from where it left off. Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
 argument-hint: "[ticket-id] [documents…] [prompt] [--run <run-id>]"
 disallowed-tools: Edit, NotebookEdit
 ---

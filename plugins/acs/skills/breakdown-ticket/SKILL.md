@@ -1,6 +1,6 @@
 ---
 name: breakdown-ticket
-description: Break one epic — or a story or task too big for one reviewable PR — into PR-sized child tickets. Reads the ticket's requirements, its feature analysis, its tech design and a plan's oversize split seams, proposes every child (title, type story/task/bug, acceptance criteria, features, size) in ONE grouped confirmation, then mints them under the parent and syncs them to the tracker; a story or task being split becomes an epic that keeps its id. Use after an epic's tech design, or when a plan or the user says a ticket is too large — whenever asked to break down, split, decompose or fan out an existing ticket into child stories or tasks. Call it as your first action on such a request — do not Glob, Grep or Read for the ticket, plan, run or repo files, and do not look for a shell: it locates all of them itself.
+description: Break an epic — or a story or task too big for one reviewable PR — into PR-sized child tickets, proposed in one grouped confirmation, then minted under the parent and synced to the tracker. Use after an epic's tech design, or when a plan or the user says a ticket is too large — whenever asked to break down, split, decompose or fan out an existing ticket into child stories or tasks. Call it as your first action — it finds the ticket, plan and repo files itself; do not Glob, Grep, Read or look for a shell.
 argument-hint: "<ticket-id> [documents…] [prompt]"
 disallowed-tools: Edit, NotebookEdit
 ---

@@ -28,6 +28,13 @@ matching section here, and merge to `main` — the Release workflow tags
 
 ### Fixed
 
+- **`/acs:setup`, `/acs:ship` and `/acs:update` are routed to again** (ADR-0151). Claude Code
+  lists skills to the model under a character budget and lists the ones past it by name only. At
+  about 24,400 characters acs's descriptions spent most of it, so the last four skills in the
+  list — `set-doc-status`, `setup`, `ship`, `update` — reached the model with no description, and
+  a request like "add the CI coverage gate" or "which acs version am I on" routed nowhere. Every
+  description is now its trigger clause (about 16,100 characters in all), and a unit test keeps
+  the listing under 17,000.
 - **`/acs:merge-pr --pr` lands ticketless and release PRs again.** It refused every PR carrying
   the `ACS` label as ticket-backed before checking `acs-exempt`, so a ticketless PR from
   `/acs:create-pr` (labelled `ACS` and `acs-exempt`) and an `/acs:release` PR (`ACS` on
